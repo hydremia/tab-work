@@ -7,10 +7,7 @@ Reviewed files (as committed in this repo):
 | `00 - a2b_Blank_TAB_Workbook 4-16-26.xlsm` | Blank a2b TAB Report workbook (24 sheets, 1 VBA module `SyncToCPageCounts`) |
 | `tb-worksheet-evergreen 2.xlsx` | Evergreen Telemetry field worksheets (hood filters, PSP, supply-fan filters, direct-fired profile pressure, building pressures) |
 
-Method: every cell, formula, merged range, validation, conditional format, page setup and defined name was extracted programmatically and the repeating unit blocks were compared against each other and against the sheets they link to. Two limitations of this pass:
-
-* LibreOffice cannot load files in this cloud sandbox, so no PDF/page render was produced. Page-fill figures below come from row heights, page breaks and print scale.
-* nebb.org is blocked by the sandbox network policy. The NEBB gap analysis is based on the 9th Edition (2019) *Procedural Standard for TAB of Environmental Systems* Section on reports/forms from memory plus public specification summaries. Items marked **(confirm)** should be checked against your copy of the standard.
+Method: every cell, formula, merged range, validation, conditional format, page setup and defined name was extracted programmatically and the repeating unit blocks were compared against each other and against the sheets they link to. LibreOffice cannot load files in this cloud sandbox, so no PDF/page render was produced; page-fill figures come from row heights, page breaks and print scale. The NEBB gap analysis in Section 3 was verified against the 9th Edition PDF in this repo (Section 5, Standards for Reports and Forms).
 
 ---
 
@@ -81,31 +78,31 @@ Ordered by impact on a delivered report. Cell references are exact.
 
 ---
 
-## 3. NEBB reporting requirements – gap analysis
+## 3. NEBB reporting requirements – gap analysis (verified against the 9th Edition, Section 5)
 
-NEBB 9th Ed. presents report content in shall/should/may language; a certified report must contain all "shall" data for each component and the common report items. The template already covers most of it. Gaps and risks:
+Source: *NEBB Procedural Standard for TAB of Environmental Systems*, 9th Ed. (2019), Section 5 "Standards for Reports and Forms" (5.2 Report Content, 5.3 Equipment Report Forms), read from the licensed copy in this repo. NEBB accepts customised forms as long as every listed item is reported (5.1).
 
-| Area | NEBB expectation **(confirm against your copy)** | Template status | Gap / recommendation |
+| NEBB clause | Requirement | Original template | Status in revision 01 |
 |---|---|---|---|
-| Title page | Project, location, TAB firm, NEBB firm cert no., report date | Present | Add report date and "Report No./Revision" (only project TAB dates exist). |
-| Certification page | Statement, CP name, NEBB CP number, **signature and date**, NEBB seal | Statement, name, number, expiration present | **No signature line / signed-date cells.** Add. Seal image is on the NEBB Cert sheet only. |
-| Table of contents | Required | Present | Page numbers static (see macro); fix typo. |
-| Summary / remarks | Deviations beyond tolerance, items not completed, reasons | Present (New / Existing) | OK. Add "NEBB tolerance ±10% unless otherwise specified" statement and a place to state the applicable tolerance. |
-| Exception notation | "N/A" alone is **not permitted**; must state Not Available / Not Applicable / Not Accessible | Abbreviations legend defines "N/A = Not Applicable" | Remove "N/A" from the legend; add the three NEBB notations. |
-| Instrument list | Instrument, manufacturer, model, serial, calibration date (within calibration interval) | Present | Make it per-project input (link to a small instrument table) rather than hard-coded; add "Range/Accuracy" column (should). |
-| Abbreviations | Should | Present | Fix "Killowatt" (2×), "V = Volts €", duplicate kW. |
-| System schematic / outlet identification | Shall identify outlets on a drawing or schematic | ToC lists "Mechanical Floorplan(s)" as external | OK if attached; add a placeholder page so the ToC page count is right. |
-| Fan / AHU / RTU data | Unit ID, area served, location, mfr, model, **serial**, fan type/arrangement/class, drive (sheaves, belts, C-C), motor mfr, HP, RPM, V/Ph/**Hz**, FLA, SF, frame; design vs actual CFM (SA/RA/OA), RPM, SP (suction/discharge/TSP/ESP), filter/coil ΔP, amps and volts **per phase**, VFD Hz | Nearly all present | Add fan type/arrangement (or drive type: belt/direct), nameplate Hz, motor manufacturer link, and label the three voltage/amp cells L1-L2-L3 (or T1-T2-T3). "OA damper position" exists but no minimum-OA setting record. |
-| Air temperatures | AHU/RTU: OA, RA, MA, SA temps (should; shall where coils are tested) | Absent on RTU Data | Add a 4-cell temperature strip (dry-bulb; wet-bulb optional). |
-| Outlets / diffusers | ID, location, type/size, Ak, design vel/CFM, initial, final, % | Present | Add "Type" (neck vs face) or note the Ak source; NEBB wants the Ak basis identifiable. |
-| Duct traverses | Duct size, area, number of readings, avg velocity, CFM, duct SP, temperature, instrument | Present (single line per traverse) | Add "No. of readings" cell; consider optional velocity grid for large ducts. |
-| VAV / terminals | ID, mfr, model/size, inlet size, design max/min, actual max/min, controller/DDC reading, inlet SP | VAV Data has max/min/fan CFM, address, cal factor | Add "Controller reading" and "Inlet SP". No Data-Entry link (manual) – acceptable but inconsistent. |
-| Kitchen hoods | Hood mfr/model, type, dimensions, filter type/size/qty, design/actual exhaust, associated EF, MUA | Present except dimensions/qty | See §4 – align with Evergreen method. |
-| ERV / HRU | Same as AHU plus exhaust side | **No sheet** although Data Entry has an ERV section | Add an ERV page (supply + exhaust airflow, wheel/core) or delete the Data Entry section. |
-| Hydronic | Pumps/coils if in scope | None (a hydronic DP instrument is listed) | Confirm out of scope; if so remove the instrument line from the template default. |
-| Building pressurization | Should record relative pressures where specified | Building Balance has "Measured Building Pressure" (one cell) | Add reference-to-space rows (e.g. Kitchen–Dining, Building–Outdoor) – the Evergreen "Building Pressures" sheet does exactly this. |
+| 5.2.1 Title | "Certified Test, Adjust and Balance Report"; project name/address; engineer; HVAC contractor; firm name/address/cert. no. | All present | Report Date added (Project Information → Cover) |
+| 5.2.2 Certification | Project; CP name; firm name; cert. number; expiration; **signed and dated NEBB stamp**; the exact verbiage | Verbiage said "is a *representation* of" (NEBB: "is a *record* of"); no firm line; no signature/date | Wording corrected verbatim; firm name and certification number line; stamp box, signature and date lines |
+| 5.2.3 ToC | Page numbers or links; every data page uniquely numbered | Static page numbers, no page numbers printed on pages | "Page &P" footer on every sheet except the cover; ToC re-synced by the macro |
+| 5.2.4 Summary / Remarks | **Narrative of system set-up conditions and rationale**; deficiencies with page references; items not obtainable | Remarks table only | New "Narrative" sheet; remarks pages unchanged (note the page in Comments) |
+| 5.2.5 All pages | Unique designation; reporter's name and date on each form; sequential page numbers; remarks section | Name/date in every header; remarks on airflow pages only | Page numbers added; Data pages gained "Final Settings" line and printed filter data (see 5.3.3) |
+| 5.2.6 Instruments | Type, manufacturer, model, serial, calibration date | Present, but hard-coded | Unchanged – treat as per-project input and check dates (Balometer 2024-03-14 and Humidity 2025-01-31 are stale) |
+| 5.2.7 Abbreviations | Every abbreviation defined | Present (typos) | Fixed; Not Available / Not Accessible notations and outlet type codes added |
+| 5.2.8 Drawings | Drawings/schematics identifying tested equipment | External attachment | Unchanged |
+| 5.3.1 / 5.3.2 AHU & RTU | Design: airflows, TSP/ESP, fan rpm, motor HP/rpm/V/phase. Actual: serial; SA/RA/OA; motor mfr, HP, rpm, frame, phase, rated V/A, SF, operating V/A; corrected nameplate amps; BHP; **motor sheave OD/bore/PD, fan sheave OD/bore**, C-C, belts; fan rpm; TSP/ESP; SP profile; **final setpoints/settings**; operating Hz | Everything except sheave bore, final settings, drive type | Drive type, rotation, sheave bore, filters and final-settings cells added inside the printed block; sheave labels renamed |
+| 5.3.3 Filter data | Location/service, MERV, quantity, size | Filter cells existed in columns R–X, **outside the print area** | "Filters: Type / Size / Qty" line now prints (row 14 of each block) |
+| 5.3.4–5.3.6 Fans | As AHU plus suction/discharge SP; type of service | Present (Entering/Exiting profile = suction/discharge) | Same additions as RTU; ERV clone uses the same block |
+| 5.3.7 Air devices | Outlet no., area, neck/overall size, design CFM, system total, **device type**; final velocity & Ak (when Ak≠1), final CFM, **instrument used** | No type column, no instrument | "Type" column (codes in Abbreviations) and per-system "Instrument / Ak basis" line on every airflow table |
+| 5.3.8–5.3.11 VAV / FPB | Designation, **terminal type, inlet size**, design max/min, **heating CFM**; final max/min, DDC calibration factor, **DDC max/min**, instrument; fan CFM/speed for FPB | Max/min/fan CFM, address, cal factor only; no Data Entry link | Terminal type, inlet size, heating CFM, DDC max/min, instrument added; VAV Data Entry section (80 rows) drives VAV Data and VAV Airflow |
+| 5.3.12 Duct traverse | System, traverse ID, location, design CFM, duct size, area; average velocity, CFM, temperature, SP, instrument, **velocity profile** | Average only | 22-point profile grid per traverse with reading count; Final VEL = profile average |
+| 5.3.25 ERV (air to air) | Unit, location, service, mfr, model, serial; primary & secondary airflow and ΔP, design and actual | **No sheet** (Data Entry section existed) | ERV Data + ERV Airflow sheets (supply outlets and exhaust inlets per unit), Data Entry ΔP columns, Building Balance rows |
+| 8.14.2 Kitchen hoods | Velocity readings at grease filters per the hood manufacturer's method are the accepted TAB method | Gross-area formula | Rebuilt on the CaptiveAire/Evergreen method (Section 4) |
+| 8.19 Building pressure | Document building static where controlled/specified | Single "Measured Building Pressure" cell | Test-space / reference-space ΔP table (Building–Outdoors, Kitchen–Dining) |
 
----
+Items I had listed as gaps before reading the standard and that are **not** NEBB "shall" items (left as optional): unit air temperatures, nameplate Hz, fan class/arrangement, instrument range/accuracy. The earlier statement that a bare "N/A" is disallowed does not appear in the 9th Edition text; the legend now simply adds the Not Available / Not Accessible notations.
 
 ## 4. Evergreen worksheet vs. Hood and Fan pages
 
@@ -121,11 +118,23 @@ NEBB 9th Ed. presents report content in shall/should/may language; a certified r
 | Direct Fired Profile Pres. CFM (rev 1) | Supply CFM from burner profile pressure, piecewise-linear per housing size 1–5 | |
 | Building Pressures | Kitchen vs dining differential | |
 
-### How the TAB Report Hoods page differs
+### How the TAB Report Hoods page differed
 
-`Hoods!K10 = J10 × (I10 × $E$18 / 144)` – velocity × **gross** filter face area (width × height), no free-area factor, no instrument K-factor, one reading per filter, no filter-type selection, no hood length / CFM-per-foot.
+`Hoods!K10 = J10 × (I10 × $E$18 / 144)` – velocity × **gross** filter face area (width × height); no free-area factor, no instrument K-factor, one reading per filter, no filter-type selection, no hood length / CFM-per-foot.
 
-Effect of the difference (TAB Report CFM ÷ Evergreen CFM for the same velocity reading):
+### Quantified alignment (same velocity readings, CaptiveAire worksheet vs. original TAB Hoods page)
+
+The CaptiveAire file still contains a real job (job 4910813, four hoods, 16×20 filters, Captrate K). Feeding the same readings through both formulas:
+
+| Hood | Filters | Σ velocity (fpm) | CaptiveAire worksheet CFM | Original TAB page CFM | Difference |
+|---|---|---|---|---|---|
+| Hood 1 | 5 | 884 | 2,049 | 1,964 | −4.1 % |
+| Hood 2 | 6 | 760 | 1,762 | 1,689 | −4.1 % |
+| Hood 3 | 5 | 731 | 1,695 | 1,624 | −4.1 % |
+| Hood 4 | 10 | 1,078 | 2,499 | 2,396 | −4.1 % |
+| **Total** | | | **8,005** | **7,673** | **−4.1 %** |
+
+The ratio is constant for one filter size because both methods are linear in velocity; it changes with filter size and type (original TAB CFM ÷ CaptiveAire CFM):
 
 | Filter | Captrate (K 1.34) | Baffle (K 1.28) |
 |---|---|---|
@@ -135,9 +144,17 @@ Effect of the difference (TAB Report CFM ÷ Evergreen CFM for the same velocity 
 | 20×20 | 0.93 | 0.97 |
 | 24×24 | 0.89 | 0.93 |
 
-So the two methods agree within a few percent for 16×20 baffle filters and diverge up to 13 % for small filters and ~10 % for large ones. Since the Evergreen constants come from the instrument manufacturer's worksheet, are revision-controlled (rev 2.1) and distinguish Captrate vs baffle, **the Evergreen worksheet should be treated as the authoritative method** and the Hoods page brought in line.
+So the original page under-reported Captrate hoods by 4 % at 16×20 and up to 11 % at 24×24, and over-reported small baffle filters by up to 13 %. A 4 % bias is inside the ±10 % NEBB tolerance on its own, but it consumes almost half of it before any measurement error, and it flips sign across sizes, so a hood mixing filter sizes could show a pass on the TAB page and a fail on the manufacturer's sheet. The CaptiveAire worksheet is the manufacturer's stated test method (NEBB 8.14.2 makes the manufacturer's method the accepted one), so revision 01 adopts it.
 
-### Recommendations to align
+**Corrections applied to the TAB template (revision 01):**
+
+* `CFM = velocity × free area × K-factor`, with free area and K looked up from the CaptiveAire tables by filter type and size (hidden `{Dropdowns}` sheet, columns H–L, source cited in H45).
+* Filter Type dropdown: Baffle (VelGrid) K 1.28, Captrate (VelGrid) K 1.34, Condensate Baffle (Airfoil) probe constants, HVC/Slot (Airfoil) 16"/20" constants, Supply Filter (VelGrid) K 1.35.
+* Instrument dropdown (VelGrid / Airfoil / Other), hood length from Data Entry, CFM per foot of hood, and three velocity readings per filter (off-print columns P–U; the printed velocity averages them, or a single value can be typed over it).
+* Make-up air: new "MAU Supply Methods" sheet with the PSP formula (length − 2 − 2×blanks, width, K 0.88/0.95), the supply filter grid (K 1.35) and the direct-fired burner profile pressure table with linear interpolation; MAU Data "Total Airflow" follows whichever method is selected.
+* Building pressure table (Kitchen–Dining etc.) on Building Balance.
+
+### Remaining recommendations for the Evergreen file
 
 1. **Hoods page**: add "Filter Type" (Baffle / Captrate / Condensate-Airfoil / HVC-Airfoil) and "Instrument" dropdowns; add a hidden reference table with the Evergreen free areas and K-factors; compute CFM per filter = velocity × free area × K via `INDEX/MATCH`; keep width/height only for display. Add hood length and "CFM/ft" (NEBB should-item, useful for hood listing checks). Allow 3 readings per filter for the Airfoil methods (average). Keep initial/final columns.
 2. **Fan / MAU pages**: add an optional "Supply-side filter grid" block (Supply Fan Filters method) and a "PSP supply" block (16 readings, length, width, blanks) on MAU Airflow so make-up-air can be reported by the method actually used, not forced into the outlet table. Add a "Direct-fired burner profile pressure" line (housing size, profile pressure, derived CFM) to MAU Data as a secondary check.
@@ -195,12 +212,38 @@ Concrete levers, in order of payoff:
 
 ---
 
-## 6. Suggested order of work (pending answers to the questions in the session)
+## 6. Revision 01 – what was built, how it was verified, what is left
 
-1. Patch the eight link defects in §2.1 directly in the workbook XML (preserves images, VBA, validations) and re-verify with the consistency script.
-2. Normalise blank-unit display (`""` instead of 0) and guard the % / BHP formulas.
-3. Strip dead external links and `#REF!` names; fix ToC/Abbreviations text; clean the certificate sheets.
-4. Add signature/date lines, NEBB exception notations, temperature strip, Hz, fan type, per-phase labels, traverse reading count.
-5. Rebuild Hoods with the Evergreen method; add PSP / filter-grid / profile-pressure blocks to MAU.
-6. Print-order + hide-unused-rows macro (Option A) and ToC sync button.
-7. Design the merged per-unit sheet (Option B) as the next template version.
+Files (originals untouched as backups):
+
+| File | Purpose |
+|---|---|
+| `01 - a2b_Blank_TAB_Workbook 9-9-26.xlsm` | Revised template generated from the 4-16-26 original |
+| `tb-worksheet-evergreen 3 (reference).xlsx` | Cleaned CaptiveAire worksheet (job data removed, exact-match lookups, README) |
+| `tools/build_workbook.py`, `tools/build_steps2.py` | Reproducible build: every change is a named function; re-run to regenerate |
+| `tools/xlsm_parts.py` | Restores the certificate images, header logos and the ToC button that openpyxl drops |
+| `tools/vba/TABReport.bas` | Macro module: ToC sync, hide unused blocks, interleaved Data/Airflow printing (Option A) |
+| `tools/build_evergreen.py` | Generates the cleaned Evergreen reference workbook |
+| `docs/build-log.txt` | Cell-level log of the last build |
+
+### 6.1 Change log (revision 01)
+
+1. **Link defects fixed** – Fan Data 21–40 totals (40 cells), MAU Airflow Ak (280 cells), RTU Data return-air/ESP/phase/stray cells (blocks 2, 5, 6, 13, 15–18).
+2. **Formula hygiene** – blank units show blank instead of 0 (≈1,000 cells); % and ratio cells guarded (≈2,700 cells); BHP and corrected-FLA guarded; missing block labels (390) and formulas (28) filled from block 1; Data Entry header; Summary print area; ToC typo; Abbreviations; certificate-sheet leftovers.
+3. **Cleanup** – 12 external links and 150 broken/external defined names removed (no "update links" prompt); six working lists kept plus seven new ones.
+4. **NEBB 5.2 / 5.3** – certification wording, firm line, stamp box, signature/date; report date; page-number footers; Narrative sheet; drive type, rotation, sheave bore, filters, final settings on every Data block; Type column and instrument line on every airflow table; VAV terminal fields; traverse velocity profiles; ERV sheets; building pressure table.
+5. **Evergreen alignment** – Hoods page rebuilt (Section 4); MAU Supply Methods sheet; reference constants on `{Dropdowns}`.
+6. **Structure** – ERV Data/Airflow, MAU Supply Methods and Narrative sheets in reading order; ToC entry for ERVs; Data Entry gains ERV ΔP, hood length and an 80-row VAV section; Building Balance gains 10 ERV rows and fits to one page.
+7. **Macros** – `tools/vba/TABReport.bas` supersedes `SyncToCPageCounts`: `PrintReport` hides unused blocks/rows, syncs the ToC and prints Data page n followed by Airflow page n (Option A). The module cannot be injected from this environment; import it once (Alt+F11 → File → Import) and delete the old module.
+
+### 6.2 Verification performed
+
+* Block-consistency scan (every unit block compared with block 1, every cross-sheet link checked against the target block) – 0 issues on all 13 unit sheets.
+* Package check – all XML parts parse; certificate images, header logos, ToC button, VBA project, validations and conditional formats present; 28 sheets in the intended order; 0 references to missing sheets or names across the 17,800 formulas.
+* Not possible here: opening in Excel/LibreOffice to recalculate and paginate (the sandbox cannot run LibreOffice). **First action on your side: open the 01 file in Excel, accept any recalculation, check Formulas → Error Checking on Hoods, MAU Supply Methods and Building Balance, and print-preview RTU Data, Hoods and Traverses.** The new fields were placed in rows that already existed, so pagination should be unchanged, but that is inferred, not observed.
+
+### 6.3 Left for the next revision (Option B)
+
+* Merged per-type sheets (Data block + Airflow block per unit) so the printed order no longer depends on the macro and the cross-sheet link class of errors disappears.
+* Compact fan block (drop OA/RA rows), one-line traverses, dynamic Summary and Calibration tables (Section 5.3).
+* Instrument list as per-project inputs with range/accuracy.
