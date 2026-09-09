@@ -1,0 +1,64 @@
+Fan Data: re-pointed 40 Total Airflow links to the matching Fan Airflow block
+MAU Airflow: replaced absolute $F$9 Ak reference in 280 CFM cells
+RTU Data!L110: Unit ESP actual restored (was None)
+RTU Data!L133: Unit ESP actual restored (was None)
+RTU Data!K308: cleared stray link ='RTU Airflow'!H674
+RTU Data!L308: cleared stray link ='RTU Airflow'!L674
+RTU Data!K354: return airflow formula restored (was "='RTU Airflow'!H772")
+RTU Data!L354: return airflow formula restored (was "='RTU Airflow'!L772")
+RTU Data!L355: Unit ESP actual restored (was "='RTU Airflow'!L783")
+RTU Data!K377: return airflow formula restored (was "='RTU Airflow'!H821")
+RTU Data!L377: return airflow formula restored (was "='RTU Airflow'!L821")
+RTU Data!L378: Unit ESP actual restored (was "='RTU Airflow'!L832")
+RTU Data!K403: return airflow formula restored (was None)
+RTU Data!K400: cleared stray link ='RTU Airflow'!H870
+RTU Data!L400: cleared stray link ='RTU Airflow'!L870
+RTU Data!K426: return airflow formula restored (was None)
+RTU Data!K423: cleared stray link ='RTU Airflow'!H919
+RTU Data!L423: cleared stray link ='RTU Airflow'!L919
+RTU Data!C40: phase now links to RTU-2 (was RTU-1's O7)
+Building Balance: 90 cells – ratio guarded
+Fan Airflow: 600 cells – % guarded against blank/zero
+Fan Airflow: 40 cells – blank shows "" not 0
+Fan Data (EFs, TFs, etc.): 40 cells – BHP guarded
+Fan Data (EFs, TFs, etc.): 480 cells – blank shows "" not 0
+Fan Data (EFs, TFs, etc.): 34 cells – corrected FLA guarded
+Fan Data (EFs, TFs, etc.): 40 cells – ratio guarded
+Hoods: 19 cells – % guarded against blank/zero
+Hoods: 53 cells – blank shows "" not 0
+MAU Airflow: 300 cells – % guarded against blank/zero
+MAU Airflow: 14 cells – blank shows "" not 0
+MAU Data: 10 cells – BHP guarded
+MAU Data: 120 cells – blank shows "" not 0
+MAU Data: 8 cells – corrected FLA guarded
+MAU Data: 10 cells – ratio guarded
+RTU Airflow: 1360 cells – % guarded against blank/zero
+RTU Airflow: 40 cells – blank shows "" not 0
+RTU Airflow: 80 cells – subtraction tolerates blank
+RTU Data: 40 cells – BHP guarded
+RTU Data: 480 cells – blank shows "" not 0
+RTU Data: 40 cells – corrected FLA guarded
+RTU Data: 80 cells – ratio guarded
+RTU Data: 80 cells – subtraction tolerates blank
+VAV 1-20 Airflow: 300 cells – % guarded against blank/zero
+Building Balance: % columns guarded against blank/zero design
+RTU Data: filled 323 missing block labels from block 1
+MAU Data: filled 42 missing block labels from block 1
+Fan Data (EFs, TFs, etc.): filled 25 missing block labels from block 1
+{Equipment Data Entry}!P2: Technician header now reads Project Information E12
+{Equipment Data Entry}!P3: Date header now reads Project Information E11
+ToC!C37: typo fixed
+Summary - New: print area extended to row 62 so all remark rows print
+Summary - (E): print area extended to row 62 so all remark rows print
+Abbreviations!H17: spelling
+Abbreviations!B27: spelling
+Abbreviations!H21: stray character removed
+Abbreviations!B16: density units
+Abbreviations!H39: NEBB exception wording
+Abbreviations: added NEBB exception notations (Not Available / Not Accessible)
+NEBB Cert : removed leftover instrument text cells hidden under the certificate image
+NEBB Frm Cert: removed leftover instrument text cells hidden under the certificate image
+Certification!C39: certification statement now matches NEBB 5.2.2 verbatim
+Certification: firm name/number line, stamp box, signature and date lines added (NEBB 5.2.2)
+Cover Page / Project Information: Report Date added (NEBB 5.2.1)
+Removed 69 broken/external workbook names, 81 sheet-scoped ones and 12 external link parts
