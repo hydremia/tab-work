@@ -24,4 +24,14 @@ python3 tools/build_workbook.py          # writes 01 - a2b_Blank_TAB_Workbook <t
 python3 tools/build_evergreen.py         # writes tb-worksheet-evergreen 3 (reference).xlsx
 ```
 
-Set `TAB_BUILD_DATE=m-d-yy` to control the file name. Every change is a function in `tools/build_workbook.py` / `tools/build_steps2.py`; the build log is written to `docs/build-log.txt`.
+Set `TAB_BUILD_DATE=m-d-yy` to control the file name.
+
+## Verifying a build
+
+```
+python3 tools/verify_blocks.py "01 - a2b_Blank_TAB_Workbook <date>.xlsm"   # every unit block vs block 1
+python3 tools/verify_links.py  "01 - a2b_Blank_TAB_Workbook <date>.xlsm"   # Data <-> Airflow <-> Data Entry links
+python3 tools/functional_test.py "01 - a2b_Blank_TAB_Workbook <date>.xlsm" # sample data, recalc, 61 expected values
+```
+
+The functional test needs LibreOffice Calc (`apt-get install libreoffice-calc`); for realistic page previews also install `fonts-crosextra-carlito` (Calibri-metric). Every change is a function in `tools/build_workbook.py` / `tools/build_steps2.py`; the build log is written to `docs/build-log.txt`.

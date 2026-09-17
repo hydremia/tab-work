@@ -17,6 +17,7 @@ RTU Data!K426: return airflow formula restored (was None)
 RTU Data!K423: cleared stray link ='RTU Airflow'!H919
 RTU Data!L423: cleared stray link ='RTU Airflow'!L919
 RTU Data!C40: phase now links to RTU-2 (was RTU-1's O7)
+RTU Airflow: cleared the literal 0 in 6 Outside Air design cells; RTU Data OA design shows blank until entered
 Building Balance: 90 cells – ratio guarded
 Fan Airflow: 600 cells – % guarded against blank/zero
 Fan Airflow: 40 cells – blank shows "" not 0
@@ -62,3 +63,4 @@ Certification!C39: certification statement now matches NEBB 5.2.2 verbatim
 Certification: firm name/number line, stamp box, signature and date lines added (NEBB 5.2.2)
 Cover Page / Project Information: Report Date added (NEBB 5.2.1)
 Removed 69 broken/external workbook names, 81 sheet-scoped ones and 12 external link parts
+Page headers: MAU Data (was 'Fan Data Report'), VAV Data (none) and VAV 1-20 Airflow (was 'Fan Airflow') corrected

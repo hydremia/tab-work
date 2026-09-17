@@ -78,7 +78,7 @@ def _resolve(base_part, target):
 KEEP_ELEMS = ("drawing", "legacyDrawing", "legacyDrawingHF", "picture", "controls")
 
 
-def restore(original_path, edited_path, output_path, extra_sheet_sources=None, footer=None, skip_footer=()):
+def restore(original_path, edited_path, output_path, extra_sheet_sources=None, footer=None, skip_footer=(), header_overrides=None):
     """Rebuild output_path from edited_path plus the graphic parts of original_path.
 
     extra_sheet_sources: {new_sheet_title: original_sheet_title} for sheets that
@@ -90,6 +90,7 @@ def restore(original_path, edited_path, output_path, extra_sheet_sources=None, f
     orig_sheets = _sheet_files(zo)
     new_sheets = _sheet_files(ze)
     extra_sheet_sources = extra_sheet_sources or {}
+    header_overrides = header_overrides or {}
 
     out_parts = {}          # part name -> bytes
     content_types_add = {}  # extension -> content type / override
@@ -149,6 +150,11 @@ def restore(original_path, edited_path, output_path, extra_sheet_sources=None, f
         # original headerFooter (openpyxl re-serialises it with a stray space)
         hf = re.search(r"<headerFooter\b.*?</headerFooter>|<headerFooter\b[^>]*/>", o_xml if title in orig_sheets else n_xml, re.S)
         hf_xml = hf.group(0) if hf else ""
+        if title in header_overrides:
+            logo = "&amp;L&amp;G" if "<legacyDrawingHF" in o_xml else ""
+            hf_xml = re.sub(r"<oddHeader>.*?</oddHeader>", "", hf_xml, flags=re.S)
+            new_hdr = f'<oddHeader>{logo}&amp;C&amp;"+,Bold"&amp;16{escape(header_overrides[title])}</oddHeader>'
+            hf_xml = ("<headerFooter>" + new_hdr + hf_xml.replace("<headerFooter>", "").replace("</headerFooter>", "") + "</headerFooter>") if hf_xml else "<headerFooter>" + new_hdr + "</headerFooter>"
         if footer and title not in skip_footer:
             hdr = re.search(r"<oddHeader>.*?</oddHeader>", hf_xml, re.S)
             hf_xml = "<headerFooter>" + (hdr.group(0) if hdr else "") + f"<oddFooter>{footer}</oddFooter></headerFooter>"

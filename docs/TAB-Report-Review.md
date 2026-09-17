@@ -228,7 +228,7 @@ Files (originals untouched as backups):
 
 ### 6.1 Change log (revision 01)
 
-1. **Link defects fixed** – Fan Data 21–40 totals (40 cells), MAU Airflow Ak (280 cells), RTU Data return-air/ESP/phase/stray cells (blocks 2, 5, 6, 13, 15–18).
+1. **Link defects fixed** – Fan Data 21–40 totals (40 cells), MAU Airflow Ak (280 cells), RTU Data return-air/ESP/phase/stray cells (blocks 2, 5, 6, 13, 15–18); Traverses CFM tolerates a blank velocity; Outside Air design shows blank instead of 0 until entered.
 2. **Formula hygiene** – blank units show blank instead of 0 (≈1,000 cells); % and ratio cells guarded (≈2,700 cells); BHP and corrected-FLA guarded; missing block labels (390) and formulas (28) filled from block 1; Data Entry header; Summary print area; ToC typo; Abbreviations; certificate-sheet leftovers.
 3. **Cleanup** – 12 external links and 150 broken/external defined names removed (no "update links" prompt); six working lists kept plus seven new ones.
 4. **NEBB 5.2 / 5.3** – certification wording, firm line, stamp box, signature/date; report date; page-number footers; Narrative sheet; drive type, rotation, sheave bore, filters, final settings on every Data block; Type column and instrument line on every airflow table; VAV terminal fields; traverse velocity profiles; ERV sheets; building pressure table.
@@ -236,11 +236,19 @@ Files (originals untouched as backups):
 6. **Structure** – ERV Data/Airflow, MAU Supply Methods and Narrative sheets in reading order; ToC entry for ERVs; Data Entry gains ERV ΔP, hood length and an 80-row VAV section; Building Balance gains 10 ERV rows and fits to one page.
 7. **Macros** – `tools/vba/TABReport.bas` supersedes `SyncToCPageCounts`: `PrintReport` hides unused blocks/rows, syncs the ToC and prints Data page n followed by Airflow page n (Option A). The module cannot be injected from this environment; import it once (Alt+F11 → File → Import) and delete the old module.
 
-### 6.2 Verification performed
+### 6.2 Verification performed (updated 2026-09-17)
 
-* Block-consistency scan (every unit block compared with block 1, every cross-sheet link checked against the target block) – 0 issues on all 13 unit sheets.
-* Package check – all XML parts parse; certificate images, header logos, ToC button, VBA project, validations and conditional formats present; 28 sheets in the intended order; 0 references to missing sheets or names across the 17,800 formulas.
-* Not possible here: opening in Excel/LibreOffice to recalculate and paginate (the sandbox cannot run LibreOffice). **First action on your side: open the 01 file in Excel, accept any recalculation, check Formulas → Error Checking on Hoods, MAU Supply Methods and Building Balance, and print-preview RTU Data, Hoods and Traverses.** The new fields were placed in rows that already existed, so pagination should be unchanged, but that is inferred, not observed.
+| Check | Tool | Result |
+|---|---|---|
+| Full recalculation of revision 01 | LibreOffice Calc (`recalc.py`) | **0 error cells** in 17,783 formulas. The 4-16-26 original recalculates to 2,674 error cells (hidden by white conditional-format text). |
+| Functional test with sample data | `tools/functional_test.py` | **61 / 61** hand-worked expectations match, including the CaptiveAire hood example (2,049.29 CFM), PSP, filter grid, burner-profile interpolation, fan 21 link, MAU unit 11 Ak, ERV rows, Building Balance totals, VAV links, traverse profile |
+| Cross-block consistency and link mapping | `tools/verify_blocks.py`, `tools/verify_links.py` | 0 issues on all 13 unit sheets |
+| Package integrity | XML parse of every part; openpyxl reopen | certificate images, header logos, ToC button, VBA project, validations, conditional formats present; no duplicate sheet code names |
+| Print rendering | LibreOffice PDF with Carlito (Calibri-metric) font | 59 pages (original 53; +6 for Narrative, MAU Supply Methods, ERV Data/Airflow, Data Entry VAV page). Certification, Building Balance, Data Entry each fit one page. Pages inspected: RTU Data, RTU Airflow, Hoods, Traverses, VAV Data, ERV Data, MAU Supply Methods, Certification, Narrative, Building Balance, ToC |
+
+Rendering exposed and fixed four layout problems in the first build: the Certification page spilled to two pages (now fit-to-page), the Narrative box inherited a solid fill, the new sheave/filter labels were truncated (labels now span I:K with the value in L:M), and the MAU Supply Methods titles overran the page. Three inherited header errors were also corrected: the MAU Data page was titled "Fan Data Report", VAV Data had no title, and VAV Airflow was titled "Fan Airflow Measurement Report".
+
+Not verifiable here: Excel-specific behaviour (macro import, Excel's own pagination, which can differ from LibreOffice by a row or two). Open the 01 file in Excel and print-preview once.
 
 ### 6.3 Left for the next revision (Option B)
 
