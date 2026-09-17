@@ -186,6 +186,8 @@ def data_entry_sections(wb):
     ws[f"B{EDE_VAV}"] = "VAV-1"
     ws.row_dimensions[top + 1].height = ws.row_dimensions[125].height
     ws.print_area = f"A1:S{EDE_VAV + 80}"
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.page_setup.fitToWidth = 1; ws.page_setup.fitToHeight = 0
     log("{Equipment Data Entry}: ERV ΔP columns, hood length column and an 80-row VAV terminal section added")
 
 
@@ -250,8 +252,8 @@ def erv_sheets(wb):
         data[f"I{r10}"] = "Exhaust Airflow"; data[f"K{r10}"] = f"='ERV Airflow'!H{exh}"; data[f"L{r10}"] = f"='ERV Airflow'!L{exh}"
         data[f"M{r10}"] = f'=IF(OR(L{r10}="",K{r10}="",K{r10}=0),"",L{r10}/K{r10})'
         copy_style(data[f"M{r9}"], data[f"M{r10}"])
-        data[f"I{r11}"] = "Supply ΔP (core)"; data[f"K{r11}"] = ede_link("R", EDE_ERV + i); data[f"L{r11}"] = None
-        data[f"I{r12}"] = "Exhaust ΔP (core)"; data[f"K{r12}"] = ede_link("S", EDE_ERV + i); data[f"L{r12}"] = None
+        data[f"I{r11}"] = "Supply ΔP"; data[f"K{r11}"] = ede_link("R", EDE_ERV + i); data[f"L{r11}"] = None
+        data[f"I{r12}"] = "Exhaust ΔP"; data[f"K{r12}"] = ede_link("S", EDE_ERV + i); data[f"L{r12}"] = None
         data[f"I{r13}"] = "Fan RPMs"; data[f"K{r13}"] = ede_link("I", EDE_ERV + i); data[f"L{r13}"] = f'=IF(L{anc+18}="","",L{anc+18})'
         data[f"M{r11}"] = None; data[f"M{r12}"] = None
     log("ERV Data / ERV Airflow sheets created (NEBB 5.3.25: supply and exhaust airflow and ΔP), linked to Data Entry rows 65-74")
@@ -390,16 +392,18 @@ def mau_methods(wb):
             if v2 and v2 > v1:
                 merge(ws, f"{get_column_letter(v1)}{r}:{get_column_letter(v2)}{r}")
             ws.cell(r, c1).value = text
+            ws.cell(r, c1).font = Font(name=lab.font.name, size=8, bold=True)
+            ws.cell(r, c1).alignment = Alignment(horizontal="left", vertical="center")
             if formula:
                 ws.cell(r, v1).value = formula
             if fmt:
                 ws.cell(r, v1).number_format = fmt
         # --- PSP
-        section(a + 3, "Perforated Supply Plenum (Evergreen VelGrid) – CFM = avg of readings × (L − 2 − 2×blanks) × W × K / 144")
+        section(a + 3, "PSP (Evergreen VelGrid): CFM = avg vel × (L − 2 − 2×blanks) × W × K ÷ 144")
         field(a + 4, 2, 4, "Length (in)", 4); field(a + 4, 5, 7, "Width (in)", 7); field(a + 4, 8, 10, "Blanks", 10)
         field(a + 4, 11, 13, "K", 13, formula=f'=IF(G{a+4}="","",IFERROR(INDEX({DD}!$S:$S,MATCH(G{a+4},{DD}!$R:$R,0)),""))', fmt="0.00")
         for k, r in enumerate((a + 5, a + 6)):
-            field(r, 2, 13, "Readings 1-10 (fpm)" if k == 0 else "Readings 11-20 (fpm)", 4, 13)
+            field(r, 2, 13, "Vel 1-10" if k == 0 else "Vel 11-20", 4, 13)
             ws.unmerge_cells(f"D{r}:M{r}")
             for c in range(4, 14):
                 copy_style(inp, ws.cell(r, c))
@@ -408,7 +412,7 @@ def mau_methods(wb):
         field(a + 7, 2, 7, "PSP CFM", 5, 7, formula=f'=IF(OR(D{a+4}="",G{a+4}="",COUNT({rd})=0),"",AVERAGE({rd})*(D{a+4}-2-2*N(J{a+4}))*G{a+4}*N(M{a+4})/144)', fmt="0")
         field(a + 7, 8, 13, "CFM / ft", 11, 13, formula=f'=IF(OR(E{a+7}="",D{a+4}=""),"",E{a+7}/(D{a+4}/12))', fmt="0")
         # --- filter grid
-        section(a + 9, "Supply Filter Grid (Evergreen VelGrid, K = 1.35) – CFM = velocity × free area × K")
+        section(a + 9, "Supply Filter Grid (VelGrid, K 1.35): CFM = velocity × free area × K")
         field(a + 10, 2, 13, "Filter Size", 3, 13); ws.unmerge_cells(f"C{a+10}:M{a+10}")
         field(a + 11, 2, 13, "Velocity (fpm)", 3, 13); ws.unmerge_cells(f"C{a+11}:M{a+11}")
         field(a + 12, 2, 13, "CFM", 3, 13); ws.unmerge_cells(f"C{a+12}:M{a+12}")
@@ -422,8 +426,8 @@ def mau_methods(wb):
             ws[f"{L}{a+12}"].number_format = "0"
         field(a + 13, 2, 7, "Filter Grid Total CFM", 5, 7, formula=f'=IF(SUM(C{a+12}:M{a+12})=0,"",SUM(C{a+12}:M{a+12}))', fmt="0")
         # --- profile pressure
-        section(a + 15, "Direct-Fired Heater – Supply CFM from Burner Profile Pressure (Evergreen table, linear interpolation)")
-        field(a + 16, 2, 4, "Housing Size (1-5)", 4); field(a + 16, 5, 8, "Profile Pressure (in. w.g.)", 8, fmt="0.00")
+        section(a + 15, "Direct-Fired Burner Profile Pressure → Supply CFM (Evergreen table)")
+        field(a + 16, 2, 4, "Housing (1-5)", 4); field(a + 16, 5, 8, "Profile P (in wg)", 8, fmt="0.00")
         P, S = f"H{a+16}", f"D{a+16}"
         prs = f"{DD}!$U$2:$U$12"; tbl = f"{DD}!$V$2:$Z$12"
         idx = f"MATCH({P},{prs},1)"
@@ -434,7 +438,7 @@ def mau_methods(wb):
         # --- method selection
         section(a + 18, "Airflow Basis for MAU Data Page")
         field(a + 19, 2, 7, "Method used", 5, 7)
-        field(a + 19, 8, 13, "Design CFM (if no outlets)", 11, 13)
+        field(a + 19, 8, 13, "Design CFM", 11, 13)
         field(a + 20, 2, 7, "Method Total CFM", 5, 7,
               formula=(f'=IF(E{a+19}="","",IF(E{a+19}="PSP",E{a+7},IF(E{a+19}="Filter Grid",E{a+13},'
                        f'IF(E{a+19}="Profile Pressure",K{a+16},""))))'), fmt="0")
@@ -469,22 +473,33 @@ def data_block_fields(wb):
         ws = wb[name]; aa = anchors(ws)
         drive_cells = []
         for a in aa:
-            r6, r14, r19 = a + 2, a + 10, a + 15
-            lf = Font(name=ws[f"B{a+4}"].font.name, size=8, bold=True)
-            vf = Font(name=ws[f"B{a+4}"].font.name, size=8)
-            ws[f"B{r6}"] = "Drive Type:"; ws[f"B{r6}"].font = lf; ws[f"D{r6}"].font = vf; ws[f"D{r6}"].border = Border(bottom=THIN)
-            ws[f"E{r6}"] = "Fan Rotation – Design:"; ws[f"E{r6}"].font = lf; ws[f"G{r6}"].font = vf; ws[f"G{r6}"].border = Border(bottom=THIN)
-            ws[f"I{r6}"] = "Actual:"; ws[f"I{r6}"].font = lf; ws[f"J{r6}"].font = vf; ws[f"J{r6}"].border = Border(bottom=THIN)
-            ws[f"K{r6}"] = "Sheave Bore (M/F):"; ws[f"K{r6}"].font = lf; ws[f"M{r6}"].font = vf; ws[f"M{r6}"].border = Border(bottom=THIN)
-            ws[f"D{r6}"].alignment = Alignment(horizontal="center"); ws[f"G{r6}"].alignment = Alignment(horizontal="center")
-            ws[f"J{r6}"].alignment = Alignment(horizontal="center"); ws[f"M{r6}"].alignment = Alignment(horizontal="center")
+            r6, r14, r16, r17, r19 = a + 2, a + 10, a + 12, a + 13, a + 15
+            fname = ws[f"B{a+4}"].font.name
+            lf = Font(name=fname, size=8, bold=True); vf = Font(name=fname, size=8)
+            for lab_c, val_c, text in (("B", "D", "Drive Type:"), ("E", "G", "Rotation – Design:"),
+                                       ("I", "J", "Actual:"), ("K", "M", "Shv Bore M/F:")):
+                ws[f"{lab_c}{r6}"] = text; ws[f"{lab_c}{r6}"].font = lf
+                ws[f"{val_c}{r6}"].font = vf; ws[f"{val_c}{r6}"].border = Border(bottom=THIN)
+                ws[f"{val_c}{r6}"].alignment = Alignment(horizontal="center")
             drive_cells.append(f"D{r6}")
-            for r, text in ((r14, "Filters: Type / Size / Qty"), (r19, "Final Settings / Setpoints")):
+            # rows 14 and 19: new label I:K, value L:M
+            for r, text in ((r14, "Filter Type/Size/Qty"), (r19, "Final Settings")):
                 for c in range(9, 14):
                     copy_style(ws.cell(a + 9, c), ws.cell(r, c))
-                merge(ws, f"I{r}:J{r}"); merge(ws, f"K{r}:M{r}")
-                ws[f"I{r}"] = text; ws[f"K{r}"] = None
-            setf(ws, f"I{a+12}", "Motor Shv OD/Bore/PD"); setf(ws, f"I{a+13}", "Fan Shv OD/Bore")
+                merge(ws, f"I{r}:K{r}"); merge(ws, f"L{r}:M{r}")
+                ws[f"I{r}"] = text; ws[f"L{r}"] = None
+            # rows 16 and 17: widen the sheave labels (I:K) and move the linked value to L:M
+            for r, text in ((r16, "Motor Shv OD/Bore/PD"), (r17, "Fan Sheave OD/Bore")):
+                val = ws[f"K{r}"].value
+                for rng in (f"I{r}:J{r}", f"K{r}:L{r}"):
+                    if rng in [str(m) for m in ws.merged_cells.ranges]:
+                        ws.unmerge_cells(rng)
+                for c in (11,):
+                    copy_style(ws.cell(r, 9), ws.cell(r, c))
+                copy_style(ws.cell(r, 12), ws.cell(r, 13))
+                ws[f"K{r}"] = None; ws[f"L{r}"] = val
+                merge(ws, f"I{r}:K{r}"); merge(ws, f"L{r}:M{r}")
+                ws[f"I{r}"] = text
         dv(ws, " ".join(drive_cells), "Drive.Type")
         log(f"{name}: drive type, fan rotation, sheave bore, filter data and final-settings fields added inside the printed block (NEBB 5.3.1-5.3.5)")
 
@@ -530,6 +545,9 @@ def traverse_profiles(wb):
         ws[f"B{p1}"].alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         ws[f"B{p1}"].border = Border(left=THIN, top=THIN, bottom=THIN); ws[f"B{p2}"].border = Border(left=THIN, bottom=THIN)
         ws[f"L{d}"] = f'=IF(COUNT(C{p1}:M{p2})=0,"",ROUND(AVERAGE(C{p1}:M{p2}),0))'
+        # CFM = velocity x Ak; tolerate "" from the profile average and a blank Ak
+        ws[f"K{d}"] = f'=IF(N(J{d})*N(H{d})=0,"",N(J{d})*N(H{d}))'
+        ws[f"M{d}"] = f'=IF(N(L{d})*N(H{d})=0,"",N(L{d})*N(H{d}))'
     for r in range(3, 7):
         ws[f"P{r}"] = None
     ws["P6"] = "Velocity profile: enter each traverse reading (fpm); Final VEL averages them. Overflow readings may be placed in P:AA and included by editing the formula."
@@ -585,6 +603,8 @@ def building_balance_erv(wb):
     for i, (ts, rs) in enumerate(rows):
         r = 77 + i
         ws[f"B{r}"] = ts; ws[f"E{r}"] = rs
+        for c in range(2, 14):
+            ws.cell(r, c).fill = PatternFill(fill_type=None); ws.cell(r, c).alignment = Alignment(horizontal="left")
         for c in (2, 5, 8, 11):
             ws.cell(r, c).border = Border(bottom=Side(style="hair")); ws.cell(r, c).font = Font(name=ws["E73"].font.name, size=9)
         merge(ws, f"B{r}:D{r}"); merge(ws, f"E{r}:G{r}"); merge(ws, f"H{r}:J{r}"); merge(ws, f"K{r}:M{r}")
@@ -638,6 +658,9 @@ def toc_and_narrative(wb):
                 "and the steps taken to reach the desired set-up. Deficiencies and items that could not be obtained are listed on the Remarks pages "
                 "that follow, with the report page noted in the Comments column. (NEBB Procedural Standard 5.2.4)")
     ws["C9"].alignment = Alignment(wrap_text=True, vertical="top")
+    for r in range(12, 62):
+        for c in range(1, 14):
+            ws.cell(r, c).fill = PatternFill(fill_type=None)
     merge(ws, "C12:L40")
     ws["C12"].alignment = Alignment(wrap_text=True, vertical="top")
     ws["C12"].font = Font(name=src["C9"].font.name, size=10)

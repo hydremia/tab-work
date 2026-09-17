@@ -112,6 +112,17 @@ def fix_rtu_data_blocks(wb):
                 if isinstance(v, str) and "RTU Airflow" in v:
                     ws[f"{col}{r}"].value = None; log(f"RTU Data!{col}{r}: cleared stray link {v}")
     setf(ws, "C40", f"={EDE}!O8", "phase now links to RTU-2 (was RTU-1's O7)")
+    air = wb["RTU Airflow"]; n = 0
+    for anc in anchors(air):
+        c = air[f"H{anc + 44}"]
+        if c.value == 0:
+            c.value = None; n += 1
+    for anc in anchors(ws):
+        k = ws[f"K{anc + 6}"]
+        if isinstance(k.value, str) and k.value.startswith("=IF('RTU Airflow'!H"):
+            ref = k.value.split("!")[1].split("=")[0]
+            k.value = f"=IF(N('RTU Airflow'!{ref})=0,\"\",'RTU Airflow'!{ref})"
+    log(f"RTU Airflow: cleared the literal 0 in {n} Outside Air design cells; RTU Data OA design shows blank until entered")
 
 
 # --------------------------------------------------------------------------- #
@@ -232,9 +243,13 @@ def certification(wb):
     txt = ws["C39"].value
     new = txt.replace("is a representation of system measurements", "is a record of system measurements")
     setf(ws, "C39", new, "certification statement now matches NEBB 5.2.2 verbatim")
-    ws.merge_cells("C36:L37")
-    ws["C36"].value = "NEBB Certified TAB Firm:  a2b accurate air balancing, llc  –  Firm Certification No. 3673"
-    copy_style(ws["C34"], ws["C36"])
+    ws.merge_cells("C36:L36"); ws.merge_cells("C37:L37")
+    ws["C36"].value = "NEBB Certified TAB Firm:  a2b accurate air balancing, llc"
+    ws["C37"].value = "Firm Certification Number:  3673"
+    copy_style(ws["C34"], ws["C36"]); copy_style(ws["C34"], ws["C37"])
+    for c in ("C36", "C37"):
+        ws[c].font = Font(name=ws["C34"].font.name, size=11, bold=ws["C34"].font.bold)
+        ws[c].alignment = Alignment(horizontal="center", vertical="center")
     # signature block
     thin = Side(style="thin")
     ws.merge_cells("C51:G56")
@@ -252,6 +267,8 @@ def certification(wb):
     for r in range(50, 58):
         ws.row_dimensions[r].height = 13.35
     ws.print_area = "A1:M58"
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.page_setup.fitToWidth = 1; ws.page_setup.fitToHeight = 1
     log("Certification: firm name/number line, stamp box, signature and date lines added (NEBB 5.2.2)")
 
 
@@ -311,7 +328,11 @@ def build(steps=None, out=OUT):
     wb.save(tmp)
     lost = xlsm_parts.restore(ORIG, tmp, out, footer="&amp;C&amp;8Page &amp;P", skip_footer=("Cover Page",),
                               extra_sheet_sources={"ERV Data": "MAU Data", "ERV Airflow": "MAU Airflow",
-                                                   "MAU Supply Methods": "MAU Airflow", "Narrative": "Summary - New"})
+                                                   "MAU Supply Methods": "MAU Airflow", "Narrative": "Summary - New"},
+                              header_overrides={"MAU Data": "Make-up Air Unit Data Report",
+                                                "VAV Data": "VAV Terminal Data Report",
+                                                "VAV 1-20 Airflow": "VAV Terminal Airflow Measurement Report"})
+    LOG.append("Page headers: MAU Data (was 'Fan Data Report'), VAV Data (none) and VAV 1-20 Airflow (was 'Fan Airflow') corrected")
     os.remove(tmp)
     with open(os.path.join(ROOT, "docs", "build-log.txt"), "w") as fh:
         fh.write("\n".join(LOG) + "\n")
