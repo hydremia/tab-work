@@ -299,3 +299,41 @@ Page-1 totals sum both pages; the continuation page shows a "Subtotal (this page
 * Equipment summary page (one line per unit).
 * Instrument list with range / accuracy as per-project inputs; project-copy workflow.
 * Optional: two fans per page for small exhaust fans.
+
+## 8. Revision 03 – equipment summary, small exhaust fans, duct-traverse point grids
+
+| File | Purpose |
+|---|---|
+| `03 - a2b_Blank_TAB_Workbook 9-18-26.xlsm` | Revision 03, generated from revision 02 by `tools/build_rev03.py` |
+| `tools/functional_test_rev03.py` | 99 expected values (revision 02 checks plus the three additions) |
+
+### 8.1 Equipment Summary (new sheet, before Building Balance)
+
+One line per unit for RTUs, MAUs, ERVs, fans, small exhaust fans and kitchen hoods: Unit, Area Served, Design CFM, Actual CFM, %, OA (or exhaust) design/actual, ESP design/actual, final fan RPM, average measured amps, and a Status column that reads "Check" when |Actual ÷ Design − 1| exceeds the tolerance in cell E5 (default 10 %, editable per contract). Every value is a link to the unit page; the macro hides lines for units that do not exist.
+
+### 8.2 Small Fans (new sheet, two per page)
+
+For direct-drive exhaust fans under 1/6 hp, where NEBB 5.3.6 requires only designation, service, manufacturer, model and design/actual airflow. The block holds unit data, HP / volts / phase from a new Data Entry section (rows 233–272), measured amps, ESP, RPM, speed setting, instrument, final settings and six outlet rows. Twenty small-fan rows were added to the exhaust side of Building Balance (hidden while blank).
+
+### 8.3 Traverses rebuilt with duct point grids (three per page)
+
+Each traverse now carries a duct-shape dropdown (Rectangular / Round), width or diameter, height, liner thickness and a computed point layout per NEBB 6.3.3 equal-area method:
+
+| Duct | Points | Positions (from the duct wall, inside the liner) |
+|---|---|---|
+| Rectangular, axis < 12" | 2 per axis | centres of equal strips: (i − ½) × L ÷ n |
+| Rectangular, axis ≥ 12" | at least 3, spacing ≤ 6" (n = ⌈L ÷ 6⌉, capped at 10 across × 8 down) | same |
+| Round 6–9" / 10–12" / > 12" | 6 / 8 / 10 per axis on two axes at 90° | centres of equal-area rings: D⁄2 × (1 − √((n − 2k + 1) ⁄ n)) and mirror |
+
+The position row and depth column are formulas, the free area (Ak) is computed from the dimensions less liner, the Size text is generated, and Final VEL is the average of the grid. The grid is 10 columns × 8 rows, so a 60" × 48" duct (10 × 8 = 80 points) fits. Round ducts ≤ 5" are noted as 90 % of the centreline reading (note in P5, off-print). Capacity is 48 traverses.
+
+### 8.4 Verification
+
+| Check | Result |
+|---|---|
+| LibreOffice recalculation | 0 error cells in 36,003 formulas |
+| `tools/functional_test_rev03.py` | 99 / 99, including a 24" × 12" rectangular traverse (4 × 3 points, positions 3/9/15/21 and 2/6/10, Ak 2.0) and a 10" round traverse (8 × 2 axes, first position 0.3", free area 0.545) |
+| `tools/verify_blocks.py` | 0 issues on all seven unit sheets |
+| Rendered PDF | 56 pages with default print areas; Equipment Summary, Small Fans, Traverses and Building Balance pages inspected |
+
+The macro module (`tools/vba/TABReport.bas`) now also hides blank Equipment Summary lines, unused small-fan blocks and unused traverses (no shape or size entered), and covers the extra Building Balance rows.

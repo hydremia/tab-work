@@ -132,6 +132,7 @@ def new_sheet(wb, name, like, widths_from, header_src):
         if dim.width:
             ws.column_dimensions[col].width = dim.width
     ws.sheet_format.defaultRowHeight = 13.35
+    ws.sheet_format.defaultColWidth = 6.86
     ws.column_dimensions["C"].width = 9.7; ws.column_dimensions["D"].width = 6.0
     copy_block(header_src, 1, 3, ws, 1)
     for m in header_src.merged_cells.ranges:
