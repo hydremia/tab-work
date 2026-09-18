@@ -35,6 +35,14 @@ DD = "'{Dropdowns}'"
 PAGE = 52
 THIN = Side(style="thin")
 LOG = []
+OPTS = {"profile": False}     # revision 04: static-pressure profile strip on every unit page
+UNIT_TYPES = [  # type, inlet label, components 1..5 ("—" = not present)
+    ("RTU", "RA / OA", "Filter", "—", "Coil", "Heat", "Fan"),
+    ("DOAS", "OA", "Filter", "Wheel", "Coil", "Heat", "Fan"),
+    ("MAU", "OA", "Filter", "—", "Burner", "—", "Fan"),
+    ("ERV", "OA / EA", "Filter", "Core", "—", "—", "Fan"),
+    ("EF", "Inlet", "—", "—", "—", "—", "Fan"),
+]
 
 
 def log(m):
@@ -145,6 +153,100 @@ def new_sheet(wb, name, like, widths_from, header_src):
     return ws
 
 
+def unit_type_table(wb):
+    from openpyxl.workbook.defined_name import DefinedName
+    dd = wb["{Dropdowns}"]
+    dd["X1"] = "Unit Type"; dd["Y1"] = "Inlet"
+    for k in range(5):
+        dd.cell(1, 26 + k).value = f"Component {k+1}"
+    for i, row in enumerate(UNIT_TYPES):
+        for j, v in enumerate(row):
+            dd.cell(2 + i, 24 + j).value = v
+    wb.defined_names["Unit.Type"] = DefinedName("Unit.Type", attr_text=f"{DD}!$X$2:$X${1 + len(UNIT_TYPES)}")
+
+
+def profile_and_strip(ws, P, default_type, data):
+    """Rewrite the static-pressure table (rows P+18..P+21) to five components and add the
+    unit schematic strip at rows P+22..P+25. Returns the ESP cell address."""
+    from openpyxl.formatting.rule import FormulaRule
+    r18, r19, r20, r21 = P + 18, P + 19, P + 20, P + 21
+    s0, s1, s2, s3 = P + 22, P + 23, P + 24, P + 25
+    T = f"$D${s0}"
+    tbl = f"{DD}!$Y$2:$AD${1 + len(UNIT_TYPES)}"; types = f"{DD}!$X$2:$X${1 + len(UNIT_TYPES)}"
+    lab = lambda k: f'IFERROR(INDEX({tbl},MATCH({T},{types},0),{k + 1}),"")'
+    fname = ws[f"B{P+4}"].font.name
+    for rng in (f"B{r19}:C{r19}", f"F{r19}:G{r19}", f"B{r20}:C{r20}", f"B{r21}:C{r21}"):
+        if rng in merged_set(ws):
+            ws.unmerge_cells(rng)
+    hdr_style, in_style = data["D23"], data["E24"]
+    ws[f"B{r18}"] = "Static Pressure Profile (in. w.g.)"
+    cols = "CDEFG"
+    ws[f"B{r19}"] = None
+    for k, col in enumerate(cols):
+        c = ws[f"{col}{r19}"]; copy_style(hdr_style, c); c.value = f"={lab(k + 1)}"; c.font = Font(name=fname, size=8, bold=True)
+        c.alignment = Alignment(horizontal="center")
+        for r in (r20, r21):
+            cc = ws[f"{col}{r}"]; copy_style(in_style, cc); cc.number_format = "0.00"; cc.font = Font(name=fname, size=9)
+            cc.value = None          # drop the old Flt/Coil, TSP and ESP formulas before writing the chain
+    for r, t in ((r20, "Ent."), (r21, "Lvg.")):
+        c = ws[f"B{r}"]; c.value = t; c.font = Font(name=fname, size=8, bold=True); c.alignment = Alignment(horizontal="right")
+    # entering pressure of each component = leaving pressure of the previous measured one
+    ws[f"D{r20}"] = f'=IF(C{r21}="",IF(C{r20}="","",C{r20}),C{r21})'
+    ws[f"E{r20}"] = f'=IF(D{r21}="",IF(D{r20}="","",D{r20}),D{r21})'
+    ws[f"F{r20}"] = f'=IF(E{r21}="",IF(E{r20}="","",E{r20}),E{r21})'
+    ws[f"G{r20}"] = f'=IF(F{r21}="",IF(F{r20}="","",F{r20}),F{r21})'
+    # ---- strip
+    box_fill = PatternFill("solid", fgColor="FFDDEBF7"); inlet_fill = PatternFill("solid", fgColor="FFF2F2F2")
+    for r in (s0, s1, s2, s3):
+        ws.row_dimensions[r].height = 13.35
+    ws[f"B{s0}"] = "Unit type:"; ws[f"B{s0}"].font = Font(name=fname, size=8, bold=True)
+    merge(ws, f"B{s0}:C{s0}")
+    ws[f"D{s0}"] = default_type; ws[f"D{s0}"].font = Font(name=fname, size=9, bold=True, color="FF0000FF")
+    ws[f"D{s0}"].alignment = Alignment(horizontal="center"); ws[f"D{s0}"].border = Border(bottom=THIN)
+    merge(ws, f"D{s0}:E{s0}")
+    ws[f"F{s0}"] = "Static pressure profile through the unit – airflow left to right, statics in in. w.g."
+    ws[f"F{s0}"].font = Font(name=fname, size=8, italic=True); merge(ws, f"F{s0}:M{s0}")
+    boxes = "BDFHJL"; arrows = "CEGIKM"
+    for k, col in enumerate(boxes):
+        c = ws[f"{col}{s1}"]
+        c.value = f"={lab(0)}" if k == 0 else f"={lab(k)}"
+        c.font = Font(name=fname, size=8, bold=True); c.alignment = Alignment(horizontal="center", vertical="center")
+        c.fill = inlet_fill if k == 0 else box_fill
+        c.border = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
+    for k, col in enumerate(arrows):
+        c = ws[f"{col}{s1}"]; c.value = "→"; c.font = Font(name=fname, size=11, bold=True); c.alignment = Alignment(horizontal="center", vertical="center")
+        # boundary static under each arrow: entering component 1, then leaving components 1..5
+        v = ws[f"{col}{s2}"]
+        if k == 0:
+            v.value = f'=IF(C{r20}="","",C{r20})'
+        else:
+            comp = cols[k - 1]
+            v.value = f'=IF(OR({comp}{r19}="—",{comp}{r21}=""),"",{comp}{r21})'
+        v.number_format = "+0.00;-0.00;0.00"; v.font = Font(name=fname, size=8); v.alignment = Alignment(horizontal="center")
+    for k, col in enumerate(boxes[1:]):
+        comp = cols[k]
+        v = ws[f"{col}{s2}"]
+        v.value = f'=IF(OR({comp}{r19}="—",{comp}{r20}="",{comp}{r21}=""),"","Δ "&TEXT({comp}{r21}-{comp}{r20},"0.00"))'
+        v.font = Font(name=fname, size=7, italic=True); v.alignment = Alignment(horizontal="center")
+    ws[f"B{s2}"] = "static →"; ws[f"B{s2}"].font = Font(name=fname, size=7, italic=True); ws[f"B{s2}"].alignment = Alignment(horizontal="center")
+    # summary row
+    ws[f"B{s3}"] = "Fan TSP"; ws[f"E{s3}"] = f'=IF(OR(G{r20}="",G{r21}=""),"",G{r21}-G{r20})'
+    ws[f"F{s3}"] = "ESP"; ws[f"I{s3}"] = f'=IF(OR(C{r20}="",G{r21}=""),"",G{r21}-C{r20})'
+    ws[f"J{s3}"] = "Unit ΔP (inlet → fan)"; ws[f"M{s3}"] = f'=IF(OR(C{r20}="",G{r20}=""),"",G{r20}-C{r20})'
+    for a, b in (("B", "D"), ("F", "H"), ("J", "L")):
+        merge(ws, f"{a}{s3}:{b}{s3}"); ws[f"{a}{s3}"].font = Font(name=fname, size=8, bold=True); ws[f"{a}{s3}"].alignment = Alignment(horizontal="right")
+    for col in "EIM":
+        c = ws[f"{col}{s3}"]; c.number_format = "0.00"; c.font = Font(name=fname, size=9, bold=True); c.alignment = Alignment(horizontal="center")
+        c.border = Border(bottom=THIN)
+    # grey out components that are not present for the selected type
+    grey = Font(color="FFA6A6A6"); nofill = PatternFill("solid", fgColor="FFFFFFFF")
+    for k, col in enumerate(boxes[1:]):
+        comp = cols[k]
+        ws.conditional_formatting.add(f"{col}{s1}", FormulaRule(formula=[f'${comp}${r19}="—"'], font=grey, fill=nofill))
+        ws.conditional_formatting.add(f"{comp}{r20}:{comp}{r21}", FormulaRule(formula=[f'${comp}${r19}="—"'], font=grey, fill=nofill))
+    return f"I{s3}"
+
+
 # --------------------------------------------------------------------------- #
 def build_unit_sheet(wb, kind):
     """kind: RTU | MAU | ERV | Fan"""
@@ -158,7 +260,9 @@ def build_unit_sheet(wb, kind):
     rtu_air = wb["RTU Airflow"]
     ws = new_sheet(wb, spec["name"], data, rtu_air, data)
     meth = wb["MAU Supply Methods"] if kind == "MAU" else None
-    sf_cells, volt_cells, phase_cells, drive_cells, instr_cells = [], [], [], [], []
+    sf_cells, volt_cells, phase_cells, drive_cells, instr_cells, type_cells = [], [], [], [], [], []
+    o = 4 if OPTS["profile"] else 0
+    default_type = {"RTU": "RTU", "MAU": "MAU", "ERV": "ERV", "Fan": "EF"}[kind]
     for u in range(spec["n"]):
         P = 4 + u * 2 * PAGE; Q = P + PAGE; ede_row = spec["ede"] + u
         # ---- page 1: system, mini line, data block
@@ -170,15 +274,19 @@ def build_unit_sheet(wb, kind):
                 if isinstance(c.value, str) and "{Equipment Data Entry}" in c.value:
                     c.value = re.sub(r"(\{Equipment Data Entry\}'!\$?[A-Z]+\$?)\d+", lambda m: f"{m.group(1)}{ede_row}", c.value)
         drive_cells.append(f"D{P+2}"); sf_cells.append(f"G{P+12}"); volt_cells.append(f"B{P+13}"); phase_cells.append(f"C{P+13}")
+        if o:
+            esp_cell = profile_and_strip(ws, P, default_type, data)
+            ws[f"L{P+8 if kind == 'RTU' else P+6}"] = f"={esp_cell}"
+            type_cells.append(f"D{P+22}")
         # ---- page 1: instrument line + tables
-        copy_block(air, 6, 6, ws, P + 22); instr_cells.append(f"D{P+22}")
+        copy_block(air, 6, 6, ws, P + 22 + o); instr_cells.append(f"D{P+22+o}")
         if kind == "RTU":
-            s1a, s1b = outlet_rows(ws, rtu_air, 7, rtu_air, 9, P + 23, 14, spec["sup_title"])
+            s1a, s1b = outlet_rows(ws, rtu_air, 7, rtu_air, 9, P + 23 + o, 14 - o, spec["sup_title"])
             tot = P + 39
-            c1a, c1b = Q + 4, Q + 37
+            c1a, c1b = Q + 4, Q + 37 + o
             total_row(ws, rtu_air, 37, tot, [(s1a, s1b), (c1a, c1b)])
             r1a, r1b = outlet_rows(ws, rtu_air, 39, rtu_air, 42, P + 40, 2)
-            rtot = P + 44; rc1a, rc1b = Q + 41, Q + 44
+            rtot = P + 44; rc1a, rc1b = Q + 41 + o, Q + 44 + o
             total_row(ws, rtu_air, 44, rtot, [(r1a, r1b), (rc1a, rc1b)])
             o1a, _ = outlet_rows(ws, rtu_air, 46, rtu_air, 48, P + 45, 1)
             oa_row = o1a
@@ -190,32 +298,33 @@ def build_unit_sheet(wb, kind):
             ws[f"K{P+6}"] = f'=IF(N(H{oa_row})=0,"",H{oa_row})'; ws[f"L{P+6}"] = f"=L{oa_row}"
             # ---- page 2
             system_rows(ws, data, Q, ede_row, cont=True)
-            outlet_rows(ws, rtu_air, 7, rtu_air, 9, Q + 2, 34, spec["cont_title"])
-            total_row(ws, rtu_air, 37, Q + 38, [(c1a, c1b)], "Subtotal (this page)")
-            outlet_rows(ws, rtu_air, 39, rtu_air, 42, Q + 39, 4, "Return Air Inlets (cont.)")
-            total_row(ws, rtu_air, 44, Q + 45, [(rc1a, rc1b)], "Subtotal (this page)")
-            remarks(ws, rtu_air, 50, Q + 46, "Remarks (cont.)", 3)
+            outlet_rows(ws, rtu_air, 7, rtu_air, 9, Q + 2, 34 + o, spec["cont_title"])
+            total_row(ws, rtu_air, 37, Q + 38 + o, [(c1a, c1b)], "Subtotal (this page)")
+            outlet_rows(ws, rtu_air, 39, rtu_air, 42, Q + 39 + o, 4, "Return Air Inlets (cont.)")
+            total_row(ws, rtu_air, 44, Q + 45 + o, [(rc1a, rc1b)], "Subtotal (this page)")
+            remarks(ws, rtu_air, 50, Q + 46 + o, "Remarks (cont.)", 3 - o // 2)
         elif kind == "ERV":
-            s1a, s1b = outlet_rows(ws, rtu_air, 7, rtu_air, 9, P + 23, 8, spec["sup_title"])
-            stot = P + 33; c1a, c1b = Q + 4, Q + 19
+            h = o // 2
+            s1a, s1b = outlet_rows(ws, rtu_air, 7, rtu_air, 9, P + 23 + o, 8 - h, spec["sup_title"])
+            stot = P + 33 + h; c1a, c1b = Q + 4, Q + 19 + h
             total_row(ws, rtu_air, 37, stot, [(s1a, s1b), (c1a, c1b)])
-            copy_block(air, 27, 27, ws, P + 34); instr_cells.append(f"D{P+34}")
-            e1a, e1b = outlet_rows(ws, rtu_air, 7, rtu_air, 9, P + 35, 8, "Exhaust Air Inlet Airflow")
-            etot = P + 45; c2a, c2b = Q + 24, Q + 39
+            copy_block(air, 27, 27, ws, P + 34 + h); instr_cells.append(f"D{P+34+h}")
+            e1a, e1b = outlet_rows(ws, rtu_air, 7, rtu_air, 9, P + 35 + h, 8 - h, "Exhaust Air Inlet Airflow")
+            etot = P + 45; c2a, c2b = Q + 24 + h, Q + 39 + 2 * h
             total_row(ws, rtu_air, 37, etot, [(e1a, e1b), (c2a, c2b)])
             remarks(ws, rtu_air, 50, P + 47)
             ws[f"K{P+5}"] = f"=H{stot}"; ws[f"L{P+5}"] = f"=L{stot}"
             ws[f"K{P+6}"] = f"=H{etot}"; ws[f"L{P+6}"] = f"=L{etot}"
             system_rows(ws, data, Q, ede_row, cont=True)
-            outlet_rows(ws, rtu_air, 7, rtu_air, 9, Q + 2, 16, spec["cont_title"])
-            total_row(ws, rtu_air, 37, Q + 20, [(c1a, c1b)], "Subtotal (this page)")
-            outlet_rows(ws, rtu_air, 7, rtu_air, 9, Q + 22, 16, "Exhaust Air Inlets (cont.)")
-            total_row(ws, rtu_air, 37, Q + 40, [(c2a, c2b)], "Subtotal (this page)")
-            remarks(ws, rtu_air, 50, Q + 42, "Remarks (cont.)", 3)
+            outlet_rows(ws, rtu_air, 7, rtu_air, 9, Q + 2, 16 + h, spec["cont_title"])
+            total_row(ws, rtu_air, 37, Q + 20 + h, [(c1a, c1b)], "Subtotal (this page)")
+            outlet_rows(ws, rtu_air, 7, rtu_air, 9, Q + 22 + h, 16 + h, "Exhaust Air Inlets (cont.)")
+            total_row(ws, rtu_air, 37, Q + 40 + 2 * h, [(c2a, c2b)], "Subtotal (this page)")
+            remarks(ws, rtu_air, 50, Q + 42 + 2 * h, "Remarks (cont.)", 3 - h)
         else:  # MAU, Fan
-            n1 = 20
-            s1a, s1b = outlet_rows(ws, rtu_air, 7, rtu_air, 9, P + 23, n1, spec["sup_title"])
-            tot = P + 23 + 2 + n1
+            n1 = 20 - o
+            s1a, s1b = outlet_rows(ws, rtu_air, 7, rtu_air, 9, P + 23 + o, n1, spec["sup_title"])
+            tot = P + 23 + o + 2 + n1
             if kind == "MAU":
                 c1a, c1b = Q + 25, Q + 46
             else:
@@ -244,6 +353,8 @@ def build_unit_sheet(wb, kind):
                 ws.row_dimensions[r].height = 13.35
         ws.row_breaks.append(Break(id=P + PAGE - 1)); ws.row_breaks.append(Break(id=Q + PAGE - 1))
     dv(ws, drive_cells, "Drive.Type"); dv(ws, instr_cells, "Airflow.Instrument")
+    if type_cells:
+        dv(ws, type_cells, "Unit.Type")
     dv(ws, sf_cells, "Service.Factors2"); dv(ws, volt_cells, "Voltage.Options"); dv(ws, phase_cells, "Phase")
     if kind == "MAU":
         m_sel_cells = [f"E{4 + u*2*PAGE + PAGE + 18}" for u in range(spec["n"])]
@@ -321,6 +432,9 @@ OLD = ["RTU Data", "RTU Airflow", "MAU Data", "MAU Airflow", "MAU Supply Methods
 
 def build(out=OUT):
     wb = load_workbook(SRC, keep_vba=True)
+    if OPTS["profile"]:
+        unit_type_table(wb)
+        log("Unit type table and static-pressure profile strip enabled")
     for kind in ("RTU", "MAU", "ERV", "Fan"):
         build_unit_sheet(wb, kind)
     build_vav_sheet(wb)

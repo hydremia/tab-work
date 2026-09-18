@@ -144,7 +144,8 @@ for name, got, exp in checks:
     ok = (got == exp) or (isinstance(got, (int, float)) and isinstance(exp, (int, float)) and abs(got - exp) < 1e-6)
     if not ok:
         bad.append((name, got, exp))
-errs = sum(1 for ws in wb.worksheets for row in ws.iter_rows() for c in row if isinstance(c.value, str) and c.value.startswith("#") and c.value != "#")
+ERRS = ("#VALUE!", "#DIV/0!", "#REF!", "#NAME?", "#N/A", "#NUM!", "#NULL!", "Err:")
+errs = sum(1 for ws in wb.worksheets for row in ws.iter_rows() for c in row if isinstance(c.value, str) and c.value.startswith(ERRS))
 print(f"{len(checks) - len(bad)}/{len(checks)} checks passed; {errs} error cells after recalculation")
 for b in bad:
     print("FAIL", b)

@@ -246,3 +246,67 @@ def _ensure_namespaces(new_xml, orig_xml):
         n_root = n_root[:-1] + add + ">"
         new_xml = new_xml[:n_root_m.start()] + n_root + new_xml[n_root_m.end():]
     return new_xml
+
+
+# --------------------------------------------------------------------------- #
+# Post-build picture helpers (operate on a finished package)
+# --------------------------------------------------------------------------- #
+def _sheet_part_and_drawing(z, title):
+    part, rels = _sheet_files(z)[title]
+    rmap = _rel_type_target(z, rels)
+    for rid, (typ, tgt, mode) in rmap.items():
+        if typ.endswith("/drawing"):
+            return part, rels, _resolve(part, tgt), rid
+    return part, rels, None, None
+
+
+def add_picture(package_path, sheet_title, png_path, frm, to, name="Picture", shift_anchors=None):
+    """Append a two-cell-anchored picture to sheet_title's drawing (must already have one).
+
+    frm / to: (col, row) zero-based cell indexes. shift_anchors: {picture name: row delta}
+    applied to existing anchors on the same drawing before the new picture is added.
+    """
+    z = zipfile.ZipFile(package_path)
+    parts = {n: z.read(n) for n in z.namelist()}
+    z.close()
+    part, rels, drawing, _ = _sheet_part_and_drawing(zipfile.ZipFile(package_path), sheet_title)
+    if drawing is None:
+        raise ValueError(f"{sheet_title} has no drawing part")
+    d_rels = drawing.rsplit("/", 1)[0] + "/_rels/" + drawing.rsplit("/", 1)[1] + ".rels"
+    dx = parts[drawing].decode()
+    rx = parts.get(d_rels, b"").decode()
+    # shift existing anchors
+    for pic_name, delta in (shift_anchors or {}).items():
+        def shift(m):
+            block = m.group(0)
+            if f'name="{pic_name}"' not in block:
+                return block
+            return re.sub(r"<xdr:row>(\d+)</xdr:row>", lambda r: f"<xdr:row>{int(r.group(1)) + delta}</xdr:row>", block)
+        dx = re.sub(r"<xdr:twoCellAnchor.*?</xdr:twoCellAnchor>", shift, dx, flags=re.S)
+    # media part
+    n = 1
+    while f"xl/media/image{n}.png" in parts or f"xl/media/image{n}.jpeg" in parts or f"xl/media/image{n}.jpg" in parts:
+        n += 1
+    media = f"xl/media/image{n}.png"
+    parts[media] = open(png_path, "rb").read()
+    rid = "rId" + str(1000 + n)
+    rx = _add_rel(rx, rid, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image", f"../media/image{n}.png")
+    ids = [int(x) for x in re.findall(r'<xdr:cNvPr id="(\d+)"', dx)] or [0]
+    pic = (f'<xdr:twoCellAnchor editAs="oneCell"><xdr:from><xdr:col>{frm[0]}</xdr:col><xdr:colOff>0</xdr:colOff>'
+           f'<xdr:row>{frm[1]}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from><xdr:to><xdr:col>{to[0]}</xdr:col><xdr:colOff>0</xdr:colOff>'
+           f'<xdr:row>{to[1]}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="{max(ids) + 1}" name="{escape(name)}"/>'
+           f'<xdr:cNvPicPr><a:picLocks noChangeAspect="0"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="{NS_R}" r:embed="{rid}"/>'
+           f'<a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></a:xfrm>'
+           f'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:twoCellAnchor>')
+    if "xmlns:a=" not in dx.split(">", 1)[0] + dx.split(">", 2)[1]:
+        dx = dx.replace("<xdr:wsDr ", '<xdr:wsDr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" ', 1)
+    dx = dx.replace("</xdr:wsDr>", pic + "</xdr:wsDr>")
+    parts[drawing] = dx.encode(); parts[d_rels] = rx.encode()
+    ct = parts["[Content_Types].xml"].decode()
+    if 'Extension="png"' not in ct:
+        ct = ct.replace("</Types>", '<Default Extension="png" ContentType="image/png"/></Types>')
+    parts["[Content_Types].xml"] = ct.encode()
+    with zipfile.ZipFile(package_path, "w", zipfile.ZIP_DEFLATED) as zw:
+        zw.writestr("[Content_Types].xml", parts.pop("[Content_Types].xml"))
+        for k, v in parts.items():
+            zw.writestr(k, v)
