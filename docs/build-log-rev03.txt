@@ -1,0 +1,6 @@
+{Equipment Data Entry}: small exhaust fan section (40 rows) added
+Small Fans: 40 blocks, two per page (NEBB 5.3.6 data set + 6 outlets each)
+Traverses rebuilt: 48 traverses, three per page, equal-area point grid with computed positions (NEBB 6.3.3)
+Equipment Summary: 166 rows (RTU, MAU, ERV, fans, small fans, hoods) with tolerance flag
+Building Balance: 20 small-fan exhaust rows added; totals and balance re-based
+ToC updated; sheet order: Cover Page, ToC, Narrative, Summary - New, Summary - (E), {Project Information}, {Equipment Data Entry}, {Dropdowns}, Equipment Summary, Building Balance, RTUs, MAUs, ERVs, Fans, Small Fans, VAVs, Hoods, Traverses, Photos, Certification, NEBB Cert , NEBB Frm Cert, Abbreviations, Calibration

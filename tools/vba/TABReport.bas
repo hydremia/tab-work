@@ -20,7 +20,9 @@ Option Explicit
 '                                + page 2 (52 rows, "System (cont.)" in B)
 '    VAVs                      : one terminal = 26 rows, two per page
 '    Hoods                     : two hoods per page, "System" in B
-'    Traverses                 : 6-row blocks, "Airflow Traverse Measurement"
+'    Small Fans                : 24-row blocks, two per page
+'    Traverses                 : 15-row blocks, three per page, "Airflow Traverse Measurement"
+'    Equipment Summary         : one line per unit; blank lines hidden
 ' ============================================================================
 
 Private Const FIRST_ROW As Long = 4
@@ -30,11 +32,11 @@ Private Function ReportSections() As Variant
     Dim m(0 To 13) As Variant
     m(0) = Array(10, Array("ToC"))
     m(1) = Array(13, Array("Narrative", "Summary - New", "Summary - (E)"))
-    m(2) = Array(16, Array("Building Balance"))
+    m(2) = Array(16, Array("Equipment Summary", "Building Balance"))
     m(3) = Array(19, Array("RTUs"))
     m(4) = Array(22, Array("MAUs"))
     m(5) = Array(25, Array("ERVs"))
-    m(6) = Array(28, Array("Fans", "VAVs"))
+    m(6) = Array(28, Array("Fans", "Small Fans", "VAVs"))
     m(7) = Array(31, Array("Hoods"))
     m(8) = Array(34, Array("Traverses"))
     m(9) = Array(37, Array("Certification", "NEBB Cert", "NEBB Frm Cert"))
@@ -176,6 +178,16 @@ Public Sub HideUnusedBlocks()
         If Not sh Is Nothing Then HideUnitSheet sh
     Next nm
     Set sh = FindSheet(wb, "VAVs"): If Not sh Is Nothing Then HideBlockSheet sh, 26, True
+    Set sh = FindSheet(wb, "Small Fans"): If Not sh Is Nothing Then HideBlockSheet sh, 24, True
+    Set sh = FindSheet(wb, "Equipment Summary")
+    If Not sh Is Nothing Then
+        sh.Rows.Hidden = False
+        last = sh.Cells(sh.Rows.Count, "B").End(xlUp).Row
+        For r = 9 To last
+            If Len(Trim$(CStr(sh.Cells(r, "B").Value))) = 0 Then sh.Rows(r).Hidden = True
+        Next r
+        sh.PageSetup.PrintArea = "$A$1:$N$" & last
+    End If
     Set sh = FindSheet(wb, "Hoods")
     If Not sh Is Nothing Then
         sh.Rows.Hidden = False
@@ -199,13 +211,15 @@ Public Sub HideUnusedBlocks()
         last = sh.Cells(sh.Rows.Count, "B").End(xlUp).Row
         For r = FIRST_ROW To last
             If sh.Cells(r, "B").Value = "Airflow Traverse Measurement" Then
-                If Len(Trim$(CStr(sh.Cells(r + 2, "B").Value))) = 0 Then sh.Rows(r & ":" & r + 5).Hidden = True
+                ' a traverse is used when it has a duct shape or a size entered
+                If Len(Trim$(CStr(sh.Cells(r + 4, "D").Value))) = 0 And Len(Trim$(CStr(sh.Cells(r + 4, "G").Value))) = 0 Then _
+                    sh.Rows(r & ":" & r + 14).Hidden = True
             End If
         Next r
     End If
     Set sh = FindSheet(wb, "Building Balance")
     If Not sh Is Nothing Then
-        For r = 7 To 66
+        For r = 7 To 86
             sh.Rows(r).Hidden = (Len(Trim$(CStr(sh.Cells(r, "B").Value))) = 0 And Len(Trim$(CStr(sh.Cells(r, "H").Value))) = 0)
         Next r
     End If
