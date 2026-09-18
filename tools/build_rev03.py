@@ -99,7 +99,8 @@ def small_fans(wb):
         for c in (4, 5, 6):
             ws.cell(P + 8, c).alignment = Alignment(horizontal="center")
         merge(ws, f"D{P+9}:G{P+9}"); instr.append(f"D{P+9}"); phase.append(f"F{P+8}")
-        a, b = outlet_rows(ws, rtu, 27, rtu, 29, P + 10, 6, "Register / Grille / Diffuser Airflow")
+        o = 4 if b2_opts()["profile"] else 0
+        a, b = outlet_rows(ws, rtu, 27 + o, rtu, 29 + o, P + 10, 6, "Register / Grille / Diffuser Airflow")
         total_row(ws, rtu, 43, P + 18, [(a, b)])
         remarks(ws, rtu, 52, P + 19, lines=1)
         ws[f"K{P+4}"] = f"=H{P+18}"; ws[f"L{P+4}"] = f"=L{P+18}"
@@ -118,6 +119,14 @@ def small_fans(wb):
 # --------------------------------------------------------------------------- #
 # 3. Traverses with duct point grids
 # --------------------------------------------------------------------------- #
+OPTS = {"quick": False, "cover": False}
+
+
+def b2_opts():
+    import build_rev02
+    return build_rev02.OPTS
+
+
 def traverses(wb):
     old = wb["Traverses"]
     ws = wb.create_sheet("Traverses (grid)")
@@ -157,9 +166,14 @@ def traverses(wb):
             for c in ("F", "H", "J", "L"):
                 ws[f"{c}{r4}"].font = smallb
             S, W, H, LN = f"$D${r4}", f"$G${r4}", f"$I${r4}", f"$K${r4}"
-            nW = f'IF({S}="Round",IF({W}<=9,6,IF({W}<=12,8,10)),IF({W}<12,2,MIN(10,MAX(3,ROUNDUP({W}/6,0)))))'
-            nH = f'IF({S}="Round",2,IF({H}<12,2,MIN(8,MAX(3,ROUNDUP({H}/6,0)))))'
-            ws[f"M{r4}"] = f'=IF(OR({S}="",{W}=""),"",IF({S}="Round",{nW}&" x 2 axes",{nW}&" x "&{nH}))'
+            # helper cells (column N, off-print): points across, points down, total points
+            ws[f"N{r4}"] = f'=IF(OR({S}="",{W}=""),"",IF({S}="Round",IF({W}<=9,6,IF({W}<=12,8,10)),IF({W}<12,2,MIN(10,MAX(3,ROUNDUP({W}/6,0))))))'
+            ws[f"N{r5}"] = f'=IF(OR({S}="",{W}=""),"",IF({S}="Round",2,IF({H}="","",IF({H}<12,2,MIN(8,MAX(3,ROUNDUP({H}/6,0)))))))'
+            ws[f"N{r5+1}"] = f'=IF(OR(N{r4}="",N{r5}=""),"",N{r4}*N{r5})'
+            for rr in (r4, r5, r5 + 1):
+                ws[f"N{rr}"].font = Font(size=7, color="FFA6A6A6")
+            nW, nH = f"$N${r4}", f"$N${r5}"
+            ws[f"M{r4}"] = f'=IF({nW}="","",IF({S}="Round",{nW}&" x 2 axes",IF({nH}="","",{nW}&" x "&{nH})))'
             ws[f"M{r4}"].font = small
             shape_cells.append(f"D{r4}")
             # size text and free area
@@ -182,12 +196,31 @@ def traverses(wb):
                 ws[f"{col}{r5}"] = f'=IF(OR({S}="",{W}="",{j}>{nW}),"",IF({S}="Round",{pos_round},{pos_rect}))'
             # grid rows
             g1, g2 = r5 + 1, r5 + 8
+            NT = f"$N${r5+1}"
+            if OPTS["quick"]:
+                # quick-entry list: readings in order (across the first depth / axis, then the next), down each column P..W
+                q1, q2 = r5 + 1, r5 + 10
+                ws[f"P{r4}"] = "Quick entry – type readings in order (row by row of the grid), down this column then the next:"
+                ws[f"P{r4}"].font = Font(size=8, italic=True)
+                for qc in range(16, 24):
+                    for qr in range(q1, q2 + 1):
+                        cell = ws.cell(qr, qc); cell.font = Font(size=8); cell.alignment = Alignment(horizontal="center")
+                        cell.border = Border(left=Side(style="hair"), right=Side(style="hair"), top=Side(style="hair"), bottom=Side(style="hair"))
+                        cell.fill = PatternFill("solid", fgColor="FFFFFFE0")
+                    ws.cell(r5, qc).value = f"{(qc-16)*10+1}–{(qc-16)*10+10}"; ws.cell(r5, qc).font = Font(size=7, color="FF7F7F7F")
+                    ws.cell(r5, qc).alignment = Alignment(horizontal="center")
+                QR = f"$P${q1}:$W${q2}"
             for i in range(1, 9):
                 r = r5 + i
                 ws.row_dimensions[r].height = 13.35
                 for c in range(2, 14):
                     cell = ws.cell(r, c); cell.font = grid_font; cell.alignment = Alignment(horizontal="center")
                     cell.border = Border(left=THIN, right=THIN, top=Side(style="hair"), bottom=Side(style="hair"))
+                    if OPTS["quick"] and c >= 4:
+                        j = c - 3
+                        k = f"(({i}-1)*{nW}+{j})"
+                        pick = f"INDEX({QR},MOD({k}-1,10)+1,INT(({k}-1)/10)+1)"
+                        cell.value = f'=IF({NT}="","",IF(OR({j}>{nW},{i}>{nH},{k}>{NT}),"",IF({pick}="","",{pick})))'
                 merge(ws, f"B{r}:C{r}")
                 ws[f"B{r}"] = (f'=IF(OR({S}="",{W}=""),"",IF({S}="Round",IF({i}=1,"Axis 1 (0°)",IF({i}=2,"Axis 2 (90°)","")),'
                                f'IF({i}>{nH},"",ROUND(({i}-0.5)*{H}/{nH},1))))')
@@ -206,11 +239,15 @@ def traverses(wb):
             ws.row_dimensions[r].height = 13.35
         ws.row_breaks.append(Break(id=top + 48))
     dv(ws, shape_cells, "Duct.Shape"); dv(ws, instr_cells, "Traverse.Instrument")
+    if OPTS["quick"]:
+        ws["P2"] = ("Grid cells are linked to the quick-entry list; typing a value directly into a grid cell replaces the link for that cell.")
+        ws["P2"].font = Font(size=8, italic=True)
     ws["P5"] = ("Equal-area traverse per NEBB 6.3.3: rectangular <12\" per axis = 2 points, otherwise ≥3 points at ≤6\" spacing; "
                 "round 6-9\" = 6 points, 10-12\" = 8, >12\" = 10 per axis on two axes at 90°; round ≤5\" may use 90% of the centerline "
                 "velocity. Positions are measured from the duct wall (inside liner). Enter velocities (fpm) in the grid; Final VEL is the average.")
     ws["P5"].font = Font(size=8, italic=True)
     ws.print_area = f"A1:M{4 + 2 * 49 - 1}"
+    ws.column_dimensions["N"].width = 3.14; ws.column_dimensions["N"].hidden = False
     ws.oddHeader.left.text = "&G"; ws.oddHeader.center.text = "Traverse Measurement Report"
     wb.remove(old); ws.title = "Traverses"
     dd = wb["{Dropdowns}"]
@@ -340,6 +377,34 @@ def building_balance(wb):
     log("Building Balance: 20 small-fan exhaust rows added; totals and balance re-based")
 
 
+def cover_photo(wb):
+    """Move the cover blocks apart and leave rows 15-30 for a project photo (picture added after save)."""
+    ws = wb["Cover Page"]
+    merges = [str(m) for m in ws.merged_cells.ranges]
+    for m in merges:
+        ws.unmerge_cells(m)
+    heights = {r: ws.row_dimensions[r].height for r in range(1, 60)}
+    # title block rows 14-19 -> 9-14 ; project lines 22-33 -> 32-43 ; firm block 36-43 -> 45-52
+    moves = [(14, 19, -5), (36, 43, 9), (22, 33, 10)]
+    for a, b, d in moves:
+        ws.move_range(f"A{a}:M{b}", rows=d, cols=0, translate=True)
+    from openpyxl.utils.cell import range_boundaries
+    for m in merges:
+        c1, r1, c2, r2 = range_boundaries(m)
+        for a, b, d in moves:
+            if a <= r1 <= b:
+                merge(ws, f"{get_column_letter(c1)}{r1+d}:{get_column_letter(c2)}{r2+d}"); break
+    for a, b, d in moves:
+        for r in range(a, b + 1):
+            ws.row_dimensions[r + d].height = heights.get(r)
+    for r in range(15, 31):
+        ws.row_dimensions[r].height = 13.35
+    ws.row_dimensions[47].height = 15; ws.row_dimensions[48].height = 26     # three-line firm address
+    ws.print_area = "A1:M60"
+    ws.sheet_properties.pageSetUpPr.fitToPage = True; ws.page_setup.fitToWidth = 1; ws.page_setup.fitToHeight = 1
+    log("Cover Page: title moved up, project photo box at rows 15-30 (C:L), project and firm blocks moved down, family logo re-anchored")
+
+
 def toc_and_order(wb):
     toc = wb["ToC"]
     toc["C16"] = "Equipment Summary and Building Balance"
@@ -354,21 +419,27 @@ def toc_and_order(wb):
     log("ToC updated; sheet order: " + ", ".join(order))
 
 
-def build(out=OUT):
-    wb = load_workbook(SRC, keep_vba=True)
+def build(out=OUT, src=None):
+    src = src or SRC
+    wb = load_workbook(src, keep_vba=True)
     data_entry_small_fans(wb)
     small_fans(wb)
     traverses(wb)
     equipment_summary(wb)
     building_balance(wb)
+    if OPTS["cover"]:
+        cover_photo(wb)
     toc_and_order(wb)
     tmp = tempfile.mktemp(suffix=".xlsm")
     wb.save(tmp)
-    xlsm_parts.restore(SRC, tmp, out, footer="&amp;C&amp;8Page &amp;P", skip_footer=("Cover Page",),
+    xlsm_parts.restore(src, tmp, out, footer="&amp;C&amp;8Page &amp;P", skip_footer=("Cover Page",),
                        extra_sheet_sources={"Small Fans": "Fans", "Equipment Summary": "Building Balance"},
                        header_overrides={"Small Fans": "Small Exhaust Fan Report", "Equipment Summary": "Equipment Summary",
                                          "Traverses": "Traverse Measurement Report"})
     os.remove(tmp)
+    if OPTS["cover"]:
+        xlsm_parts.add_picture(out, "Cover Page", os.path.join(ROOT, "tools", "assets", "project-photo-placeholder.png"),
+                               frm=(2, 14), to=(12, 30), name="Project Photo", shift_anchors={"Picture 2": 9})
     with open(os.path.join(ROOT, "docs", "build-log-rev03.txt"), "w") as fh:
         fh.write("\n".join(LOG) + "\n")
     print("written", out)

@@ -1,3 +1,12 @@
+Unit type table and static-pressure profile strip enabled
+RTUs: 40 units x 2 pages built from RTU Data + RTU Airflow
+MAUs: 10 units x 2 pages built from MAU Data + MAU Airflow
+ERVs: 10 units x 2 pages built from ERV Data + ERV Airflow
+Fans: 40 units x 2 pages built from Fan Data (EFs, TFs, etc.) + Fan Airflow
+VAVs: 80 terminals, two per page, built from VAV Data + VAV 1-20 Airflow
+Building Balance re-pointed to the merged sheets
+ToC entries renamed; certification stamp box captioned for an image stamp
+Old Data/Airflow sheets removed; sheet order: Cover Page, ToC, Narrative, Summary - New, Summary - (E), {Project Information}, {Equipment Data Entry}, {Dropdowns}, Building Balance, RTUs, MAUs, ERVs, Fans, VAVs, Hoods, Traverses, Photos, Certification, NEBB Cert , NEBB Frm Cert, Abbreviations, Calibration
 {Equipment Data Entry}: small exhaust fan section (40 rows) added
 Small Fans: 40 blocks, two per page (NEBB 5.3.6 data set + 6 outlets each)
 Traverses rebuilt: 48 traverses, three per page, equal-area point grid with computed positions (NEBB 6.3.3)
