@@ -255,3 +255,47 @@ Not verifiable here: Excel-specific behaviour (macro import, Excel's own paginat
 * Merged per-type sheets (Data block + Airflow block per unit) so the printed order no longer depends on the macro and the cross-sheet link class of errors disappears.
 * Compact fan block (drop OA/RA rows), one-line traverses, dynamic Summary and Calibration tables (Section 5.3).
 * Instrument list as per-project inputs with range/accuracy.
+
+## 7. Revision 02 – merged per-unit sheets (Option B)
+
+Decisions applied (2026-09-18): single compact page per unit with a continuation page; all reports go out as PDF; both Summary sheets kept; CaptiveAire constants authoritative; CP stamp applied as an image; PR opened for the branch.
+
+| File | Purpose |
+|---|---|
+| `02 - a2b_Blank_TAB_Workbook 9-18-26.xlsm` | Revision 02, generated from revision 01 by `tools/build_rev02.py` |
+| `tools/build_rev02.py` | Builds the merged sheets from the revision 01 Data / Airflow / Methods sheets |
+| `tools/functional_test_rev02.py` | 68 expected values on the new layout |
+| `tools/vba/TABReport.bas` | Rewritten for the revision 02 layout (see 7.3) |
+
+### 7.1 Layout
+
+| Sheet | Replaces | Page 1 (52 rows) | Page 2 (continuation) |
+|---|---|---|---|
+| **RTUs** (40) | RTU Data + RTU Airflow | unit data block, 14 supply outlets, total, 2 return inlets, 1 outside-air row, remarks | 34 more supply outlets, 4 more return inlets, subtotals, remarks |
+| **MAUs** (10) | MAU Data + MAU Airflow + MAU Supply Methods | unit data block, 20 outlets, total, remarks | PSP / filter grid / burner profile pressure / method selection, 22 more outlets |
+| **ERVs** (10) | ERV Data + ERV Airflow | unit data block, 8 supply outlets, 8 exhaust inlets, totals, remarks | 16 + 16 more, subtotals |
+| **Fans** (40) | Fan Data + Fan Airflow | fan data block, 20 outlets, total, remarks | 40 more outlets |
+| **VAVs** (80) | VAV Data + VAV 1-20 Airflow | two terminals per page: data block + 6 outlets + total + remark line | – |
+
+Page-1 totals sum both pages; the continuation page shows a "Subtotal (this page)". The unit data block's Total / Outside / Return airflow cells now reference the same page, so the cross-sheet link errors of the original cannot recur. Building Balance points at the merged sheets. Hoods, Traverses and all front and back matter are unchanged from revision 01.
+
+### 7.2 Verification
+
+| Check | Result |
+|---|---|
+| LibreOffice recalculation | 0 error cells in 31,759 formulas |
+| `tools/functional_test_rev02.py` | 68 / 68 (includes a continuation-page outlet feeding the page-1 total, unit-10 profile pressure, fan 21, ERV supply/exhaust, VAV outlet total to Actual Max) |
+| `tools/verify_blocks.py` | 0 issues on all six unit sheets |
+| Rendered PDF (Carlito font) | 49 pages with the default print areas (first 4 RTUs, 2 MAUs, 2 ERVs, 4 fans, 4 VAVs); pages inspected: RTU 1 and 2, MAU 1 and 2, ERV 1 and 2, Fan 1 and 2, VAV |
+| References to removed sheets | none |
+
+### 7.3 Macro (`tools/vba/TABReport.bas`)
+
+`PrintReport` hides unused units, continuation pages without typed data and empty outlet rows (first row of each table stays), sets each sheet's print area to the last used unit, refreshes the ToC page numbers, then exports every visible report sheet to one PDF. Because the sheet order is now the reading order, no page interleaving is needed. Import the module once in Excel (Alt+F11 → File → Import) and delete the old `SyncToCPageCounts` module.
+
+### 7.4 Remaining items (phase 3)
+
+* One-line-per-traverse layout (20+ traverses per page) and dynamic Summary / Calibration tables.
+* Equipment summary page (one line per unit).
+* Instrument list with range / accuracy as per-project inputs; project-copy workflow.
+* Optional: two fans per page for small exhaust fans.

@@ -1,0 +1,8 @@
+RTUs: 40 units x 2 pages built from RTU Data + RTU Airflow
+MAUs: 10 units x 2 pages built from MAU Data + MAU Airflow
+ERVs: 10 units x 2 pages built from ERV Data + ERV Airflow
+Fans: 40 units x 2 pages built from Fan Data (EFs, TFs, etc.) + Fan Airflow
+VAVs: 80 terminals, two per page, built from VAV Data + VAV 1-20 Airflow
+Building Balance re-pointed to the merged sheets
+ToC entries renamed; certification stamp box captioned for an image stamp
+Old Data/Airflow sheets removed; sheet order: Cover Page, ToC, Narrative, Summary - New, Summary - (E), {Project Information}, {Equipment Data Entry}, {Dropdowns}, Building Balance, RTUs, MAUs, ERVs, Fans, VAVs, Hoods, Traverses, Photos, Certification, NEBB Cert , NEBB Frm Cert, Abbreviations, Calibration
