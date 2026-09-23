@@ -52,6 +52,14 @@ Last updated: 2026-09-23
 | M1 | OK to merge [PR #1](https://github.com/hydremia/tab-work/pull/1) (revisions 01–04) into `main` so revision 04 is the official template the app builds on? | **Yes. Merged 2026-09-23** (merge commit `2ae8812`). |
 | N1 | How N/A appears in numeric cells: pick an option from [REQUIRED_FIELDS.md](./REQUIRED_FIELDS.md#n1--how-na-appears-in-numeric-cells) | **Option A:** hardened formulas in revision 05. The notation prints in the cell and calculations skip it. |
 
+## Open (round 5)
+
+| # | Question | Answer |
+|---|---|---|
+| B1 | Building Balance has room for only 10 more exhaust rows. Add Small Fans 21–30 there now, or insert 10 rows above the totals (which shifts totals and the print area) so all 21–40 fit? | |
+| B2 | MAU "Method used = Traverse" has no calculation. Link it to a traverse on the Traverses sheet, or remove the option? | |
+| R5–R8 | New questions at the bottom of [REQUIRED_FIELDS.md](./REQUIRED_FIELDS.md) (narrative/certification, small-fan optional fields, traverse fields, design CFM source) | |
+
 ## Decisions log
 
 | Date | Decision |
@@ -72,6 +80,7 @@ Last updated: 2026-09-23
 | 2026-09-23 | Equipment tagged New/Existing. All users have equal permissions. Tolerance ±10%. Equipment photos are required unless N/A. |
 | 2026-09-23 | PR #1 merged into `main`. **N/A (option A):** revision 05 hardens formulas so `N/A`, `Not Avail.` and `Not Acc.` print in numeric cells without errors. |
 | 2026-09-23 | Full offline support is required. Most sites are online, so sync runs continuously when connected, and offline is the fallback rather than the normal mode. |
+| 2026-09-23 | **Revision 05 built.** The app now targets revision 05 (same layout as 04, so the revision 04 analysis applies). |
 | 2026-09-23 | **The app targets revision 04 (`04 - a2b_Blank_TAB_Workbook 9-18-26.xlsm`)**, which includes the Evergreen hood method, MAU supply methods, building pressures, cover photo box, traverse grids, Equipment Summary and Small Fans. |
 
 ---
@@ -82,8 +91,9 @@ Last updated: 2026-09-23
 - [~] Answer open questions (round 1 and 2 answered; round 3 E1, F1–F4, R1–R4 open)
 - [x] ~~Fix template bugs~~: already fixed in revision 01. The duplicate fix on the 4-16-26 backup was reverted.
 - [x] Merge [PR #1](https://github.com/hydremia/tab-work/pull/1) (revisions 01–04) into `main`
-- [~] **Revision 05:** N/A-safe formulas (option A), with functional tests
-- [~] **Redo the workbook analysis and required fields on revision 04** (`04 - a2b_Blank_TAB_Workbook 9-18-26.xlsm`)
+- [x] **Revision 05** (`05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm`): N/A-safe formulas, cover-page link fix, burner profile curve restored. 256/256 checks, 0 error cells (LibreOffice). Still needs a check in desktop Excel.
+- [ ] Building Balance: include Small Fans 21–40 (needs a layout decision, B1)
+- [x] Redo the workbook analysis and required fields on revision 04 (`04 - a2b_Blank_TAB_Workbook 9-18-26.xlsm`)
 - [ ] Template map v1: Project Information, Equipment Data Entry, Cover Page
 - [ ] Template map v1: RTU Data / RTU Airflow (all 40 blocks)
 - [ ] Template map v1: MAU, Fans, VAV, Hoods, Traverses, Summary, Calibration

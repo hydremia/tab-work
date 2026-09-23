@@ -380,3 +380,39 @@ Each traverse has an off-print quick-entry list (columns P–W, ten cells per co
 | `tools/functional_test_rev04.py` | 133 / 133, including the RTU chain (−0.30 / −0.50 / −0.70 / +0.90 → TSP 1.60, ESP 1.20), the EF pass-through case, DOAS/MAU/ERV component labels, quick-entry fill by position and the moved cover cells |
 | `tools/verify_blocks.py` | 0 issues on all seven unit sheets |
 | Rendered PDF | cover, RTU (as RTU and as DOAS), MAU, ERV, fan and traverse pages inspected |
+
+## 10. Revision 05 – notations in numeric inputs, cover links, profile-pressure curve
+
+| File | Purpose |
+|---|---|
+| `05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm` | Revision 05, generated from revision 04 by `tools/build_rev05.py` (build log `docs/build-log-rev05.txt`) |
+| `tools/functional_test_rev05.py` | 256 checks (rev 04 checks, same-as-rev-04 comparison, notations, stress, profile curve) |
+
+### 10.1 N/A, Not Avail., Not Acc. in numeric inputs
+
+The notations from the Abbreviations legend can now be typed into any numeric input (velocities, Ak, design CFM, volts, amps, FLA, statics, RPM, filter size, duct dimensions, PSP / filter-grid / profile readings, data-entry design values). The text stays visible in the cell and counts as a blank everywhere it is used: the CFM, %, corrected FLA, BHP, ΔP, TSP / ESP, free area, point layout and CFM/ft cells that depend on it stay blank, and totals and averages (outlet totals, 3-reading hood averages, PSP and traverse grid averages, Equipment Summary, Building Balance) skip it and use the remaining numbers. A design value typed as N/A in `{Equipment Data Entry}` shows as N/A on the unit page and the summaries.
+
+The build parses every formula and wraps the part that does arithmetic on an input in `IF(OR(ISTEXT(…)…),"",…)`, at the smallest THEN/ELSE branch that uses the value (so the 3-phase BHP still averages the two legs that were read when one is "Not Acc."). `ISTEXT` of an empty cell is FALSE, so numbers and blanks give exactly the revision 04 results; 31,917 of 41,787 formulas were rewritten. Other points:
+
+* An `AVERAGE` whose readings could all be notations also tests `COUNT(…)=0`, so it gives a blank instead of #DIV/0!.
+* A filter size or filter type entered as a notation gives a blank filter CFM (previously a failed lookup gave 0).
+* A leaving static entered as a notation is passed to the next component's entering static as the notation, so the fan TSP / unit ΔP that depend on it are blank. It is not treated as "component absent".
+* A notation in a size cell (for example a traverse width) still shows in the generated size text, for example `N/A" x 12"`.
+* The data validations on the input cells do not block typed text (error alerts are off), so the notations can be typed in Excel.
+
+### 10.2 Fixes
+
+* **Cover page project lines.** Revision 04 moved the cover block down 10 rows, and the relative links moved with it. PROJECT NAME, PROJECT ADDRESS and REPORT DATE read `{Project Information}` E12 / E13 / E24 (technician, project manager, blank) and now read E2 / E3 / E14 again. Contractor, engineer and architect used absolute references and were already correct.
+* **MAU burner profile-pressure curve.** The duct-shape list (rev 03) and the unit-type table (rev 04) had been written over `{Dropdowns}` W1:W3 and X1:AD6, which is inside the housing-size 2–5 columns of the curve at 0.15–0.35 in. w.g. (21 of 72 cells). The curve is restored to the revision 01 values. The duct-shape list moved to AF1:AF3 and the unit-type table to AH1:AN6. The names `Duct.Shape` and `Unit.Type` and the 2,200 unit-type lookup references (1,100 formulas) were repointed. The profile CFM now matches revision 01 at 0.15, 0.20, 0.30 and 0.35 for housing sizes 1–5.
+* **Not changed:** Building Balance still lists small fans 1–20 only. The exhaust column has 10 free rows (47–56, beside the MAU rows), not the 20 needed, so adding fans 21–40 needs a re-layout and is left for a decision.
+
+### 10.3 Verification
+
+| Check | Result |
+|---|---|
+| LibreOffice recalculation, blank template | 0 error cells in 41,787 formulas |
+| `tools/functional_test_rev05.py` | 256 / 256: all 133 revision 04 checks with the same expected values, plus cover links (3). With the revision 04 sample data every cell equals revision 04 except the fixed cover links and `{Dropdowns}`. N/A checks on every unit sheet and the roll-ups: 88. Stress test, with a notation in every empty input cell of every unit sheet and the data-entry sheet: 0 error cells. Profile curve: 26. |
+| Same notation data in revision 04 | 180 error cells (all removed in revision 05) |
+| `tools/build_rev05.py --selftest` | 13 transform cases; all 41,787 formulas parse and round-trip |
+| `tools/verify_blocks.py` | 0 issues on all seven unit sheets |
+| Package | 13 of 83 parts changed (12 worksheets + workbook.xml names); vbaProject.bin, drawings, media, styles byte-identical; 37 data validations, 1,041 conditional formats, 52 defined names, 21 print areas as in revision 04 |
