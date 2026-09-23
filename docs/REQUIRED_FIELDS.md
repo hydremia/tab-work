@@ -40,10 +40,21 @@ Airflow rows count as complete when they have **a reading in either Initial or F
 about rows with Initial but no Final; that doesn't block green. This fits prelim reports that are partly
 finalized.
 
-### How N/A is written on export (proposal)
-- **Text cells** (serial, manufacturer, notes…) are exported as the text `N/A`.
-- **Numeric cells used by formulas** (velocities, Ak, amps…) are **left blank**, because text in those cells would
-  cause `#VALUE!` errors in the workbook's calculations.
+### N/A reasons
+These match the legend already on revision 04's Abbreviations sheet. The tech picks one:
+**N/A** = Not Applicable · **Not Avail.** = Not Available · **Not Acc.** = Not Accessible.
+
+### N1 — How N/A appears in numeric cells
+A blank cell must **not** mean N/A (decided). Text in a cell that a formula multiplies (e.g. `VEL × Ak`)
+causes a `#VALUE!` error in today's formulas. The options are:
+
+| Option | What prints | Template change | Notes |
+|---|---|---|---|
+| **A. Hardened formulas (recommended)** | The notation itself (`N/A`, `Not Avail.`, `Not Acc.`) in the cell | Revision 05: wrap calcs that read input cells in number checks, e.g. `IF(ISNUMBER(I17), I17*$F17, "")`, so text displays and is skipped in totals and averages | Clearest report. Also fixes the same error for anyone typing N/A by hand in Excel today. Verified with the existing functional test suite. |
+| B. Blank cell + note | Blank cell, with the notation written in that block's Remarks/Technician Notes (e.g. "Serial No.: Not Acc.") | None | Works with no template change, but the reader has to look in two places. |
+| C. Section-level only | For a whole N/A section, the notation goes in the section's first text cell and the numeric cells stay blank | None | Only suits whole sections, not single fields. Could be combined with B. |
+
+Text cells (serial, manufacturer, notes…) get the notation directly under every option.
 
 ---
 
@@ -75,7 +86,7 @@ These all use the same *Data* sheet layout.
 | **Misc. unit info** | Design fan rotation, actual fan rotation | |
 | **Filters** | Design filter type, installed filter type, size, qty | N/A if the unit has no filters |
 | **Airflow** (the *Airflow* sheet) | At least one supply outlet row. Every row needs No., area served, size, Ak, design CFM, and a reading. | Return and OA rows are required if they apply. The OA row is automatically N/A if design OA is 0. |
-| **Photos** | Unit, unit label/tag | OA damper photo required if the unit has OA. *See question R2.* |
+| **Photos** | Unit, unit label/tag | OA damper photo required if the unit has OA. Required unless N/A |
 | Technician notes, remarks | Optional | |
 
 ## VAV boxes
@@ -85,8 +96,8 @@ These all use the same *Data* sheet layout.
 | **Identity** | Designation (system), service, area served, location | Always required |
 | **Unit data** | Manufacturer, model, serial number, size | |
 | **Design & performance** | Max CFM, min CFM (design and actual), BAS address, calibration factor | Fan CFM only for fan-powered boxes. Otherwise automatically N/A. |
-| **Airflow** (*VAV Airflow* sheet) | Same row rules as above | Only the first 20 VAVs have airflow pages. Outlet readings for VAVs 21–80 are N/A unless the template grows. *See question R3.* |
-| **Photos** | Unit/tag | *See question R2.* |
+| **Airflow** (*VAV Airflow* sheet) | Same row rules as above | Revision 04: every VAV has its own airflow table |
+| **Photos** | Unit/tag | Required unless N/A |
 
 ## Kitchen hoods
 
@@ -96,7 +107,7 @@ These all use the same *Data* sheet layout.
 | **Design info** | Hood manufacturer, design CFM, associated exhaust fan | |
 | **Hood data** | Model, serial number, hood type, filter manufacturer, filter height | |
 | **Filter readings** | At least one filter row: width and a velocity reading | |
-| **Photos** | Hood, hood tag | *See question R2.* |
+| **Photos** | Hood, hood tag | Required unless N/A |
 
 ## Traverses
 
@@ -108,11 +119,10 @@ These all use the same *Data* sheet layout.
 
 ## Questions on this proposal
 
-- **R1.** Is ±10% of design the right default tolerance for flagging readings red? Should tolerances differ
-  by type (e.g. ±10% for terminals, ±5% for units)?
-- **R2.** Should equipment photos (unit, tag, OA damper) be required for green in the **Full TAB** profile, or
-  should they be optional?
-- **R3.** VAV Data has 80 slots, but VAV Airflow has only 20 pages. Is that intentional, meaning only some VAVs
-  get outlet readings?
-- **R4.** Is exporting N/A as blank in numeric cells (to protect formulas) OK, or would you rather see `N/A` printed
-  in those cells, which would require changes to the template formulas?
+- **R1.** ✅ ±10% standard tolerance.
+- **R2.** ✅ Photos (unit, tag, OA damper) are required for green unless marked N/A.
+- **R3.** ✅ Capacities equal. Revision 04 already gives all 80 VAVs their own airflow table (the 20-page limit was in the old 4-16-26 file).
+- **R4.** ✅ Blank must not mean N/A. See **N1** above for the options.
+
+> Note: this proposal was drafted against the old 4-16-26 layout. It will be refreshed for revision 04
+> (hood filter type/instrument, Small Fans, ERVs, traverse duct shape/size, MAU supply method).

@@ -39,11 +39,18 @@ Last updated: 2026-09-23
 | # | Question | Answer |
 |---|---|---|
 | E1 | **Hoods vs Evergreen:** was the alignment done in a different copy of the workbook? | **Yes, already done in revision 01** (branch `claude/tab-report-review-3divp8`, [PR #1](https://github.com/hydremia/tab-work/pull/1)) and carried through revision 04. My earlier gap list was checked against the old 4-16-26 backup by mistake. |
-| F1 | **Formatting fixes after export:** export fills the template with the app's data, so formatting fixed by hand in an issued workbook would be lost on the next export. Proposal: follow-up exports can use the **previously issued workbook as the base** (you pick it from Dropbox), so hand fixes carry forward. Recurring fixes get made in the template itself. OK? | |
-| F2 | **Re-import rule:** on re-import, remarks and comments from the workbook are offered as updates (accept/reject each one), and readings that differ are highlighted for review. OK? | |
-| F3 | **New vs Existing:** tag each piece of equipment New or Existing (default New), so its issues go to the matching Summary sheet by default? | |
-| F4 | **Roles:** just two, **Tech** and **PM** (the PM can also manage projects and team members), plus one **Admin**. Anything a tech should *not* be able to do, e.g. export or issue a report? | |
-| R1–R4 | Questions at the bottom of [REQUIRED_FIELDS.md](./REQUIRED_FIELDS.md) (tolerance, required photos, VAV airflow pages, N/A in numeric cells) | |
+| F1 | **Formatting fixes after export:** export fills the template with the app's data, so formatting fixed by hand in an issued workbook would be lost on the next export. Proposal: follow-up exports can use the **previously issued workbook as the base** (you pick it from Dropbox), so hand fixes carry forward. Recurring fixes get made in the template itself. OK? || Hand formatting is done and saved in Excel. **Decision:** when an issued workbook is re-imported, the app keeps that file and uses it as the **base for the next export**, so hand formatting carries forward with no extra step. The blank template is used only for a project's first export. |
+| F2 | **Re-import rule:** on re-import, remarks and comments from the workbook are offered as updates (accept/reject each one), and readings that differ are highlighted for review. OK? || **Yes.** Changed values are highlighted, and you accept or decline each one. A *collision* only happens when the same field changed **in both** Excel and the app since the last export. Formatting never collides, because it is not compared. |
+| F3 | **New vs Existing:** tag each piece of equipment New or Existing (default New), so its issues go to the matching Summary sheet by default? || **Yes.** Each piece of equipment is tagged New or Existing (default New), and its issues go to the matching Summary sheet. |
+| F4 | **Roles:** just two, **Tech** and **PM** (the PM can also manage projects and team members), plus one **Admin**. Anything a tech should *not* be able to do, e.g. export or issue a report? || **All users have all permissions.** No role tiers. Access is controlled by who can sign in with M365. |
+| R1–R4 | Questions at the bottom of [REQUIRED_FIELDS.md](./REQUIRED_FIELDS.md) (tolerance, required photos, VAV airflow pages, N/A in numeric cells) || R1: **±10%** standard. R2: **photos required** (unit, tag, OA damper) unless marked N/A. R3: **capacities equal**; revision 04 already has 80 VAVs, each with its own airflow table. R4: **no blank-means-N/A**; options are in REQUIRED_FIELDS.md (N1). |
+
+## Open (round 4)
+
+| # | Question | Answer |
+|---|---|---|
+| M1 | OK to merge [PR #1](https://github.com/hydremia/tab-work/pull/1) (revisions 01–04) into `main` so revision 04 is the official template the app builds on? | |
+| N1 | How N/A appears in numeric cells: pick an option from [REQUIRED_FIELDS.md](./REQUIRED_FIELDS.md#n1--how-na-appears-in-numeric-cells) | |
 
 ## Decisions log
 
@@ -61,6 +68,8 @@ Last updated: 2026-09-23
 | 2026-09-23 | Users are internal only (Techs and PMs). The app is a home-screen web app on all device types. No app stores. |
 | 2026-09-23 | Completion rules: most fields required, N/A allowed at field, section or equipment level, plus project scope profiles (Full TAB, Airflow Only, Custom). |
 | 2026-09-23 | ~~Fixed the two template formula bugs~~ **Reverted:** both were already fixed in revision 01. The 4-16-26 backup is restored to the original upload. |
+| 2026-09-23 | Follow-up exports fill the **previously issued workbook** (kept from re-import), so hand formatting in Excel is preserved. Re-import diff: accept or decline each change. Only same-field edits in both places are flagged as collisions. |
+| 2026-09-23 | Equipment tagged New/Existing. All users have equal permissions. Tolerance ±10%. Equipment photos are required unless N/A. |
 | 2026-09-23 | **The app targets revision 04 (`04 - a2b_Blank_TAB_Workbook 9-18-26.xlsm`)**, which includes the Evergreen hood method, MAU supply methods, building pressures, cover photo box, traverse grids, Equipment Summary and Small Fans. |
 
 ---
@@ -108,7 +117,7 @@ Last updated: 2026-09-23
 - [ ] Import engine (read inputs from an existing workbook into the app)
 - [ ] Re-import of an issued workbook into an existing project with a diff/merge review screen
 - [ ] Issued-report snapshots and revision history (Prelim, Rev 1, Final…)
-- [ ] Export-onto-previous-issued-workbook option (F1)
+- [ ] Keep the re-imported issued workbook as the base for the next export (F1)
 - [ ] Round-trip test suite (import → export → cell diff)
 - [ ] Validate on a real completed project workbook
 
@@ -126,7 +135,7 @@ Last updated: 2026-09-23
 - [ ] Realtime updates for other users on the same project
 - [ ] Conflict detection, flags and history view
 - [ ] Background photo upload queue with retry
-- [ ] Roles and permissions (Tech / PM / Admin)
+- [ ] Access control: M365 sign-in only; all users have equal permissions
 - [ ] "Unsynced changes" indicator; ask the browser for persistent storage
 - [ ] Two-device concurrent editing test
 
