@@ -533,6 +533,9 @@ check("D profile", "Duct.Shape name -> AF2:AF3 holding Rectangular / Round",
 check("D profile", "Unit.Type name -> AH2:AH6", (w5.defined_names["Unit.Type"].value, [dd[f"AH{i}"].value for i in range(2, 7)]),
       ("'{Dropdowns}'!$AH$2:$AH$6", ["RTU", "DOAS", "MAU", "ERV", "EF"]))
 check("D profile", "{Dropdowns} AA1:AD6 cleared", [dd.cell(rr, cc).value for rr in range(1, 7) for cc in range(27, 31)], [None] * 24)
+check("D profile", "Airflow.Method -> T2:T5 without Traverse (T6 empty)",
+      (w5.defined_names["Airflow.Method"].value, [dd[f"T{i}"].value for i in range(2, 7)]),
+      ("'{Dropdowns}'!$T$2:$T$5", ["Outlets", "PSP", "Filter Grid", "Profile Pressure", None]))
 for k, (p1, p2) in enumerate(PROFILE_ROUNDS):
     wbD = prepared(SRC, f"D{k}", fill_profile(k))
     for u in range(10):

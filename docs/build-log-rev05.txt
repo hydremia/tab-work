@@ -13,6 +13,8 @@ Step 2 - {Dropdowns} profile-pressure curve restored, duct-shape / unit-type lis
   MAUs: 220 unit-type lookup references repointed
   ERVs: 220 unit-type lookup references repointed
   Fans: 880 unit-type lookup references repointed
+Step 2b - MAU 'Method used' list: Traverse option removed:
+  {Dropdowns}!T6 'Traverse' removed; Airflow.Method now $T$2:$T$5 (Outlets, PSP, Filter Grid, Profile Pressure)
 Step 3 - notation-tolerant formulas:
 Formulas rewritten so text notations (N/A, Not Avail., Not Acc., N/L) in numeric inputs read as blank:
   Cover Page: 0 of 6 formulas changed
