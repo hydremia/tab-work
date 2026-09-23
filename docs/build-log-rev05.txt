@@ -15,6 +15,8 @@ Step 2 - {Dropdowns} profile-pressure curve restored, duct-shape / unit-type lis
   Fans: 880 unit-type lookup references repointed
 Step 2b - MAU 'Method used' list: Traverse option removed:
   {Dropdowns}!T6 'Traverse' removed; Airflow.Method now $T$2:$T$5 (Outlets, PSP, Filter Grid, Profile Pressure)
+Step 2c - Building Balance: Small Fans 21-30 in the free exhaust rows:
+  Building Balance H/I/K/M47:56 -> Small Fans 21-30 (anchors D484 ... D700); totals already sum rows 7-86
 Step 3 - notation-tolerant formulas:
 Formulas rewritten so text notations (N/A, Not Avail., Not Acc., N/L) in numeric inputs read as blank:
   Cover Page: 0 of 6 formulas changed
@@ -26,7 +28,7 @@ Formulas rewritten so text notations (N/A, Not Avail., Not Acc., N/L) in numeric
   {Equipment Data Entry}: 0 of 4 formulas changed
   {Dropdowns}: 0 of 0 formulas changed
   Equipment Summary: 320 of 1604 formulas changed
-  Building Balance: 132 of 532 formulas changed
+  Building Balance: 142 of 572 formulas changed
   RTUs: 9560 of 11804 formulas changed
   MAUs: 1790 of 2304 formulas changed
   ERVs: 2080 of 2644 formulas changed
@@ -41,8 +43,8 @@ Formulas rewritten so text notations (N/A, Not Avail., Not Acc., N/L) in numeric
   NEBB Frm Cert: 0 of 0 formulas changed
   Abbreviations: 0 of 4 formulas changed
   Calibration: 0 of 4 formulas changed
-  total: 31917 formulas changed
-Step 4 - Building Balance small fans 21-40: NOT done. The exhaust column has 10 free rows (47-56, beside the MAU rows); 20 more rows need a re-layout (rows inserted above the totals), left for a decision.
+  total: 31927 formulas changed
+Note - Small Fans 31-40 are not on Building Balance (decision 2026-09-23: rarely needed; the app warns).
 Package parts changed: 13 of 83 (xl/workbook.xml, xl/worksheets/sheet1.xml, xl/worksheets/sheet10.xml, xl/worksheets/sheet11.xml, xl/worksheets/sheet12.xml, xl/worksheets/sheet13.xml, xl/worksheets/sheet14.xml, xl/worksheets/sheet15.xml, xl/worksheets/sheet16.xml, xl/worksheets/sheet17.xml, xl/worksheets/sheet18.xml, xl/worksheets/sheet8.xml, xl/worksheets/sheet9.xml); every other part (VBA, drawings, media, styles, rels, content types) copied byte-for-byte.
 Examples (first formulas of each shape per sheet):
   Equipment Summary!F9
