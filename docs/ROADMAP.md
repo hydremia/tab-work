@@ -48,13 +48,15 @@ the template is in [`WORKBOOK_ANALYSIS.md`](./WORKBOOK_ANALYSIS.md).
 | Local storage | IndexedDB via Dexie | Keeps whole projects and queued photos on the device for offline work. |
 | Backend | **Supabase** (Postgres, Auth, Storage, Realtime) | One service covers the database, logins, file storage and live updates. Row-level security gives per-project access. It's standard Postgres, so we aren't locked in. |
 | Excel I/O | JSZip plus direct OOXML (XML) patching of the template | Common libraries (openpyxl, SheetJS community, ExcelJS) **drop images, drawings and add-ins or damage VBA** when they save. Writing values straight into the template's sheet XML keeps everything intact. Runs in the browser, so export works offline. |
-| Photo Report | Generated PDF (client-side with pdf-lib, or an Edge Function), plus a zip of full-resolution originals | Keeps photos out of the workbook, as requested. |
+| Issues & Photo Reports | Generated PDF (client-side with pdf-lib, or an Edge Function). Issues-only, Photos-only, or combined. Plus a zip of originals | Keeps photos out of the workbook. Deficiency photos are numbered to their issue #. |
 | Hosting | Vercel, Netlify or Cloudflare Pages | Static PWA hosting with preview deploys for every PR. |
 | Monitoring | Sentry (free tier) | Captures crashes and sync errors from devices in the field. |
 
-**Alternative if the company runs on Microsoft 365:** sign in with Entra ID (Microsoft 365 accounts) and
-store exported workbooks and photo reports in SharePoint/OneDrive through Microsoft Graph. We would likely
-still use Supabase for the live database and sync. *See open question Q2.*
+**Confirmed:** the company uses Microsoft 365, and all project files live in a team **Dropbox**.
+- **Sign-in:** Microsoft accounts through Entra ID. Supabase Auth supports this as the Azure provider.
+- **Dropbox:** where finished reports go. Exports (workbook, Issues Report, Photo Report) are saved straight to the
+  project's Dropbox folder, and workbooks can be picked from Dropbox to import. The live, multi-user project
+  data stays in Supabase, because Dropbox files can't safely handle several people editing at once.
 
 ### Data model (first draft)
 
@@ -132,7 +134,8 @@ Prices are approximate. Confirm current pricing when signing up.
 | **GitHub** (already have) | Code, issues, CI (Actions) | Free or existing plan |
 | **Domain** (e.g. `tab.a2bair.com`) | App URL | About $15/yr, or a subdomain of an existing domain |
 | **Sentry** | Error monitoring | Free tier |
-| *Optional* Microsoft Entra ID app registration | "Sign in with Microsoft" / SharePoint export | Included with M365 |
+| **Microsoft Entra ID app registration** | Sign in with Microsoft 365 accounts | Included with M365 (needs an M365 admin) |
+| **Dropbox API app** (team scope) | Save exports to and import from project folders | Free (uses the existing Dropbox plan; a team admin approves the app) |
 | *Optional* Apple Developer and Google Play | Only if we publish native store apps | $99/yr and $25 one-time |
 | *Optional* Anthropic API | Nameplate photo reading | Pay-per-use, likely a few dollars a month |
 
@@ -151,8 +154,8 @@ doing most of the implementation.
 | **0** | Discovery & template spike | Open questions answered. Template map drafted for every sheet. **Spike proven:** fill the blank .xlsm from code, open it in Excel, and confirm macros, logos, cover image, formulas and print setup are intact. |
 | **1** | Foundation | Repo scaffold (PWA, TypeScript, lint, tests, CI, preview deploys). Supabase project with auth and schema. Login and a project list. |
 | **2** | Core data entry (single device, offline) | Project info, equipment list, and full forms for RTU, MAU/ERV, Fans, VAV, Hoods and Traverses. Live calcs match Excel. Completion color coding. Works in airplane mode. |
-| **3** | Excel export & import | Export a complete workbook from the app. Import an existing workbook into the app. Round-trip tests (import → export → diff = no changes). Checks for capacity overflow (more than 40 RTUs, etc.). **This is the first release usable on a real job.** |
-| **4** | Photos | Camera or camera-roll capture, compression, categories (cover, deficiency, unit, tag, OA damper), captions. Cover photo goes into the workbook. **Separate Photo Report PDF** plus a zip export. |
+| **3** | Excel export & import | Export a complete workbook from the app. Import an existing workbook, **including re-importing an issued prelim for follow-up**, with a diff/merge review. Issued-report revisions. Dropbox save and open. Round-trip tests. **This is the first release usable on a real job.** |
+| **4** | Photos & Issues reports | Camera or camera-roll capture, compression, categories, captions. Cover photo goes into the workbook. **Issues Report, Photo Report and combined report** exports, with deficiency photos numbered by issue. |
 | **5** | Cloud sync & multi-user | Field-level push/pull, realtime updates, conflict flags, roles and permissions, background photo upload. Two techs on one project at the same time. |
 | **6** | Reporting workflow | Deficiency tracker feeding Summary remarks, instrument/calibration library, review and sign-off, audit history. |
 | **7** | Pilot & hardening | Run one live project start to finish, fix what we find, write the user guide, roll out to all techs. |
@@ -170,8 +173,9 @@ adding sync later doesn't require a rewrite.
 | Risk | Mitigation |
 |---|---|
 | Export damages the workbook (lost macros, images or styles) | Patch the template XML directly and never re-save it through a general-purpose library. Test that the file opens in desktop Excel. |
+| Re-importing an issued report that was edited in Excel | Import shows a field-by-field diff to accept or reject changes. Every issued report is kept as a frozen revision. |
 | Template changes over time | Versioned template map, and each project records which template version it uses. |
-| Fixed capacity (e.g. 40 RTU slots, 20 VAV airflow pages) | Warn in the app and decide an overflow policy (*Q7*). |
+| Fixed capacity (e.g. 40 RTU slots, 20 VAV airflow pages) | Confirmed large enough. The app blocks adding past each limit. |
 | Offline conflicts | Field-level merge, conflict flags and full history, so nothing is silently lost. |
 | iOS PWA limits (storage eviction, background upload) | Ask the browser for persistent storage, show an "unsynced items" indicator, and use the Capacitor wrapper if needed. |
 | Calc drift between app and Excel | Unit tests that compare the app's calculations against values computed by Excel. |
