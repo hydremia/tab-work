@@ -67,11 +67,11 @@ Text cells (serial, manufacturer, notes…) always get the notation directly.
 |---|---|---|
 | **Project Information** | Project name, physical address, mechanical engineer, mechanical contractor, TAB date(s), technician(s), project manager, report date | Optional: architect, electrical engineer, general contractor, blueprints used (up to 9 sheets, each with a revision date) |
 | **Cover photo** | Required (can be set to N/A) | The app crops it to the cover box shape (about 1.85 : 1, wide) |
-| **Narrative** **(new)** | Required: system set-up description (one text box) | Can be N/A for a prelim report |
+| **Narrative** | Required: system set-up description (one text box) | Can be N/A for a prelim report ✅ R5 |
 | **Calibration** | At least one instrument, each with type, manufacturer, model, serial and calibration date (8 slots). The date is flagged if it is more than 12 months before the TAB date. | The template's 7 a2b instruments are pre-loaded. **(new)** The app flags any instrument chosen on a unit page that has no calibration row. |
 | **Issues** | Each issue needs New/Existing, a remark, a status (Open/Closed), and equipment **or** "General (N/A)" | Optional: comments, photos. New issues go to *Summary - New* and existing ones to *Summary - (E)*, each numbered separately, 50 per sheet. |
 | **Building pressures** **(new)** (Building Balance) | Building vs. Outdoors ΔP | Kitchen vs. Dining ΔP is required when the project has kitchen hoods, otherwise automatically N/A. One spare pair, remarks and notes are optional. |
-| **Certification** **(new)** | Signature and date for the final report | Stamp image. Automatically N/A on a prelim report. |
+| **Certification** | Signature and date **required on the final report** | Stamp image. Automatically N/A on a prelim report. ✅ R5 |
 
 Building Balance and Equipment Summary are all formulas, so they need no entry.
 
@@ -82,7 +82,7 @@ Building Balance and Equipment Summary are all formulas, so they need no entry.
 | Section | Fields | Notes |
 |---|---|---|
 | **Identity** | Designation, area served, location | Always required, even in Airflow Only. Tagged New/Existing. |
-| **Design data** (schedule) | Manufacturer, model, HP, unit ESP, fan RPM, voltage, phase | Design total CFM and design OA CFM are required in the app. **(new)** The workbook itself takes design CFM from the outlet rows, so the app warns when the schedule total and the outlet sum differ by more than the tolerance. |
+| **Design data** (schedule) | Manufacturer, model, HP, unit ESP, fan RPM, voltage, phase | Design total CFM and design OA CFM are required in the app. ✅ R8: **both are checked.** The schedule design CFM and the sum of the outlet design CFMs are compared, and any discrepancy is **highlighted as a callout** on the unit (and listed in a project-wide "Design discrepancies" view). |
 | **Unit type** **(new)** | RTU or DOAS | Sets which static-profile boxes apply (see auto-N/A) |
 | **Unit data** | Serial number | |
 | **Motor data** | Motor manufacturer, motor RPM, service factor, FLA, frame, measured voltage, measured amperage | Measured volts/amps: 3 legs for 3-phase, 1 for single-phase. Corrected FLA and BHP are calculated. |
@@ -103,7 +103,7 @@ Same as RTU, with these differences:
 |---|---|---|
 | **Unit type** | MAU (Filter, Burner, Fan) | |
 | **OA damper, OA and return rows** | — | Not on the MAU page |
-| **Supply airflow method** **(new)** | **Method used**: Outlets, PSP, Filter Grid, Profile Pressure (Traverse is listed, see note) | Required. Only the chosen method's inputs are required; the other methods are automatically N/A. |
+| **Supply airflow method** | **Method used**: Outlets, PSP, Filter Grid, Profile Pressure | Required. Only the chosen method's inputs are required; the other methods are automatically N/A. |
 | — Outlets | Instrument and outlet rows (up to 38), same row rules as RTU | Required when method = Outlets. Optional otherwise. |
 | — PSP (perforated supply plenum) | Length, width (6–24 in list), number of blanks, velocity readings (up to 20) | K-factor, CFM and CFM/ft are calculated |
 | — Filter grid | Filter size and velocity for each filter (up to 11) | Supply Filter (VelGrid) constants, K 1.35 |
@@ -111,8 +111,7 @@ Same as RTU, with these differences:
 | **Design CFM override** | Optional | When filled, it replaces the outlet design total |
 | **Photos** | Unit, unit label/tag | OA damper photo is N/A |
 
-Note: "Traverse" is in the Method list but the workbook does not yet carry a traverse result into the MAU total.
-Until that is fixed, record the traverse on the Traverses page and pick "Outlets" or leave a remark.
+Note: "Traverse" was removed from the Method list in revision 05 (B2: not needed for MAUs).
 
 ## ERV / heat recovery (ERVs sheet)
 
@@ -143,18 +142,18 @@ Same as RTU for identity, design data, unit data, motor, drive, RPM and misc. in
 ## Small exhaust fans (Small Fans sheet, direct drive under 1/6 hp, NEBB 5.3.6)
 
 NEBB only requires designation, service, manufacturer, model and design/actual airflow for these, so the page
-is short.
+is short. ✅ R6: you asked for **model, serial and amps**. Manufacturer and airflow stay required because NEBB
+5.3.6 requires them. Everything else is optional.
 
 | Section | Fields | Notes |
 |---|---|---|
 | **Identity** | Designation, area served, location | Always required |
-| **Design data** | Manufacturer, model, HP, voltage, phase, design CFM | |
-| **Unit data** | Serial number, measured amps | **(new)** Proposed optional (not a NEBB 5.3.6 item) |
-| **Performance** | Unit ESP design/actual, fan RPM design/actual, speed setting design/actual, final settings | **(new)** Proposed optional |
+| **Required** | Manufacturer, model, **serial number**, **measured amps**, design CFM | |
+| **Optional** | HP, voltage, phase, unit ESP design/actual, fan RPM design/actual, speed setting design/actual, final settings | |
 | **Airflow** | Instrument and at least one outlet row (up to 6) | Same row rules as RTU |
 | **Photos** | Unit/tag | Required unless N/A |
 
-Note: Building Balance only lists small fans 1–20 (see WORKBOOK_ANALYSIS §8).
+Note: Building Balance only lists small fans 1–20 (see WORKBOOK_ANALYSIS §8). Decision B1 is pending.
 
 ## VAV / fan-powered terminals (VAVs sheet)
 
@@ -190,7 +189,7 @@ the workbook.
 | **Identity** | Point (T-#), area served, design CFM | |
 | **Duct** | Duct shape (Rectangular / Round), width or diameter, height, liner thickness | Height is automatically N/A for round ducts. Liner is optional (blank = none). Size text, Ak, point count and positions are calculated. |
 | **Readings** | Final: the full point grid, typed in reading order through quick entry (up to 80). Initial: one average velocity. | Complete when Initial **or** Final is present (prelim rule). Warn when fewer readings are entered than the calculated point count. |
-| **Conditions** | Instrument, duct static pressure, temperature | **(new)** Instrument required; SP and temperature proposed optional (as in v1) |
+| **Conditions** | Instrument, duct static pressure, temperature | ✅ R7: **all three required** |
 | Remarks | Optional | 3 lines per page, shared by the three traverses on that page |
 
 ---
@@ -223,8 +222,7 @@ the workbook.
 - **R2.** ✅ Photos (unit, tag, OA damper) are required for green unless marked N/A.
 - **R3.** ✅ Capacities equal. Revision 04 already gives all 80 VAVs their own airflow table.
 - **R4.** ✅ Blank must not mean N/A. Option A (hardened formulas, revision 05) chosen; see **N1**.
-- **R5.** **(new)** Narrative required (N/A allowed on prelims)? Certification signature/date required on final reports?
-- **R6.** **(new)** Small fans: keep serial, amps, ESP, RPM and speed setting optional, as NEBB 5.3.6 allows?
-- **R7.** **(new)** Traverses: instrument required, duct SP and temperature optional?
-- **R8.** **(new)** Should design CFM be taken from the schedule (EDE) and checked against the outlet sum, or should the
-  outlet design CFMs be the only source, as the workbook does today?
+- **R5.** ✅ Narrative required (N/A allowed on prelims). Certification signature and date required on final reports.
+- **R6.** ✅ Small fans: model, serial and amps required (plus manufacturer and airflow, which NEBB requires). The rest is optional.
+- **R7.** ✅ Traverses: instrument, duct SP and temperature all required.
+- **R8.** ✅ Check both: schedule design CFM vs. the outlet design sum, with a highlighted callout when they disagree.

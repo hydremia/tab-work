@@ -56,9 +56,9 @@ Last updated: 2026-09-23
 
 | # | Question | Answer |
 |---|---|---|
-| B1 | Building Balance has room for only 10 more exhaust rows. Add Small Fans 21–30 there now, or insert 10 rows above the totals (which shifts totals and the print area) so all 21–40 fit? | |
-| B2 | MAU "Method used = Traverse" has no calculation. Link it to a traverse on the Traverses sheet, or remove the option? | |
-| R5–R8 | New questions at the bottom of [REQUIRED_FIELDS.md](./REQUIRED_FIELDS.md) (narrative/certification, small-fan optional fields, traverse fields, design CFM source) | |
+| B1 | Building Balance has room for only 10 more exhaust rows. Add Small Fans 21–30 there now, or insert 10 rows above the totals (which shifts totals and the print area) so all 21–40 fit? | "40 of each OA and EA is fine." **Needs one clarification**: see the chat reply. |
+| B2 | MAU "Method used = Traverse" has no calculation. Link it to a traverse on the Traverses sheet, or remove the option? | **Remove it.** Not needed for MAUs. Done in revision 05 (`Airflow.Method` = Outlets, PSP, Filter Grid, Profile Pressure). |
+| R5–R8 | New questions at the bottom of [REQUIRED_FIELDS.md](./REQUIRED_FIELDS.md) (narrative/certification, small-fan optional fields, traverse fields, design CFM source) | R5 yes. R6: small fans require model, serial, amps (+ manufacturer and airflow per NEBB). R7: traverse instrument, SP and temp all required. R8: **check both** and highlight discrepancies. |
 
 ## Decisions log
 

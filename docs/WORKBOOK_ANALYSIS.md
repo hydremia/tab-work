@@ -311,7 +311,7 @@ Remarks: one 3-line area per page, page start S = 5 + 49k: rows S+45 (D:M), S+46
 | Drive.Type | Q2:Q4 | Belt, Direct, ECM |
 | Unit.Type | X2:X6 | RTU, DOAS, MAU, ERV, EF |
 | Airflow.Instrument | P2:P8 | Flow Hood, Velocity Grid, Pitot Traverse, Hot Wire Anemometer, Rotating Vane Anemometer, DDC / Controller Reading, Other (see remarks) |
-| Airflow.Method | T2:T6 | Outlets, PSP, Filter Grid, Profile Pressure, Traverse |
+| Airflow.Method | T2:T5 (rev 05) | Outlets, PSP, Filter Grid, Profile Pressure ("Traverse" was T6 in rev 04; removed in rev 05) |
 | PSP.Width | R2:R10 | 6, 9, 10, 12, 14, 16, 18, 20, 24 (in) |
 | Hood.FilterType | M2:M6 | Baffle (VelGrid), Captrate (VelGrid), Condensate Baffle (Airfoil), HVC / Slot (Airfoil), Supply Filter (VelGrid) |
 | Hood.FilterSize | N2:N17 | No Filter, 10×16, 10×20, 12×12, 12×16, 12×20, 12×24, 16×16, 16×20, 16×25, 20×20, 20×25, 24×24, 20×16, 16" Wide, 20" Wide |
@@ -364,7 +364,7 @@ stretched to fill it, so **crop the photo to about 1.85 : 1 first** or it will b
    into X1:AD6, over housing sizes 2–5. As a result, housing size 2 is wrong below 0.25 in. w.g. and sizes 3–5
    are wrong below 0.40 in. w.g., giving `#VALUE!` or a text result. Size 1 and higher pressures are fine. The
    revision 01 file has the original values. Fix: move the lists (or the curve) to free columns.
-3. **MAU "Method used = Traverse"** is in the list, but the method-total formula has no Traverse branch. Actual
+3. ✅ *Resolved in revision 05: option removed.* **MAU "Method used = Traverse"** was in the list, but the method-total formula has no Traverse branch. Actual
    airflow then shows blank.
 4. EDE P/Q (design total / OA CFM) for RTUs, MAUs and fans, ERV P/Q/H, small-fan J and hood D/G are **not
    linked**. Design CFM on the pages comes from the outlet tables. The app must still write the outlet design
