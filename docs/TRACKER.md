@@ -49,8 +49,8 @@ Last updated: 2026-09-23
 
 | # | Question | Answer |
 |---|---|---|
-| M1 | OK to merge [PR #1](https://github.com/hydremia/tab-work/pull/1) (revisions 01–04) into `main` so revision 04 is the official template the app builds on? | |
-| N1 | How N/A appears in numeric cells: pick an option from [REQUIRED_FIELDS.md](./REQUIRED_FIELDS.md#n1--how-na-appears-in-numeric-cells) | |
+| M1 | OK to merge [PR #1](https://github.com/hydremia/tab-work/pull/1) (revisions 01–04) into `main` so revision 04 is the official template the app builds on? | **Yes. Merged 2026-09-23** (merge commit `2ae8812`). |
+| N1 | How N/A appears in numeric cells: pick an option from [REQUIRED_FIELDS.md](./REQUIRED_FIELDS.md#n1--how-na-appears-in-numeric-cells) | **Option A:** hardened formulas in revision 05. The notation prints in the cell and calculations skip it. |
 
 ## Decisions log
 
@@ -70,6 +70,7 @@ Last updated: 2026-09-23
 | 2026-09-23 | ~~Fixed the two template formula bugs~~ **Reverted:** both were already fixed in revision 01. The 4-16-26 backup is restored to the original upload. |
 | 2026-09-23 | Follow-up exports fill the **previously issued workbook** (kept from re-import), so hand formatting in Excel is preserved. Re-import diff: accept or decline each change. Only same-field edits in both places are flagged as collisions. |
 | 2026-09-23 | Equipment tagged New/Existing. All users have equal permissions. Tolerance ±10%. Equipment photos are required unless N/A. |
+| 2026-09-23 | PR #1 merged into `main`. **N/A (option A):** revision 05 hardens formulas so `N/A`, `Not Avail.` and `Not Acc.` print in numeric cells without errors. |
 | 2026-09-23 | **The app targets revision 04 (`04 - a2b_Blank_TAB_Workbook 9-18-26.xlsm`)**, which includes the Evergreen hood method, MAU supply methods, building pressures, cover photo box, traverse grids, Equipment Summary and Small Fans. |
 
 ---
@@ -79,8 +80,9 @@ Last updated: 2026-09-23
 - [x] Draft roadmap, architecture and services list ([ROADMAP.md](./ROADMAP.md))
 - [~] Answer open questions (round 1 and 2 answered; round 3 E1, F1–F4, R1–R4 open)
 - [x] ~~Fix template bugs~~: already fixed in revision 01. The duplicate fix on the 4-16-26 backup was reverted.
-- [ ] **Merge [PR #1](https://github.com/hydremia/tab-work/pull/1) (revisions 01–04) into `main`** so the app plan and the current template are on one branch
-- [ ] **Redo the workbook analysis on revision 04** (`04 - a2b_Blank_TAB_Workbook 9-18-26.xlsm`)
+- [x] Merge [PR #1](https://github.com/hydremia/tab-work/pull/1) (revisions 01–04) into `main`
+- [~] **Revision 05:** N/A-safe formulas (option A), with functional tests
+- [~] **Redo the workbook analysis and required fields on revision 04** (`04 - a2b_Blank_TAB_Workbook 9-18-26.xlsm`)
 - [ ] Template map v1: Project Information, Equipment Data Entry, Cover Page
 - [ ] Template map v1: RTU Data / RTU Airflow (all 40 blocks)
 - [ ] Template map v1: MAU, Fans, VAV, Hoods, Traverses, Summary, Calibration
