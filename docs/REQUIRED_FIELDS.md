@@ -153,7 +153,7 @@ is short. ✅ R6: you asked for **model, serial and amps**. Manufacturer and air
 | **Airflow** | Instrument and at least one outlet row (up to 6) | Same row rules as RTU |
 | **Photos** | Unit/tag | Required unless N/A |
 
-Note: Building Balance only lists small fans 1–20 (see WORKBOOK_ANALYSIS §8). Decision B1 is pending.
+Note: Building Balance lists small fans 1–30 (21–30 added in revision 05). The app warns if a project has more than 30 small fans, because 31–40 would be missing from the building exhaust total.
 
 ## VAV / fan-powered terminals (VAVs sheet)
 

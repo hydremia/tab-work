@@ -56,7 +56,7 @@ Last updated: 2026-09-23
 
 | # | Question | Answer |
 |---|---|---|
-| B1 | Building Balance has room for only 10 more exhaust rows. Add Small Fans 21–30 there now, or insert 10 rows above the totals (which shifts totals and the print area) so all 21–40 fit? | "40 of each OA and EA is fine." **Needs one clarification**: see the chat reply. |
+| B1 | Building Balance has room for only 10 more exhaust rows. Add Small Fans 21–30 there now, or insert 10 rows above the totals (which shifts totals and the print area) so all 21–40 fit? | **Option 2:** Small Fans 21–30 use the 10 free exhaust rows (done in revision 05). 31–40 stay off the sheet (rarely needed); the app warns past 30. |
 | B2 | MAU "Method used = Traverse" has no calculation. Link it to a traverse on the Traverses sheet, or remove the option? | **Remove it.** Not needed for MAUs. Done in revision 05 (`Airflow.Method` = Outlets, PSP, Filter Grid, Profile Pressure). |
 | R5–R8 | New questions at the bottom of [REQUIRED_FIELDS.md](./REQUIRED_FIELDS.md) (narrative/certification, small-fan optional fields, traverse fields, design CFM source) | R5 yes. R6: small fans require model, serial, amps (+ manufacturer and airflow per NEBB). R7: traverse instrument, SP and temp all required. R8: **check both** and highlight discrepancies. |
 
@@ -92,7 +92,7 @@ Last updated: 2026-09-23
 - [x] ~~Fix template bugs~~: already fixed in revision 01. The duplicate fix on the 4-16-26 backup was reverted.
 - [x] Merge [PR #1](https://github.com/hydremia/tab-work/pull/1) (revisions 01–04) into `main`
 - [x] **Revision 05** (`05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm`): N/A-safe formulas, cover-page link fix, burner profile curve restored. 256/256 checks, 0 error cells (LibreOffice). Still needs a check in desktop Excel.
-- [ ] Building Balance: include Small Fans 21–40 (needs a layout decision, B1)
+- [x] Building Balance: Small Fans 21–30 added in revision 05 (B1). The app warns past 30.
 - [x] Redo the workbook analysis and required fields on revision 04 (`04 - a2b_Blank_TAB_Workbook 9-18-26.xlsm`)
 - [ ] Template map v1: Project Information, Equipment Data Entry, Cover Page
 - [ ] Template map v1: RTU Data / RTU Airflow (all 40 blocks)

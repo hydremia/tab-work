@@ -372,7 +372,7 @@ stretched to fill it, so **crop the photo to about 1.85 : 1 first** or it will b
 5. Ambiguous input cells: SF placeholder text; voltage and phase cells that are formulas with dropdowns;
    the first return row's formula CFMs; the unlabelled bordered cell on Small Fans (+8 G); the hood note
    that invites typing over the J/L averages. See the footnotes in §4.
-6. **Building Balance lists only small fans 1–20** (rows 67–86). Small fans 21–40 are missing from the
+6. ✅ *Revision 05: small fans 21–30 added in rows 47–56 (H/I/K/M); 31–40 stay off by decision, and the app warns.* **Building Balance lists only small fans 1–20** (rows 67–86). Small fans 21–40 are missing from the
    exhaust total. Fans, RTUs, MAUs and ERVs are complete.
 7. ToC lists "Mechanical Floorplan(s)" and "Site Photos" on page 24, but there are no such sheets (Photos is
    hidden). Hoods and Photos have `$A:$N` print-title columns (harmless). Hoods have no manual page breaks.
