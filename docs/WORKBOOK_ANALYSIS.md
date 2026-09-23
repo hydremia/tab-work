@@ -38,12 +38,15 @@ explicitly rather than assume a fixed stride.
 - Calculated in Excel: CFM = VEL × Ak, % of design, totals, return = total − OA, TSP/ESP, corrected FLA,
   estimated BHP. **Export must not overwrite these cells.**
 
-## Template bugs found (fix in the workbook before building the map)
+## Template bugs found — FIXED 2026-09-23
 
 1. **`RTU Data!C40`**, the phase for RTU slot 2, references `'{Equipment Data Entry}'!O7` (RTU-1's phase)
-   instead of `O8`. Every other slot follows the pattern (O9, O10, …).
+   instead of `O8`. Every other slot follows the pattern (O9, O10, …). **Fixed:** now `O8`.
 2. **`{Equipment Data Entry}!P2` / `P3`** (header technician and date) reference `'{Project Information}'!I12`
-   and `I11`, which are empty. All other sheets correctly use `E12` / `E11`.
+   and `I11`, which are empty. All other sheets correctly use `E12` / `E11`. **Fixed:** now `E12` / `E11`.
+
+Both fixes were made by editing the sheet XML directly, so macros, images, styles and print settings are
+unchanged. The workbook is also set to fully recalculate on open, so Excel refreshes the cached values.
 
 ## Export constraints
 
