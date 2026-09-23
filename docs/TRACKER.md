@@ -15,7 +15,7 @@ Last updated: 2026-09-23
 | Q5 | After export, will anyone edit the workbook in Excel and then need those edits back in the app? Or is export one-way once the report is finalized? | **Round trip required.** An issued preliminary report must be importable back into the app for follow-up work. |
 | Q6 | Photo Report format: PDF with 2–4 photos per page and captions, grouped by equipment? Should deficiency photos be numbered to match Summary remark #? Keep or retire the hidden `Photos` sheet? | **Yes, number deficiency photos to match issues.** Photos and Issues export as their own combined report, and each can also be exported separately. |
 | Q7 | Capacity overflow: what happens today when a job has more than 40 RTUs, more than 20 VAV airflow pages, etc.? Second workbook or extra blocks? | **Not needed.** Current capacity is enough. The app enforces the template limits. |
-| Q8 | Is the Evergreen kitchen-hood worksheet (`tb-worksheet-evergreen 2.xlsx`) in scope, and when? | You believed it was already aligned. **It is not, in the 4-16-26 workbook.** See the gap list in WORKBOOK_ANALYSIS.md → decision needed (E1). |
+| Q8 | Is the Evergreen kitchen-hood worksheet (`tb-worksheet-evergreen 2.xlsx`) in scope, and when? | **Already aligned** in revisions 01–04 (see E1). |
 | Q9 | Who defines "complete" for each equipment type? (I'll propose default required fields for you to adjust.) | Most fields required, with N/A allowed. Includes an Airflow-Only scope. Proposal in [REQUIRED_FIELDS.md](./REQUIRED_FIELDS.md). |
 | Q10 | Summary – New vs. Summary – (E): does each piece of equipment get tagged as new or existing? | |
 | Q11 | Should equipment photos (unit, tag, OA damper) be *required* for "complete" (green)? | |
@@ -38,7 +38,7 @@ Last updated: 2026-09-23
 
 | # | Question | Answer |
 |---|---|---|
-| E1 | **Hoods vs Evergreen:** the workbook's Hoods sheet does not yet include K-factors, filter free area, filter type, hood length or CFM/ft, or the PSP / supply-fan filter / HVC / condensate / direct-fired / building-pressure worksheets. Was the alignment done in a different copy of the workbook? If not, which of these should we add to the template? | |
+| E1 | **Hoods vs Evergreen:** was the alignment done in a different copy of the workbook? | **Yes, already done in revision 01** (branch `claude/tab-report-review-3divp8`, [PR #1](https://github.com/hydremia/tab-work/pull/1)) and carried through revision 04. My earlier gap list was checked against the old 4-16-26 backup by mistake. |
 | F1 | **Formatting fixes after export:** export fills the template with the app's data, so formatting fixed by hand in an issued workbook would be lost on the next export. Proposal: follow-up exports can use the **previously issued workbook as the base** (you pick it from Dropbox), so hand fixes carry forward. Recurring fixes get made in the template itself. OK? | |
 | F2 | **Re-import rule:** on re-import, remarks and comments from the workbook are offered as updates (accept/reject each one), and readings that differ are highlighted for review. OK? | |
 | F3 | **New vs Existing:** tag each piece of equipment New or Existing (default New), so its issues go to the matching Summary sheet by default? | |
@@ -60,7 +60,8 @@ Last updated: 2026-09-23
 | 2026-09-23 | Issues have separate New and Existing numbering and link to equipment or "General (N/A)". The Photo Report defaults to 4 photos per page. |
 | 2026-09-23 | Users are internal only (Techs and PMs). The app is a home-screen web app on all device types. No app stores. |
 | 2026-09-23 | Completion rules: most fields required, N/A allowed at field, section or equipment level, plus project scope profiles (Full TAB, Airflow Only, Custom). |
-| 2026-09-23 | Fixed the two template formula bugs by editing the workbook XML directly. Workbook set to recalculate on open (`fullCalcOnLoad`). |
+| 2026-09-23 | ~~Fixed the two template formula bugs~~ **Reverted:** both were already fixed in revision 01. The 4-16-26 backup is restored to the original upload. |
+| 2026-09-23 | **The app targets revision 04 (`04 - a2b_Blank_TAB_Workbook 9-18-26.xlsm`)**, which includes the Evergreen hood method, MAU supply methods, building pressures, cover photo box, traverse grids, Equipment Summary and Small Fans. |
 
 ---
 
@@ -68,7 +69,9 @@ Last updated: 2026-09-23
 - [x] Inventory workbook sheets, blocks and capacities ([WORKBOOK_ANALYSIS.md](./WORKBOOK_ANALYSIS.md))
 - [x] Draft roadmap, architecture and services list ([ROADMAP.md](./ROADMAP.md))
 - [~] Answer open questions (round 1 and 2 answered; round 3 E1, F1–F4, R1–R4 open)
-- [x] Fix template bugs (`RTU Data!C40`, `{Equipment Data Entry}!P2:P3`)
+- [x] ~~Fix template bugs~~: already fixed in revision 01. The duplicate fix on the 4-16-26 backup was reverted.
+- [ ] **Merge [PR #1](https://github.com/hydremia/tab-work/pull/1) (revisions 01–04) into `main`** so the app plan and the current template are on one branch
+- [ ] **Redo the workbook analysis on revision 04** (`04 - a2b_Blank_TAB_Workbook 9-18-26.xlsm`)
 - [ ] Template map v1: Project Information, Equipment Data Entry, Cover Page
 - [ ] Template map v1: RTU Data / RTU Airflow (all 40 blocks)
 - [ ] Template map v1: MAU, Fans, VAV, Hoods, Traverses, Summary, Calibration
@@ -76,8 +79,7 @@ Last updated: 2026-09-23
 - [ ] **Spike:** insert a cover photo into the Cover Page drawing
 - [x] Propose default required fields per equipment type ([REQUIRED_FIELDS.md](./REQUIRED_FIELDS.md))
 - [x] Accounts and admin setup checklist ([SETUP_ACCOUNTS.md](./SETUP_ACCOUNTS.md))
-- [x] Compare Hoods sheet with the Evergreen worksheet (not aligned; see E1)
-- [ ] Decide which Evergreen hood methods to add to the template (E1)
+- [x] Compare Hoods sheet with the Evergreen worksheet (aligned in revision 01; see E1)
 
 ## Phase 1 — Foundation
 - [ ] Create Supabase project (dev and prod) and GitHub repo structure

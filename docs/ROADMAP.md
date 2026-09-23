@@ -1,7 +1,8 @@
 # TAB App — Plan & Roadmap
 
 **Goal:** One data-entry interface for live TAB projects that works well on a phone and moves data cleanly
-into and out of the a2b TAB Workbook (`00 - a2b_Blank_TAB_Workbook 4-16-26.xlsm`).
+into and out of the a2b TAB Workbook, **revision 04** (`04 - a2b_Blank_TAB_Workbook 9-18-26.xlsm`, from
+[PR #1](https://github.com/hydremia/tab-work/pull/1)).
 
 **Status:** Phase 0 (Discovery). Progress is tracked in [`TRACKER.md`](./TRACKER.md). What we learned about
 the template is in [`WORKBOOK_ANALYSIS.md`](./WORKBOOK_ANALYSIS.md).
@@ -124,7 +125,6 @@ The items marked ★ are the ones I'd recommend putting in the first release.
 - **Tablet grid mode**, a spreadsheet-style view for fast entry of long outlet lists.
 - **Progress dashboard** for PMs across all active projects.
 - **Page-count/ToC sync** built into the export. This replaces the need to run the `SyncToCPageCounts` macro, if possible.
-- **Evergreen hood methods** (K-factor/free-area filters, PSP, HVC/slot, condensate, direct-fired profile, kitchen/dining pressure) added to the workbook template. *See E1 in the tracker.*
 
 ---
 
