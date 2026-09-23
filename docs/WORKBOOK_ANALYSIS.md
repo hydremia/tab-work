@@ -59,6 +59,27 @@ unchanged. The workbook is also set to fully recalculate on open, so Excel refre
 - After filling cells, set the workbook to recalculate fully on open (`fullCalcOnLoad`), so Excel refreshes
   the formula results.
 
+## Hoods sheet vs. Evergreen worksheet (`tb-worksheet-evergreen 2.xlsx`)
+
+**They are not aligned in the 4-16-26 workbook.** The workbook's Hoods sheet calculates each filter's CFM as
+`VEL × (width × height / 144)`, which is **gross face area with no correction factor**. It has up to 14 filter
+rows per hood, one filter height per hood, and a design/initial/final total.
+
+The Evergreen worksheet has the following, which our template is missing:
+
+| Evergreen sheet | Method | In our template? |
+|---|---|---|
+| Exhaust with Baffle Filters | CFM = **free area** (looked up by filter size) × VEL × **K-factor** (Captrate vs. Baffle). Filter type per hood, hood **length**, **CFM/ft** | ❌ No free area, K-factor, filter type or length/CFM-per-ft |
+| PSP Supply | Perforated supply plenum: length, width, # of blanks, up to 15 velocity readings, averaged, then lookup factors; CFM and CFM/ft | ❌ |
+| Supply Fan Filters | Filter size lookup (free area × factor) × VEL | ❌ |
+| HVC or Slot Filters | 3 readings per filter, averaged × lookup factors | ❌ |
+| Condensate Baffle Filters | 3 readings per filter, averaged × lookup factors | ❌ |
+| Direct Fired Profile Pres. CFM | Heater housing size + burner profile pressure → CFM from the manufacturer's curve (piecewise linear) | ❌ |
+| Building Pressures | Kitchen vs. dining room pressure and the difference | ❌ |
+
+Note: the Calibration sheet lists an *Evergreen Telemetry "Three Pounder"* balometer, so these are that
+manufacturer's hood-measurement methods.
+
 ## Photos
 
 Equipment photos (unit, tag/label, OA damper position) and deficiency photos are **not** part of the current
