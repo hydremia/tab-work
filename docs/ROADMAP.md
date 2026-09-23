@@ -1,8 +1,8 @@
 # TAB App — Plan & Roadmap
 
 **Goal:** One data-entry interface for live TAB projects that works well on a phone and moves data cleanly
-into and out of the a2b TAB Workbook, **revision 04** (`04 - a2b_Blank_TAB_Workbook 9-18-26.xlsm`, from
-[PR #1](https://github.com/hydremia/tab-work/pull/1)).
+into and out of the a2b TAB Workbook, **revision 05** (`05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm`; same layout
+as revision 04, with N/A-safe formulas).
 
 **Status:** Phase 0 (Discovery). Progress is tracked in [`TRACKER.md`](./TRACKER.md). What we learned about
 the template is in [`WORKBOOK_ANALYSIS.md`](./WORKBOOK_ANALYSIS.md).

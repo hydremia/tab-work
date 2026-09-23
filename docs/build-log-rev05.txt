@@ -1,0 +1,159 @@
+Source: 04 - a2b_Blank_TAB_Workbook 9-18-26.xlsm
+Step 1 - cover page project links:
+  Cover Page G32 (PROJECT NAME): {Project Information}!E12 -> E2
+  Cover Page G34 (PROJECT ADDRESS): {Project Information}!E13 -> E3
+  Cover Page G36 (REPORT DATE): {Project Information}!E24 -> E14
+  Cover Page G38 / G40 / G42 (contractor, engineer, architect) use absolute refs $E$8 / $E$5 / $E$4: correct
+Step 2 - {Dropdowns} profile-pressure curve restored, duct-shape / unit-type lists moved:
+  {Dropdowns} U1:Z12 profile-pressure curve restored from revision 01 (21 of 72 cells were overwritten)
+  Duct Shape list W1:W3 -> AF1:AF3; unit-type table X1:AD6 -> AH1:AN6
+  defined name Duct.Shape: $W$2:$W$3 -> $AF$2:$AF$3 (data validations use the name)
+  defined name Unit.Type: $X$2:$X$6 -> $AH$2:$AH$6 (data validations use the name)
+  RTUs: 880 unit-type lookup references repointed
+  MAUs: 220 unit-type lookup references repointed
+  ERVs: 220 unit-type lookup references repointed
+  Fans: 880 unit-type lookup references repointed
+Step 3 - notation-tolerant formulas:
+Formulas rewritten so text notations (N/A, Not Avail., Not Acc., N/L) in numeric inputs read as blank:
+  Cover Page: 0 of 6 formulas changed
+  ToC: 0 of 4 formulas changed
+  Narrative: 0 of 4 formulas changed
+  Summary - New: 0 of 4 formulas changed
+  Summary - (E): 0 of 4 formulas changed
+  {Project Information}: 0 of 0 formulas changed
+  {Equipment Data Entry}: 0 of 4 formulas changed
+  {Dropdowns}: 0 of 0 formulas changed
+  Equipment Summary: 320 of 1604 formulas changed
+  Building Balance: 132 of 532 formulas changed
+  RTUs: 9560 of 11804 formulas changed
+  MAUs: 1790 of 2304 formulas changed
+  ERVs: 2080 of 2644 formulas changed
+  Fans: 9480 of 11404 formulas changed
+  Small Fans: 1040 of 1604 formulas changed
+  VAVs: 2000 of 3364 formulas changed
+  Hoods: 619 of 1347 formulas changed
+  Traverses: 4896 of 5140 formulas changed
+  Photos: 0 of 4 formulas changed
+  Certification: 0 of 2 formulas changed
+  NEBB Cert : 0 of 0 formulas changed
+  NEBB Frm Cert: 0 of 0 formulas changed
+  Abbreviations: 0 of 4 formulas changed
+  Calibration: 0 of 4 formulas changed
+  total: 31917 formulas changed
+Step 4 - Building Balance small fans 21-40: NOT done. The exhaust column has 10 free rows (47-56, beside the MAU rows); 20 more rows need a re-layout (rows inserted above the totals), left for a decision.
+Package parts changed: 13 of 83 (xl/workbook.xml, xl/worksheets/sheet1.xml, xl/worksheets/sheet10.xml, xl/worksheets/sheet11.xml, xl/worksheets/sheet12.xml, xl/worksheets/sheet13.xml, xl/worksheets/sheet14.xml, xl/worksheets/sheet15.xml, xl/worksheets/sheet16.xml, xl/worksheets/sheet17.xml, xl/worksheets/sheet18.xml, xl/worksheets/sheet8.xml, xl/worksheets/sheet9.xml); every other part (VBA, drawings, media, styles, rels, content types) copied byte-for-byte.
+Examples (first formulas of each shape per sheet):
+  Equipment Summary!F9
+    was  =IF(OR(E9="",D9="",D9=0),"",E9/D9)
+    now  =IF(OR(E9="",D9="",D9=0),"",IF(OR(ISTEXT(E9),ISTEXT(D9)),"",E9/D9))
+  Equipment Summary!M9
+    was  =IF(OR(D9="",E9="",D9=0),"",IF(ABS(E9/D9-1)<=$E$5,"OK","Check"))
+    now  =IF(OR(D9="",E9="",D9=0),"",IF(OR(ISTEXT(E9),ISTEXT(D9),ISTEXT($E$5)),"",IF(ABS(E9/D9-1)<=$E$5,"OK","Check")))
+  Building Balance!G7
+    was  =IF(OR(E7="",C7="",C7=0),"",E7/C7)
+    now  =IF(OR(E7="",C7="",C7=0),"",IF(OR(ISTEXT(E7),ISTEXT(C7)),"",E7/C7))
+  Building Balance!M7
+    was  =IF(OR(K7="",I7="",I7=0),"",K7/I7)
+    now  =IF(OR(K7="",I7="",I7=0),"",IF(OR(ISTEXT(K7),ISTEXT(I7)),"",K7/I7))
+  Building Balance!G87
+    was  =IF(OR(E87="",C87=0),"",E87/C87)
+    now  =IF(OR(E87="",C87=0),"",IF(OR(ISTEXT(E87),ISTEXT(C87)),"",E87/C87))
+  Building Balance!M87
+    was  =IF(OR(K87="",I87=0),"",K87/I87)
+    now  =IF(OR(K87="",I87=0),"",IF(OR(ISTEXT(K87),ISTEXT(I87)),"",K87/I87))
+  RTUs!M9
+    was  =IF(OR(L9="",K9="",K9=0),"",L9/K9)
+    now  =IF(OR(L9="",K9="",K9=0),"",IF(OR(ISTEXT(L9),ISTEXT(K9)),"",L9/K9))
+  RTUs!K11
+    was  =IF(K9="","",K9-N(K10))
+    now  =IF(K9="","",IF(ISTEXT(K9),"",K9-N(K10)))
+  RTUs!L11
+    was  =IF(L9="","",L9-N(L10))
+    now  =IF(L9="","",IF(ISTEXT(L9),"",L9-N(L10)))
+  RTUs!D18
+    was  =IF(OR(E19="",E17="",B17=""),"",B17/AVERAGE(E19:G19)*E17)
+    now  =IF(OR(E19="",E17="",B17=""),"",IF(OR(ISTEXT(B17),COUNT(E19:G19)=0,ISTEXT(E17)),"",B17/AVERAGE(E19:G19)*E17))
+  MAUs!M9
+    was  =IF(OR(L9="",K9="",K9=0),"",L9/K9)
+    now  =IF(OR(L9="",K9="",K9=0),"",IF(OR(ISTEXT(L9),ISTEXT(K9)),"",L9/K9))
+  MAUs!D18
+    was  =IF(OR(E19="",E17="",B17=""),"",B17/AVERAGE(E19:G19)*E17)
+    now  =IF(OR(E19="",E17="",B17=""),"",IF(OR(ISTEXT(B17),COUNT(E19:G19)=0,ISTEXT(E17)),"",B17/AVERAGE(E19:G19)*E17))
+  MAUs!G18
+    was  =IF(OR(COUNT(E19:G19)=0,COUNT(E20:G20)=0),"",IF(C17="1-phase", ((0.8*0.9*E19*E20)/746), AVERAGE(E19:G19)*AVERAGE(E20:G20)*0.8*0.9*1.732/746))
+    now  =IF(OR(COUNT(E19:G19)=0,COUNT(E20:G20)=0),"",IF(C17="1-phase", IF(OR(ISTEXT(E19),ISTEXT(E20)),"",((0.8*0.9*E19*E20)/746)), AVERAGE(E19:G19)*AVERAGE(E20:G20)*0.8*0.9*1.732/746))
+  MAUs!D28
+    was  =IF(OR(C23="—",C24="",C25=""),"","Δ "&TEXT(C25-C24,"0.00"))
+    now  =IF(OR(C23="—",C24="",C25=""),"",IF(OR(ISTEXT(C25),ISTEXT(C24)),"","Δ "&TEXT(C25-C24,"0.00")))
+  ERVs!M9
+    was  =IF(OR(L9="",K9="",K9=0),"",L9/K9)
+    now  =IF(OR(L9="",K9="",K9=0),"",IF(OR(ISTEXT(L9),ISTEXT(K9)),"",L9/K9))
+  ERVs!D18
+    was  =IF(OR(E19="",E17="",B17=""),"",B17/AVERAGE(E19:G19)*E17)
+    now  =IF(OR(E19="",E17="",B17=""),"",IF(OR(ISTEXT(B17),COUNT(E19:G19)=0,ISTEXT(E17)),"",B17/AVERAGE(E19:G19)*E17))
+  ERVs!G18
+    was  =IF(OR(COUNT(E19:G19)=0,COUNT(E20:G20)=0),"",IF(C17="1-phase", ((0.8*0.9*E19*E20)/746), AVERAGE(E19:G19)*AVERAGE(E20:G20)*0.8*0.9*1.732/746))
+    now  =IF(OR(COUNT(E19:G19)=0,COUNT(E20:G20)=0),"",IF(C17="1-phase", IF(OR(ISTEXT(E19),ISTEXT(E20)),"",((0.8*0.9*E19*E20)/746)), AVERAGE(E19:G19)*AVERAGE(E20:G20)*0.8*0.9*1.732/746))
+  ERVs!D28
+    was  =IF(OR(C23="—",C24="",C25=""),"","Δ "&TEXT(C25-C24,"0.00"))
+    now  =IF(OR(C23="—",C24="",C25=""),"",IF(OR(ISTEXT(C25),ISTEXT(C24)),"","Δ "&TEXT(C25-C24,"0.00")))
+  Fans!M9
+    was  =IF(OR(L9="",K9="",K9=0),"",L9/K9)
+    now  =IF(OR(L9="",K9="",K9=0),"",IF(OR(ISTEXT(L9),ISTEXT(K9)),"",L9/K9))
+  Fans!D18
+    was  =IF(OR(E19="",E17="",B17=""),"",B17/AVERAGE(E19:G19)*E17)
+    now  =IF(OR(E19="",E17="",B17=""),"",IF(OR(ISTEXT(B17),COUNT(E19:G19)=0,ISTEXT(E17)),"",B17/AVERAGE(E19:G19)*E17))
+  Fans!G18
+    was  =IF(OR(COUNT(E19:G19)=0,COUNT(E20:G20)=0),"",IF(C17="1-phase", ((0.8*0.9*E19*E20)/746), AVERAGE(E19:G19)*AVERAGE(E20:G20)*0.8*0.9*1.732/746))
+    now  =IF(OR(COUNT(E19:G19)=0,COUNT(E20:G20)=0),"",IF(C17="1-phase", IF(OR(ISTEXT(E19),ISTEXT(E20)),"",((0.8*0.9*E19*E20)/746)), AVERAGE(E19:G19)*AVERAGE(E20:G20)*0.8*0.9*1.732/746))
+  Fans!D28
+    was  =IF(OR(C23="—",C24="",C25=""),"","Δ "&TEXT(C25-C24,"0.00"))
+    now  =IF(OR(C23="—",C24="",C25=""),"",IF(OR(ISTEXT(C25),ISTEXT(C24)),"","Δ "&TEXT(C25-C24,"0.00")))
+  Small Fans!M8
+    was  =IF(OR(L8="",K8="",K8=0),"",L8/K8)
+    now  =IF(OR(L8="",K8="",K8=0),"",IF(OR(ISTEXT(L8),ISTEXT(K8)),"",L8/K8))
+  Small Fans!G16
+    was  =IF(F16="", "", H16/F16)
+    now  =IF(F16="", "", IF(OR(ISTEXT(H16),ISTEXT(F16)),"",H16/F16))
+  Small Fans!J16
+    was  =IF(I16="", "", I16*$F16)
+    now  =IF(I16="", "", IF(OR(ISTEXT(I16),ISTEXT($F16)),"",I16*$F16))
+  Small Fans!L16
+    was  =IF(K16="", "", K16*$F16)
+    now  =IF(K16="", "", IF(OR(ISTEXT(K16),ISTEXT($F16)),"",K16*$F16))
+  VAVs!G17
+    was  =IF(F17="", "", H17/F17)
+    now  =IF(F17="", "", IF(OR(ISTEXT(H17),ISTEXT(F17)),"",H17/F17))
+  VAVs!J17
+    was  =IF(I17="", "", I17*$F17)
+    now  =IF(I17="", "", IF(OR(ISTEXT(I17),ISTEXT($F17)),"",I17*$F17))
+  VAVs!L17
+    was  =IF(K17="", "", K17*$F17)
+    now  =IF(K17="", "", IF(OR(ISTEXT(K17),ISTEXT($F17)),"",K17*$F17))
+  VAVs!M17
+    was  =IF(OR(H17="",H17=0),"",IF(K17="",IF(J17="","",J17/H17),L17/H17))
+    now  =IF(OR(H17="",H17=0),"",IF(K17="",IF(J17="","",IF(OR(ISTEXT(J17),ISTEXT(H17)),"",J17/H17)),IF(OR(ISTEXT(L17),ISTEXT(H17)),"",L17/H17)))
+  Hoods!K10
+    was  =IF(OR($I10="",J10=""),"",J10*IFERROR(INDEX('{Dropdowns}'!$J:$J,MATCH($E$18&"|"&$I10,'{Dropdowns}'!$H:$H,0)),0)*IFERROR(INDEX('{Dropdowns}'!$K:$K,MATCH($E$18&"|"&$I10,'{Dropdowns}'!$H:$H,0)),0))
+    now  =IF(OR($I10="",J10=""),"",IF(OR(ISTEXT(J10),$E$18="N/A",$E$18="Not Avail.",$E$18="Not Acc.",$E$18="N/L",$I10="N/A",$I10="Not Avail.",$I10="Not Acc.",$I10="N/L"),"",J10*IFERROR(INDEX('{Dropdowns}'!$J:$J,MATCH($E$18&"|"&$I10,'{Dropdowns}'!$H:$H,0)),0)*IFERROR(INDEX('{Dropdowns}'!$K:$K,MATCH($E$18&"|"&$I10,'{Dropdowns}'!$H:$H,0)),0)))
+  Hoods!M10
+    was  =IF(OR($I10="",L10=""),"",L10*IFERROR(INDEX('{Dropdowns}'!$J:$J,MATCH($E$18&"|"&$I10,'{Dropdowns}'!$H:$H,0)),0)*IFERROR(INDEX('{Dropdowns}'!$K:$K,MATCH($E$18&"|"&$I10,'{Dropdowns}'!$H:$H,0)),0))
+    now  =IF(OR($I10="",L10=""),"",IF(OR(ISTEXT(L10),$E$18="N/A",$E$18="Not Avail.",$E$18="Not Acc.",$E$18="N/L",$I10="N/A",$I10="Not Avail.",$I10="Not Acc.",$I10="N/L"),"",L10*IFERROR(INDEX('{Dropdowns}'!$J:$J,MATCH($E$18&"|"&$I10,'{Dropdowns}'!$H:$H,0)),0)*IFERROR(INDEX('{Dropdowns}'!$K:$K,MATCH($E$18&"|"&$I10,'{Dropdowns}'!$H:$H,0)),0)))
+  Hoods!H22
+    was  =IF(OR(B22="",B22=0),"",IF(F22="",IF(D22="","",D22/B22),F22/B22))
+    now  =IF(OR(B22="",B22=0),"",IF(F22="",IF(D22="","",IF(OR(ISTEXT(D22),ISTEXT(B22)),"",D22/B22)),IF(OR(ISTEXT(F22),ISTEXT(B22)),"",F22/B22)))
+  Hoods!D23
+    was  =IF(OR(D22="",E11="",E11=0),"",D22/E11)
+    now  =IF(OR(D22="",E11="",E11=0),"",IF(OR(ISTEXT(D22),ISTEXT(E11)),"",D22/E11))
+  Traverses!H7
+    was  =IF(OR($D$9="",$G$9=""),"",IF($D$9="Round",ROUND(PI()*(($G$9-2*N($K$9))/2)^2/144,3),IF($I$9="","",ROUND(($G$9-2*N($K$9))*($I$9-2*N($K$9))/144,3))))
+    now  =IF(OR($D$9="",$G$9=""),"",IF($D$9="Round",IF(ISTEXT($G$9),"",ROUND(PI()*(($G$9-2*N($K$9))/2)^2/144,3)),IF($I$9="","",IF(OR(ISTEXT($G$9),ISTEXT($I$9)),"",ROUND(($G$9-2*N($K$9))*($I$9-2*N($K$9))/144,3)))))
+  Traverses!N9
+    was  =IF(OR($D$9="",$G$9=""),"",IF($D$9="Round",IF($G$9<=9,6,IF($G$9<=12,8,10)),IF($G$9<12,2,MIN(10,MAX(3,ROUNDUP($G$9/6,0))))))
+    now  =IF(OR($D$9="",$G$9=""),"",IF($D$9="Round",IF(ISTEXT($G$9),"",IF($G$9<=9,6,IF($G$9<=12,8,10))),IF(ISTEXT($G$9),"",IF($G$9<12,2,MIN(10,MAX(3,ROUNDUP($G$9/6,0)))))))
+  Traverses!D10
+    was  =IF(OR($D$9="",$G$9="",1>$N$9),"",IF($D$9="Round",ROUND(IF(1<=$N$9/2,$G$9/2*(1-SQRT(($N$9-2*1+1)/$N$9)),$G$9-$G$9/2*(1-SQRT(($N$9-2*($N$9-1+1)+1)/$N$9))),1),ROUND((1-0.5)*$G$9/$N$9,1)))
+    now  =IF(ISTEXT($N$9),"",IF(OR($D$9="",$G$9="",1>$N$9),"",IF($D$9="Round",IF(ISTEXT($G$9),"",ROUND(IF(1<=$N$9/2,$G$9/2*(1-SQRT(($N$9-2*1+1)/$N$9)),$G$9-$G$9/2*(1-SQRT(($N$9-2*($N$9-1+1)+1)/$N$9))),1)),IF(ISTEXT($G$9),"",ROUND((1-0.5)*$G$9/$N$9,1)))))
+  Traverses!N10
+    was  =IF(OR($D$9="",$G$9=""),"",IF($D$9="Round",2,IF($I$9="","",IF($I$9<12,2,MIN(8,MAX(3,ROUNDUP($I$9/6,0)))))))
+    now  =IF(OR($D$9="",$G$9=""),"",IF($D$9="Round",2,IF($I$9="","",IF(ISTEXT($I$9),"",IF($I$9<12,2,MIN(8,MAX(3,ROUNDUP($I$9/6,0))))))))
