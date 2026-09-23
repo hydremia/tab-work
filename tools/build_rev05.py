@@ -547,6 +547,26 @@ def step_dropdowns(parts, titles, log, wb_part="xl/workbook.xml"):
                 raise ValueError(f"{title}: unexpected reference into the moved lists: {leftover[:3]}")
 
 
+
+def step_remove_mau_traverse(parts, titles, log, wb_part="xl/workbook.xml"):
+    """Drop "Traverse" from the MAU "Method used" list: no method-total formula handles it (user decision 2026-09-23)."""
+    part = titles["{Dropdowns}"]
+    xml = parts[part]
+    cell = '<c r="T6" t="inlineStr"><is><t>Traverse</t></is></c>'
+    if xml.count(cell) != 1:
+        raise ValueError("{Dropdowns}!T6 does not hold the Traverse method as expected")
+    parts[part] = xml.replace(cell, '<c r="T6"/>')
+    wb = parts[wb_part]
+    old = "<definedName name=\"Airflow.Method\">'{Dropdowns}'!$T$2:$T$6</definedName>"
+    if wb.count(old) != 1:
+        raise ValueError("defined name Airflow.Method not as expected")
+    parts[wb_part] = wb.replace(old, old.replace("$T$6", "$T$5"))
+    for title, p in titles.items():
+        if title != "{Dropdowns}" and "'{Dropdowns}'!$T$" in parts[p]:
+            raise ValueError(f"{title}: direct reference into the method list")
+    log.append("  {Dropdowns}!T6 'Traverse' removed; Airflow.Method now $T$2:$T$5 (Outlets, PSP, Filter Grid, Profile Pressure)")
+
+
 def step_notation_guards(parts, titles, log):
     """Every formula: text notations in numeric inputs read as blank (see module docstring)."""
     tr = Transformer()
@@ -614,6 +634,8 @@ def build(src=None, out=OUT):
     step_cover_links(parts, titles, log)
     log.append("Step 2 - {Dropdowns} profile-pressure curve restored, duct-shape / unit-type lists moved:")
     step_dropdowns(parts, titles, log)
+    log.append("Step 2b - MAU 'Method used' list: Traverse option removed:")
+    step_remove_mau_traverse(parts, titles, log)
     log.append("Step 3 - notation-tolerant formulas:")
     examples = step_notation_guards(parts, titles, log)
     log.append("Step 4 - Building Balance small fans 21-40: NOT done. The exhaust column has 10 free rows (47-56, "
