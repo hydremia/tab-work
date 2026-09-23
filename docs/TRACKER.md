@@ -2,7 +2,7 @@
 
 Legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked
 
-Last updated: 2026-09-22
+Last updated: 2026-09-23
 
 ## Open questions (need answers to finish Phase 0)
 
@@ -28,6 +28,7 @@ Last updated: 2026-09-22
 | 2026-09-22 | Equipment and deficiency photos are exported as a separate Photo Report, not placed in the workbook. The cover photo is placed in the workbook. |
 | 2026-09-22 | Proposed stack: React/TS PWA + Supabase + direct-XML Excel export. *(Pending confirmation after Q2/Q12.)* |
 | 2026-09-22 | The app writes input cells only. Excel formulas stay authoritative. |
+| 2026-09-23 | Fixed the two template formula bugs by editing the workbook XML directly. Workbook set to recalculate on open (`fullCalcOnLoad`). |
 
 ---
 
@@ -35,7 +36,7 @@ Last updated: 2026-09-22
 - [x] Inventory workbook sheets, blocks and capacities ([WORKBOOK_ANALYSIS.md](./WORKBOOK_ANALYSIS.md))
 - [x] Draft roadmap, architecture and services list ([ROADMAP.md](./ROADMAP.md))
 - [ ] Answer open questions Q1–Q12
-- [ ] Fix template bugs (`RTU Data!C40`, `{Equipment Data Entry}!P2:P3`) → new template revision
+- [x] Fix template bugs (`RTU Data!C40`, `{Equipment Data Entry}!P2:P3`)
 - [ ] Template map v1: Project Information, Equipment Data Entry, Cover Page
 - [ ] Template map v1: RTU Data / RTU Airflow (all 40 blocks)
 - [ ] Template map v1: MAU, Fans, VAV, Hoods, Traverses, Summary, Calibration
