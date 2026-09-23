@@ -54,13 +54,15 @@ the template is in [`WORKBOOK_ANALYSIS.md`](./WORKBOOK_ANALYSIS.md).
 
 **Confirmed:** the company uses Microsoft 365, and all project files live in a team **Dropbox**.
 - **Sign-in:** Microsoft accounts through Entra ID. Supabase Auth supports this as the Azure provider.
-- **Dropbox:** where finished reports go. Exports (workbook, Issues Report, Photo Report) are saved straight to the
-  project's Dropbox folder, and workbooks can be picked from Dropbox to import. The live, multi-user project
-  data stays in Supabase, because Dropbox files can't safely handle several people editing at once.
+  Setup steps are in [SETUP_ACCOUNTS.md](./SETUP_ACCOUNTS.md).
+- **Dropbox: no integration.** Exports download to the device, and users save them into the project's Dropbox folder
+  as they do today (Dropbox desktop folder, or the phone share sheet). Re-import means picking the file the same way.
+- **Photos** are stored in Supabase Storage (managed cloud storage), not Dropbox and not self-hosted.
+- Every export is also kept in the app as a frozen revision (Prelim, Rev 1…).
 
 ### Data model (first draft)
 
-- `organizations`, `users`, `project_members(role: tech | pm | reviewer | viewer)`
+- `organizations`, `users`, `project_members(role: tech | pm | admin)`: internal users only
 - `projects`: project information fields, cover photo, template version
 - `equipment`: `id (uuid)`, `project_id`, `type` (RTU, MAU, ERV, EF, VAV, Hood, Traverse…), `designation`
   (e.g. RTU-1), `slot` (block index in the workbook), `data` (JSON of field values), `status`
@@ -93,7 +95,10 @@ Each equipment type has **required-field rules** defined in the template map:
 | Amber | In progress | Some required fields are missing |
 | Green | Complete | All required fields filled and photos attached (if required) |
 | Red | Needs attention | Open deficiency, **or** a reading outside tolerance (e.g. airflow outside ±10% of design, which will be configurable) |
-| Blue (optional) | Reviewed | PM or reviewer has signed off |
+| Blue (optional) | Reviewed | PM has signed off |
+
+Any field, section or piece of equipment can be marked **N/A**, and projects have a scope profile (Full TAB,
+**Airflow Only**, Custom). Full rules are in [REQUIRED_FIELDS.md](./REQUIRED_FIELDS.md).
 
 Status shows on each equipment card, as rollups per type and per project (e.g. "RTUs 12/18 complete"), and as
 a filter ("show me everything still missing data").
@@ -119,7 +124,7 @@ The items marked ★ are the ones I'd recommend putting in the first release.
 - **Tablet grid mode**, a spreadsheet-style view for fast entry of long outlet lists.
 - **Progress dashboard** for PMs across all active projects.
 - **Page-count/ToC sync** built into the export. This replaces the need to run the `SyncToCPageCounts` macro, if possible.
-- Support for the **Evergreen kitchen-hood worksheet** (`tb-worksheet-evergreen 2.xlsx`) as a second template. *See Q8.*
+- **Evergreen hood methods** (K-factor/free-area filters, PSP, HVC/slot, condensate, direct-fired profile, kitchen/dining pressure) added to the workbook template. *See E1 in the tracker.*
 
 ---
 
@@ -135,7 +140,6 @@ Prices are approximate. Confirm current pricing when signing up.
 | **Domain** (e.g. `tab.a2bair.com`) | App URL | About $15/yr, or a subdomain of an existing domain |
 | **Sentry** | Error monitoring | Free tier |
 | **Microsoft Entra ID app registration** | Sign in with Microsoft 365 accounts | Included with M365 (needs an M365 admin) |
-| **Dropbox API app** (team scope) | Save exports to and import from project folders | Free (uses the existing Dropbox plan; a team admin approves the app) |
 | *Optional* Apple Developer and Google Play | Only if we publish native store apps | $99/yr and $25 one-time |
 | *Optional* Anthropic API | Nameplate photo reading | Pay-per-use, likely a few dollars a month |
 
@@ -154,7 +158,7 @@ doing most of the implementation.
 | **0** | Discovery & template spike | Open questions answered. Template map drafted for every sheet. **Spike proven:** fill the blank .xlsm from code, open it in Excel, and confirm macros, logos, cover image, formulas and print setup are intact. |
 | **1** | Foundation | Repo scaffold (PWA, TypeScript, lint, tests, CI, preview deploys). Supabase project with auth and schema. Login and a project list. |
 | **2** | Core data entry (single device, offline) | Project info, equipment list, and full forms for RTU, MAU/ERV, Fans, VAV, Hoods and Traverses. Live calcs match Excel. Completion color coding. Works in airplane mode. |
-| **3** | Excel export & import | Export a complete workbook from the app. Import an existing workbook, **including re-importing an issued prelim for follow-up**, with a diff/merge review. Issued-report revisions. Dropbox save and open. Round-trip tests. **This is the first release usable on a real job.** |
+| **3** | Excel export & import | Export a complete workbook from the app. Import an existing workbook, **including re-importing an issued prelim for follow-up**, with a diff/merge review. Issued-report revisions. Option to export onto the previously issued workbook. Round-trip tests. **This is the first release usable on a real job.** |
 | **4** | Photos & Issues reports | Camera or camera-roll capture, compression, categories, captions. Cover photo goes into the workbook. **Issues Report, Photo Report and combined report** exports, with deficiency photos numbered by issue. |
 | **5** | Cloud sync & multi-user | Field-level push/pull, realtime updates, conflict flags, roles and permissions, background photo upload. Two techs on one project at the same time. |
 | **6** | Reporting workflow | Deficiency tracker feeding Summary remarks, instrument/calibration library, review and sign-off, audit history. |
