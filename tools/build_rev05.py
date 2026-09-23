@@ -567,6 +567,30 @@ def step_remove_mau_traverse(parts, titles, log, wb_part="xl/workbook.xml"):
     log.append("  {Dropdowns}!T6 'Traverse' removed; Airflow.Method now $T$2:$T$5 (Outlets, PSP, Filter Grid, Profile Pressure)")
 
 
+def step_balance_small_fans(parts, titles, log):
+    """Building Balance: list Small Fans 21-30 in the 10 empty exhaust rows 47-56 (beside the MAU rows), same
+    formulas as the Small Fans 1-20 rows 67-86. Totals (rows 7-86) and the hide-unused macro already cover them.
+    Small fans 31-40 stay off the sheet (user decision 2026-09-23: rarely if ever needed; the app warns)."""
+    part = titles["Building Balance"]
+    xml = parts[part]
+    for i in range(10):
+        r, n = 47 + i, 21 + i
+        d, k = 4 + 24 * (n - 1), 8 + 24 * (n - 1)
+        cells = {
+            "H": (11, f"IF('Small Fans'!D{d}=\"\",\"\",'Small Fans'!D{d})"),
+            "I": (189, f"IF('Small Fans'!K{k}=\"\",\"\",'Small Fans'!K{k})"),
+            "K": (189, f"IF('Small Fans'!L{k}=\"\",\"\",'Small Fans'!L{k})"),
+            "M": (49, f"IF(OR(K{r}=\"\",I{r}=\"\",I{r}=0),\"\",K{r}/I{r})"),
+        }
+        for col, (style, f) in cells.items():
+            empty = f'<c r="{col}{r}" s="{style}" t="n"></c>'
+            if xml.count(empty) != 1:
+                raise ValueError(f"Building Balance {col}{r} is not the expected empty cell")
+            xml = xml.replace(empty, f'<c r="{col}{r}" s="{style}"><f>{xml_esc(f)}</f><v></v></c>')
+    parts[part] = xml
+    log.append("  Building Balance H/I/K/M47:56 -> Small Fans 21-30 (anchors D484 ... D700); totals already sum rows 7-86")
+
+
 def step_notation_guards(parts, titles, log):
     """Every formula: text notations in numeric inputs read as blank (see module docstring)."""
     tr = Transformer()
@@ -636,10 +660,11 @@ def build(src=None, out=OUT):
     step_dropdowns(parts, titles, log)
     log.append("Step 2b - MAU 'Method used' list: Traverse option removed:")
     step_remove_mau_traverse(parts, titles, log)
+    log.append("Step 2c - Building Balance: Small Fans 21-30 in the free exhaust rows:")
+    step_balance_small_fans(parts, titles, log)
     log.append("Step 3 - notation-tolerant formulas:")
     examples = step_notation_guards(parts, titles, log)
-    log.append("Step 4 - Building Balance small fans 21-40: NOT done. The exhaust column has 10 free rows (47-56, "
-               "beside the MAU rows); 20 more rows need a re-layout (rows inserted above the totals), left for a decision.")
+    log.append("Note - Small Fans 31-40 are not on Building Balance (decision 2026-09-23: rarely needed; the app warns).")
     with zipfile.ZipFile(out, "w") as zout:
         for info in infos:
             data = raw[info.filename]

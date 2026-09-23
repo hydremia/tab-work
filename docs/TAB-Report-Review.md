@@ -386,7 +386,7 @@ Each traverse has an off-print quick-entry list (columns P–W, ten cells per co
 | File | Purpose |
 |---|---|
 | `05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm` | Revision 05, generated from revision 04 by `tools/build_rev05.py` (build log `docs/build-log-rev05.txt`) |
-| `tools/functional_test_rev05.py` | 257 checks (rev 04 checks, same-as-rev-04 comparison, notations, stress, profile curve, MAU method list) |
+| `tools/functional_test_rev05.py` | 262 checks (rev 04 checks, same-as-rev-04 comparison, notations, stress, profile curve, MAU method list, Building Balance small fans 21-30) |
 
 ### 10.1 N/A, Not Avail., Not Acc. in numeric inputs
 
@@ -411,10 +411,12 @@ The build parses every formula and wraps the part that does arithmetic on an inp
 | Check | Result |
 |---|---|
 | LibreOffice recalculation, blank template | 0 error cells in 41,787 formulas |
-| `tools/functional_test_rev05.py` | 257 / 257 (re-run 2026-09-23 after removing the MAU Traverse method): all 133 revision 04 checks with the same expected values, plus cover links (3). With the revision 04 sample data every cell equals revision 04 except the fixed cover links and `{Dropdowns}`. N/A checks on every unit sheet and the roll-ups: 88. Stress test, with a notation in every empty input cell of every unit sheet and the data-entry sheet: 0 error cells. Profile curve and method list: 27. |
+| `tools/functional_test_rev05.py` | 262 / 262 (re-run 2026-09-23 after removing the MAU Traverse method and adding small fans 21-30 to Building Balance; section E, 5 checks): all 133 revision 04 checks with the same expected values, plus cover links (3). With the revision 04 sample data every cell equals revision 04 except the fixed cover links and `{Dropdowns}`. N/A checks on every unit sheet and the roll-ups: 88. Stress test, with a notation in every empty input cell of every unit sheet and the data-entry sheet: 0 error cells. Profile curve and method list: 27. |
 | Same notation data in revision 04 | 180 error cells (all removed in revision 05) |
 | `tools/build_rev05.py --selftest` | 13 transform cases; all 41,787 formulas parse and round-trip |
 | `tools/verify_blocks.py` | 0 issues on all seven unit sheets |
 | Package | 13 of 83 parts changed (12 worksheets + workbook.xml names); vbaProject.bin, drawings, media, styles byte-identical; 37 data validations, 1,041 conditional formats, 52 defined names, 21 print areas as in revision 04 |
 
 **Update (2026-09-23):** the MAU "Method used" list no longer offers *Traverse*. No method-total formula handled it, and it isn't needed for MAUs. `{Dropdowns}!T6` was cleared and `Airflow.Method` is now `$T$2:$T$5` (build step 2b). No other cells changed.
+
+**Update (2026-09-23):** Building Balance now lists **Small Fans 21–30** in the 10 empty exhaust rows (H/I/K/M 47–56, beside the MAU rows), using the same formulas as rows 67–86 (build step 2c). The totals already sum rows 7–86, and the macro's hide-unused routine checks column H, so no other change was needed. Small fans 31–40 are left off by decision (rarely needed).

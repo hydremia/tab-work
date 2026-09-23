@@ -397,11 +397,13 @@ for ws in wbA.worksheets:
         for c in row:
             if ws.title == "Cover Page" and c.coordinate in ("G32", "G34", "G36"):
                 continue
+            if ws.title == "Building Balance" and c.coordinate[0] in "HIKM" and 47 <= c.row <= 56:
+                continue                                  # new Small Fans 21-30 rows (checked in section E)
             a, b = c.value, ws4[c.coordinate].value
             same = a == b or (isinstance(a, (int, float)) and isinstance(b, (int, float)) and abs(a - b) < 1e-9)
             if not same:
                 diffs.append((ws.title, c.coordinate, a, b))
-check("A same as rev04", "cells differing from revision 04 with the same data (excl. fixed cover links, {Dropdowns})",
+check("A same as rev04", "cells differing from revision 04 with the same data (excl. fixed cover links, {Dropdowns}, Building Balance small fans 21-30)",
       len(diffs), 0)
 
 # ----------------------------------------------------------------------------------------- B. N/A notations
@@ -544,6 +546,27 @@ for k, (p1, p2) in enumerate(PROFILE_ROUNDS):
         exp = w1.cell(row, 21 + size).value
         check("D profile", f"MAUs K{71 + 104 * u} housing {size} @ {p} = rev 01 {exp}", r4(wbD["MAUs"][f"K{71 + 104 * u}"].value, 3), r4(exp, 3))
     check("D profile", f"error cells (round {k + 1})", count_errors(wbD), 0)
+
+# ----------------------------------------------------------------------------------------- E. Building Balance small fans 21-30
+def fill_small_21_30(wb):
+    ede, sf = wb["{Equipment Data Entry}"], wb["Small Fans"]
+    for n, design, final in ((21, 200, 180), (30, 150, 160), (31, 999, 999)):
+        ede[f"B{232 + n}"] = f"EF-S{n}"
+        row = 4 + 24 * (n - 1) + 12
+        sf[f"F{row}"] = 1.0; sf[f"H{row}"] = design; sf[f"K{row}"] = final
+
+
+wbE = prepared(SRC, "E05", fill_rev04, fill_small_21_30)
+bb = wbE["Building Balance"]
+S = "E balance"
+check(S, "H47 / I47 / K47 / M47 = EF-S21 200 / 180 / 0.9", [bb["H47"].value, bb["I47"].value, bb["K47"].value, r4(bb["M47"].value)],
+      ["EF-S21", 200, 180, 0.9])
+check(S, "H56 / I56 / K56 = EF-S30 150 / 160", [bb["H56"].value, bb["I56"].value, bb["K56"].value], ["EF-S30", 150, 160])
+check(S, "H48:H55 blank (fans 22-29 unused)", [bb[f"H{r}"].value for r in range(48, 56)], [None] * 8)
+base = wbA["Building Balance"]["I87"].value
+base = base if isinstance(base, (int, float)) else 0
+check(S, "I87 exhaust design total = sample total + 200 + 150 (fan 31 not listed)", bb["I87"].value, base + 350)
+check(S, "error cells", count_errors(wbE), 0)
 
 # ----------------------------------------------------------------------------------------- report
 bad = [x for x in results if not x[4]]
