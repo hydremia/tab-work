@@ -50,7 +50,7 @@ causes a `#VALUE!` error in today's formulas. The options are:
 
 | Option | What prints | Template change | Notes |
 |---|---|---|---|
-| **A. Hardened formulas (recommended)** | The notation itself (`N/A`, `Not Avail.`, `Not Acc.`) in the cell | Revision 05: wrap calcs that read input cells in number checks, e.g. `IF(ISNUMBER(I17), I17*$F17, "")`, so text displays and is skipped in totals and averages | Clearest report. Also fixes the same error for anyone typing N/A by hand in Excel today. Verified with the existing functional test suite. |
+| **A. Hardened formulas (recommended)** | The notation itself (`N/A`, `Not Avail.`, `Not Acc.`) in the cell | Revision 05: wrap calcs that read input cells in number checks, e.g. `IF(ISNUMBER(I17), I17*$F17, "")`, so text displays and is skipped in totals and averages | Clearest report. Also fixes the same error for anyone typing N/A by hand in Excel today. Would be checked with the existing functional test suite before release. |
 | B. Blank cell + note | Blank cell, with the notation written in that block's Remarks/Technician Notes (e.g. "Serial No.: Not Acc.") | None | Works with no template change, but the reader has to look in two places. |
 | C. Section-level only | For a whole N/A section, the notation goes in the section's first text cell and the numeric cells stay blank | None | Only suits whole sections, not single fields. Could be combined with B. |
 
@@ -86,7 +86,7 @@ These all use the same *Data* sheet layout.
 | **Misc. unit info** | Design fan rotation, actual fan rotation | |
 | **Filters** | Design filter type, installed filter type, size, qty | N/A if the unit has no filters |
 | **Airflow** (the *Airflow* sheet) | At least one supply outlet row. Every row needs No., area served, size, Ak, design CFM, and a reading. | Return and OA rows are required if they apply. The OA row is automatically N/A if design OA is 0. |
-| **Photos** | Unit, unit label/tag | OA damper photo required if the unit has OA. Required unless N/A |
+| **Photos** | Unit, unit label/tag | All required unless marked N/A. The OA damper photo only applies to units with OA. |
 | Technician notes, remarks | Optional | |
 
 ## VAV boxes
