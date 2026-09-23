@@ -63,7 +63,7 @@ the template is in [`WORKBOOK_ANALYSIS.md`](./WORKBOOK_ANALYSIS.md).
 
 ### Data model (first draft)
 
-- `organizations`, `users`, `project_members(role: tech | pm | admin)`: internal users only
+- `organizations`, `users`, `project_members`: internal users only, all with equal permissions
 - `projects`: project information fields, cover photo, template version
 - `equipment`: `id (uuid)`, `project_id`, `type` (RTU, MAU, ERV, EF, VAV, Hood, Traverse…), `designation`
   (e.g. RTU-1), `slot` (block index in the workbook), `data` (JSON of field values), `status`
@@ -96,7 +96,7 @@ Each equipment type has **required-field rules** defined in the template map:
 | Amber | In progress | Some required fields are missing |
 | Green | Complete | All required fields filled and photos attached (if required) |
 | Red | Needs attention | Open deficiency, **or** a reading outside tolerance (e.g. airflow outside ±10% of design, which will be configurable) |
-| Blue (optional) | Reviewed | PM has signed off |
+| Blue (optional) | Reviewed | A teammate has signed off |
 
 Any field, section or piece of equipment can be marked **N/A**, and projects have a scope profile (Full TAB,
 **Airflow Only**, Custom). Full rules are in [REQUIRED_FIELDS.md](./REQUIRED_FIELDS.md).
