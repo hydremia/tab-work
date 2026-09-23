@@ -11,7 +11,7 @@ Last updated: 2026-09-23
 | Q1 | How many users and roles (techs, PMs, office)? Will customers or GCs ever need view access? | Techs and PMs, both in the field and in the office. **No outside access** for now. |
 | Q2 | Does the company use Microsoft 365? Where do reports live today (SharePoint, OneDrive, Dropbox, server)? Should users sign in with their Microsoft accounts? | **Yes, M365.** Reports, project files and templates live in a **Dropbox** shared by the whole team. |
 | Q3 | Which devices do techs carry: iPhone, Android, iPad, Windows laptop? | All of them. |
-| Q4 | How often do sites have no signal (roofs, basements)? Confirms how much offline support we need. | |
+| Q4 | How often do sites have no signal (roofs, basements)? Confirms how much offline support we need. | **Most sites have signal** (Wi-Fi, MiFi or phone network), but the app must **fully support offline** work. |
 | Q5 | After export, will anyone edit the workbook in Excel and then need those edits back in the app? Or is export one-way once the report is finalized? | **Round trip required.** An issued preliminary report must be importable back into the app for follow-up work. |
 | Q6 | Photo Report format: PDF with 2–4 photos per page and captions, grouped by equipment? Should deficiency photos be numbered to match Summary remark #? Keep or retire the hidden `Photos` sheet? | **Yes, number deficiency photos to match issues.** Photos and Issues export as their own combined report, and each can also be exported separately. |
 | Q7 | Capacity overflow: what happens today when a job has more than 40 RTUs, more than 20 VAV airflow pages, etc.? Second workbook or extra blocks? | **Not needed.** Current capacity is enough. The app enforces the template limits. |
@@ -71,6 +71,7 @@ Last updated: 2026-09-23
 | 2026-09-23 | Follow-up exports fill the **previously issued workbook** (kept from re-import), so hand formatting in Excel is preserved. Re-import diff: accept or decline each change. Only same-field edits in both places are flagged as collisions. |
 | 2026-09-23 | Equipment tagged New/Existing. All users have equal permissions. Tolerance ±10%. Equipment photos are required unless N/A. |
 | 2026-09-23 | PR #1 merged into `main`. **N/A (option A):** revision 05 hardens formulas so `N/A`, `Not Avail.` and `Not Acc.` print in numeric cells without errors. |
+| 2026-09-23 | Full offline support is required. Most sites are online, so sync runs continuously when connected, and offline is the fallback rather than the normal mode. |
 | 2026-09-23 | **The app targets revision 04 (`04 - a2b_Blank_TAB_Workbook 9-18-26.xlsm`)**, which includes the Evergreen hood method, MAU supply methods, building pressures, cover photo box, traverse grids, Equipment Summary and Small Fans. |
 
 ---
