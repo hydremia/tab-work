@@ -38,13 +38,13 @@ describe('toProjectData', () => {
     });
     expect(rtu.fields).toMatchObject({ driveType: 'Belt', serial: '4719G', fla: 'Not Avail.', unitType: 'RTU' });
     expect(rtu.fields).not.toHaveProperty('hasVfd'); // app-only
-    expect(rtu.fields).not.toHaveProperty('vsdFinal'); // auto N/A is not written
+    expect(rtu.fields).toMatchObject({ vsdFinal: 'N/A' }); // automatic N/A is written as "N/A" (blank never means N/A)
     expect(rtu.lines?.remarks).toEqual(['Belt replaced.', 'Second remark line.']);
     expect(rtu.tables?.supply).toHaveLength(2);
     expect(rtu.tables?.oa?.[0]).toMatchObject({ no: 'OA-1', finalVel: 'Not Acc.' });
   });
 
-  it('writes section-level N/A marks as the notation, automatic ones not at all', () => {
+  it('writes section-level N/A marks as their notation and automatic N/A as "N/A"', () => {
     const b = sampleBundle();
     const unit = b.equipment[0];
     unit.naState.sections.drive = { notation: 'Not Acc.' };
@@ -55,7 +55,17 @@ describe('toProjectData', () => {
     unit.naState.sections = {};
     unit.data.driveType = 'Direct';
     const d = toProjectData(b).data.equipment.rtu[0];
-    expect(d.schedule).not.toHaveProperty('belts');
+    expect(d.schedule).toMatchObject({ belts: 'N/A', motorSheave: 'N/A' });
+  });
+
+  it('writes scope-profile N/A (Airflow Only) as "N/A" in the unit fields, not blanks', () => {
+    const b = sampleBundle();
+    b.project.scopeProfile = 'airflow';
+    const unit = b.equipment[0];
+    delete unit.data.serial;
+    delete unit.data.frame;
+    const u = toProjectData(b).data.equipment.rtu[0];
+    expect(u.fields).toMatchObject({ serial: 'N/A', frame: 'N/A' });
   });
 
   it('numbers issues separately and prefixes the linked designation', () => {

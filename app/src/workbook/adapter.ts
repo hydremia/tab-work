@@ -4,10 +4,9 @@
  *
  * What goes into the workbook:
  *  - values as entered;
- *  - explicit N/A marks (field, section, equipment level) as the notation text ("N/A", "Not Avail.", "Not Acc."),
- *    which revision 05's formulas treat as blank;
- *  - NOT automatic N/A or scope-profile N/A: those cells stay blank, so the printed report is not filled with
- *    "N/A" on every motor field of an Airflow Only job;
+ *  - every N/A as the notation text ("N/A", "Not Avail.", "Not Acc."), which revision 05's formulas treat as
+ *    blank: explicit marks (field, section, equipment level) AND automatic / scope-profile N/A (written as "N/A").
+ *    A blank cell never means N/A (user decision 2026-09-24);
  *  - app-only fields (Has VFD?, Has filters?) are not written; import derives them from the data.
  */
 import {
@@ -19,7 +18,7 @@ import {
   type ProjectData,
   type UnitData,
 } from '@a2b/workbook/map';
-import { computeCompletion } from '../domain/completion';
+import { computeCompletion, isNaState } from '../domain/completion';
 import { isBlank } from '../domain/conditions';
 import { equipmentType, type EquipmentTypeKey } from '../domain/equipmentTypes';
 import { getSpec, ROW_COLUMNS } from '../domain/specs';
@@ -176,9 +175,7 @@ export function toProjectData(b: ProjectBundle): { data: ProjectData; warnings: 
       if (!edeDef && !blockDef) continue; // app-only (hasVfd, photo:/table: marks)
       const st = c.fields[key];
       const levelMark: NaMark | null =
-        st && (st.state === 'section-na' || st.state === 'equipment-na') && st.notation
-          ? { notation: st.notation }
-          : null;
+        st && isNaState(st.state) && st.state !== 'na' && st.notation ? { notation: st.notation } : null;
       const raw = out(e.data[key], e.naState.fields[key] ?? levelMark);
       if (raw === undefined) continue;
       const v = coerce(edeDef ?? blockDef, raw, `${path}.${key}`, warnings);
@@ -309,6 +306,10 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
       // app-only answers, derived from the data
       if (typeof data.vsdFinal === 'number' || typeof data.vsdInitial === 'number') data.hasVfd = 'Yes';
       if (!isBlank(data.filters)) data.hasFilters = 'Yes';
+      // Export writes automatic N/A as "N/A", so an "N/A" there also answers the app-only questions.
+      const naOnly = (k: string) => na.fields[k]?.notation === 'N/A' && isBlank(data[k]);
+      if (data.hasVfd === undefined && naOnly('vsdFinal')) data.hasVfd = 'No';
+      if (data.hasFilters === undefined && naOnly('filters')) data.hasFilters = 'No';
       const designation = u.schedule?.designation;
       equipment.push({
         id,
@@ -342,6 +343,22 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
           });
         }
       }
+    }
+  }
+
+  // A plain "N/A" that the app would set by itself anyway (automatic rule or scope profile) is imported as
+  // automatic, not as an explicit mark, so a re-import does not turn automatic N/A into manual marks.
+  for (const e of equipment) {
+    const spec = getSpec(e.type);
+    const unitRows = rows.filter((r) => r.equipmentId === e.id);
+    for (const [k, mark] of Object.entries(e.naState.fields)) {
+      if (mark?.notation !== 'N/A') continue;
+      const fields = { ...e.naState.fields };
+      delete fields[k];
+      const trial = { ...e, naState: { ...e.naState, fields } };
+      const st = computeCompletion({ spec, unit: trial, rows: unitRows, photos: [], project, openIssues: 0 })
+        .fields[k]?.state;
+      if (st === 'auto-na' || st === 'scope-na') e.naState.fields = fields;
     }
   }
 
