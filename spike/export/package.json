@@ -1,0 +1,22 @@
+{
+  "name": "tab-export-spike",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Phase 0 export spike: fill the a2b TAB workbook template (rev 05) by patching sheet XML with JSZip.",
+  "scripts": {
+    "spike": "tsx src/runSpike.ts",
+    "make-photo": "tsx src/makeTestPhoto.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "jpeg-js": "^0.4.4",
+    "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "fast-xml-parser": "^5.11.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
