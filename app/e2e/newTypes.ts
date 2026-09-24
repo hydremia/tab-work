@@ -376,7 +376,7 @@ export async function verifyNewTypes(bytes: Uint8Array, check: Check): Promise<P
   return wb;
 }
 
-function soffice(input: string, outdir: string): string {
+export function soffice(input: string, outdir: string): string {
   const profile = mkdtempSync(join(tmpdir(), 'lo-profile-'));
   mkdirSync(join(profile, 'user'), { recursive: true });
   writeFileSync(
