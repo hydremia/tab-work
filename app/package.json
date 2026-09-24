@@ -15,7 +15,11 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "format": "prettier --write .",
-    "e2e": "tsx e2e/run-e2e.ts"
+    "e2e": "tsx e2e/run-e2e.ts",
+    "serve-dist": "tsx deploy/serve-dist.ts",
+    "hosting-config": "tsx deploy/write-hosting-config.ts",
+    "pwa-check": "tsx deploy/pwa-check.ts",
+    "icons": "node scripts/make-icons.mjs --preview"
   },
   "dependencies": {
     "@a2b/workbook": "*",

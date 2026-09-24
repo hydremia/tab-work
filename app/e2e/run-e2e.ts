@@ -4,7 +4,9 @@
  *   -> card colors (RTU-1 green, RTU-2 gray) -> export .xlsm (download) -> verify the file with the workbook
  *   library's importer in Node -> reload (IndexedDB persisted) -> offline: app shell loads, edits save, export works.
  *
- *   npm run build && npm run e2e          (serves dist/ with `vite preview` on port 4173)
+ *   npm run build && npm run e2e          (serves dist/ with deploy/serve-dist.ts on port 4173: the production
+ *                                          headers incl. the Content-Security-Policy; E2E_SERVER=vite uses
+ *                                          `vite preview` instead, without the headers)
  *
  * Browser: playwright-core's Chromium from PLAYWRIGHT_BROWSERS_PATH, or CHROMIUM_PATH / /opt/pw-browsers/chromium.
  * Screenshots go to app/e2e-screenshots/ (git-ignored).
@@ -21,6 +23,7 @@ import { reimportFlow } from './reimport';
 import { photosFlow } from './photos';
 import { pressuresAndAttention, scheduleFlow } from './features';
 import { workflowFlow } from './workflow';
+import { deployFlow } from './deploy';
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SHOTS = join(APP, 'e2e-screenshots');
@@ -38,10 +41,30 @@ function check(name: string, ok: boolean, detail?: string) {
 const shot = (page: Page, name: string, fullPage = false) =>
   page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage });
 
+/** The production-like server (deploy/serve-dist.ts: CSP and caching headers, SPA fallback, test hooks). */
+const USE_VITE = process.env.E2E_SERVER === 'vite';
+
 async function startPreview(): Promise<ChildProcess | null> {
   if (process.env.E2E_BASE_URL) return null;
   if (!existsSync(join(APP, 'dist', 'index.html'))) throw new Error('dist/ missing: run `npm run build` first');
-  const proc = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { cwd: APP, stdio: 'pipe' });
+  const busy = await fetch(BASE).then(
+    () => true,
+    () => false,
+  );
+  if (busy) throw new Error(`port ${PORT} is already in use (a stale preview server?): stop it or set E2E_PORT`);
+  const proc = USE_VITE
+    ? spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
+        cwd: APP,
+        stdio: 'pipe',
+        detached: true,
+      })
+    : spawn('npx', ['tsx', 'deploy/serve-dist.ts'], {
+        cwd: APP,
+        stdio: 'pipe',
+        detached: true, // own process group: stopServer() ends npx and the server it started
+
+        env: { ...process.env, PORT: String(PORT), SERVE_TEST_HOOKS: '1' },
+      });
   for (let i = 0; i < 100; i++) {
     try {
       if ((await fetch(BASE)).ok) return proc;
@@ -50,8 +73,17 @@ async function startPreview(): Promise<ChildProcess | null> {
     }
     await new Promise((r) => setTimeout(r, 200));
   }
-  proc.kill();
+  stopServer(proc);
   throw new Error('vite preview did not start');
+}
+
+/** Stop the server's whole process group (npx leaves its child running when only npx is killed). */
+function stopServer(proc: ChildProcess): void {
+  try {
+    if (proc.pid) process.kill(-proc.pid, 'SIGTERM');
+  } catch {
+    proc.kill();
+  }
 }
 
 async function launch(): Promise<Browser> {
@@ -91,6 +123,23 @@ async function main() {
   mkdirSync(OUT, { recursive: true });
   const server = await startPreview();
   const browser = await launch();
+  // every page of every context: report CSP violations (securitypolicyviolation events and console reports)
+  const cspViolations: string[] = [];
+  const newContext = browser.newContext.bind(browser);
+  browser.newContext = async (options) => {
+    const ctx = await newContext(options);
+    await ctx.addInitScript(`
+      document.addEventListener('securitypolicyviolation', (e) =>
+        console.error('CSP violation: ' + e.violatedDirective + ' blocked ' + (e.blockedURI || '(inline)')),
+      );
+    `);
+    ctx.on('console', (m) => {
+      const t = m.text();
+      if (/CSP violation|Content Security Policy|Refused to (load|execute|apply|connect|create)/i.test(t))
+        cspViolations.push(t);
+    });
+    return ctx;
+  };
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 2,
@@ -106,6 +155,16 @@ async function main() {
   page.on('dialog', (d) => void d.accept());
 
   try {
+    // ------------------------------------------------------------------ production headers (CSP)
+    const head = await fetch(BASE);
+    const csp = head.headers.get('content-security-policy') ?? '';
+    const underCsp = /script-src 'self'/.test(csp) && /frame-ancestors 'none'/.test(csp);
+    check(
+      underCsp ? 'served with the production headers (CSP, nosniff, Permissions-Policy)' : 'served without headers',
+      USE_VITE || (underCsp && head.headers.get('x-content-type-options') === 'nosniff'),
+      csp.slice(0, 90),
+    );
+
     // ------------------------------------------------------------------ project list + create
     await page.goto(BASE);
     await page.getByRole('heading', { name: 'Projects' }).waitFor();
@@ -331,7 +390,7 @@ async function main() {
     await page.waitForTimeout(500);
     check(
       'reading outside ±10 % turns the unit red',
-      (await page.getByTestId('status-badge').first().innerText()).includes('Needs attention'),
+      (await page.getByTestId('status-badge').first().innerText()).includes('Issue / tolerance'),
     );
     await page.evaluate(() => window.scrollTo(0, 0));
     await shot(page, '05-rtu-out-of-tolerance');
@@ -602,13 +661,23 @@ async function main() {
     // ------------------------------------------------------------------ review, issue / lock, unlock, history
     await workflowFlow(browser, BASE, file, OUT, DOC_SHOTS, check);
 
+    // ------------------------------------------------------------------ install, update, share, export reminder
+    await deployFlow(browser, BASE, file, DOC_SHOTS, SHOTS, check, {
+      testHooks: !USE_VITE && !process.env.E2E_BASE_URL,
+    });
+
     check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
+    check(
+      'no Content-Security-Policy violations in any context (camera input, photos, PDF, workbook, SW, IndexedDB)',
+      cspViolations.length === 0,
+      cspViolations.slice(0, 3).join(' | '),
+    );
   } catch (e) {
     check('e2e run finished without an exception', false, e instanceof Error ? e.stack : String(e));
     await shot(page, 'zz-failure').catch(() => undefined);
   } finally {
     await browser.close();
-    server?.kill();
+    if (server) stopServer(server);
   }
   const failed = results.filter((r) => !r.ok).length;
   console.log(`\nE2E: ${results.length - failed} PASS, ${failed} FAIL. Screenshots: ${SHOTS}`);

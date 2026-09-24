@@ -9,7 +9,6 @@ import { instrumentField, photosSection } from './unitSections';
 
 export const SMALL_FAN_SPEC: EquipmentSpec = {
   type: 'smallFan',
-  formComplete: true,
   designCheck: { field: 'designCfm', table: 'outlets' },
   sections: [
     identitySection(),

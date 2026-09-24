@@ -169,7 +169,7 @@ export async function fillNewTypes(
   await row(page, 'filterGrid', 0, { size: '16" x 20"', velocity: 400 });
   check(
     'MAU: one 16" x 20" filter at 400 fpm = 945 CFM of 2,100 -> red (method total out of tolerance)',
-    (await badge(page)).includes('Needs attention'),
+    (await badge(page)).includes('Issue / tolerance'),
     await badge(page),
   );
   await row(page, 'filterGrid', 1, { velocity: 420 }); // size filled down; 945 + 992.25 = 1937.25 (92 %)
