@@ -2,13 +2,14 @@ import { Suspense, useEffect, useRef } from 'react';
 import { useLocation, NavLink, Outlet, useOutletContext, useParams } from 'react-router';
 import {
   useAttention,
+  useConflicts,
   useEquipmentList,
   useIssues,
   useProject,
   useProjectStatus,
   type ProjectStatus,
 } from '../../data/hooks';
-import type { Equipment, Issue, Project } from '../../data/types';
+import type { Equipment, Issue, Project, SyncConflict } from '../../data/types';
 import type { AttentionItem } from '../../domain/attention';
 import { AppHeader, ModeBanner } from '../components/AppHeader';
 import { ExportReminderGuard } from '../components/ExportReminder';
@@ -20,6 +21,8 @@ export interface ProjectContext {
   issues: Issue[];
   status: ProjectStatus | undefined;
   attention: AttentionItem[] | undefined;
+  /** Open sync conflicts (Attention tab, unit badges). */
+  conflicts: SyncConflict[] | undefined;
   /** The report was issued (project locked): pages are read-only. */
   locked: boolean;
 }
@@ -35,6 +38,7 @@ export function ProjectLayout() {
   const issues = useIssues(projectId);
   const status = useProjectStatus(projectId);
   const attention = useAttention(projectId, status);
+  const conflicts = useConflicts(projectId);
   const tabsRef = useRef<HTMLDivElement>(null);
   const { pathname } = useLocation();
   // the tab bar scrolls sideways on a phone: keep the active tab in view
@@ -60,7 +64,12 @@ export function ProjectLayout() {
     { to: 'info', label: 'Info' },
     { to: 'equipment', label: 'Equipment', count: equipment.length },
     { to: 'issues', label: 'Issues', count: open || undefined },
-    { to: 'attention', label: 'Attention', count: attention?.length || undefined, tone: 'attention' },
+    {
+      to: 'attention',
+      label: 'Attention',
+      count: (attention?.length ?? 0) + (conflicts?.length ?? 0) || undefined,
+      tone: 'attention',
+    },
     { to: 'photos', label: 'Photos' },
     { to: 'export', label: 'Export' },
     { to: 'history', label: 'History' },
@@ -92,7 +101,15 @@ export function ProjectLayout() {
         <Suspense fallback={<p className="muted">Loading…</p>}>
           <Outlet
             context={
-              { project, equipment, issues, status, attention, locked: Boolean(project.lock) } satisfies ProjectContext
+              {
+                project,
+                equipment,
+                issues,
+                status,
+                attention,
+                conflicts,
+                locked: Boolean(project.lock),
+              } satisfies ProjectContext
             }
           />
         </Suspense>

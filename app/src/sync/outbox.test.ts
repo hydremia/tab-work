@@ -25,7 +25,7 @@ describe('LocalSyncEngine', () => {
     const n = await countPending();
     const e = new LocalSyncEngine();
     expect(e.mode).toBe('local');
-    expect(await e.push()).toEqual({ pushed: 0 });
+    expect(await e.push()).toEqual({ pushed: 0, held: 0 });
     expect(await e.pull()).toEqual({ applied: 0, conflicts: 0 });
     expect(await countPending()).toBe(n);
   });

@@ -71,7 +71,8 @@ the host.
 
    Never enter the `service_role` key. Without these variables the app runs in **Local mode** (everything on the
    device, the banner says so), which is how it works today. They are read **at build time**: after changing them,
-   redeploy (Deployments → ⋯ → Redeploy).
+   redeploy (Deployments → ⋯ → Redeploy). Everything else needed for sign-in and sync (database migrations, photo
+   bucket, Microsoft sign-in, first sign-in, rollback): **[SYNC_SETUP.md](./SYNC_SETUP.md)**.
 5. **Deploy.** The first build takes about 2 minutes. You get `https://tab-work-<something>.vercel.app`.
 6. **Settings → General → Node.js Version:** 22.x.
 
@@ -94,8 +95,9 @@ comment and a check on the PR, and `main` deploys to production.
    address: after a change of address everyone re-installs and brings projects over by exporting and importing
    the workbook.
 
-When sign-in is switched on, add the production address (and `https://*-<team>.vercel.app/**` for previews) under
-Supabase → Authentication → URL Configuration → Redirect URLs.
+When sign-in is switched on, add `https://<production address>/auth/callback` (and `https://*-<team>.vercel.app/**`
+for previews) under Supabase → Authentication → URL Configuration → Redirect URLs
+([SYNC_SETUP.md §5](./SYNC_SETUP.md#5-supabase-switch-on-the-azure-provider-tenant-restricted)).
 
 ### Rollback
 

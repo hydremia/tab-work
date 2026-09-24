@@ -10,3 +10,4 @@ e2e-output/
 .env.local
 .env.*.local
 *.tsbuildinfo
+dist-fake/

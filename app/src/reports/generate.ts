@@ -55,7 +55,7 @@ export async function loadReportInput(projectId: string): Promise<ReportInput> {
 /** Reads one photo from IndexedDB and downscales it for the page (one image in memory at a time). */
 export const browserImageLoader: ImageLoader = async (photoId, maxEdge) => {
   const p = await db.photos.get(photoId);
-  if (!p) return null;
+  if (!p?.blob) return null; // not downloaded yet (pulled from another device)
   const r = await downscaleForReport(p.blob, maxEdge);
   return { bytes: r.bytes, type: 'jpg' };
 };
@@ -96,7 +96,7 @@ export async function generatePhotoZip(
   const ids = [...names.keys()];
   for (const [k, id] of ids.entries()) {
     const p = await db.photos.get(id);
-    if (!p) continue;
+    if (!p?.blob) continue;
     // JPEG is already compressed: store, don't deflate
     zip.file(names.get(id)!, p.blob, {
       binary: true,

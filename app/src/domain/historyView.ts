@@ -293,6 +293,20 @@ export function describeEntry(e: HistoryEntry, ctx: HistoryContext): HistoryLine
       return { type: 'event', text: e.note ?? 'Exported' };
     case 'import':
       return { type: 'event', text: `Re-imported ${e.note ?? ''}`.trim() };
+    case 'conflict':
+      return {
+        type: 'event',
+        text: e.table
+          ? `Sync conflict on ${fieldLabel(e, ctx)}: "${valueText(e, e.value, ctx)}" kept, "${valueText(e, e.previous, ctx)}" flagged${e.note ? ` (${e.note})` : ''}`
+          : `Sync: ${e.note ?? 'conflict'}`,
+      };
+    case 'conflict-resolved':
+      return {
+        type: 'event',
+        text: e.table
+          ? `Conflict on ${fieldLabel(e, ctx)} resolved: ${e.note ?? ''}${e.value !== undefined ? ` ("${valueText(e, e.value, ctx)}")` : ''}`
+          : `Sync: ${e.note ?? 'resolved'}`,
+      };
     case 'create':
       return { type: 'event', text: `Added ${createdText(e, ctx)}` };
     case 'delete':
@@ -377,7 +391,16 @@ export interface HistoryDay {
   groups: HistoryGroup[];
 }
 
-const EVENT_KINDS = new Set<HistoryEntry['kind']>(['review', 'review-cleared', 'lock', 'unlock', 'revision', 'import']);
+const EVENT_KINDS = new Set<HistoryEntry['kind']>([
+  'review',
+  'review-cleared',
+  'lock',
+  'unlock',
+  'revision',
+  'import',
+  'conflict',
+  'conflict-resolved',
+]);
 
 /** Entries within this gap, by the same person on the same subject, form one group. */
 export const GROUP_GAP_MS = 10 * 60 * 1000;

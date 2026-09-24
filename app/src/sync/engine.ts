@@ -1,102 +1,216 @@
 /**
- * Sync engine: push the local outbox, pull other devices' changes. Two implementations:
- *  - LocalSyncEngine: local-only mode (no Supabase configured / not signed in). Push and pull do nothing and
- *    changes stay in the outbox until the device signs in.
- *  - SupabaseSyncEngine: pushes FieldChanges into the `field_changes` table and pulls newer rows written by
- *    other devices (Realtime subscription is Phase 5). The server applies changes to the record tables with a
- *    trigger (supabase/migrations/0001_init.sql). Not yet exercised against a live project.
+ * Sync engine: pull other devices' changes, push the local outbox, move photo files. Two implementations:
+ *  - LocalSyncEngine: local-only mode (no cloud configured / not signed in). Nothing moves; changes stay in the outbox
+ *    until the device signs in.
+ *  - CloudSyncEngine: over a SyncBackend (Supabase, or the in-memory fake in tests / the two-device e2e).
+ *
+ * One sync = measure the clock offset -> pull -> release held changes of unlocked projects -> push -> pull again when
+ * something was pushed (the server's answers: a review it cleared, a lock that refused a change) -> photos.
+ *
+ * Ordering and clocks. The server log order (server_seq) decides the order changes are applied in. Which of two edits
+ * of the same field wins is decided by their timestamps (the ROADMAP rule "the later edit wins", also for edits made
+ * offline hours before they sync), but device clocks can be wrong: each sync measures the device's offset to the
+ * server clock (server_time_ms, half the round trip) and timestamps go to the server corrected by it (and come back
+ * converted to the device clock). So a phone whose clock is 10 minutes fast doesn't win every conflict. (Assumes the
+ * offset stays about the same between an offline edit and its push, which holds for a wrong clock; a clock corrected
+ * while offline shifts those edits by the correction.)
+ *
+ * Pulls. The cursor is a server_seq, but a request that got its seq earlier can commit later than one with a higher
+ * seq; a cursor that jumped past it would skip it for good. So the saved restart point only advances over rows that
+ * are older than SETTLE_MS (server time, received_at); newer rows are read again next time and skipped (their ids
+ * are known). A separate "seen" position (the highest seq applied) is what new edits record as their baseSeq.
  */
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { db } from '../data/db';
-import { applyRemoteChanges, markSynced, pendingChanges, type RemoteChange } from './outbox';
+import { deviceNow, getSyncCursor, type SyncCursor } from '../data/identity';
+import type { FieldChange } from '../data/types';
+import { receivedMs, SyncError, toRow, type SyncBackend } from './backend';
+import {
+  applyRemoteChanges,
+  holdChanges,
+  markSynced,
+  passesLock,
+  pendingChanges,
+  releaseHeld,
+  type RemoteChange,
+} from './outbox';
+import { processPhotoQueue, type PhotoSyncResult } from './photoSync';
 
 export interface PushResult {
   pushed: number;
+  /** Changes held back because their project is locked (on the server or already on this device). */
+  held: number;
 }
 export interface PullResult {
   applied: number;
   conflicts: number;
 }
+export interface SyncResult extends PushResult, PullResult {
+  released: number;
+  photos: PhotoSyncResult | null;
+}
 
 export interface SyncEngine {
-  readonly mode: 'local' | 'supabase';
+  readonly mode: 'local' | 'cloud';
   push(): Promise<PushResult>;
   pull(): Promise<PullResult>;
+  sync(): Promise<SyncResult>;
+  /** Live hint that another device pushed (Realtime); returns the unsubscribe function. */
+  subscribe?(onChange: () => void): () => void;
 }
+
+const NOTHING: SyncResult = { pushed: 0, held: 0, applied: 0, conflicts: 0, released: 0, photos: null };
 
 export class LocalSyncEngine implements SyncEngine {
   readonly mode = 'local' as const;
   async push(): Promise<PushResult> {
-    return { pushed: 0 };
+    return { pushed: 0, held: 0 };
   }
   async pull(): Promise<PullResult> {
     return { applied: 0, conflicts: 0 };
   }
+  async sync(): Promise<SyncResult> {
+    return NOTHING;
+  }
 }
 
-/** Row shape of public.field_changes. */
-interface FieldChangeRow {
-  id: string;
-  project_id: string;
-  table_name: string;
-  record_id: string;
-  op: string;
-  field: string;
-  value: unknown;
-  user_id: string | null;
-  device_id: string;
-  client_ts: number;
-  server_seq?: number;
+export interface EngineOptions {
+  /** Changes per push request. */
+  batchSize?: number;
+  /** Rows per pull request. */
+  pageSize?: number;
+  /** Rows younger than this (server time) are read again on the next pull. */
+  settleMs?: number;
 }
 
-export class SupabaseSyncEngine implements SyncEngine {
-  readonly mode = 'supabase' as const;
+export const SETTLE_MS = 120_000;
+
+interface StoredCursor extends SyncCursor {
+  /** Where the next pull starts (only advanced over settled rows). */
+  restart: number;
+}
+
+export class CloudSyncEngine implements SyncEngine {
+  readonly mode = 'cloud' as const;
+  private readonly batchSize: number;
+  private readonly pageSize: number;
+  private readonly settleMs: number;
+  /** server clock - device clock (ms) */
+  clockOffset = 0;
+
   constructor(
-    private readonly client: SupabaseClient,
-    private readonly userId: string,
-  ) {}
+    readonly backend: SyncBackend,
+    readonly userId: string,
+    opts: EngineOptions = {},
+  ) {
+    this.batchSize = opts.batchSize ?? 200;
+    this.pageSize = opts.pageSize ?? 500;
+    this.settleMs = opts.settleMs ?? SETTLE_MS;
+  }
+
+  subscribe(onChange: () => void): () => void {
+    return this.backend.subscribe?.(onChange) ?? (() => undefined);
+  }
+
+  /** Measure the device's clock offset to the server (kept in meta for the next start). */
+  async measureClock(): Promise<number> {
+    const t0 = deviceNow();
+    const server = await this.backend.serverTime();
+    const t1 = deviceNow();
+    this.clockOffset = Math.round(server - (t0 + t1) / 2);
+    await db.meta.put({ key: 'clockOffset', value: this.clockOffset });
+    return this.clockOffset;
+  }
+
+  private async loadClock(): Promise<void> {
+    const row = await db.meta.get('clockOffset');
+    if (typeof row?.value === 'number') this.clockOffset = row.value;
+  }
+
+  async sync(): Promise<SyncResult> {
+    try {
+      await this.measureClock();
+    } catch (e) {
+      if (e instanceof SyncError && e.kind === 'network') throw e;
+      await this.loadClock(); // an older server without server_time_ms: keep the last offset (or none)
+    }
+    const pulled = await this.pull();
+    const released = await releaseHeld();
+    const pushed = await this.push();
+    let late: PullResult = { applied: 0, conflicts: 0 };
+    // after a push: the server's own changes in answer to it (a review it cleared) and, when a change was refused by
+    // a lock this device didn't know about yet, the lock
+    if (pushed.pushed || pushed.held) late = await this.pull();
+    const photos = await processPhotoQueue(this.backend);
+    return {
+      ...pushed,
+      applied: pulled.applied + late.applied,
+      conflicts: pulled.conflicts + late.conflicts,
+      released,
+      photos,
+    };
+  }
+
+  /** Hold the waiting changes of projects this device already knows are locked. */
+  private async holdLocked(batch: FieldChange[]): Promise<number> {
+    let held = 0;
+    const seen = new Set<string>();
+    for (const c of batch) {
+      if (seen.has(c.projectId) || passesLock(c)) continue;
+      seen.add(c.projectId);
+      const project = await db.projects.get(c.projectId);
+      if (!project?.lock) continue;
+      // locked by this device and the lock not pushed yet: the server isn't locked, the edits before it go first
+      const ownLockWaiting = await db.fieldChanges
+        .where('[table+recordId+field]')
+        .equals(['projects', c.projectId, 'lock'])
+        .filter((x) => x.synced === 0)
+        .count();
+      if (!ownLockWaiting) held += await holdChanges(c.projectId, project.lock);
+    }
+    return held;
+  }
 
   async push(): Promise<PushResult> {
-    let pushed = 0;
-    for (;;) {
-      const batch = await pendingChanges(200);
+    const res: PushResult = { pushed: 0, held: 0 };
+    for (let guard = 0; guard < 10_000; guard++) {
+      let batch = await pendingChanges(this.batchSize);
       if (!batch.length) break;
-      const rows: FieldChangeRow[] = batch.map((c) => ({
-        id: c.id,
-        project_id: c.projectId,
-        table_name: c.table,
-        record_id: c.recordId,
-        op: c.op,
-        field: c.field,
-        value: c.value ?? null,
-        user_id: this.userId,
-        device_id: c.deviceId,
-        client_ts: c.ts,
-      }));
-      const { error } = await this.client
-        .from('field_changes')
-        .upsert(rows, { onConflict: 'id', ignoreDuplicates: true });
-      if (error) throw new Error(`push failed: ${error.message}`);
-      await markSynced(batch.map((c) => c.id));
-      pushed += batch.length;
+      const heldNow = await this.holdLocked(batch);
+      if (heldNow) {
+        res.held += heldNow;
+        batch = await pendingChanges(this.batchSize);
+        if (!batch.length) break;
+      }
+      try {
+        const out = await this.backend.push(batch.map((c) => toRow(c, this.userId, this.clockOffset)));
+        await markSynced(batch, new Map(out.map((r) => [r.id, Number(r.server_seq)])));
+        res.pushed += batch.length;
+      } catch (e) {
+        if (!(e instanceof SyncError) || e.kind !== 'locked') throw e;
+        // the whole request was refused (atomic): hold that project's changes, push the rest
+        const projectId = e.info.projectId ?? batch.find((c) => c.id === e.info.changeId)?.projectId;
+        if (!projectId) throw e;
+        const n = await holdChanges(projectId, (e.info.lock as never) ?? null);
+        if (!n) throw e; // nothing left to hold: don't loop
+        res.held += n;
+      }
     }
-    return { pushed };
+    return res;
   }
 
   async pull(): Promise<PullResult> {
-    const cursorRow = await db.meta.get('pullCursor');
-    let cursor = typeof cursorRow?.value === 'number' ? cursorRow.value : 0;
-    let applied = 0;
-    let conflicts = 0;
+    const stored = (await getSyncCursor()) as StoredCursor | null;
+    // another account on this device (or a first sign-in): read the organization's log from the start
+    const cur: StoredCursor =
+      stored && stored.userId === this.userId ? stored : { userId: this.userId, seq: 0, restart: 0 };
+    let restart = cur.restart ?? cur.seq;
+    let seen = cur.seq;
+    let after = restart;
+    let settled = true;
+    const res: PullResult = { applied: 0, conflicts: 0 };
+    const settleBefore = deviceNow() + this.clockOffset - this.settleMs;
     for (;;) {
-      const { data, error } = await this.client
-        .from('field_changes')
-        .select('*')
-        .gt('server_seq', cursor)
-        .order('server_seq', { ascending: true })
-        .limit(500);
-      if (error) throw new Error(`pull failed: ${error.message}`);
-      const rows = (data ?? []) as FieldChangeRow[];
+      const rows = await this.backend.pull(after, this.pageSize);
       if (!rows.length) break;
       const changes: RemoteChange[] = rows.map((r) => ({
         id: r.id,
@@ -108,15 +222,32 @@ export class SupabaseSyncEngine implements SyncEngine {
         value: r.value,
         userId: r.user_id ?? '',
         deviceId: r.device_id,
-        ts: Number(r.client_ts),
+        ts: Number(r.client_ts) - this.clockOffset,
+        serverSeq: Number(r.server_seq),
+        ...(r.base_seq != null ? { baseSeq: Number(r.base_seq) } : {}),
+        ...(r.applied === false ? { applied: false, note: r.note ?? null } : {}),
       }));
-      const res = await applyRemoteChanges(changes);
-      applied += res.applied;
-      conflicts += res.conflicts;
-      cursor = Math.max(cursor, ...rows.map((r) => Number(r.server_seq ?? 0)));
-      await db.meta.put({ key: 'pullCursor', value: cursor });
-      if (rows.length < 500) break;
+      const out = await applyRemoteChanges(changes);
+      res.applied += out.applied;
+      res.conflicts += out.conflicts;
+      for (const r of rows) {
+        const seq = Number(r.server_seq);
+        seen = Math.max(seen, seq);
+        if (settled && receivedMs(r) <= settleBefore) restart = Math.max(restart, seq);
+        else settled = false;
+      }
+      after = Number(rows[rows.length - 1].server_seq);
+      await db.meta.put({
+        key: 'syncCursor',
+        value: { userId: this.userId, seq: seen, restart } satisfies StoredCursor,
+      });
+      if (rows.length < this.pageSize) break;
     }
-    return { applied, conflicts };
+    if (!stored || stored.userId !== this.userId)
+      await db.meta.put({
+        key: 'syncCursor',
+        value: { userId: this.userId, seq: seen, restart } satisfies StoredCursor,
+      });
+    return res;
   }
 }
