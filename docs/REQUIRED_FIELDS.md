@@ -208,9 +208,9 @@ the workbook.
 | Drive type is Direct or ECM | Motor sheave, fan pulley, belt(s), C to C, sheave bore M/F |
 | No VFD on the unit | VSD frequency (initial and final) |
 | Design OA CFM is 0 or blank (RTUs) | OA damper position, OA airflow row, OA damper photo |
-| Unit type shows "—" for a component (e.g. no Wheel on an RTU, only Fan on an EF) | That component's static pressure |
+| Unit type shows "—" for a component (e.g. no Wheel on an RTU, only Fan on an EF) | That component's static pressure (exported as a **blank** cell, not "N/A": the workbook's strip skips a blank component and passes the entering static on; an "N/A" there would blank the downstream ΔP and fan TSP) |
 | Phase is 1-phase | Voltage and amperage legs 2 and 3 |
-| Unit has no filters | Filter type/size/qty, filter static pressures |
+| Unit has no filters | Filter type/size/qty, filter static pressures (the filter's leaving static is exported blank, as above) |
 | MAU method is not Outlets | Outlet rows become optional. The other methods' inputs are N/A. |
 | VAV terminal type is not fan-powered | Fan CFM (design and actual) |
 | VAV heating CFM not scheduled | Actual heating CFM |

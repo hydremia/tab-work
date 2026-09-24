@@ -17,6 +17,8 @@ import {
   PROFILE_CURVE,
   PSP_K,
   TEMPLATE_LISTS,
+  UNIT_TYPE_COMPONENTS,
+  UNIT_TYPE_INLETS,
 } from './lists.js';
 import { importWorkbook } from './importWorkbook.js';
 import { TEMPLATE_FILE_NAME } from './index.js';
@@ -72,6 +74,26 @@ describe('template lists', () => {
       expect(v(`U${i + 2}`)).toBe(p);
       PROFILE_CURVE.cfm.forEach((col, h) => expect(v(`${'VWXYZ'[h]}${i + 2}`)).toBe(col[i]));
     });
+  });
+
+  it('unit-type table (static-profile inlet and components) matches {Dropdowns} AH2:AN6', async () => {
+    const zip = await JSZip.loadAsync(templateBytes());
+    const info = (await listSheets(zip)).find((s) => s.name === '{Dropdowns}')!;
+    const cells = parseCells(await readText(zip, info.part));
+    const v = (ref: string) => cellValue(cells.get(ref), []);
+    const types: string[] = [];
+    for (let r = 2; r <= 6; r++) {
+      const t = String(v(`AH${r}`));
+      types.push(t);
+      expect(v(`AI${r}`), `AI${r}`).toBe(UNIT_TYPE_INLETS[t]);
+      const comps = ['AJ', 'AK', 'AL', 'AM', 'AN'].map((c) => v(`${c}${r}`));
+      expect(
+        comps.map((c) => (c === '—' ? null : c)),
+        t,
+      ).toEqual(UNIT_TYPE_COMPONENTS[t]);
+    }
+    expect(types).toEqual(TEMPLATE_LISTS['Unit.Type']);
+    expect(Object.keys(UNIT_TYPE_COMPONENTS)).toEqual(types);
   });
 
   it('DEFAULT_INSTRUMENTS are the Calibration sheet pre-loads', async () => {
