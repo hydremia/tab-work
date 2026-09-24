@@ -63,9 +63,14 @@ src/
                (static-pressure strip, TSP / ESP / unit ΔP, corrected FLA, estimated BHP), conditions.ts
   workbook/    adapter.ts (app records <-> ProjectData), exportProject.ts / importProject.ts (browser I/O),
                reimportDiff.ts (three-way diff, pure), reimportApply.ts (decisions -> operations), revisions.ts
+  photos/      exif.ts (EXIF orientation / capture time / GPS, image math), process.ts (decode, orient, downscale,
+               thumbnail), capture.ts (process + store, persistent storage), labels.ts (groups, numbering, zip names)
+  reports/     layout.ts (page / grid / pagination math, text wrap), model.ts (what goes in a report), pdf.ts
+               (pdf-lib renderer), generate.ts (browser entry: IndexedDB loader, zip, download)
   ui/          components/ (inputs with autosave, N/A menu, status badges, spec-driven row tables, reading grids,
                live-calc panels, photo slots) and pages/
-e2e/run-e2e.ts Playwright walk-through (+ newTypes.ts: MAU, ERV, fan, small fan, hood, traverse);  scripts/  template
+e2e/run-e2e.ts Playwright walk-through (+ newTypes.ts: MAU, ERV, fan, small fan, hood, traverse; reimport.ts;
+               photos.ts: photos, issues with photos, PDF reports, zip);  scripts/  template
                copy, icon generation
 ```
 
@@ -203,12 +208,86 @@ file (`KEEP_REVISION_FILES`); older revisions keep label, date, size and baselin
 which is all a re-import needs. The base workbook is one more file per project, so a project uses at most about
 6 × 4 MB. Deleting a project deletes its revisions and base workbook.
 
+## Photos
+
+**Taking photos.** Every photo button offers *Take photo* (`<input capture="environment">`: opens the camera on a
+phone) and *Choose* (camera roll / file picker, several at once where it makes sense); the Photos tab and the issue
+editor also accept drag & drop on desktop. Unit forms keep their required slots (unit, tag / label, OA damper where
+OA applies; each can be marked N/A) with icon buttons, real thumbnails and tap-to-view; the cover photo is on Info.
+
+**Processing** (`src/photos/process.ts`, before anything is stored, one file at a time): decode with
+`createImageBitmap(…, { imageOrientation: 'from-image' })` (fallback `<img>`), so EXIF orientation is applied; if a
+browser returned a 90°-rotated JPEG un-rotated (detected from the swapped size) the rotation is applied on the
+canvas (`orientationTransform`). Then downscale to a long edge of **2000 px**, JPEG **0.8**, plus a **320 px**
+thumbnail (JPEG 0.7). The EXIF capture time (`capturedAt`) and GPS position (`gps`, metadata only) are read with a
+small parser (`src/photos/exif.ts`); every other EXIF tag is dropped by the re-encode. HEIC: iPhone Safari hands
+over a JPEG; a browser that cannot decode a file shows a clear message (HEIC-specific when the file is HEIC).
+
+**Storage.** Dexie schema **v3**: `photos` gains `thumb`, `width`, `height`, `capturedAt`, `gps`, `order` and an
+`issueId` index; the upgrade gives old photos an order and an upload-queue entry (their thumbnails fall back to the
+full image). `photoUploads` is the upload queue for Supabase Storage (one entry per photo, `pending` → `done`,
+bucket `photos`, path `<projectId>/<photoId>.jpg`); it only waits in local mode (Phase 5 uploads it). Photo
+metadata syncs through the field-change outbox like every other record (the Blobs are never in the outbox). The
+Photos tab shows the storage used by the project, the upload queue and whether storage is persistent:
+`navigator.storage.persist()` is requested on the first photo and can be asked again from there.
+
+**Categories and links.** cover, unit, tag, OA damper, deficiency, other. A photo has a caption, optional linked
+unit, the linked issue (deficiency photos), created / captured time and an order within its group. Groups:
+*Cover*, each *unit*, each *issue* (deficiency photos), *General*. Deleting a unit deletes its photos; deleting an
+issue deletes its deficiency photos (both ask first).
+
+**Photos tab**: required photos still missing (per unit, linking to the unit), add general / unit photos, filter by
+category, thumbnails grouped by cover / unit / issue / general; tap for the viewer: full size, caption, category /
+unit / issue reassignment, move earlier / later within the group, delete.
+
+**Numbering** (`src/photos/labels.ts`; labels are computed, never stored):
+- issues are numbered separately and shown as **N-1, N-2 …** (New, *Summary - New*) and **E-1, E-2 …**
+  (Existing, *Summary - (E)*); the workbook still gets the plain number in its own sheet;
+- the k-th deficiency photo of an issue is **Photo N-3.1, Photo N-3.2, Photo E-1.1** (the prefix keeps the two
+  lists apart when both are in one report); moving a photo within its issue or moving an issue up / down (↑ ↓ on the
+  issue card swap numbers) relabels them everywhere;
+- unit photos: **RTU-1 · Unit**, **RTU-1 · Tag / label**, **RTU-1 · OA damper**, **RTU-1 · Other 2**; general photos
+  **General 1, General 2**.
+
+## Reports (PDF) and the photo zip
+
+Export tab → *Photo and Issues reports*. Made in the browser, offline, with **pdf-lib** (lazy-loaded chunk
+`generate-*.js`, 442 kB / 183 kB gzip, precached by the service worker; nothing in the main bundle). Fonts are the
+PDF standard Helvetica family (no font files fetched or embedded); characters outside WinAnsi are replaced
+(`Δ` → `d`, `≥` → `>=`, others `?`). US Letter, 42 pt side margins; every page has a running header (project name |
+report title · label) and footer (firm | report date | **Page X of Y**). Page 1 starts with a title block: *a2b
+accurate air balancing, llc*, report title, project name, address, report date and the report label, plus counts.
+
+- **Photo Report**: one group per unit (equipment type order, then designation; heading "RTU-1 · type"), then
+  *General*. Photos **4 per page** (2 × 2) by default, or 2 (1 × 2, large) or 6 (2 × 3). Each photo is scaled to fit
+  its box without distortion, with its label and up to 3 caption lines under it. Row heights are chosen so a page
+  always holds N photos even when every row starts a new group; a group that runs over gets a "(continued)" heading.
+  Deficiency photos can be included (under their issue's unit, or General; caption defaults to the issue remark) or
+  left out. The cover photo is in the workbook, not in this report.
+- **Issues Report**: a *New Equipment* section and an *Existing Equipment* section (each can be exported alone —
+  they go to different parties). Each issue is a block: shaded bar with **Issue N-3**, unit (or *General*) and
+  OPEN / CLOSED, then Remark and Comments; its deficiency photos follow **directly under the issue** in the same
+  2-column grid as the Photo Report.
+- **Issues + Photos**: the Issues Report followed by the Photo Report (without deficiency photos, which are already
+  under their issues).
+- **Photos (.zip)**: the stored images (the processed 2000 px JPEGs; the camera originals are not kept), named
+  `RTU-1 - Unit - 01.jpg`, `RTU-1 - Tag - 01.jpg`, `RTU-1 - OA Damper - 01.jpg`, `Issue N-3 - 1.jpg`,
+  `General - 01.jpg`, `Cover.jpg`.
+
+The report label defaults to the workbook revision just exported (or the latest export), and is editable. File
+names follow the workbook export: `<Project> - Photo Report Rev 1 2026-09-24.pdf`, `… - Issues Report (New) …`.
+Memory / speed: photos are read from IndexedDB and downscaled to ~200 dpi at their printed size **one at a time**
+(about 100–200 kB each in the PDF), and the renderer yields to the event loop after each photo; a 200-photo report
+is 51 pages (unit test). The zip is built in memory (the stored JPEGs, not recompressed).
+
 ## Tests
 
-- `npm test`: 184 tests (20 in `packages/workbook`: export onto an issued workbook (clearing, hand formatting kept,
+- `npm test`: 218 tests (20 in `packages/workbook`: export onto an issued workbook (clearing, hand formatting kept,
   an Excel-style shared-strings save, formulas typed over inputs), the revision marker, the compatibility check (incl.
   revision 04 rejected), plus list and constants copies vs. the template, a map audit that
-  fills **every** block of every type, round trip, safety; 164 in the app, incl. the three-way re-import diff, apply through the outbox, revisions,
+  fills **every** block of every type, round trip, safety; 198 in the app, incl. photos (EXIF reader with generated JPEGs incl. big-endian / GPS, orientation transforms,
+  downscale math, numbering / relabelling, zip names, photo repository and the v3 upgrade), reports (layout and
+  pagination incl. a 200-photo report, the report model, PDFs checked with pdf-lib and `pdftotext`), the three-way re-import diff, apply through the outbox, revisions,
   export onto the base, the review screen and the schema upgrade): outbox and repository, remote apply,
   completion engine for all 8 types (colors, N/A levels, scope profiles, auto rules incl. MAU method switching,
   small-fan R6, traverse R7, hood readings, tolerance, R8 discrepancies), live calcs against the workbook's values
@@ -231,14 +310,23 @@ which is all a re-import needs. The base workbook is one more file per project, 
   also changed in the app, column width, row height, label text) → a LibreOffice re-save of it re-imported as an import
   source only (same review, Cancel) → re-import: 1 remark, 1 incoming reading, 1 collision, no false changes → resolve,
   apply → export *Rev 1* onto the issued workbook: formatting kept, VBA byte-identical, values read back correct.
+  **Photos** (`e2e/photos.ts`): RTU-1's tag / OA damper N/A cleared (amber) → an EXIF-rotated JPEG (orientation 6,
+  capture time, GPS) and a second photo attached (green again; the stored tag photo is checked upright pixel by
+  pixel) → New / Existing issues with deficiency photos (N-1.1, N-1.2, E-1.1; reorder relabels) → Photos tab
+  (groups, filter, missing list, storage) → Photo Report, Issues Report (all / New / Existing), combined report and
+  zip downloaded and checked in Node (pdf-lib page counts, `pdftotext` labels, JSZip names); page 1 of the Photo
+  and Issues reports rendered with `pdftoppm`.
   Uses `PLAYWRIGHT_BROWSERS_PATH` or `CHROMIUM_PATH` (falls back
   to `/opt/pw-browsers/chromium`) and `soffice` for the recalculation; never downloads a browser. Screenshots go to
   `e2e-screenshots/` (git-ignored); a few are kept in [`docs/screenshots/`](../docs/screenshots) (07–12: the new
-  forms; 13: RTU motor and static-profile panels; 14: re-import review; 15: revisions).
+  forms; 13: RTU motor and static-profile panels; 14: re-import review; 15: revisions; 16: Photos tab; 17: issue
+  with deficiency photos; 18 / 19: page 1 of the Photo and Issues reports).
 
 ## Not done yet
 
-Supabase sync against a live project (engine written, untested); photo upload and reports (Phase 4–5);
+Supabase sync against a live project (engine written, untested); the photo upload itself (queue in place, Phase 5)
+and server columns for the new photo fields (`order`, `width`, `height`, `capturedAt`, `gps` are ignored by the
+server trigger until a migration adds them); photos tested in Chromium only (no real iPhone camera / HEIC run);
 revisions are not synced between devices; re-import behaviour after a real desktop-Excel save is untested (simulated
 with XML edits); Building Balance pressures, Certification; the hood schedule's "KEF interlock" column (EDE G, info only, not linked) is not
 written (the hood page's own "Associated exhaust fan" is).

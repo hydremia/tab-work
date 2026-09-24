@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import type { IssueKind } from '../../data/types';
+import type { PerPage } from '../../reports/layout';
+import type { ReportRequest, ReportResult } from '../../reports/generate';
 import { Link, useSearchParams } from 'react-router';
 import { useBaseWorkbook, useRevisions } from '../../data/hooks';
 import type { Revision } from '../../data/types';
@@ -9,6 +12,8 @@ import { ProgressBar, RollupCounts } from '../components/Status';
 import { useProjectContext } from './ProjectLayout';
 
 const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
+type IssueScope = 'all' | IssueKind;
+const SCOPE_KINDS: Record<IssueScope, IssueKind[]> = { all: ['new', 'existing'], new: ['new'], existing: ['existing'] };
 const when = (t: number) => new Date(t).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
 export function ExportPage() {
@@ -21,9 +26,41 @@ export function ExportPage() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ExportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reportTyped, setReportTyped] = useState<string | null>(null);
+  const [perPage, setPerPage] = useState<PerPage>(4);
+  const [withDeficiency, setWithDeficiency] = useState(true);
+  const [scope, setScope] = useState<IssueScope>('all');
+  const [reportBusy, setReportBusy] = useState<string | null>(null);
+  const [reportResult, setReportResult] = useState<ReportResult | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
   const smallFans = equipment.filter((e) => e.type === 'smallFan').length;
   const suggested = revisions ? suggestLabel(revisions) : '';
   const label = typed ?? suggested;
+  // reports carry the label of the workbook just exported (or the last export), editable
+  const lastExport = revisions?.find((r) => r.kind === 'export');
+  const reportLabel = reportTyped ?? result?.revision.label ?? lastExport?.label ?? suggested;
+
+  async function makeReport(req: Omit<ReportRequest, 'label'> | 'zip') {
+    setReportBusy('Preparing…');
+    setReportError(null);
+    setReportResult(null);
+    try {
+      const gen = await import('../../reports/generate');
+      const progress = (done: number, total: number) =>
+        setReportBusy(total ? `${req === 'zip' ? 'Adding' : 'Placing'} photo ${done} of ${total}…` : 'Preparing…');
+      const l = reportLabel.trim();
+      const r =
+        req === 'zip'
+          ? await gen.generatePhotoZip(project.id, l, progress)
+          : await gen.generateReport(project.id, { ...req, label: l }, progress);
+      gen.downloadFile(r.bytes, r.fileName, req === 'zip' ? 'application/zip' : 'application/pdf');
+      setReportResult(r);
+    } catch (e) {
+      setReportError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setReportBusy(null);
+    }
+  }
 
   async function run() {
     setBusy(true);
@@ -173,6 +210,129 @@ export function ExportPage() {
           Only input cells are written; the workbook's formulas, macros, formatting and print setup stay as they are.
           Open it in Excel and let it recalculate.
         </p>
+      </section>
+
+      <section className="card card-pad stack" aria-labelledby="rp-h" data-testid="reports">
+        <h2 id="rp-h">Photo and Issues reports (PDF)</h2>
+        <p className="small muted" style={{ margin: 0 }}>
+          Made on this device, also offline. Equipment and deficiency photos are not in the workbook; they go to these
+          reports. New and Existing issues go to different parties, so each can be exported alone.
+        </p>
+        <div className="form-grid">
+          <div className="field">
+            <label className="field-label" htmlFor="rp-label">
+              Report label
+            </label>
+            <input
+              id="rp-label"
+              className="input"
+              value={reportLabel}
+              maxLength={40}
+              onChange={(e) => setReportTyped(e.target.value)}
+              data-testid="report-label"
+            />
+            <span className="field-hint">Same as the workbook revision by default.</span>
+          </div>
+          <div className="field">
+            <label className="field-label" htmlFor="rp-per">
+              Photos per page
+            </label>
+            <select
+              id="rp-per"
+              className="select"
+              value={perPage}
+              onChange={(e) => setPerPage(Number(e.target.value) as PerPage)}
+              data-testid="report-per-page"
+            >
+              <option value={2}>2 per page (large)</option>
+              <option value={4}>4 per page (2 × 2)</option>
+              <option value={6}>6 per page (2 × 3)</option>
+            </select>
+          </div>
+        </div>
+        <div className="field">
+          <span className="field-label">Issues to include</span>
+          <div className="segmented" role="group" aria-label="Issues to include">
+            {(['all', 'new', 'existing'] as const).map((k) => (
+              <button
+                key={k}
+                type="button"
+                aria-pressed={scope === k}
+                onClick={() => setScope(k)}
+                data-testid={`issue-scope-${k}`}
+              >
+                {k === 'all' ? 'All' : k === 'new' ? 'New only' : 'Existing only'}
+              </button>
+            ))}
+          </div>
+        </div>
+        <label className="row small" style={{ gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={withDeficiency}
+            onChange={(e) => setWithDeficiency(e.target.checked)}
+            data-testid="report-with-deficiency"
+          />
+          Include deficiency photos in the Photo Report
+        </label>
+        <div className="report-grid">
+          <button
+            type="button"
+            className="btn"
+            disabled={Boolean(reportBusy)}
+            data-testid="report-photos"
+            onClick={() => void makeReport({ kind: 'photos', perPage, includeDeficiency: withDeficiency })}
+          >
+            <IconDownload size={18} /> Photo Report
+          </button>
+          <button
+            type="button"
+            className="btn"
+            disabled={Boolean(reportBusy)}
+            data-testid="report-issues"
+            onClick={() => void makeReport({ kind: 'issues', perPage, issueKinds: SCOPE_KINDS[scope] })}
+          >
+            <IconDownload size={18} /> Issues Report{scope === 'all' ? '' : scope === 'new' ? ' (New)' : ' (Existing)'}
+          </button>
+          <button
+            type="button"
+            className="btn"
+            disabled={Boolean(reportBusy)}
+            data-testid="report-combined"
+            onClick={() => void makeReport({ kind: 'combined', perPage, issueKinds: SCOPE_KINDS[scope] })}
+          >
+            <IconDownload size={18} /> Issues + Photos
+            {scope === 'all' ? '' : scope === 'new' ? ' (New)' : ' (Existing)'}
+          </button>
+          <button
+            type="button"
+            className="btn"
+            disabled={Boolean(reportBusy)}
+            data-testid="report-zip"
+            onClick={() => void makeReport('zip')}
+          >
+            <IconDownload size={18} /> Photos (.zip)
+          </button>
+        </div>
+        {reportBusy && (
+          <div className="small muted" role="status" data-testid="report-busy">
+            {reportBusy}
+          </div>
+        )}
+        {reportError && (
+          <div className="callout" data-tone="red" role="alert">
+            Report failed: {reportError}
+          </div>
+        )}
+        {reportResult && (
+          <div className="callout" data-tone="info" role="status" data-testid="report-result">
+            <div>
+              <b>{reportResult.fileName}</b> downloaded ({mb(reportResult.bytes.length)}
+              {reportResult.pages ? `, ${reportResult.pages} page${reportResult.pages === 1 ? '' : 's'}` : ''},{' '}
+              {reportResult.photos} photo{reportResult.photos === 1 ? '' : 's'}).
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="card card-pad stack" aria-labelledby="im-h">

@@ -190,3 +190,32 @@ export function usePhotoMeta(projectId: string | undefined): Pick<Photo, 'equipm
     [projectId],
   );
 }
+
+/** Photos of a project on this device: count, bytes (images + thumbnails) and files waiting for upload. */
+export function usePhotoStats(
+  projectId: string | undefined,
+): { count: number; bytes: number; pendingUploads: number } | undefined {
+  return useLiveQuery(async () => {
+    if (!projectId) return { count: 0, bytes: 0, pendingUploads: 0 };
+    let count = 0;
+    let bytes = 0;
+    await db.photos
+      .where('projectId')
+      .equals(projectId)
+      .each((p) => {
+        count++;
+        bytes += (p.blob?.size ?? 0) + (p.thumb?.size ?? 0);
+      });
+    const pendingUploads = await db.photoUploads
+      .where('projectId')
+      .equals(projectId)
+      .filter((u) => u.status !== 'done')
+      .count();
+    return { count, bytes, pendingUploads };
+  }, [projectId]);
+}
+
+/** One photo (live); undefined while loading, null when missing. */
+export function usePhoto(id: string | null | undefined): Photo | null | undefined {
+  return useLiveQuery(async () => (id ? ((await db.photos.get(id)) ?? null) : null), [id]);
+}

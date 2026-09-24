@@ -138,13 +138,13 @@ Last updated: 2026-09-24
 - [ ] Validate on a real completed project workbook
 
 ## Phase 4 — Photos
-- [ ] Capture from camera or camera roll; compression and EXIF orientation
-- [ ] Categories: cover, deficiency, unit, tag/label, OA damper, other; captions
-- [ ] Cover photo placed in the workbook on export
-- [ ] Photo Report export (format per N5)
-- [ ] Issues Report export; combined Issues + Photos report
-- [ ] Deficiency photos numbered to their issue # (e.g. Photo 3.1, 3.2)
-- [ ] Zip export of originals
+- [x] Capture from camera or camera roll; compression and EXIF orientation
+- [x] Categories: cover, deficiency, unit, tag/label, OA damper, other; captions
+- [x] Cover photo placed in the workbook on export (since the app skeleton; checked by e2e)
+- [x] Photo Report export (format per N5)
+- [x] Issues Report export; combined Issues + Photos report
+- [x] Deficiency photos numbered to their issue # (format: Photo N-3.1 / Photo E-3.1, see app/README.md)
+- [x] Zip export of originals
 
 ## Phase 5 — Cloud sync & multi-user
 - [ ] Push/pull sync of field changes
