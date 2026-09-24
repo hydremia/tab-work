@@ -57,6 +57,13 @@ A blank cell must **not** mean N/A. **Revision 05 hardens the formulas**, e.g.
 and is skipped in totals and averages. This also fixes the same error for anyone typing N/A by hand in Excel.
 Text cells (serial, manufacturer, notes…) always get the notation directly.
 
+**Export rule (decided 2026-09-24):** every N/A is written into the workbook. N/A you set yourself is written
+as the notation you chose. N/A the app sets (automatic rules such as direct drive → drive data, and the project scope
+profile) is written as `N/A`. No cell is left blank to mean N/A.
+
+**Photos on re-import (decided 2026-09-24):** photos are not stored in the workbook. Re-importing into the same
+project keeps its photos. Importing into a new project brings units back amber until their photos are added.
+
 (Options B "blank cell + note in Remarks" and C "section-level only" were not chosen.)
 
 ---
@@ -66,7 +73,7 @@ Text cells (serial, manufacturer, notes…) always get the notation directly.
 | Section | Required | Conditional / optional |
 |---|---|---|
 | **Project Information** | Project name, physical address, mechanical engineer, mechanical contractor, TAB date(s), technician(s), project manager, report date | Optional: architect, electrical engineer, general contractor, blueprints used (up to 9 sheets, each with a revision date) |
-| **Cover photo** | Required (can be set to N/A) | The app crops it to the cover box shape (about 1.85 : 1, wide) |
+| **Cover photo** | Required (can be set to N/A) | The app crops it to the cover box shape (about 1.685 : 1, wide) |
 | **Narrative** | Required: system set-up description (one text box) | Can be N/A for a prelim report ✅ R5 |
 | **Calibration** | At least one instrument, each with type, manufacturer, model, serial and calibration date (8 slots). The date is flagged if it is more than 12 months before the TAB date. | The template's 7 a2b instruments are pre-loaded. **(new)** The app flags any instrument chosen on a unit page that has no calibration row. |
 | **Issues** | Each issue needs New/Existing, a remark, a status (Open/Closed), and equipment **or** "General (N/A)" | Optional: comments, photos. New issues go to *Summary - New* and existing ones to *Summary - (E)*, each numbered separately, 50 per sheet. |

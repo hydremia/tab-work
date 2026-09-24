@@ -1,0 +1,123 @@
+import { useState } from 'react';
+import { Link } from 'react-router';
+import { STATUS_LABEL, type Completion } from '../../domain/completion';
+import { EQUIPMENT_TYPES } from '../../domain/equipmentTypes';
+import type { Equipment } from '../../data/types';
+import { IconPlus } from '../components/Icons';
+import { ProgressBar, StatusBadge } from '../components/Status';
+import { useProjectContext } from './ProjectLayout';
+
+type Filter = 'all' | 'needs' | 'attention' | 'complete';
+const FILTERS: { key: Filter; label: string; test: (c: Completion) => boolean }[] = [
+  { key: 'all', label: 'All', test: () => true },
+  { key: 'needs', label: 'Needs data', test: (c) => c.missing.length > 0 || c.color === 'gray' || c.formIncomplete },
+  { key: 'attention', label: 'Needs attention', test: (c) => c.color === 'red' },
+  { key: 'complete', label: 'Complete', test: (c) => c.color === 'green' },
+];
+
+function EquipmentCard({ e, c, projectId }: { e: Equipment; c: Completion; projectId: string }) {
+  const area = typeof e.data.areaServed === 'string' ? e.data.areaServed : '';
+  const detail =
+    c.color === 'gray'
+      ? 'Not started'
+      : c.color === 'red'
+        ? [
+            c.openIssues ? `${c.openIssues} open issue${c.openIssues > 1 ? 's' : ''}` : '',
+            c.outOfTolerance.length ? `${c.outOfTolerance.length} out of tolerance` : '',
+          ]
+            .filter(Boolean)
+            .join(' · ')
+        : c.formIncomplete
+          ? 'Full form coming soon'
+          : c.missing.length
+            ? `${c.missing.length} required item${c.missing.length > 1 ? 's' : ''} missing`
+            : `${c.satisfied}/${c.required} done`;
+  return (
+    <Link
+      to={`/p/${projectId}/e/${e.id}`}
+      className="card card-link equip-card"
+      data-color={c.color}
+      data-testid={`equip-${e.designation}`}
+      aria-label={`${e.designation}: ${STATUS_LABEL[c.color]}`}
+    >
+      <div className="body">
+        <div className="row" style={{ gap: 8 }}>
+          <span className="name">{e.designation}</span>
+          {e.isExisting && <span className="chip chip-existing">Existing</span>}
+        </div>
+        <div className="sub">{[area, detail].filter(Boolean).join(' · ')}</div>
+      </div>
+      <StatusBadge color={c.color} label={c.label} />
+    </Link>
+  );
+}
+
+export function EquipmentListPage() {
+  const { project, equipment, status } = useProjectContext();
+  const [filter, setFilter] = useState<Filter>('all');
+  const f = FILTERS.find((x) => x.key === filter)!;
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1>Equipment</h1>
+          <p>
+            {status && status.total.total
+              ? `${status.total.green} of ${status.total.total} complete`
+              : 'Add the units you will test and balance.'}
+          </p>
+        </div>
+        <Link to={`/p/${project.id}/add`} className="btn btn-primary" data-testid="add-equipment">
+          <IconPlus size={18} /> Add equipment
+        </Link>
+      </div>
+      {status && status.total.total > 0 && <ProgressBar rollup={status.total} />}
+      {equipment.length > 0 && (
+        <div className="filters" role="group" aria-label="Filter equipment">
+          {FILTERS.map((x) => (
+            <button
+              key={x.key}
+              type="button"
+              className="filter-chip"
+              aria-pressed={filter === x.key}
+              onClick={() => setFilter(x.key)}
+            >
+              {x.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {equipment.length === 0 && (
+        <div className="card empty">
+          <h2>No equipment yet</h2>
+          <p>RTUs, MAUs, ERVs, fans, VAVs, hoods and traverses go here.</p>
+        </div>
+      )}
+      {status &&
+        EQUIPMENT_TYPES.map((t) => {
+          const list = equipment
+            .filter((e) => e.type === t.key)
+            .sort((a, b) => a.slot - b.slot)
+            .filter((e) => f.test(status.byEquipment.get(e.id)!));
+          const r = status.byType.get(t.key);
+          if (!r || !list.length) return null;
+          return (
+            <section key={t.key} className="type-group" aria-labelledby={`grp-${t.key}`}>
+              <div className="type-head">
+                <h2 id={`grp-${t.key}`}>{t.plural}</h2>
+                <span className="rollup" data-testid={`rollup-${t.key}`}>
+                  {t.plural} {r.green}/{r.total} complete
+                </span>
+              </div>
+              <div className="equip-grid">
+                {list.map((e) => (
+                  <EquipmentCard key={e.id} e={e} c={status.byEquipment.get(e.id)!} projectId={project.id} />
+                ))}
+              </div>
+            </section>
+          );
+        })}
+    </>
+  );
+}

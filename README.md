@@ -1,5 +1,27 @@
 # a2b TAB Report workbook
 
+## App
+
+The **TAB App** ([`app/`](app/README.md)) is an offline-first, installable web app (PWA) for entering TAB field data
+on a phone, tablet or laptop and exporting it into the revision 05 workbook below. It runs in local-only mode until
+Supabase is configured.
+
+```
+npm install          # repository root (npm workspaces: app, packages/workbook, spike/export)
+npm run dev          # http://localhost:5173
+npm run lint && npm run typecheck && npm test && npm run build
+```
+
+| Folder | What it is |
+|---|---|
+| [`app/`](app/README.md) | The PWA (React + TypeScript + Vite, IndexedDB via Dexie) |
+| [`packages/workbook/`](packages/workbook) | Shared workbook library: template map, direct-XML export, import (used by the app and the spike) |
+| [`supabase/`](supabase/README.md) | Database schema, row-level security, photo storage and the Microsoft sign-in settings (not deployed yet) |
+| [`spike/export/`](spike/export/README.md) | Phase 0 export spike (LibreOffice verification) |
+| [`docs/`](docs) | Roadmap, tracker, required fields, workbook analysis, account setup, [screenshots](docs/screenshots) |
+
+## Workbook files
+
 | File | What it is |
 |---|---|
 | `05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm` | **Current template** (revision 05: formulas accept the notations N/A, Not Avail., Not Acc. in numeric inputs and treat them as blank; cover-page project links fixed; MAU burner profile-pressure curve restored). Generated from revision 04 by `tools/build_rev05.py`. |
