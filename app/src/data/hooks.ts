@@ -5,7 +5,7 @@ import { computeCompletion, rollup, type Completion, type Rollup } from '../doma
 import { EQUIPMENT_TYPES, type EquipmentTypeKey } from '../domain/equipmentTypes';
 import { getSpec } from '../domain/specs';
 import { db } from './db';
-import type { AirflowRow, Equipment, Instrument, Issue, Photo, Project } from './types';
+import type { AirflowRow, BaseWorkbook, Equipment, Instrument, Issue, Photo, Project, Revision } from './types';
 
 export function useProjects(): Project[] | undefined {
   return useLiveQuery(() => db.projects.orderBy('updatedAt').reverse().toArray(), []);
@@ -159,4 +159,34 @@ export function useAllProjectRollups(): Map<string, Rollup> | undefined {
     }
     return out;
   }, [data]);
+}
+
+/** Revision history of a project, newest first. */
+export function useRevisions(projectId: string | undefined): Revision[] | undefined {
+  return useLiveQuery(
+    async () =>
+      projectId
+        ? (await db.revisions.where('projectId').equals(projectId).toArray()).sort((a, b) => b.createdAt - a.createdAt)
+        : [],
+    [projectId],
+  );
+}
+
+/** The base workbook of the next export (null: the blank template). */
+export function useBaseWorkbook(projectId: string | undefined): BaseWorkbook | null | undefined {
+  return useLiveQuery(async () => (projectId ? ((await db.baseWorkbooks.get(projectId)) ?? null) : null), [projectId]);
+}
+
+/** Photo metadata of a project (no blobs): what the completion colors need. */
+export function usePhotoMeta(projectId: string | undefined): Pick<Photo, 'equipmentId' | 'category'>[] | undefined {
+  return useLiveQuery(
+    async () =>
+      projectId
+        ? (await db.photos.where('projectId').equals(projectId).toArray()).map(({ equipmentId, category }) => ({
+            equipmentId,
+            category,
+          }))
+        : [],
+    [projectId],
+  );
 }

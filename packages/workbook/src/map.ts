@@ -6,3 +6,4 @@
 export * from './templateMap.js';
 export * from './lists.js';
 export type * from './types.js';
+export type { RevisionMarker } from './docProps.js';

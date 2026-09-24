@@ -17,6 +17,7 @@ import JSZip from 'jszip';
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { importWorkbook } from '@a2b/workbook';
 import { fillNewTypes, readLivePanels, recalcCrossCheck, verifyNewTypes } from './newTypes';
+import { reimportFlow } from './reimport';
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SHOTS = join(APP, 'e2e-screenshots');
@@ -566,6 +567,9 @@ async function main() {
     });
     await shot(wp, '11-rtu-airflow-desktop');
     await wide.close();
+
+    // ------------------------------------------------------------------ re-import of an issued workbook, revisions
+    await reimportFlow(browser, BASE, file, OUT, DOC_SHOTS, check);
 
     check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   } catch (e) {

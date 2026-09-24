@@ -1,5 +1,16 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { AirflowRow, Equipment, FieldChange, Instrument, Issue, Meta, Photo, Project } from './types';
+import type {
+  AirflowRow,
+  BaseWorkbook,
+  Equipment,
+  FieldChange,
+  Instrument,
+  Issue,
+  Meta,
+  Photo,
+  Project,
+  Revision,
+} from './types';
 
 export class TabDatabase extends Dexie {
   projects!: EntityTable<Project, 'id'>;
@@ -10,6 +21,8 @@ export class TabDatabase extends Dexie {
   instruments!: EntityTable<Instrument, 'id'>;
   fieldChanges!: EntityTable<FieldChange, 'id'>;
   meta!: EntityTable<Meta, 'key'>;
+  revisions!: EntityTable<Revision, 'id'>;
+  baseWorkbooks!: EntityTable<BaseWorkbook, 'projectId'>;
 
   constructor(name = 'a2b-tab') {
     super(name);
@@ -23,6 +36,16 @@ export class TabDatabase extends Dexie {
       fieldChanges: 'id, synced, ts, projectId, [table+recordId+field]',
       meta: 'key',
     });
+    // v2: revision history (issued workbooks + baseline values) and the base workbook for the next export (F1).
+    // New tables only; existing data is kept as is. Old devices upgrade on first open.
+    this.version(2)
+      .stores({
+        revisions: 'id, projectId, [projectId+createdAt]',
+        baseWorkbooks: 'projectId',
+      })
+      .upgrade(async (tx) => {
+        await tx.table('meta').put({ key: 'schemaUpgradedTo2', value: Date.now() });
+      });
   }
 }
 
