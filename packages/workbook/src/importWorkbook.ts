@@ -6,6 +6,7 @@ import JSZip from 'jszip';
 import { cellValue, listSheets, loadSharedStrings, parseCells, RawCell, readText, serialToIso, usToIso } from './ooxml.js';
 import { anchorRow, blockLayout, fieldPreset, FieldType, Layout, sequenceCells, tableRows, TEMPLATE_MAP, TemplateMap } from './templateMap.js';
 import type { Cell, LayoutData, ProjectData, UnitData, Value } from './types.js';
+import { readRevisionMarker, type RevisionMarker } from './docProps.js';
 
 export interface ImportOptions { map?: TemplateMap }
 export interface ImportReport { warnings: string[] }
@@ -14,7 +15,8 @@ export async function importWorkbook(bytes: Uint8Array, opts: ImportOptions = {}
   return (await importWorkbookWithReport(bytes, opts)).project;
 }
 
-export async function importWorkbookWithReport(bytes: Uint8Array, opts: ImportOptions = {}): Promise<{ project: ProjectData; report: ImportReport }> {
+export async function importWorkbookWithReport(bytes: Uint8Array, opts: ImportOptions = {}):
+  Promise<{ project: ProjectData; report: ImportReport; marker: RevisionMarker | null }> {
   const map = opts.map ?? TEMPLATE_MAP;
   const zip = await JSZip.loadAsync(bytes);
   const sheets = await listSheets(zip);
@@ -126,7 +128,7 @@ export async function importWorkbookWithReport(bytes: Uint8Array, opts: ImportOp
     }
     if (units.length) project.equipment[def.key] = units;
   }
-  return { project, report };
+  return { project, report, marker: await readRevisionMarker(zip) };
 }
 
 // ------------------------------------------------------------------------------------------ comparison

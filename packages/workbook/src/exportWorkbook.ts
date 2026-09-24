@@ -5,12 +5,14 @@
  */
 import JSZip from 'jszip';
 import {
-  attr, cellValue, colToNum, dateStyleIds, isoToSerial, isoToUs, listSheets, parseCells, parseCellTag, parseDefinedNames,
-  parseRels, RawCell, readText, relsPathFor, resolveTarget, sheetDataRange, splitRef, workbookPart, xmlEscape,
+  attr, cellValue, colToNum, dateStyleIds, isoToSerial, isoToUs, listSheets, loadSharedStrings, parseCells, parseCellTag,
+  parseDefinedNames, parseRels, RawCell, readText, relsPathFor, resolveTarget, sheetDataRange, splitRef, workbookPart, xmlEscape,
 } from './ooxml.js';
 import {
   anchorRow, blockLayout, ColumnDef, FieldDef, Layout, NOTATIONS, sequenceCells, tableRows, TEMPLATE_MAP, TemplateMap,
 } from './templateMap.js';
+import { inputCells } from './inputCells.js';
+import { type RevisionMarker, writeRevisionMarker } from './docProps.js';
 import { anchorSizeEmu, type CoverPhotoCropper, drawingPictures } from './coverPhoto.js';
 import type { Cell, LayoutData, ProjectData } from './types.js';
 
@@ -32,6 +34,17 @@ export interface ExportOptions {
   jpegQuality?: number;
   /** Alternative map (tests). */
   map?: TemplateMap;
+  /** Revision marker written as custom document properties (docProps/custom.xml). Omitted: nothing is added. */
+  marker?: RevisionMarker;
+  /**
+   * Export onto a previously issued workbook (the `templateBytes` argument is then that workbook). Before the project
+   * is written, every mapped input cell of the listed sections and of every equipment block / data-entry row is reset
+   * to the blank template's value, so values removed in the app are cleared (value only: the issued workbook's cell
+   * style is kept) and unused blocks look as in the template. Cells that are not input cells (formulas, labels, hand
+   * formatting, column widths, print setup, other sheets) are never touched. Formula protection is checked against
+   * the template, so an input cell that someone turned into a formula in Excel is overwritten with the app's value.
+   */
+  reset?: { template: Uint8Array; sections: readonly string[] };
 }
 
 export interface ExportReport {
@@ -59,6 +72,10 @@ class SheetPatcher {
   private mergesByRow = new Map<number, { c1: number; r1: number; c2: number; r2: number; ref: string }[]>();
   private colStyles: { min: number; max: number; style?: string }[];
   readonly writes = new Map<string, { w: CellWrite; source: string; styleFrom?: string }>();
+  /** Reset writes (export onto an issued workbook): applied unless the project writes the same cell. */
+  readonly defaults = new Map<string, { w: CellWrite; value: number | string | null }>();
+  /** The template's cells, when exporting onto an issued workbook (formula protection is checked against them). */
+  refCells?: Map<string, RawCell>;
   stats = { written: 0, cleared: 0, created: 0, rowsCreated: 0 };
 
   constructor(readonly sheet: string, readonly part: string, public xml: string) {
@@ -79,14 +96,31 @@ class SheetPatcher {
 
   cell(ref: string): RawCell | undefined { return this.cells.get(ref); }
 
-  /** Queue a write, after the safety checks: not a formula, not hidden under a merge, not written twice. */
-  set(ref: string, w: CellWrite, source: string, styleFrom?: string): void {
-    const cur = this.cells.get(ref);
-    if (cur?.formula !== undefined) throw new FormulaCellError(this.sheet, ref, cur.formula, source);
+  /** The cell's value once the queued reset (if any) is applied. */
+  effectiveValue(ref: string, sst: string[]): number | string | boolean | null {
+    const d = this.defaults.get(ref);
+    return d ? d.value : cellValue(this.cells.get(ref), sst);
+  }
+
+  private hiddenByMerge(ref: string): { ref: string } | undefined {
     const { col, row } = splitRef(ref);
     const c = colToNum(col);
     const mg = this.mergesByRow.get(row)?.find((m) => c >= m.c1 && c <= m.c2);
-    if (mg && (mg.c1 !== c || mg.r1 !== row)) {
+    return mg && (mg.c1 !== c || mg.r1 !== row) ? mg : undefined;
+  }
+
+  /** Queue a reset write (lower priority than set()); silently skipped where it could not be written. */
+  setDefault(ref: string, w: CellWrite, value: number | string | null): void {
+    if (this.refCells?.get(ref)?.formula !== undefined || this.hiddenByMerge(ref)) return;
+    this.defaults.set(ref, { w, value });
+  }
+
+  /** Queue a write, after the safety checks: not a formula, not hidden under a merge, not written twice. */
+  set(ref: string, w: CellWrite, source: string, styleFrom?: string): void {
+    const cur = this.refCells ? this.refCells.get(ref) : this.cells.get(ref);
+    if (cur?.formula !== undefined) throw new FormulaCellError(this.sheet, ref, cur.formula, source);
+    const mg = this.hiddenByMerge(ref);
+    if (mg) {
       throw new MapError(`${source}: ${this.sheet}!${ref} is inside merged range ${mg.ref} but not its top-left cell (the value would be hidden)`);
     }
     const prev = this.writes.get(ref);
@@ -112,6 +146,7 @@ class SheetPatcher {
 
   /** Apply every queued write; returns true when the XML changed. */
   apply(): boolean {
+    for (const [ref, d] of this.defaults) if (!this.writes.has(ref)) this.writes.set(ref, { w: d.w, source: 'reset' });
     if (!this.writes.size) return false;
     const byRow = new Map<number, Map<string, CellWrite>>();
     for (const [ref, { w }] of this.writes) {
@@ -176,7 +211,7 @@ class SheetPatcher {
       const w = writes.get(cell.ref);
       if (!w) { parts.push({ col: colToNum(cell.col), xml: m[0] }); continue; }
       const hasValue = cell.v !== undefined && cell.v !== '' || cell.inline !== undefined;
-      if (w.kind === 'clear' && !hasValue) { parts.push({ col: colToNum(cell.col), xml: m[0] }); continue; }
+      if (w.kind === 'clear' && !hasValue && cell.formula === undefined) { parts.push({ col: colToNum(cell.col), xml: m[0] }); continue; }
       const xml = this.newCellXml(cell.ref, cell.s, w);
       if (xml !== m[0]) changed = true;
       w.kind === 'clear' ? this.stats.cleared++ : this.stats.written++;
@@ -239,6 +274,8 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
   const sheets = await listSheets(zip);
   const wbPart = await workbookPart(zip);
   const wbXml = await readText(zip, wbPart);
+  // an issued workbook saved by Excel keeps its text in shared strings (the blank template uses inline strings)
+  const sst = await loadSharedStrings(zip);
   const stylesRel = parseRels(await readText(zip, relsPathFor(wbPart))).find((r) => r.type.endsWith('/styles'));
   const dateStyles = stylesRel ? dateStyleIds(await readText(zip, resolveTarget(wbPart, stylesRel.target))) : new Set<number>();
 
@@ -267,7 +304,7 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
     const vals: (string | number)[] = [];
     for (let c = colToNum(m[2]); c <= colToNum(m[4]); c++) {
       for (let r = Number(m[3]); r <= Number(m[5]); r++) {
-        const v = cellValue(cells.get(`${numToColLocal(c)}${r}`), []);
+        const v = cellValue(cells.get(`${numToColLocal(c)}${r}`), sst);
         if (v !== null && typeof v !== 'boolean') vals.push(v);
       }
     }
@@ -383,6 +420,35 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
     }
   };
 
+  // ---- export onto an issued workbook: reset the app's input cells to the template's values first
+  if (opts.reset) {
+    const tzip = await JSZip.loadAsync(opts.reset.template);
+    const tSheets = await listSheets(tzip);
+    const tSst = await loadSharedStrings(tzip);
+    const tCells = new Map<string, Map<string, RawCell>>();
+    for (const { sheet, refs } of inputCells(map, { sections: opts.reset.sections })) {
+      const sh = await patcher(sheet);
+      if (!tCells.has(sheet)) {
+        const info = tSheets.find((s) => s.name === sheet);
+        if (!info) throw new MapError(`the blank template has no sheet named "${sheet}"`);
+        tCells.set(sheet, parseCells(await readText(tzip, info.part)));
+      }
+      const tc = tCells.get(sheet)!;
+      sh.refCells = tc;
+      for (const ref of refs) {
+        const t = tc.get(ref);
+        if (t?.formula !== undefined) continue;
+        const tv = cellValue(t, tSst);
+        const want = tv === null || tv === '' || typeof tv === 'boolean' ? null : tv;
+        const cur = sh.cell(ref);
+        const have = cellValue(cur, sst);
+        if (cur?.formula === undefined && (have === want || (have === '' && want === null))) continue;
+        const w: CellWrite = want === null ? { kind: 'clear' } : typeof want === 'number' ? { kind: 'number', n: want } : { kind: 'text', text: want };
+        sh.setDefault(ref, w, want);
+      }
+    }
+  }
+
   // ---- single-sheet sections
   for (const [key, data] of Object.entries(project.sections)) {
     const sec = map.sections.find((s) => s.key === key);
@@ -395,7 +461,7 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
       if (fd.placeholder === undefined || project.sections[sec.key]?.fields?.[fd.key] !== undefined) continue;
       const sh = await patcher(sec.sheet);
       const ref = `${fd.col}${fd.row}`;
-      if (cellValue(sh.cell(ref), []) === fd.placeholder) sh.set(ref, { kind: 'clear' }, `placeholder ${sec.key}.${fd.key}`);
+      if (sh.effectiveValue(ref, sst) === fd.placeholder) sh.set(ref, { kind: 'clear' }, `placeholder ${sec.key}.${fd.key}`);
     }
   }
 
@@ -431,7 +497,7 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
     if (slot1?.schedule?.designation !== undefined) continue;
     const sh = await patcher(def.ede.sheet);
     const ref = `B${def.ede.firstRow}`;
-    if (cellValue(sh.cell(ref), []) === def.ede.sampleDesignation) sh.set(ref, { kind: 'clear' }, `sample designation ${def.ede.sampleDesignation}`);
+    if (sh.effectiveValue(ref, sst) === def.ede.sampleDesignation) sh.set(ref, { kind: 'clear' }, `sample designation ${def.ede.sampleDesignation}`);
   }
 
   // ---- apply sheet patches
@@ -459,7 +525,15 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
     zip.file(wbPart, calcPr ? wbXml.replace(calcPr[0], newCalc) : wbXml.replace('</workbook>', `${newCalc}</workbook>`));
     report.warnings.push('workbook.xml: fullCalcOnLoad was not set; added');
   }
-  if (zip.file('xl/calcChain.xml')) report.warnings.push('xl/calcChain.xml present (left as is)');
+  if (zip.file('xl/calcChain.xml')) {
+    if (opts.reset) {
+      // an Excel-saved workbook has a calculation chain; values written over cells that were formulas would leave
+      // stale entries (Excel's "repair" prompt). Excel rebuilds the chain on load (fullCalcOnLoad).
+      await removePart(zip, 'xl/calcChain.xml', wbPart);
+      report.warnings.push('xl/calcChain.xml removed (Excel rebuilds it)');
+    } else report.warnings.push('xl/calcChain.xml present (left as is)');
+  }
+  if (opts.marker) await writeRevisionMarker(zip, opts.marker);
 
   // ---- cover photo
   if (opts.coverPhoto) report.coverPhoto = await replaceCoverPhoto(zip, sheets, map, opts);
@@ -476,6 +550,17 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
 
   const bytes = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE', compressionOptions: { level: 6 } });
   return { bytes, report };
+}
+
+async function removePart(zip: JSZip, part: string, ownerPart: string): Promise<void> {
+  zip.remove(part);
+  const relsPart = relsPathFor(ownerPart);
+  const rels = await readText(zip, relsPart);
+  const rel = parseRels(rels).find((r) => resolveTarget(ownerPart, r.target) === part);
+  if (rel) zip.file(relsPart, rels.replace(rel.tag, ''));
+  const ct = await readText(zip, '[Content_Types].xml');
+  const ov = new RegExp(`<Override\\b[^>]*PartName="/${part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*/>`);
+  if (ov.test(ct)) zip.file('[Content_Types].xml', ct.replace(ov, ''));
 }
 
 function numToColLocal(n: number): string {

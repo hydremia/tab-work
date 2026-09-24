@@ -58,6 +58,16 @@ export const PROJECT_INFO_KEYS = [
   'reportDate',
 ] as const;
 
+/** Sections of the workbook the app writes (and so resets when exporting onto a previously issued workbook). */
+export const APP_SECTIONS = [
+  'projectInfo',
+  'narrative',
+  'issuesNew',
+  'issuesExisting',
+  'calibration',
+  'equipmentSummary',
+] as const;
+
 const isNotation = (v: unknown): v is Notation =>
   typeof v === 'string' && (WB_NOTATIONS as readonly string[]).includes(v);
 

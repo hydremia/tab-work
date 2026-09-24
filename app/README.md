@@ -61,7 +61,8 @@ src/
                engine), calc.ts (outlet CFM / %), equipmentCalcs.ts (MAU PSP / filter grid / profile pressure, ERV,
                hood, traverse and Building Balance calcs mirroring the workbook), staticProfile.ts / motorCalcs.ts
                (static-pressure strip, TSP / ESP / unit ΔP, corrected FLA, estimated BHP), conditions.ts
-  workbook/    adapter.ts (app records <-> ProjectData), exportProject.ts / importProject.ts (browser I/O)
+  workbook/    adapter.ts (app records <-> ProjectData), exportProject.ts / importProject.ts (browser I/O),
+               reimportDiff.ts (three-way diff, pure), reimportApply.ts (decisions -> operations), revisions.ts
   ui/          components/ (inputs with autosave, N/A menu, status badges, spec-driven row tables, reading grids,
                live-calc panels, photo slots) and pages/
 e2e/run-e2e.ts Playwright walk-through (+ newTypes.ts: MAU, ERV, fan, small fan, hood, traverse);  scripts/  template
@@ -151,14 +152,64 @@ hood filter readings go to the off-print P–U cells only (never the J/L average
 quick entry only; hood and traverse remarks use the page's shared remark box (hoods: lines 1–3 / 4–5, traverses:
 one line each).
 
-Import runs `importWorkbook()` on a picked file and `fromProjectData()`; the confirmation screen creates a new
-project or updates an existing one field by field (the full accept/decline diff review is Phase 3). Photos are not
-in the workbook, so they don't round-trip.
+Import runs `importWorkbook()` on a picked file and `fromProjectData()`. Photos are not in the workbook, so they
+don't round-trip: a new project's units stay amber until photos are added; a re-import into the same project keeps
+its photos.
+
+## Re-import, revisions and the base workbook
+
+**Revisions.** Every export is a frozen revision (label Prelim, Rev 1, Rev 2 … suggested, editable) kept in the
+`revisions` table (Dexie schema v2): label, date, file name, size, the `.xlsm` bytes and the **baseline**, i.e. the
+values the workbook holds (`importWorkbook()` of the exported file). The Export tab lists them (re-download, import
+entries with accepted / declined counts). Revisions are local to the device (not in the sync outbox).
+
+**Revision marker.** The exporter writes custom document properties `a2bTab.projectId`, `a2bTab.revisionId`,
+`a2bTab.revisionLabel`, `a2bTab.exportedAt` (`docProps/custom.xml` + its relationship and content type; other
+custom properties are kept; nothing on the sheets changes). Excel and LibreOffice keep custom properties when they
+save (LibreOffice verified in the e2e; Excel not testable here).
+
+**Re-import.** Export tab → *Re-import workbook*, or pick any workbook on the Import screen: a workbook whose marker
+names a project on this device goes straight to the review; otherwise *Create new project* or *Compare with
+project…* (two-way). The review (`workbook/reimportDiff.ts`, pure) is a three-way diff per value: base = the
+baseline of the revision in the marker (else the project's latest export; with none, a two-way diff where every
+difference is incoming), app = the project now, wb = the file. `wb == base` → nothing; `app == base` → incoming change
+(accepted by default); `wb == app` → nothing; else a **collision** (no default: *Use app* / *Use workbook*, showing the
+exported, app and workbook values). All three sides are compared as the workbook holds them (the app side is
+exported first, all sides are read back with the importer's adapter, so automatic N/A never shows as a change) after
+normalization: number noise (12 significant digits), numbers stored as text, date serials / US dates vs ISO, text
+trimmed (line ends, trailing spaces, non-breaking spaces), N/A notation case (`n/a` → `N/A`, `not acc` → `Not Acc.`).
+Formatting is never compared. Covered: project info, narrative, tolerance, blueprints, calibration, issues (remark,
+status, comments, linked unit; issues added / removed), every unit field incl. N/A marks and whole-table / reading-run
+N/A, outlet / filter rows (matched by table + position, or by `No.` when every row has a unique one; rows added /
+removed), units added / removed (matched by type + slot; removing a unit is declined by default). Group actions:
+*Accept all incoming*, *Accept all remarks*, *Accept all in this unit* (never resolve collisions). Unit colors after
+the merge are previewed. **Apply** (enabled once every collision is resolved) writes the accepted values through
+`setField` / `createRecord` / `deleteRecord` in one transaction (field changes in the outbox), keeps the file as the
+project's **base workbook** and records an *Imported* revision. Cancel changes nothing. Building Balance pressures are
+not in the app yet, so they are not compared.
+
+**Export onto the base workbook (F1).** With a base workbook, the export writes into it instead of the blank template,
+after `checkTemplateCompatibility()` (every template sheet and dropdown list present, every template formula still a
+formula at the same address, and revision 05's N/A-safe formulas; revision 04 is rejected). Before writing, every input
+cell the app owns (project sections, every block / data-entry row of every unit type, used or not) is reset to the
+blank template's value, so values removed in the app are cleared (value only; the cell keeps the issued workbook's
+style). Hand formatting — cell styles, column widths, row heights, text in non-input cells, other sheets, extra custom
+properties — is kept. An Excel save's shared strings and stale `calcChain.xml` are handled (the chain is removed;
+Excel rebuilds it). If the base is incompatible or the write fails, the export falls back to the blank template with a
+warning. *Use the blank template instead* on the Export tab forgets the base.
+
+**Storage on the device.** A revision-05 workbook is ~4 MB. Only the newest **5** exports of a project keep their
+file (`KEEP_REVISION_FILES`); older revisions keep label, date, size and baseline values (tens to a few hundred KB),
+which is all a re-import needs. The base workbook is one more file per project, so a project uses at most about
+6 × 4 MB. Deleting a project deletes its revisions and base workbook.
 
 ## Tests
 
-- `npm test`: 147 tests (11 in `packages/workbook`: list and constants copies vs. the template, a map audit that
-  fills **every** block of every type, round trip, safety; 136 in the app): outbox and repository, remote apply,
+- `npm test`: 184 tests (20 in `packages/workbook`: export onto an issued workbook (clearing, hand formatting kept,
+  an Excel-style shared-strings save, formulas typed over inputs), the revision marker, the compatibility check (incl.
+  revision 04 rejected), plus list and constants copies vs. the template, a map audit that
+  fills **every** block of every type, round trip, safety; 164 in the app, incl. the three-way re-import diff, apply through the outbox, revisions,
+  export onto the base, the review screen and the schema upgrade): outbox and repository, remote apply,
   completion engine for all 8 types (colors, N/A levels, scope profiles, auto rules incl. MAU method switching,
   small-fan R6, traverse R7, hood readings, tolerance, R8 discrepancies), live calcs against the workbook's values
   (hood 5 × 16" x 20" Captrate = 2049.29 CFM, PSP, profile-pressure curve, traverse Ak / positions for 24" × 12" and
@@ -175,13 +226,19 @@ in the workbook, so they don't round-trip.
   photo) → **LibreOffice recalculation** of the export: 0 error cells and the MAU method total, hood total,
   traverse CFM, ERV totals, Building Balance totals and the TSP / ESP / unit ΔP / ΔP texts / corrected FLA / BHP
   of RTU-1, MAU-1, ERV-1 and EF-1 equal the app's live calcs and what the panels showed → reload (IndexedDB) → offline
-  (service worker shell, edits, export) → re-import. Uses `PLAYWRIGHT_BROWSERS_PATH` or `CHROMIUM_PATH` (falls back
+  (service worker shell, edits, export) → re-import → **issued-report round trip** (`e2e/reimport.ts`): export
+  *Prelim* → Excel edits simulated as direct XML changes (remark polished and restyled, a reading changed, a reading
+  also changed in the app, column width, row height, label text) → a LibreOffice re-save of it re-imported as an import
+  source only (same review, Cancel) → re-import: 1 remark, 1 incoming reading, 1 collision, no false changes → resolve,
+  apply → export *Rev 1* onto the issued workbook: formatting kept, VBA byte-identical, values read back correct.
+  Uses `PLAYWRIGHT_BROWSERS_PATH` or `CHROMIUM_PATH` (falls back
   to `/opt/pw-browsers/chromium`) and `soffice` for the recalculation; never downloads a browser. Screenshots go to
   `e2e-screenshots/` (git-ignored); a few are kept in [`docs/screenshots/`](../docs/screenshots) (07–12: the new
-  forms; 13: RTU motor and static-profile panels).
+  forms; 13: RTU motor and static-profile panels; 14: re-import review; 15: revisions).
 
 ## Not done yet
 
 Supabase sync against a live project (engine written, untested); photo upload and reports (Phase 4–5);
-import diff/merge review and issued-report revisions (Phase 3); Building Balance pressures, Certification; the hood schedule's "KEF interlock" column (EDE G, info only, not linked) is not
+revisions are not synced between devices; re-import behaviour after a real desktop-Excel save is untested (simulated
+with XML edits); Building Balance pressures, Certification; the hood schedule's "KEF interlock" column (EDE G, info only, not linked) is not
 written (the hood page's own "Associated exhaust fan" is).
