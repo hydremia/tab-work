@@ -88,17 +88,17 @@ Last updated: 2026-09-23
 ## Phase 0 — Discovery & template spike
 - [x] Inventory workbook sheets, blocks and capacities ([WORKBOOK_ANALYSIS.md](./WORKBOOK_ANALYSIS.md))
 - [x] Draft roadmap, architecture and services list ([ROADMAP.md](./ROADMAP.md))
-- [~] Answer open questions (round 1 and 2 answered; round 3 E1, F1–F4, R1–R4 open)
+- [x] Answer open questions (all rounds answered)
 - [x] ~~Fix template bugs~~: already fixed in revision 01. The duplicate fix on the 4-16-26 backup was reverted.
 - [x] Merge [PR #1](https://github.com/hydremia/tab-work/pull/1) (revisions 01–04) into `main`
-- [x] **Revision 05** (`05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm`): N/A-safe formulas, cover-page link fix, burner profile curve restored. 256/256 checks, 0 error cells (LibreOffice). Still needs a check in desktop Excel.
+- [x] **Revision 05** (`05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm`): N/A-safe formulas, cover-page link fix, burner profile curve restored. 262/262 checks, 0 error cells (LibreOffice). Merged via [PR #2](https://github.com/hydremia/tab-work/pull/2). Still needs a check in desktop Excel.
 - [x] Building Balance: Small Fans 21–30 added in revision 05 (B1). The app warns past 30.
 - [x] Redo the workbook analysis and required fields on revision 04 (`04 - a2b_Blank_TAB_Workbook 9-18-26.xlsm`)
-- [ ] Template map v1: Project Information, Equipment Data Entry, Cover Page
-- [ ] Template map v1: RTU Data / RTU Airflow (all 40 blocks)
-- [ ] Template map v1: MAU, Fans, VAV, Hoods, Traverses, Summary, Calibration
-- [ ] **Spike:** write values into the .xlsm through XML patching, open it in desktop Excel, and verify macros, images, formulas and print setup
-- [ ] **Spike:** insert a cover photo into the Cover Page drawing
+- [x] Template map v1 (`spike/export/src/templateMap.ts`): project info, EDE, cover, RTU/MAU/ERV/Fan/Small Fan/VAV/Hood/Traverse blocks, Summaries, Narrative, Calibration, Building Balance pressures. Audited on the first and last block of every type.
+- [ ] Template map: remaining areas (Building Balance spare OA rows, hood/traverse page remarks, Certification). Convert to versioned JSON per template revision.
+- [x] **Export spike** (`spike/export`, `npm run spike`): 71 PASS / 0 FAIL. 634 cells written directly into the XML; 66 of 83 parts byte-identical, VBA unchanged; 0 error cells after recalculation; 189/189 expected values; import round trip with 0 differences (also after a LibreOffice re-save); 6/6 unsafe writes rejected.
+- [x] **Spike:** cover photo cropped (≈1.685:1) and inserted into the Cover Page drawing
+- [ ] **Open the spike export in desktop Excel**: no repair prompt, recalculation on open, macros/ToC button, dropdown values, cover photo proportions, print layout
 - [x] Propose default required fields per equipment type ([REQUIRED_FIELDS.md](./REQUIRED_FIELDS.md))
 - [x] Accounts and admin setup checklist ([SETUP_ACCOUNTS.md](./SETUP_ACCOUNTS.md))
 - [x] Compare Hoods sheet with the Evergreen worksheet (aligned in revision 01; see E1)

@@ -182,8 +182,7 @@ rows take a typed Final CFM. A Final VEL typed in the first return row has no ef
 | Q+25 … Q+46 | Supply outlets (cont.), 22 rows | Q+47 Subtotal |
 | Q+49 … Q+50 | Remarks (cont.), 2 lines | |
 
-No OA / return tables. Capacity: **38 outlets**. Method list: Outlets, PSP, Filter Grid, Profile Pressure,
-Traverse.
+No OA / return tables. Capacity: **38 outlets**. Method list (rev 05): Outlets, PSP, Filter Grid, Profile Pressure.
 
 ### 4.3 ERVs (differences from RTUs)
 
@@ -309,15 +308,15 @@ Remarks: one 3-line area per page, page start S = 5 + 49k: rows S+45 (D:M), S+46
 | Name | Range | Values |
 |---|---|---|
 | Drive.Type | Q2:Q4 | Belt, Direct, ECM |
-| Unit.Type | X2:X6 | RTU, DOAS, MAU, ERV, EF |
+| Unit.Type | AH2:AH6 (rev 05; X2:X6 in rev 04) | RTU, DOAS, MAU, ERV, EF |
 | Airflow.Instrument | P2:P8 | Flow Hood, Velocity Grid, Pitot Traverse, Hot Wire Anemometer, Rotating Vane Anemometer, DDC / Controller Reading, Other (see remarks) |
 | Airflow.Method | T2:T5 (rev 05) | Outlets, PSP, Filter Grid, Profile Pressure ("Traverse" was T6 in rev 04; removed in rev 05) |
 | PSP.Width | R2:R10 | 6, 9, 10, 12, 14, 16, 18, 20, 24 (in) |
 | Hood.FilterType | M2:M6 | Baffle (VelGrid), Captrate (VelGrid), Condensate Baffle (Airfoil), HVC / Slot (Airfoil), Supply Filter (VelGrid) |
-| Hood.FilterSize | N2:N17 | No Filter, 10×16, 10×20, 12×12, 12×16, 12×20, 12×24, 16×16, 16×20, 16×25, 20×20, 20×25, 24×24, 20×16, 16" Wide, 20" Wide |
+| Hood.FilterSize | N2:N17 | No Filter, 10" x 16", 10" x 20", 12" x 12", 12" x 16", 12" x 20", 12" x 24", 16" x 16", 16" x 20", 16" x 25", 20" x 20", 20" x 25", 24" x 24", 20" x 16", 16" Wide, 20" Wide. **Stored exactly as `16" x 20"`**, so the app must use these strings. |
 | Hood.Instrument | O2:O4 | Evergreen VelGrid, Evergreen Airfoil, Other (see remarks) |
 | Traverse.Instrument | F2:F9 | (blank), Manometer/Velocity Matrix, Manometer/Pitot Tube, Manometer/Airfoil, Rotating Vane Anemometer, Hot Wire Anemometer, Other Velocity Meter, Other Instrument |
-| Duct.Shape | W2:W3 | Rectangular, Round |
+| Duct.Shape | AF2:AF3 (rev 05; W2:W3 in rev 04) | Rectangular, Round |
 | Service.Factors2 | A1:A6 | SF (header), SF 1.0, SF 1.15, SF 1.25, SF 1.35, SF 1.5 |
 | Voltage.Options | B1:B7 | Voltage (header), 115, 120, 208, 230, 460, 480 |
 | Phase | C1:C3 | Phase (header), 1-phase, 3-phase |
@@ -349,8 +348,11 @@ three pictures: a2b logo (`rId1` → `image1.png`), family logo (`rId2` → `ima
 `<a:stretch><a:fillRect/>` with `noChangeAspect="0"`, blip `r:embed="rId1008"` → `xl/media/image8.png` (a
 1500 × 900 placeholder). To swap it, replace `image8.png`, or add a new media file and re-point `rId1008`
 in `xl/drawings/_rels/drawing1.xml.rels` (the png, jpeg and jpg types are already in `[Content_Types].xml`).
-The box is about 5.5 × 3.0 in (10 columns of 6.86 chars × 16 rows of 13.35 pt, ≈ 1.85 : 1). The picture is
-stretched to fill it, so **crop the photo to about 1.85 : 1 first** or it will be distorted.
+The box is 480 × 285 px, about 5.0 × 2.97 in (10 columns of 48 px × 16 rows of 13.35 pt), so **≈ 1.685 : 1**.
+The template's 1500 × 900 placeholder (1.67) agrees. An earlier figure of 1.85 double-counted column padding.
+The picture is stretched to fill the box, so **crop the photo to about 1.685 : 1 first** or it will be distorted.
+Verified by the export spike (`spike/export`). LibreOffice draws the box at about 1.83 : 1 because of how it sizes
+columns, so the final check is in desktop Excel.
 
 ## 8. Issues found in revision 04 (for revision 05)
 
@@ -376,6 +378,21 @@ stretched to fill it, so **crop the photo to about 1.85 : 1 first** or it will b
    exhaust total. Fans, RTUs, MAUs and ERVs are complete.
 7. ToC lists "Mechanical Floorplan(s)" and "Site Photos" on page 24, but there are no such sheets (Photos is
    hidden). Hoods and Photos have `$A:$N` print-title columns (harmless). Hoods have no manual page breaks.
+
+## 8b. Findings from the export spike (2026-09-24)
+
+1. **Outlet Type column has no cells.** Outlet rows on every unit sheet have no `<c>` in column D (Type), for
+   example 2,200 rows on RTUs and 2,240 on Fans. The export creates the cell and copies the style of the Size
+   cell next to it. Revision 06 could add these cells.
+2. **Blueprint revision dates** (`{Project Information}` E17:E25) are text-formatted, so dates are written as
+   text (M/D/YYYY). Revision 06 could give these cells a date format.
+3. **Traverse quick entry** (P:W) overlaps the next traverse's first row by one row. It's harmless because only
+   P:W is written there.
+4. **Calibration** model and serial are stored as numbers in some template rows, and are imported as strings.
+   Export replaces the whole calibration list, so the app pre-loads the 7 a2b instruments into new projects
+   instead of relying on the template rows.
+5. **LibreOffice re-save is not safe to ship.** It shrinks `vbaProject.bin` from 93,696 to 17,920 bytes and the
+   package from 83 to 55 parts. Only the app's direct-XML export is used for deliverables.
 
 ## 9. History
 
