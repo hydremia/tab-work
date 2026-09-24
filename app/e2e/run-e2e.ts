@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import JSZip from 'jszip';
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { importWorkbook } from '@a2b/workbook';
-import { fillNewTypes, recalcCrossCheck, verifyNewTypes } from './newTypes';
+import { fillNewTypes, readLivePanels, recalcCrossCheck, verifyNewTypes } from './newTypes';
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SHOTS = join(APP, 'e2e-screenshots');
@@ -266,6 +266,51 @@ async function main() {
     const badge = await page.getByTestId('status-badge').first().innerText();
     const progress = await page.getByTestId('unit-progress').innerText();
     check('RTU-1 complete (green) after filling everything', badge.includes('Complete'), `${badge}; ${progress}`);
+
+    // live static profile + motor panels (checked against the recalculated export further down)
+    const rtuUi: Record<string, string> = {};
+    await readLivePanels(page, 'rtu', rtuUi);
+    check(
+      'RTU-1 static profile: TSP 1.77, ESP 1.07, unit ΔP -0.70 in. w.g.; filter Δ -0.20, wheel absent, coil Δ -0.40',
+      rtuUi['rtu.sp-tsp'] === '1.77 in. w.g.' &&
+        rtuUi['rtu.sp-esp'] === '1.07 in. w.g.' &&
+        rtuUi['rtu.sp-unitdp'] === '-0.70 in. w.g.' &&
+        rtuUi['rtu.sp-dp-1'] === 'Δ -0.20' &&
+        rtuUi['rtu.sp-dp-2'] === 'absent' &&
+        rtuUi['rtu.sp-dp-3'] === 'Δ -0.40' &&
+        rtuUi['rtu.unit-esp-actual'] === '1.07',
+      JSON.stringify(rtuUi),
+    );
+    check(
+      'RTU-1 motor: avg 467.7 V / 4.00 A, corrected FLA blank (FLA Not Avail.), BHP 3.13 (3-phase)',
+      rtuUi['rtu.motor-avg-volts'].startsWith('467.7 V') &&
+        rtuUi['rtu.motor-avg-amps'].startsWith('4.00 A') &&
+        rtuUi['rtu.motor-fla'] === '—' &&
+        rtuUi['rtu.motor-bhp'] === '3.13',
+    );
+    const espWarn = await page.getByTestId('esp-warning').innerText();
+    const bhpWarn = await page.getByTestId('motor-warning-bhp').innerText();
+    check(
+      'amber field checks: ESP 1.07 vs design 0.80 (134 %), BHP 3.13 above 3 HP; ESP in the unit summary',
+      /design 0\.80 vs\. actual 1\.07/.test(espWarn) &&
+        /3\.13 is above the nameplate 3 HP/.test(bhpWarn) &&
+        (await page.getByTestId('summary-esp-warning').count()) === 1 &&
+        (await page.getByTestId('motor-warning-amps').count()) === 0,
+      `${espWarn} | ${bhpWarn}`,
+    );
+    // screenshot: motor and static panels together (the sections in between folded, a taller viewport)
+    for (const key of ['drive', 'misc', 'rpm', 'oa'])
+      await page.locator(`#sec-${key} .section-head button.toggle`).click();
+    await page.setViewportSize({ width: 390, height: 1800 });
+    await page.evaluate(() => {
+      const el = document.querySelector('[data-testid="calc-motor"]');
+      if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 150);
+    });
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: join(DOC_SHOTS, '13-rtu-static-motor.png') });
+    await page.setViewportSize({ width: 390, height: 844 });
+    for (const key of ['drive', 'misc', 'rpm', 'oa'])
+      await page.locator(`#sec-${key} .section-head button.toggle`).click();
     await page.evaluate(() => window.scrollTo(0, 0));
     await shot(page, '03-rtu-form-top');
     await page.locator('#sec-airflow').scrollIntoViewIfNeeded();
@@ -376,7 +421,7 @@ async function main() {
     );
     check('workbook: remarks', u1?.lines?.remarks?.[0] === 'Belt replaced during TAB.');
     const wbNew = await verifyNewTypes(bytes, check);
-    await recalcCrossCheck(file, wbNew, ui, check);
+    await recalcCrossCheck(file, wbNew, { ...ui, ...rtuUi }, check);
     check('workbook: RTU-2 in slot 2', u2?.schedule?.designation === 'RTU-2', JSON.stringify(u2));
     const zip = await JSZip.loadAsync(bytes);
     const media = Object.keys(zip.files).filter((n) => n.startsWith('xl/media/'));

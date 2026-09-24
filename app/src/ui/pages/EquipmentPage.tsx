@@ -11,7 +11,7 @@ import { traverseLayout } from '../../domain/equipmentCalcs';
 import { equipmentType } from '../../domain/equipmentTypes';
 import { getSpec, type FieldSpec, type SectionSpec, type SequenceSpec } from '../../domain/specs';
 import { AirflowTable } from '../components/AirflowTable';
-import { CalcPanel } from '../components/CalcPanels';
+import { CalcPanel, espText, unitEspCheck } from '../components/CalcPanels';
 import { SequenceGrid, type GridShape } from '../components/SequenceGrid';
 import { IconChevron, IconTrash } from '../components/Icons';
 import { PhotoSlots } from '../components/PhotoSlots';
@@ -212,7 +212,13 @@ function SectionCard({
             />
           ))}
           {section.calc && (
-            <CalcPanel panel={section.calc} equipment={equipment} rows={rows} tolerance={project.tolerance} />
+            <CalcPanel
+              panel={section.calc}
+              equipment={equipment}
+              rows={rows}
+              tolerance={project.tolerance}
+              completion={completion}
+            />
           )}
           {section.photos && (
             <PhotoSlots equipment={equipment} specs={section.photos} photos={photos} results={completion.photos} />
@@ -254,6 +260,7 @@ export function EquipmentPage() {
   const pct = c.required ? Math.round((c.satisfied / c.required) * 100) : 0;
   const values = { ...equipment.data, designation: equipment.designation };
   const sections = spec.sections.filter((s) => !s.showWhen || evalCond(s.showWhen, values));
+  const esp = unitEspCheck(equipment, c, project.tolerance);
 
   return (
     <Screen title={equipment.designation} subtitle={`${info.label} · ${project.name}`} back={back}>
@@ -320,6 +327,11 @@ export function EquipmentPage() {
             Design discrepancy: schedule {formatNumber(d.schedule)} CFM vs. {d.label} {formatNumber(d.outlets)} CFM.
           </div>
         ))}
+        {esp && (
+          <div className="callout" data-tone="amber" data-testid="summary-esp-warning">
+            {espText(esp)} Outside ±{Math.round(project.tolerance * 100)} % (static pressure profile).
+          </div>
+        )}
         {info.warnAbove && equipment.slot > info.warnAbove && (
           <div className="callout" data-tone="amber" role="status">
             {equipment.designation} is {info.plural.toLowerCase()} slot {equipment.slot}: Building Balance lists{' '}

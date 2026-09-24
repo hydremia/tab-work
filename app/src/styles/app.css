@@ -1107,6 +1107,94 @@ textarea {
   font-size: 0.875rem;
   overflow-wrap: anywhere;
 }
+.calc-kv div[data-report='true'] {
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+.report-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  font-family: var(--font);
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+.calc-note {
+  margin: 0;
+}
+.calc-note .report-tag {
+  margin-left: 0;
+}
+
+/* static pressure profile strip (mirrors the workbook schematic, wraps on narrow screens) */
+.sp-strip {
+  list-style: none;
+  margin: 0;
+  padding: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.sp-step {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sp-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 58px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+.sp-node b {
+  font-weight: 700;
+}
+.sp-inlet {
+  background: var(--primary-soft);
+  border-color: transparent;
+  font-weight: 700;
+}
+.sp-dp {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--text-2);
+}
+.sp-step[data-absent] .sp-node {
+  border-style: dashed;
+  color: var(--text-3);
+  background: transparent;
+}
+.sp-step[data-absent] .sp-dp {
+  color: var(--text-3);
+  font-family: var(--font);
+}
+.sp-static {
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  padding: 1px 4px;
+  color: var(--text);
+}
+.sp-arrow {
+  color: var(--text-3);
+  font-size: 0.8125rem;
+}
 .section-hint {
   margin: 0;
 }

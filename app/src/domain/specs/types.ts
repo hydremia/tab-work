@@ -31,6 +31,11 @@ export interface AutoNa {
    * kept in the app, so switching back restores it, but it does not count and is not exported (N/A is).
    */
   overridesValue?: boolean;
+  /**
+   * Exported as a blank cell instead of "N/A": the workbook reads a blank leaving static as "component absent" and
+   * passes the entering static through, while an "N/A" would be passed on and blank the downstream ΔP / TSP.
+   */
+  exportBlank?: boolean;
 }
 
 export type InputKind = 'text' | 'number' | 'select' | 'date' | 'textarea' | 'yesno';
@@ -135,7 +140,20 @@ export interface PhotoSpec {
 }
 
 /** Live-calculation panel shown at the end of a section (rendered by ui/components/CalcPanels.tsx). */
-export type CalcPanel = 'psp' | 'filterGrid' | 'profile' | 'mauTotal' | 'ervTotals' | 'hoodTotals' | 'traverse';
+export type CalcPanel =
+  | 'psp'
+  | 'filterGrid'
+  | 'profile'
+  | 'mauTotal'
+  | 'ervTotals'
+  | 'hoodTotals'
+  | 'traverse'
+  /** Static-pressure profile strip: component ΔPs, fan TSP, ESP, unit ΔP (staticProfile.ts). */
+  | 'staticProfile'
+  /** Motor: average volts / amps, corrected FLA, estimated BHP and the amps / BHP checks (motorCalcs.ts). */
+  | 'motor'
+  /** Unit ESP actual (the strip's ESP) beside the design unit ESP. */
+  | 'unitEsp';
 
 export interface SectionSpec {
   key: string;
