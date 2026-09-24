@@ -8,7 +8,8 @@ For techs and PMs. Two pages, phone first. The full guide is in [USER_GUIDE.md](
 
 ## 1. Install it (once per device)
 
-Open the app link your office sent you, then:
+Open the app link your office sent you. The **Projects** screen shows a card **Install a2b TAB on this device**:
+tap **Install app** (Android, Chrome / Edge on a laptop), or follow its hint on iPhone / iPad. Or use the browser:
 
 | Device | Steps |
 |---|---|
@@ -18,6 +19,8 @@ Open the app link your office sent you, then:
 
 From then on, open **a2b TAB** from the home screen or Start menu. After the first open it works with no signal.
 On iPhone/iPad, always use the home-screen icon. Its data is separate from the same site opened in Safari.
+
+When a new version is out, a bar says **Update available**: tap **Reload** (your entries are kept), or **Later**.
 
 ## 2. Create a project
 
@@ -45,8 +48,12 @@ jump to one. Everything saves as you type. There's no Save button.
 - CFM, % of design, TSP/ESP, corrected FLA and BHP work themselves out as you type.
 - **Show missing** at the top lists every item still blank.
 
-**Card colors:** gray = not started · amber = in progress · green = complete · red = needs attention (an open
-issue, or a reading outside ±10 %).
+**Card colors:** gray = not started · amber = in progress · green = complete · red = **issue / tolerance** (an
+open issue, or a reading outside ±10 %) · blue = reviewed (a complete unit someone signed off with **Mark
+reviewed** at the top of the unit; any later change to the unit clears it).
+
+The **Attention** tab is the wider to-do list before issuing: red items plus amber warnings (motor checks, missing
+photos, calibration…).
 
 ## 5. N/A, not blank
 
@@ -73,13 +80,21 @@ before everything is green. The app then says the report is preliminary.
 Photo and issue PDFs are further down the same tab: **Photo Report**, **Issues Report**, **Issues + Photos**,
 **Photos (.zip)**.
 
+**Sending the report out?** Tap **Issue report as Prelim** instead: it exports *and* locks the project so the issued
+data can't change by accident (banner *Issued as Prelim on …*). Tap **Unlock** when follow-up work starts. Every
+change, review, lock and unlock is listed on the **History** tab.
+
+The project card and the Export tab show *Last exported … · N changes since*. Leaving a project with unexported
+changes asks **Export before you leave?**
+
 ## 8. Save it to Dropbox
 
 The app downloads the file. It doesn't upload anywhere by itself.
 
-- **iPhone/iPad:** in the download prompt, tap the file → **Share** → **Save to Files** → **Dropbox** → the
-  project folder. (Or open **Files** → **Downloads** later.)
-- **Android:** open the **Dropbox** app → **+** → **Upload files** → **Downloads** → pick the file.
+- **iPhone/iPad:** tap **Share…** in the box under the export button → **Dropbox** → the project folder. (Or
+  **Files** → **Downloads** later.)
+- **Android:** PDFs have **Share…** → **Dropbox** too. For the workbook: open the **Dropbox** app → **+** → **Upload
+  files** → **Downloads** → pick the file.
 - **Laptop:** move the file from **Downloads** into the project's Dropbox folder.
 
 The copy in Dropbox is the official record of that issued report.
@@ -88,7 +103,8 @@ The copy in Dropbox is the official record of that issued report.
 
 1. **Install it** to the home screen, and always open it from there.
 2. **Mark N/A.** Never leave a field blank on purpose.
-3. **Export at the end of every site day** and save the file to Dropbox. That's your backup.
+3. **Export at the end of every site day** and save the file to Dropbox. That's your backup. The project card
+   should say *no changes since*.
 4. **Don't clear browser data or delete the app** unless you've exported first. That erases the projects on that
    device.
 5. For follow-up, **re-import the issued workbook** (Export tab → **Re-import workbook**) before you export

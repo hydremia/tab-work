@@ -6,7 +6,7 @@ workbook, **revision 05** (`05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm` at the rep
 [`docs/REQUIRED_FIELDS.md`](../docs/REQUIRED_FIELDS.md).
 
 Stack: React 19 + TypeScript (strict) + Vite 7, React Router 7, `vite-plugin-pwa` (installable, offline app shell,
-auto-update), Dexie (IndexedDB), Supabase (optional, behind env vars), Vitest + Testing Library + fake-indexeddb,
+update on prompt), Dexie (IndexedDB), Supabase (optional, behind env vars), Vitest + Testing Library + fake-indexeddb,
 ESLint + Prettier. The workbook engine is the shared package [`packages/workbook`](../packages/workbook).
 
 ## Run it
@@ -28,9 +28,34 @@ Scripts (run in `app/`, or from the root with `-w app`):
 | `lint` / `typecheck` / `test` / `format` | ESLint, `tsc`, Vitest (jsdom + fake-indexeddb), Prettier                                                 |
 | `e2e`                                    | Browser walk-through of the vertical slice with Playwright's Chromium (see below)                        |
 | `copy-template`                          | Copies the rev 05 template from the repository root to `public/templates/` (runs before `dev` / `build`) |
+| `serve-dist`                             | Serve `dist/` with the production headers (CSP, caching) and SPA fallback, http://localhost:4173         |
+| `hosting-config`                         | Regenerate `vercel.json`, `netlify.toml`, `public/_headers`, `public/_redirects` from `deploy/hosting.ts` |
+| `pwa-check`                              | Check a build: manifest, icons, iOS meta tags, service-worker precache, headers files (no browser)        |
+| `icons`                                  | Redraw the icon set (`scripts/make-icons.mjs`) and its preview `docs/screenshots/28-icons.png`           |
 
 The root `package.json` also has `lint`, `typecheck`, `test` (package + app) and `build`; CI
-(`.github/workflows/ci.yml`) runs those.
+(`.github/workflows/ci.yml`) runs those, then `pwa-check`, and uploads `dist/` as the artifact `app-dist-<commit>`.
+Deploying (Vercel, Netlify, Cloudflare Pages), the security headers and how to verify a deploy:
+[`docs/DEPLOY.md`](../docs/DEPLOY.md).
+
+## Install, updates, export reminder, Share
+
+- **Install** (`src/pwaState.ts`, `ui/components/PwaPrompts.tsx`): `beforeinstallprompt` is captured
+  (`registerPwa()` in `src/pwa.ts`) and the Projects screen shows *Install app*; on iPhone / iPad (no such event) a
+  *Share → Add to Home Screen* hint. Hidden when running standalone or after `appinstalled`; *Not now* / *Got it* is
+  remembered in `localStorage` (best effort).
+- **Updates:** `registerType: 'prompt'`. A new service worker installs and waits; `onNeedRefresh` shows the toast
+  *Update available — Reload* (Root of `App.tsx`); Reload posts `SKIP_WAITING` and reloads once the new worker
+  controls the page. `clientsClaim` keeps the first install in control right away (offline from the first visit).
+  `registration.update()` runs hourly while online.
+- **Export reminder** (`data/exportStatus.ts`, `ui/components/ExportReminder.tsx`): changes since the newest export =
+  history entries of kind edit / create / delete after the export's own `revision` event (fallback: the revision's
+  time when that event was pruned). Project cards and the Export tab show *Last exported … · N changes since*;
+  `ProjectLayout` blocks in-app navigation out of the project (`useBlocker`) in local mode while N > 0, unless
+  snoozed for the day (`localStorage`). Moving inside the project, re-importing its workbook and deleting it are
+  never blocked.
+- **Share…** (`ui/components/ShareFile.tsx`): after a workbook / PDF / zip export, `navigator.share({ files })` where
+  `navigator.canShare` accepts the file (iOS: all; Android Chrome: PDFs), else *Download again*.
 
 ## Environment and local mode
 
@@ -74,10 +99,13 @@ src/
                (pdf-lib renderer), generate.ts (browser entry: IndexedDB loader, zip, download)
   ui/          components/ (inputs with autosave, N/A menu, status badges, spec-driven row tables, reading grids,
                live-calc panels, photo slots) and pages/
+deploy/       hosting.ts (headers, caching, CSP, SPA fallback for every host), serve-dist.ts (local server with them),
+               pwa-check.ts, write-hosting-config.ts
 e2e/run-e2e.ts Playwright walk-through (+ newTypes.ts: MAU, ERV, fan, small fan, hood, traverse; reimport.ts;
                photos.ts: photos, issues with photos, PDF reports, zip; features.ts: schedule import, duplicate,
                building pressures, needs attention; workflow.ts: review, issue / lock, unlock,
-               history);  scripts/  template copy, icon generation
+               history; deploy.ts: install prompt, update toast, Share / fallback, export reminder, custom scope on a MAU);
+               scripts/  template copy, icon generation
 ```
 
 ### Data model and saving
@@ -427,10 +455,10 @@ is 51 pages (unit test). The zip is built in memory (the stored JPEGs, not recom
 
 ## Tests
 
-- `npm test`: 274 tests (23 in `packages/workbook`: the schedule readers (EDE section only, sheet grids), export onto an issued workbook (clearing, hand formatting kept,
+- `npm test`: 294 tests (23 in `packages/workbook`: the schedule readers (EDE section only, sheet grids), export onto an issued workbook (clearing, hand formatting kept,
   an Excel-style shared-strings save, formulas typed over inputs), the revision marker, the compatibility check (incl.
   revision 04 rejected), plus list and constants copies vs. the template, a map audit that
-  fills **every** block of every type, round trip, safety; 251 in the app, incl. the Phase 6 workflow (`data/workflow.test.ts`: review only when green,
+  fills **every** block of every type, round trip, safety; 271 in the app, incl. `deploy/hosting.test.ts` (generated hosting files up to date, caching rules, CSP), `ui/deploy.test.tsx` (install card incl. the iPhone hint, update toast, export status and the leave reminder, Share… and its fallback, custom scope for every type), the Phase 6 workflow (`data/workflow.test.ts`: review only when green,
   blue rollups, automatic clear on field / row / photo changes but not on issue or remote edits, the lock refusing
   every kind of write at the repository level with nothing written, unlock, remote lock, lock / unlock / revision
   events, previous values while the outbox coalesces, schedule-import source, prune, the v3 → v4 upgrade; an issued
@@ -454,7 +482,8 @@ is 51 pages (unit test). The zip is built in memory (the stored JPEGs, not recom
   chain — exported onto the template, recalculated, 1,446 cells equal to the app's functions, max deviation ~5e-14;
   skipped where `soffice` is missing, e.g. CI), adapter mapping and a **round trip against the real template** with a fully filled unit of every
   type incl. N/A cases (app project → export → import → app project, equal), and jsdom UI tests.
-- `npm run build && npm run e2e`: serves `dist/` with `vite preview` and drives Chromium at 390 × 844 through
+- `npm run build && npm run e2e`: serves `dist/` with `deploy/serve-dist.ts` (the production headers, incl. the CSP;
+  `E2E_SERVER=vite` uses `vite preview`; `E2E_PORT` changes the port) and drives Chromium at 390 × 844 through
   create project → project info (+ cover photo) → 2 RTUs → RTU-1 filled (outlet rows, fill-down, one N/A) → card
   colors → tolerance → one MAU (PSP; method switched to Filter Grid and back), ERV, fan, small fan, hood and
   traverse filled to green → export (download checked with the importer in Node, incl. the browser-cropped cover
@@ -483,13 +512,19 @@ is 51 pages (unit test). The zip is built in memory (the stored JPEGs, not recom
   review → reviewed again → *Issue report* "Prelim" (download, banner, *Issued* revision, re-import blocked) → the unit
   form is read-only and typing changes nothing, no Add / Import → *Unlock* (confirm names Rev 1) → the edit saves, Rev 1
   suggested → History lists the review, the automatic clear, the issued revision, lock, unlock and the edits old → new;
-  unit filter; the unit's History section.
+  unit filter; the unit's History section. **Deployment features** (`e2e/deploy.ts`): the Install card after a
+  `beforeinstallprompt` (the prompt is called once), the iPhone hint (dismissal survives a reload), the update toast
+  after `sw.js` changes on the server (Reload activates the new worker), the export reminder when leaving a never-
+  exported project and after an edit, *Download again* without Web Share, *Share…* of the `.xlsm` and a PDF with a
+  Web Share stub, and a MAU section switched off by the Custom scope. Every page of every context is checked for
+  **CSP violations** (none) and the production headers are checked on `/`.
   Uses `PLAYWRIGHT_BROWSERS_PATH` or `CHROMIUM_PATH` (falls back
   to `/opt/pw-browsers/chromium`) and `soffice` for the recalculation; never downloads a browser. Screenshots go to
   `e2e-screenshots/` (git-ignored); a few are kept in [`docs/screenshots/`](../docs/screenshots) (07–12: the new
   forms; 13: RTU motor and static-profile panels; 14: re-import review; 15: revisions; 16: Photos tab; 17: issue
   with deficiency photos; 18 / 19: page 1 of the Photo and Issues reports; 20: schedule import preview; 21: needs attention; 22: building
-  pressures; 23: reviewed (blue) units; 24: locked (issued) unit page; 25: History).
+  pressures; 23: reviewed (blue) units; 24: locked (issued) unit page; 25: History; 26: install card; 27: export with
+  Share…; 28: the icon set, rendered by `npm run icons`).
 
 ## Not done yet
 

@@ -10,6 +10,7 @@ import {
   pressureStates,
   type ProjectCompletion,
 } from '../../domain/projectCompletion';
+import { EQUIPMENT_TYPES } from '../../domain/equipmentTypes';
 import { getSpec, type FieldSpec } from '../../domain/specs';
 import { IconPlus, IconTrash } from '../components/Icons';
 import { PhotoPicker, SaverStatus, usePhotoSaver } from '../components/PhotoPicker';
@@ -199,7 +200,7 @@ export function ProjectInfoPage() {
   const cover = usePhotos(project.id, null)?.find((p) => p.category === 'cover');
   const nav = useNavigate();
   const blueprints = project.blueprints.length ? project.blueprints : [{ sheet: '', revisionDate: '' }];
-  const fullSpecs = (['rtu', 'vav'] as const).map((t) => ({ type: t, spec: getSpec(t) }));
+  const scopeSpecs = EQUIPMENT_TYPES.map((t) => ({ type: t.key, plural: t.plural, spec: getSpec(t.key) }));
 
   return (
     <>
@@ -309,34 +310,44 @@ export function ProjectInfoPage() {
               </select>
             </div>
           </div>
-          {project.scopeProfile === 'custom' &&
-            fullSpecs.map(({ type, spec }) => (
-              <fieldset
-                key={type}
-                className="stack"
-                style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}
-              >
-                <legend className="field-label">{type.toUpperCase()} sections in scope</legend>
-                <div className="row">
-                  {spec.sections
-                    .filter((s) => !s.locked)
-                    .map((s) => {
-                      const on = project.customScope[type]?.[s.key] !== false;
-                      return (
-                        <button
-                          key={s.key}
-                          type="button"
-                          className="filter-chip"
-                          aria-pressed={on}
-                          onClick={() => void setField('projects', project.id, `customScope.${type}.${s.key}`, !on)}
-                        >
-                          {s.label}
-                        </button>
-                      );
-                    })}
-                </div>
-              </fieldset>
-            ))}
+          {project.scopeProfile === 'custom' && (
+            <div className="stack" data-testid="custom-scope">
+              <p className="small muted" style={{ margin: 0 }}>
+                Sections switched off here are N/A for this scope on every unit of that type (a unit can still include
+                one with <b>⋮ → Include (override scope)</b>).
+              </p>
+              {scopeSpecs.map(({ type, plural, spec }) => {
+                const sections = spec.sections.filter((s) => !s.locked);
+                const off = sections.filter((s) => project.customScope[type]?.[s.key] === false).length;
+                return (
+                  <details key={type} className="scope-type" data-testid={`scope-${type}`}>
+                    <summary className="hist-summary">
+                      <span>{plural}</span>
+                      <span className="small muted" style={{ fontWeight: 400 }}>
+                        {off ? `${off} of ${sections.length} sections off` : 'All sections in scope'}
+                      </span>
+                    </summary>
+                    <div className="row" role="group" aria-label={`${plural} sections in scope`}>
+                      {sections.map((s) => {
+                        const on = project.customScope[type]?.[s.key] !== false;
+                        return (
+                          <button
+                            key={s.key}
+                            type="button"
+                            className="filter-chip"
+                            aria-pressed={on}
+                            onClick={() => void setField('projects', project.id, `customScope.${type}.${s.key}`, !on)}
+                          >
+                            {s.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         <section className="card card-pad stack" aria-labelledby="cover-h">
@@ -427,7 +438,9 @@ export function ProjectInfoPage() {
           type="button"
           onClick={() => {
             if (window.confirm(`Delete "${project.name}" and all its data from this device?`)) {
-              void deleteRecord('projects', project.id).then(() => nav('/', { replace: true }));
+              void deleteRecord('projects', project.id).then(() =>
+                nav('/', { replace: true, state: { projectDeleted: true } }),
+              );
             }
           }}
         >

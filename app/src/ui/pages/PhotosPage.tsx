@@ -92,7 +92,7 @@ export function PhotosPage() {
       sections.push({
         key: i.id,
         title: `Issue ${issueLabel(i)}`,
-        sub: `${i.kind === 'new' ? 'New' : 'Existing'} · ${eq?.designation ?? 'General'} · ${i.status}`,
+        sub: `${i.kind === 'new' ? 'New' : 'Existing'} · ${eq?.designation ?? 'General (N/A)'} · ${i.status}`,
         link: '../issues',
         list,
       });
@@ -100,7 +100,7 @@ export function PhotosPage() {
   const orphan = groups.get('issue:none');
   if (orphan) sections.push({ key: 'orphan', title: 'Deficiency (no issue)', list: orphan });
   const general = groups.get('general');
-  if (general) sections.push({ key: 'general', title: 'General', sub: 'Not attached to a unit', list: general });
+  if (general) sections.push({ key: 'general', title: 'General (N/A)', sub: 'Not attached to a unit', list: general });
 
   const visible = sections.map((s) => ({ ...s, list: s.list.filter(show) })).filter((s) => s.list.length);
 
@@ -144,7 +144,7 @@ export function PhotosPage() {
               Attach to
             </label>
             <select id="ph-attach" className="select" value={attachTo} onChange={(e) => setAttachTo(e.target.value)}>
-              <option value="">General (no unit)</option>
+              <option value="">General (N/A)</option>
               {sortEquipment(equipment, TYPE_ORDER).map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.designation}

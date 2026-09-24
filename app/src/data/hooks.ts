@@ -14,6 +14,7 @@ import { computeProjectCompletion, type ProjectCompletion } from '../domain/proj
 import { EQUIPMENT_TYPES, type EquipmentTypeKey } from '../domain/equipmentTypes';
 import { getSpec } from '../domain/specs';
 import { db } from './db';
+import { exportStatus, type ExportStatus } from './exportStatus';
 import { projectHistory } from './history';
 import type {
   AirflowRow,
@@ -231,6 +232,24 @@ export function useAllProjectRollups(): Map<string, Rollup> | undefined {
     }
     return out;
   }, [data]);
+}
+
+/** Last export and the changes since (export reminder). */
+export function useExportStatus(projectId: string | undefined): ExportStatus | undefined {
+  return useLiveQuery(
+    async () => (projectId ? exportStatus(projectId) : { lastExportAt: null, lastLabel: null, changesSince: 0 }),
+    [projectId],
+  );
+}
+
+/** Export status of every project (project list). */
+export function useAllExportStatus(): Map<string, ExportStatus> | undefined {
+  return useLiveQuery(async () => {
+    const ids = (await db.projects.toCollection().primaryKeys()) as string[];
+    const out = new Map<string, ExportStatus>();
+    for (const id of ids) out.set(id, await exportStatus(id));
+    return out;
+  }, []);
 }
 
 /** Revision history of a project, newest first. */

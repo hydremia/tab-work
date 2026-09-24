@@ -18,7 +18,6 @@ import {
 
 export const RTU_SPEC: EquipmentSpec = {
   type: 'rtu',
-  formComplete: true,
   designCheck: { field: 'designTotalCfm', table: 'supply' },
   sections: [
     identitySection(),

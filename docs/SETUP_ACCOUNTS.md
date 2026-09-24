@@ -43,11 +43,15 @@ domain. No admin is needed, and we can switch to Microsoft sign-in later.
 ## 3. Web hosting (Vercel, Netlify or Cloudflare Pages)
 
 - Free tier to start (about $20/mo if we need team features). Connect it to the GitHub repo `hydremia/tab-work`.
+- The repository is ready for all three (config files, security headers, caching). Step-by-step setup, environment
+  variables, preview deploys per pull request, the custom address and how to check a deploy:
+  **[DEPLOY.md](./DEPLOY.md)**.
 
 ## 4. App address (optional but recommended)
 
 - Whoever manages your company domain's DNS adds one record, e.g. `tab.<yourdomain>.com` → the hosting
-  provider. This takes about 5 minutes.
+  provider. This takes about 5 minutes. Details per host: [DEPLOY.md](./DEPLOY.md#3-custom-address-tabyourcompanycom).
+- Decide the address **before** techs install the app: an installed app and its data belong to that address.
 
 ## 5. Error monitoring (Sentry, free tier)
 

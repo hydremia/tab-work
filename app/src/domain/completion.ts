@@ -34,7 +34,7 @@ export const STATUS_LABEL: Record<DisplayColor, string> = {
   gray: 'Not started',
   amber: 'In progress',
   green: 'Complete',
-  red: 'Needs attention',
+  red: 'Issue / tolerance',
   blue: 'Reviewed',
 };
 
@@ -120,8 +120,6 @@ export interface Completion {
   designDiscrepancies: { label: string; field: string; table: string; schedule: number; outlets: number }[];
   /** Unit-level actual / design (MAU method total, hood total, traverse CFM). */
   total?: { label: string; design: number | null; actual: number | null; ratio: number | null };
-  /** The type's full form is not built yet, so the unit can't turn green. */
-  formIncomplete: boolean;
 }
 
 export interface CompletionInput {
@@ -173,7 +171,6 @@ export function computeCompletion(input: CompletionInput): Completion {
     photos: {},
     sequences: {},
     designDiscrepancies: [],
-    formIncomplete: !spec.formComplete,
   };
 
   /** N/A for a whole section, from the section, equipment or scope level. */
@@ -236,7 +233,9 @@ export function computeCompletion(input: CompletionInput): Completion {
     const sr: SectionResult = { key: s.key, label: s.label, state: 'empty', required: 0, satisfied: 0 };
     const whole = sectionNa(s, s.airflow);
     // Airflow Only can leave some fields of a section required (e.g. design CFM): then it is not N/A as a whole
-    const partialScope = whole?.source === 'scope' && s.fields.some((f) => f.airflow ?? s.airflow);
+    // (Custom switches a section off as a whole)
+    const partialScope =
+      whole?.source === 'scope' && project.scopeProfile === 'airflow' && s.fields.some((f) => f.airflow ?? s.airflow);
     if (whole && !partialScope) {
       sr.naSource = whole.source;
       sr.notation = whole.notation;
@@ -411,7 +410,7 @@ export function computeCompletion(input: CompletionInput): Completion {
 
   if (res.openIssues > 0 || res.outOfTolerance.length > 0) res.color = 'red';
   else if (!res.started) res.color = 'gray';
-  else if (res.missing.length === 0 && spec.formComplete) res.color = 'green';
+  else if (res.missing.length === 0) res.color = 'green';
   else res.color = 'amber';
   res.label = STATUS_LABEL[res.color];
   if (res.color === 'green' && na.equipment) res.label = `Complete (${na.equipment.notation})`;

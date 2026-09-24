@@ -95,7 +95,7 @@ Each equipment type has **required-field rules** defined in the template map:
 | Gray | Not started | No field data entered |
 | Amber | In progress | Some required fields are missing |
 | Green | Complete | All required fields filled and photos attached (if required) |
-| Red | Needs attention | Open deficiency, **or** a reading outside tolerance (e.g. airflow outside ±10% of design, which will be configurable) |
+| Red | Issue / tolerance (was "Needs attention") | Open deficiency, **or** a reading outside tolerance (e.g. airflow outside ±10% of design, which will be configurable) |
 | Blue (optional) | Reviewed | A teammate has signed off |
 
 Any field, section or piece of equipment can be marked **N/A**, and projects have a scope profile (Full TAB,

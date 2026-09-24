@@ -58,7 +58,6 @@ describe('every new type: the fixture units are complete (green)', () => {
       expect(c.missing).toEqual([]);
       expect(c.outOfTolerance).toEqual([]);
       expect(c.color).toBe('green');
-      expect(c.formIncomplete).toBe(false);
     });
   }
   it('photos are required unless N/A', () => {
@@ -227,4 +226,33 @@ describe('Traverses (R7)', () => {
     const h = withNa({ ...unit('H-1'), rows: [] }, { [tableNaKey('filters')]: { notation: 'Not Acc.' } });
     expect(computeCompletion(h).missing).toEqual([]);
   });
+});
+
+describe('Custom scope profile covers every equipment type', () => {
+  for (const d of ['MAU-1', 'ERV-1', 'EF-2', 'EF-S1', 'H-1', 'T-1']) {
+    it(`${d}: every section that can be switched off becomes N/A for this scope`, () => {
+      const base = unit(d);
+      const sections = base.spec.sections.filter((s) => !s.locked);
+      expect(sections.length).toBeGreaterThan(0);
+      const off = Object.fromEntries(sections.map((s) => [s.key, false]));
+      // nothing entered yet (entered values are still exported, so they count as values, not N/A)
+      const c = computeCompletion({
+        ...base,
+        unit: { ...base.unit, data: { designation: base.unit.designation }, naState: emptyNaState() },
+        rows: [],
+        photos: [],
+        project: { scopeProfile: 'custom', customScope: { [base.spec.type]: off }, tolerance: 0.1 },
+      });
+      for (const s of sections) {
+        expect(c.sections[s.key].state, s.key).toBe('na');
+        expect(c.sections[s.key].naSource, s.key).toBe('scope');
+      }
+      // a section switched off only for another type is untouched
+      const other = computeCompletion({
+        ...base,
+        project: { scopeProfile: 'custom', customScope: { rtu: off }, tolerance: 0.1 },
+      });
+      expect(other.color).toBe('green');
+    });
+  }
 });

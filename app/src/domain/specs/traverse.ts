@@ -5,7 +5,6 @@ import type { EquipmentSpec } from './types';
 
 export const TRAVERSE_SPEC: EquipmentSpec = {
   type: 'traverse',
-  formComplete: true,
   totalCheck: { calc: 'traverse', label: 'Traverse CFM' },
   sections: [
     {

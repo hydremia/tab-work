@@ -11,6 +11,7 @@ import {
 import type { Equipment, Issue, Project } from '../../data/types';
 import type { AttentionItem } from '../../domain/attention';
 import { AppHeader, ModeBanner } from '../components/AppHeader';
+import { ExportReminderGuard } from '../components/ExportReminder';
 import { LockBanner } from '../components/LockBanner';
 
 export interface ProjectContext {
@@ -96,6 +97,7 @@ export function ProjectLayout() {
           />
         </Suspense>
       </main>
+      <ExportReminderGuard project={project} />
     </>
   );
 }

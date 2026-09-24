@@ -19,7 +19,6 @@ import {
 
 export const ERV_SPEC: EquipmentSpec = {
   type: 'erv',
-  formComplete: true,
   designCheck: [
     { field: 'designSupplyCfm', table: 'supply', label: 'supply outlets' },
     { field: 'designExhaustCfm', table: 'exhaust', label: 'exhaust inlets' },

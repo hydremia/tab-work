@@ -18,7 +18,6 @@ import {
 
 export const FAN_SPEC: EquipmentSpec = {
   type: 'fan',
-  formComplete: true,
   designCheck: { field: 'designTotalCfm', table: 'outlets' },
   sections: [
     identitySection(),
