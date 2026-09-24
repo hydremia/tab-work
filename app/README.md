@@ -90,7 +90,7 @@ can be set to "Include (override scope)". Status is shown with a different icon 
 
 1. `toProjectData()` turns the project's records into the workbook library's `ProjectData`: field keys route to the
    {Equipment Data Entry} row or the unit block by the template map; explicit N/A marks become `N/A` / `Not Avail.` /
-   `Not Acc.` in the cell (revision 05 formulas skip them); automatic and scope N/A are left blank; app-only answers
+   `Not Acc.` in the cell (revision 05 formulas skip them); automatic and scope-profile N/A are written as `N/A` too (a blank cell never means N/A), and on import a plain `N/A` the app would set by itself is read back as automatic; app-only answers
    ("VFD on the unit?") are not written; linked issues get a `RTU-1: ` prefix.
 2. The template (`public/templates/tab-template-rev05.xlsm`, copied from the repo root at dev/build time and
    precached by the service worker) is fetched, `exportWorkbook()` patches only input cells in the sheet XML

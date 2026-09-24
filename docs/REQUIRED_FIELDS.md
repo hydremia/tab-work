@@ -57,6 +57,13 @@ A blank cell must **not** mean N/A. **Revision 05 hardens the formulas**, e.g.
 and is skipped in totals and averages. This also fixes the same error for anyone typing N/A by hand in Excel.
 Text cells (serial, manufacturer, notes…) always get the notation directly.
 
+**Export rule (decided 2026-09-24):** every N/A is written into the workbook. N/A you set yourself is written
+as the notation you chose. N/A the app sets (automatic rules such as direct drive → drive data, and the project scope
+profile) is written as `N/A`. No cell is left blank to mean N/A.
+
+**Photos on re-import (decided 2026-09-24):** photos are not stored in the workbook. Re-importing into the same
+project keeps its photos. Importing into a new project brings units back amber until their photos are added.
+
 (Options B "blank cell + note in Remarks" and C "section-level only" were not chosen.)
 
 ---
