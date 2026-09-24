@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import JSZip from 'jszip';
 import { chromium, type Browser, type Page } from 'playwright-core';
 import { importWorkbook } from '@a2b/workbook';
+import { fillNewTypes, recalcCrossCheck, verifyNewTypes } from './newTypes';
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SHOTS = join(APP, 'e2e-screenshots');
@@ -23,6 +24,7 @@ const OUT = join(APP, 'e2e-output');
 const PORT = Number(process.env.E2E_PORT ?? 4173);
 const BASE = process.env.E2E_BASE_URL ?? `http://localhost:${PORT}`;
 const COVER = join(APP, '..', 'spike', 'export', 'sample', 'cover-photo.jpg');
+const DOC_SHOTS = join(APP, '..', 'docs', 'screenshots');
 
 const results: { name: string; ok: boolean; detail?: string }[] = [];
 function check(name: string, ok: boolean, detail?: string) {
@@ -304,6 +306,9 @@ async function main() {
     );
     await page.getByRole('button', { name: 'All' }).click();
 
+    // ------------------------------------------------------------------ MAU, ERV, fan, small fan, hood, traverse
+    const { ui } = await fillNewTypes(page, projectUrl, check, DOC_SHOTS, join(APP, 'public', 'icons', 'icon-512.png'));
+
     // ------------------------------------------------------------------ export
     await page.getByRole('link', { name: 'Export' }).click();
     const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-xlsm').click()]);
@@ -370,6 +375,8 @@ async function main() {
       JSON.stringify(u1?.tables),
     );
     check('workbook: remarks', u1?.lines?.remarks?.[0] === 'Belt replaced during TAB.');
+    const wbNew = await verifyNewTypes(bytes, check);
+    await recalcCrossCheck(file, wbNew, ui, check);
     check('workbook: RTU-2 in slot 2', u2?.schedule?.designation === 'RTU-2', JSON.stringify(u2));
     const zip = await JSZip.loadAsync(bytes);
     const media = Object.keys(zip.files).filter((n) => n.startsWith('xl/media/'));
@@ -491,11 +498,11 @@ async function main() {
     await dp.getByTestId('equip-RTU-1').waitFor();
     const imported = await dp.getByTestId('equip-RTU-1').getAttribute('data-color');
     const importedSub = await dp.getByTestId('equip-RTU-1').innerText();
-    // photos (and photo N/A marks) live in the app, not in the workbook, and "VFD on the unit? No" is an app-only
-    // answer: after a re-import exactly those 4 items are open (3 photos + the VFD question)
+    // photos (and photo N/A marks) live in the app, not in the workbook: after a re-import exactly those 3 items are
+    // open ("VFD on the unit? No" comes back from the VSD frequency written as automatic "N/A")
     check(
-      'import: exported workbook re-imports as a new project (RTU-1 amber: 3 photos + VFD question open)',
-      imported === 'amber' && importedSub.includes('4 required items missing'),
+      'import: exported workbook re-imports as a new project (RTU-1 amber: the 3 photos are open)',
+      imported === 'amber' && importedSub.includes('3 required items missing'),
       `RTU-1 ${imported}: ${importedSub.replace(/\s+/g, ' ')}`,
     );
     await shot(dp, '10-equipment-dark');

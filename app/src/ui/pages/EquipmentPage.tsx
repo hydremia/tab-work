@@ -1,4 +1,4 @@
-import { UNIT_TYPE_COMPONENTS } from '@a2b/workbook/map';
+import { blockLayout, TEMPLATE_MAP, UNIT_TYPE_COMPONENTS } from '@a2b/workbook/map';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useAirflowRows, useEquipment, useIssues, usePhotos, useProject } from '../../data/hooks';
@@ -6,9 +6,13 @@ import { deleteRecord, setField, setFields } from '../../data/repo';
 import { NOTATIONS, type Equipment, type FieldValue, type NaMark, type Notation, type Project } from '../../data/types';
 import { formatNumber } from '../../domain/calc';
 import { computeCompletion, type Completion, type SectionResult } from '../../domain/completion';
+import { evalCond } from '../../domain/conditions';
+import { traverseLayout } from '../../domain/equipmentCalcs';
 import { equipmentType } from '../../domain/equipmentTypes';
-import { getSpec, type FieldSpec, type SectionSpec } from '../../domain/specs';
+import { getSpec, type FieldSpec, type SectionSpec, type SequenceSpec } from '../../domain/specs';
 import { AirflowTable } from '../components/AirflowTable';
+import { CalcPanel } from '../components/CalcPanels';
+import { SequenceGrid, type GridShape } from '../components/SequenceGrid';
 import { IconChevron, IconTrash } from '../components/Icons';
 import { PhotoSlots } from '../components/PhotoSlots';
 import { Screen } from '../components/Screen';
@@ -21,6 +25,33 @@ function fieldLabel(f: FieldSpec, data: Equipment['data']): string {
   const ut = typeof data.unitType === 'string' ? data.unitType : '';
   const comp = UNIT_TYPE_COMPONENTS[ut]?.[f.component - 1];
   return comp ? `Leaving ${comp}` : f.label;
+}
+
+/** Remark lines the workbook has for this unit (hoods / traverses share a page box). */
+function remarkRoom(e: Equipment): string {
+  const def = TEMPLATE_MAP.equipment.find((d) => d.key === e.type);
+  const n = def ? (blockLayout(def, e.slot).lines?.find((l) => l.key === 'remarks')?.cells.length ?? 0) : 0;
+  const shared =
+    e.type === 'hood' || e.type === 'traverse' ? ' (a remark box shared with the other units on the page)' : '';
+  return `One line per workbook remark line: ${n} line${n === 1 ? '' : 's'} for this unit${shared}.`;
+}
+
+/** Quick-entry grid shape: traverse points follow the calculated layout, PSP readings 10 per row as on the sheet. */
+function gridShape(q: SequenceSpec, e: Equipment): GridShape {
+  if (e.type === 'traverse') {
+    const l = traverseLayout(e.data);
+    if (l.nW && l.points) {
+      const round = e.data.shape === 'Round';
+      return {
+        across: l.nW,
+        shown: l.points,
+        rowLabel: (r) => (round ? `Axis ${r + 1} (${r === 0 ? '0°' : '90°'})` : `Depth ${l.depths[r] ?? '—'}"`),
+        colLabel: (c) => `${l.positions[c] ?? '—'}"`,
+      };
+    }
+    return { across: 4, shown: 12 };
+  }
+  return { across: 5, shown: q.count };
 }
 
 function SectionStatus({ r }: { r: SectionResult }) {
@@ -63,7 +94,10 @@ function SectionCard({
   photos: Photo[];
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [unfolded, setUnfolded] = useState(false);
   const r = completion.sections[section.key];
+  const values = { ...equipment.data, designation: equipment.designation };
+  const folded = !unfolded && section.foldWhen !== undefined && evalCond(section.foldWhen, values);
   const mark = equipment.naState.sections[section.key];
   const bodyId = `sec-${section.key}-body`;
 
@@ -125,15 +159,29 @@ function SectionCard({
           </select>
         )}
       </div>
-      {!collapsed && (
+      {!collapsed && folded && (
         <div className="section-body" id={bodyId}>
+          <div className="na-auto">
+            <span>
+              {section.foldNote} {rows.filter((x) => section.tables?.some((t) => t.key === x.table)).length} row(s)
+              kept.
+            </span>
+          </div>
+          <button type="button" className="btn" onClick={() => setUnfolded(true)}>
+            Show {section.label.toLowerCase()}
+          </button>
+        </div>
+      )}
+      {!collapsed && !folded && (
+        <div className="section-body" id={bodyId}>
+          {section.hint && <p className="small muted section-hint">{section.hint}</p>}
           {section.fields.length > 0 && (
             <div className="form-grid">
               {section.fields.map((f) => (
                 <SpecField
                   key={f.key}
                   idPrefix={equipment.id.slice(0, 8)}
-                  field={f}
+                  field={f.key === 'remarks' ? { ...f, hint: remarkRoom(equipment) } : f}
                   label={fieldLabel(f, equipment.data)}
                   value={f.recordField ? equipment.designation : equipment.data[f.key]}
                   state={completion.fields[f.key]}
@@ -154,6 +202,18 @@ function SectionCard({
               tolerance={project.tolerance}
             />
           ))}
+          {section.sequences?.map((q) => (
+            <SequenceGrid
+              key={q.key}
+              equipment={equipment}
+              spec={q}
+              result={completion.sequences[q.key]}
+              shape={gridShape(q, equipment)}
+            />
+          ))}
+          {section.calc && (
+            <CalcPanel panel={section.calc} equipment={equipment} rows={rows} tolerance={project.tolerance} />
+          )}
           {section.photos && (
             <PhotoSlots equipment={equipment} specs={section.photos} photos={photos} results={completion.photos} />
           )}
@@ -192,6 +252,8 @@ export function EquipmentPage() {
   const unitIssues = issues.filter((i) => i.equipmentId === equipment.id && i.status === 'Open');
   const c = computeCompletion({ spec, unit: equipment, rows, photos, project, openIssues: unitIssues.length });
   const pct = c.required ? Math.round((c.satisfied / c.required) * 100) : 0;
+  const values = { ...equipment.data, designation: equipment.designation };
+  const sections = spec.sections.filter((s) => !s.showWhen || evalCond(s.showWhen, values));
 
   return (
     <Screen title={equipment.designation} subtitle={`${info.label} · ${project.name}`} back={back}>
@@ -253,10 +315,15 @@ export function EquipmentPage() {
             </span>
           </div>
         )}
-        {c.designDiscrepancy && (
-          <div className="callout" data-tone="amber">
-            Design discrepancy: schedule {formatNumber(c.designDiscrepancy.schedule)} CFM vs. outlets{' '}
-            {formatNumber(c.designDiscrepancy.outlets)} CFM.
+        {c.designDiscrepancies.map((d) => (
+          <div className="callout" data-tone="amber" key={d.field}>
+            Design discrepancy: schedule {formatNumber(d.schedule)} CFM vs. {d.label} {formatNumber(d.outlets)} CFM.
+          </div>
+        ))}
+        {info.warnAbove && equipment.slot > info.warnAbove && (
+          <div className="callout" data-tone="amber" role="status">
+            {equipment.designation} is {info.plural.toLowerCase()} slot {equipment.slot}: Building Balance lists{' '}
+            {info.plural.toLowerCase()} 1–{info.warnAbove} only, so it is left out of the building exhaust total.
           </div>
         )}
         {c.missing.length > 0 && (
@@ -275,9 +342,9 @@ export function EquipmentPage() {
         )}
       </section>
 
-      {spec.sections.length > 2 && (
+      {sections.length > 2 && (
         <nav className="section-nav" aria-label="Jump to section">
-          {spec.sections.map((s) => {
+          {sections.map((s) => {
             const r = c.sections[s.key];
             const color =
               r.state === 'incomplete' ? (r.satisfied ? 'amber' : 'gray') : r.state === 'empty' ? 'gray' : 'green';
@@ -291,7 +358,7 @@ export function EquipmentPage() {
         </nav>
       )}
 
-      {spec.sections.map((s) => (
+      {sections.map((s) => (
         <SectionCard
           key={s.key}
           section={s}

@@ -8,14 +8,18 @@
 import type { FieldValue, NaMark, NaState, Notation, Project } from '../data/types';
 import { num, ratio, rowActualCfm, withinTolerance } from './calc';
 import { evalCond, isBlank } from './conditions';
+import { TOTAL_CALCS } from './equipmentCalcs';
 import {
-  ROW_READINGS,
-  ROW_REQUIRED,
+  DEFAULT_READING_GROUPS,
+  designChecks,
+  seqKey,
+  tableColumns,
   type AutoNa,
   type EquipmentSpec,
   type FieldSpec,
   type RowTableSpec,
   type SectionSpec,
+  type SequenceSpec,
 } from './specs/types';
 
 export type StatusColor = 'gray' | 'amber' | 'green' | 'red';
@@ -41,6 +45,8 @@ export interface ItemResult {
 
 export interface RowResult {
   missing: string[];
+  /** Columns that are automatically N/A on this row, with the reason. */
+  auto: Record<string, string>;
   ratio: number | null;
   outOfTolerance: boolean;
   /** Design CFM used for the ratio (computed for the first return row). */
@@ -49,6 +55,13 @@ export interface RowResult {
 
 export interface TableResult extends ItemResult {
   rows: Record<string, RowResult>;
+  /** Automatic N/A that overrides entered rows (they are kept but not counted or exported). */
+  forced?: boolean;
+}
+
+export interface SequenceResult extends ItemResult {
+  /** Readings entered (values or per-reading N/A marks). */
+  entered: number;
 }
 
 export interface SectionResult {
@@ -88,8 +101,13 @@ export interface Completion {
   fields: Record<string, ItemResult>;
   tables: Record<string, TableResult>;
   photos: Record<string, ItemResult>;
-  /** R8: schedule design CFM differs from the sum of the outlet design CFMs. */
+  sequences: Record<string, SequenceResult>;
+  /** R8: schedule design CFM differs from the sum of the outlet design CFMs (first check). */
   designDiscrepancy?: { schedule: number; outlets: number };
+  /** Every R8 discrepancy (ERVs check supply and exhaust). */
+  designDiscrepancies: { label: string; field: string; table: string; schedule: number; outlets: number }[];
+  /** Unit-level actual / design (MAU method total, hood total, traverse CFM). */
+  total?: { label: string; design: number | null; actual: number | null; ratio: number | null };
   /** The type's full form is not built yet, so the unit can't turn green. */
   formIncomplete: boolean;
 }
@@ -113,9 +131,15 @@ export interface CompletionInput {
 export const photoNaKey = (category: string) => `photo:${category}`;
 /** naState.fields key used for an airflow table's N/A mark. */
 export const tableNaKey = (table: string) => `table:${table}`;
+/** naState.fields key used for a whole reading sequence's N/A mark (per-reading marks use seqKey). */
+export const seqNaKey = (key: string) => `seq:${key}`;
 
 function firstAuto(auto: readonly AutoNa[] | undefined, values: Readonly<Record<string, FieldValue>>) {
   return auto?.find((a) => evalCond(a.when, values));
+}
+/** An automatic N/A that applies even over an entered value. */
+function forcedAuto(auto: readonly AutoNa[] | undefined, values: Readonly<Record<string, FieldValue>>) {
+  return auto?.find((a) => a.overridesValue && evalCond(a.when, values));
 }
 
 export function computeCompletion(input: CompletionInput): Completion {
@@ -135,6 +159,8 @@ export function computeCompletion(input: CompletionInput): Completion {
     fields: {},
     tables: {},
     photos: {},
+    sequences: {},
+    designDiscrepancies: [],
     formIncomplete: !spec.formComplete,
   };
 
@@ -158,6 +184,8 @@ export function computeCompletion(input: CompletionInput): Completion {
     src === 'section' ? 'section-na' : src === 'equipment' ? 'equipment-na' : 'scope-na';
 
   const fieldResult = (s: SectionSpec, f: FieldSpec): ItemResult => {
+    const forced = forcedAuto(f.autoNa, values);
+    if (forced) return { state: 'auto-na', notation: 'N/A', reason: forced.reason };
     if (!isBlank(values[f.key])) return { state: 'value' };
     const mark = na.fields[f.key];
     if (mark) return { state: 'na', notation: mark.notation, reason: mark.reason };
@@ -242,6 +270,12 @@ export function computeCompletion(input: CompletionInput): Completion {
       }
     }
 
+    for (const q of s.sequences ?? []) {
+      const r = sequenceResult(s, q);
+      res.sequences[q.key] = r;
+      count(seqNaKey(q.key), q.label, r);
+    }
+
     for (const p of s.photos ?? []) {
       let r: ItemResult;
       const mark = na.fields[photoNaKey(p.category)];
@@ -268,26 +302,40 @@ export function computeCompletion(input: CompletionInput): Completion {
     const rows = tableRowsOf(t.key);
     const out: TableResult = { state: 'value', rows: {} };
     const mark = na.fields[tableNaKey(t.key)];
+    const forced = forcedAuto(t.autoNa, values);
     const auto = firstAuto(t.autoNa, values);
     const sn = sectionNa(s, s.airflow);
+    if (forced) return { state: 'auto-na', notation: 'N/A', reason: forced.reason, rows: {}, forced: true };
     if (mark) Object.assign(out, { state: 'na', notation: mark.notation, reason: mark.reason });
     else if (auto) Object.assign(out, { state: 'auto-na', notation: 'N/A', reason: auto.reason });
     else if (sn) Object.assign(out, { state: levelState(sn.source), notation: sn.notation ?? 'N/A' });
     else if (!(t.requiredWhen ? evalCond(t.requiredWhen, values) : t.required)) out.state = 'optional';
     if (isNaState(out.state)) return out;
+    const cols = tableColumns(t);
+    const groups = t.readingGroups ?? DEFAULT_READING_GROUPS;
+    const readingCols = new Set(groups.flat());
+    const outlet = (t.calc ?? 'outlet') === 'outlet';
     rows.forEach((r, i) => {
       const computedDesign = t.firstRowDesignComputed && i === 0;
-      const missing: string[] = [];
-      for (const col of ROW_REQUIRED) {
-        if (computedDesign && col === 'designCfm') continue;
-        if (isBlank(r.data[col]) && !r.na[col]) missing.push(col);
+      const rowValues = { ...values, ...r.data };
+      const autoCols: Record<string, string> = {};
+      for (const col of cols) {
+        const a = isBlank(r.data[col.key]) ? firstAuto(col.autoNa, rowValues) : undefined;
+        if (a) autoCols[col.key] = a.reason;
       }
-      if (ROW_READINGS.every((c) => isBlank(r.data[c]) && !r.na[c])) missing.push('reading');
+      const ok = (k: string) => !isBlank(r.data[k]) || Boolean(r.na[k]) || k in autoCols;
+      const missing: string[] = [];
+      for (const col of cols) {
+        if (readingCols.has(col.key) || col.required === false) continue;
+        if (computedDesign && col.key === 'designCfm') continue;
+        if (!ok(col.key)) missing.push(col.key);
+      }
+      if (groups.length && !groups.some((g) => g.every(ok))) missing.push('reading');
       // first return row: design = supply design total - OA design (workbook formula)
-      const design = computedDesign ? designSum('supply') - designSum('oa') : num(r.data.designCfm);
-      const rt = ratio(rowActualCfm(r), design);
+      const design = !outlet ? null : computedDesign ? designSum('supply') - designSum('oa') : num(r.data.designCfm);
+      const rt = outlet ? ratio(rowActualCfm(r), design) : null;
       const out_ = t.tolerance && rt !== null && !withinTolerance(rt, project.tolerance);
-      out.rows[r.id] = { missing, ratio: rt, outOfTolerance: out_, design };
+      out.rows[r.id] = { missing, auto: autoCols, ratio: rt, outOfTolerance: out_, design };
       if (out_) {
         const no = isBlank(r.data.no) ? `row ${i + 1}` : String(r.data.no);
         res.outOfTolerance.push({ table: t.key, rowId: r.id, label: `${t.label} ${no}`, ratio: rt });
@@ -296,11 +344,50 @@ export function computeCompletion(input: CompletionInput): Completion {
     return out;
   }
 
-  if (spec.designCheck) {
-    const schedule = num(unit.data[spec.designCheck.field]);
-    const outlets = designSum(spec.designCheck.table);
+  function sequenceResult(s: SectionSpec, q: SequenceSpec): SequenceResult {
+    const forced = forcedAuto(q.autoNa, values);
+    if (forced) return { state: 'auto-na', notation: 'N/A', reason: forced.reason, entered: 0 };
+    let entered = 0;
+    for (let i = 1; i <= q.count; i++) {
+      const k = seqKey(q.key, i);
+      if (!isBlank(values[k]) || na.fields[k]) entered++;
+    }
+    if (entered >= (q.minReadings ?? 1)) return { state: 'value', entered };
+    const mark = na.fields[seqNaKey(q.key)];
+    if (mark) return { state: 'na', notation: mark.notation, reason: mark.reason, entered };
+    const auto = firstAuto(q.autoNa, values);
+    if (auto) return { state: 'auto-na', notation: 'N/A', reason: auto.reason, entered };
+    const sn = sectionNa(s, s.airflow);
+    if (sn) return { state: levelState(sn.source), notation: sn.notation ?? 'N/A', entered };
+    const required = q.requiredWhen ? evalCond(q.requiredWhen, values) : q.required !== false;
+    return { state: required ? 'missing' : 'optional', entered };
+  }
+
+  for (const dc of designChecks(spec)) {
+    const schedule = num(unit.data[dc.field]);
+    const outlets = designSum(dc.table);
     if (schedule !== null && schedule > 0 && outlets > 0 && Math.abs(schedule - outlets) > 0.5) {
-      res.designDiscrepancy = { schedule, outlets };
+      res.designDiscrepancies.push({
+        label: dc.label ?? 'outlets',
+        field: dc.field,
+        table: dc.table,
+        schedule,
+        outlets,
+      });
+    }
+  }
+  if (res.designDiscrepancies[0]) {
+    const { schedule, outlets } = res.designDiscrepancies[0];
+    res.designDiscrepancy = { schedule, outlets };
+  }
+
+  // unit-level actual vs. design (types without per-outlet tolerance rows)
+  if (spec.totalCheck && !na.equipment) {
+    const t = TOTAL_CALCS[spec.totalCheck.calc](values, input.rows);
+    const rt = ratio(t.actual, t.design);
+    res.total = { label: spec.totalCheck.label, design: t.design, actual: t.actual, ratio: rt };
+    if (rt !== null && !withinTolerance(rt, project.tolerance)) {
+      res.outOfTolerance.push({ table: 'total', rowId: '', label: spec.totalCheck.label, ratio: rt });
     }
   }
 

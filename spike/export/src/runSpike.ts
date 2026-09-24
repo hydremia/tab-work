@@ -20,7 +20,7 @@ import JSZip from 'jszip';
 import jpeg from 'jpeg-js';
 import { XMLValidator } from 'fast-xml-parser';
 import {
-  bytesEqual, cellValue, diff, drawingPictures, exportWorkbookWithReport, FormulaCellError, importWorkbookWithReport, listSheets,
+  blockLayout, bytesEqual, cellValue, diff, drawingPictures, exportWorkbookWithReport, FormulaCellError, importWorkbookWithReport, listSheets,
   loadSharedStrings, MapError, normalizeProject, NOTATIONS, parseCells, parseRels, readText, sequenceCells, tableRows, TEMPLATE_MAP,
   ValidationError,
 } from '@a2b/workbook';
@@ -109,7 +109,7 @@ class Book {
   }
 }
 
-/** A project that fills every mapped input of block 1 and of the last block (map audit). */
+/** A project that fills every mapped input of the first block at every page position and of the last block (map audit). */
 async function fullFillProject(map: TemplateMap, template: Uint8Array): Promise<ProjectData> {
   const book = await Book.open(template);
   const wbXml = await readText(await JSZip.loadAsync(template), 'xl/workbook.xml');
@@ -152,8 +152,10 @@ async function fullFillProject(map: TemplateMap, template: Uint8Array): Promise<
   for (const s of map.sections) p.sections[s.key] = await layout(s);
   for (const e of map.equipment) {
     const units: UnitData[] = [];
-    for (const slot of [1, e.capacity]) {
-      const u: UnitData = { slot, ...(await layout(e.block)) };
+    const perPage = e.block.anchor.kind === 'paged' ? e.block.anchor.offsets.length : 1;
+    const slots = [...new Set([...Array.from({ length: perPage }, (_, i) => i + 1), e.capacity])];
+    for (const slot of slots) {
+      const u: UnitData = { slot, ...(await layout(blockLayout(e, slot))) };
       if (e.ede) { u.schedule = {}; for (const fd of e.ede.fields) u.schedule[fd.key] = await val(fd); }
       units.push(u);
     }
@@ -274,7 +276,7 @@ async function main() {
     const r = await exportWorkbookWithReport(template, full);
     const back = await importWorkbookWithReport(r.bytes);
     const d = diff(normalizeProject(full), normalizeProject(back.project));
-    rec(S, 'map audit: every mapped input of block 1 and of the last block is writable (no formula / hidden merged cell) and round-trips',
+    rec(S, 'map audit: every mapped input of the first block at each page position and of the last block is writable (no formula / hidden merged cell) and round-trips',
       d.length === 0, `${r.report.cellsWritten} cells written across ${TEMPLATE_MAP.equipment.length} equipment types + ${TEMPLATE_MAP.sections.length} sections; ${d.length} differences ${d.slice(0, 5).join('; ')}`);
   } catch (e) { rec(S, 'map audit (fill every mapped input of block 1 and the last block)', false, String(e)); }
 
