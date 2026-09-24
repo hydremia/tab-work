@@ -10,18 +10,20 @@
  *  - app-only fields (Has VFD?, Has filters?) are not written; import derives them from the data.
  */
 import {
+  blockLayout,
   NOTATIONS as WB_NOTATIONS,
   TEMPLATE_MAP,
   TEMPLATE_REVISION,
   type Cell,
+  type EquipmentDef,
   type FieldDef,
   type ProjectData,
   type UnitData,
 } from '@a2b/workbook/map';
-import { computeCompletion, isNaState } from '../domain/completion';
+import { computeCompletion, isNaState, seqNaKey, tableNaKey, type Completion } from '../domain/completion';
 import { isBlank } from '../domain/conditions';
 import { equipmentType, type EquipmentTypeKey } from '../domain/equipmentTypes';
-import { getSpec, ROW_COLUMNS } from '../domain/specs';
+import { getSpec, seqKey, tableColumns, type EquipmentSpec, type RowTableSpec } from '../domain/specs';
 import {
   emptyNaState,
   type AirflowRow,
@@ -153,6 +155,7 @@ export function toProjectData(b: ProjectBundle): { data: ProjectData; warnings: 
     const def = TEMPLATE_MAP.equipment.find((d) => d.key === e.type);
     if (!def) continue;
     const spec = getSpec(e.type);
+    const layout = blockLayout(def, e.slot);
     const unitRows = b.rows.filter((r) => r.equipmentId === e.id);
     const c = computeCompletion({
       spec,
@@ -167,16 +170,18 @@ export function toProjectData(b: ProjectBundle): { data: ProjectData; warnings: 
     const schedule: Record<string, Cell> = {};
     const fields: Record<string, Cell> = {};
     if (def.ede) schedule.designation = e.designation;
+    else if (layout.fields?.some((f) => f.key === 'designation')) fields.designation = e.designation;
     const keys = new Set([...Object.keys(e.data), ...Object.keys(e.naState.fields), ...Object.keys(c.fields)]);
     for (const key of keys) {
       if (key === 'designation' || key === 'remarks') continue;
       const edeDef = def.ede?.fields.find((f) => f.key === key);
-      const blockDef = def.block.fields?.find((f) => f.key === key);
-      if (!edeDef && !blockDef) continue; // app-only (hasVfd, photo:/table: marks)
+      const blockDef = layout.fields?.find((f) => f.key === key);
+      if (!edeDef && !blockDef) continue; // app-only (hasVfd, photo:/table:/seq: marks, sequence readings)
       const st = c.fields[key];
       const levelMark: NaMark | null =
         st && isNaState(st.state) && st.state !== 'na' && st.notation ? { notation: st.notation } : null;
-      const raw = out(e.data[key], e.naState.fields[key] ?? levelMark);
+      // automatic N/A that overrides an entered value (MAU: a method that is not the chosen one) exports as N/A
+      const raw = st?.state === 'auto-na' ? 'N/A' : out(e.data[key], e.naState.fields[key] ?? levelMark);
       if (raw === undefined) continue;
       const v = coerce(edeDef ?? blockDef, raw, `${path}.${key}`, warnings);
       if (v === undefined) continue;
@@ -186,42 +191,72 @@ export function toProjectData(b: ProjectBundle): { data: ProjectData; warnings: 
     if (Object.keys(schedule).length) unit.schedule = schedule;
     if (Object.keys(fields).length) unit.fields = fields;
 
-    // airflow tables
-    for (const td of def.block.tables ?? []) {
-      const rows = unitRows.filter((r) => r.table === td.key).sort((a, c2) => a.order - c2.order);
-      if (!rows.length) continue;
-      unit.tables ??= {};
-      unit.tables[td.key] = rows.map((r, i) => {
-        const rec: Record<string, Cell> = {};
-        for (const col of ROW_COLUMNS) {
-          if (!td.columns.some((cd) => cd.key === col.key)) continue;
-          if (i === 0 && col.key === 'designCfm' && td.segments[0].omit?.[0]?.includes('H')) continue; // formula
-          const raw = out(r.data[col.key], r.na[col.key]);
-          if (raw === undefined) continue;
-          const v = coerce(
-            td.columns.find((cd) => cd.key === col.key),
-            raw,
-            `${path}.${td.key}[${i}].${col.key}`,
-            warnings,
-          );
-          if (v !== undefined) rec[col.key] = v;
-        }
-        return rec;
-      });
+    // airflow / filter tables (template tables and column tables)
+    for (const t of specTables(spec)) {
+      const td = layout.tables?.find((x) => x.key === t.key);
+      const cd = layout.columnTables?.find((x) => x.key === t.key);
+      if (!td && !cd) continue;
+      const tr = c.tables[t.key];
+      const rows = unitRows.filter((r) => r.table === t.key).sort((a, c2) => a.order - c2.order);
+      const naNotation = tr && isNaState(tr.state) ? (tr.notation ?? 'N/A') : undefined;
+      const colDefs = td?.columns ?? cd!.fields;
+      let recs: Record<string, Cell>[];
+      if (naNotation && (!rows.length || tr.forced)) {
+        // an N/A table is written as its notation in the first row's first column (a blank never means N/A)
+        recs = [{ [colDefs[0].key]: naNotation }];
+      } else {
+        recs = rows.map((r, i) => {
+          const rec: Record<string, Cell> = {};
+          const autoCols = tr?.rows[r.id]?.auto ?? {};
+          for (const col of tableColumns(t)) {
+            const cdef = colDefs.find((x) => x.key === col.key);
+            if (!cdef) continue;
+            if (td && i === 0 && col.key === 'designCfm' && td.segments[0].omit?.[0]?.includes('H')) continue; // formula
+            const raw = out(r.data[col.key], r.na[col.key] ?? (col.key in autoCols ? { notation: 'N/A' } : null));
+            if (raw === undefined) continue;
+            const v = coerce(cdef, raw, `${path}.${t.key}[${i}].${col.key}`, warnings);
+            if (v !== undefined) rec[col.key] = v;
+          }
+          return rec;
+        });
+      }
+      if (!recs.length) continue;
+      if (td) (unit.tables ??= {})[t.key] = recs;
+      else (unit.columnTables ??= {})[t.key] = recs;
     }
 
-    // remarks
-    const remarksDef = def.block.lines?.find((l) => l.key === 'remarks');
-    const remarks = e.data.remarks;
-    if (remarksDef && typeof remarks === 'string' && remarks.trim()) {
-      const lines = splitLines(remarks, remarksDef.cells.length);
-      unit.lines = { remarks: lines };
+    // reading sequences (PSP velocities, traverse quick entry)
+    for (const q of spec.sections.flatMap((sec) => sec.sequences ?? [])) {
+      const sd = layout.sequences?.find((x) => x.key === q.key);
+      if (!sd) continue;
+      const sr = c.sequences[q.key];
+      let vals: Cell[] = [];
+      if (sr && isNaState(sr.state) && (sr.entered === 0 || sr.state === 'auto-na')) vals = [sr.notation ?? 'N/A'];
+      else {
+        for (let i = 1; i <= q.count; i++) {
+          const k = seqKey(q.key, i);
+          const raw = out(e.data[k], e.naState.fields[k]);
+          vals.push(
+            raw === undefined ? null : (coerce({ type: sd.type }, raw, `${path}.${q.key}[${i}]`, warnings) ?? null),
+          );
+        }
+        while (vals.length && vals[vals.length - 1] === null) vals.pop();
+      }
+      if (vals.length) (unit.sequences ??= {})[q.key] = vals;
+    }
+
+    // remarks and other free-text lines (hoods: technician notes)
+    for (const ld of layout.lines ?? []) {
+      const text = e.data[ld.key];
+      if (typeof text === 'string' && text.trim()) (unit.lines ??= {})[ld.key] = splitLines(text, ld.cells.length);
     }
     (pd.equipment[e.type] ??= []).push(unit);
   }
   for (const k of Object.keys(pd.equipment)) pd.equipment[k].sort((a, c) => a.slot - c.slot);
   return { data: pd, warnings };
 }
+
+const specTables = (spec: EquipmentSpec): RowTableSpec[] => spec.sections.flatMap((sec) => sec.tables ?? []);
 
 // ------------------------------------------------------------------------------------------ import
 export interface FromOptions {
@@ -310,7 +345,7 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
       const naOnly = (k: string) => na.fields[k]?.notation === 'N/A' && isBlank(data[k]);
       if (data.hasVfd === undefined && naOnly('vsdFinal')) data.hasVfd = 'No';
       if (data.hasFilters === undefined && naOnly('filters')) data.hasFilters = 'No';
-      const designation = u.schedule?.designation;
+      const designation = u.schedule?.designation ?? u.fields?.designation;
       equipment.push({
         id,
         projectId,
@@ -323,7 +358,38 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
         createdAt: now,
         updatedAt: now,
       });
-      for (const [table, trs] of Object.entries(u.tables ?? {})) {
+      const def = TEMPLATE_MAP.equipment.find((d) => d.key === type) as EquipmentDef;
+      const layout = blockLayout(def, u.slot);
+      // other free-text lines (hood technician notes)
+      for (const [k, lines] of Object.entries(u.lines ?? {})) {
+        if (k === 'remarks' || !lines.length) continue;
+        data[k] = lines
+          .map((l) => l ?? '')
+          .join('\n')
+          .replace(/\n+$/, '');
+      }
+      // reading sequences: reading i -> data[key_i]; a lone notation in the first cell is the whole run's N/A
+      for (const [k, vals] of Object.entries(u.sequences ?? {})) {
+        if (vals.length === 1 && isNotation(vals[0])) {
+          na.fields[seqNaKey(k)] = { notation: vals[0] };
+          continue;
+        }
+        vals.forEach((v, i) => take(seqKey(k, i + 1), v ?? undefined, data, na.fields));
+      }
+      const tables: [string, Record<string, Cell>[]][] = [
+        ...Object.entries(u.tables ?? {}),
+        ...Object.entries(u.columnTables ?? {}),
+      ];
+      for (const [table, trs] of tables) {
+        const firstCol =
+          layout.tables?.find((t) => t.key === table)?.columns[0].key ??
+          layout.columnTables?.find((t) => t.key === table)?.fields[0].key;
+        // a table written as N/A: the notation alone in the first row's first column
+        const only = trs.length === 1 ? Object.entries(trs[0]).filter(([, v]) => v !== null && v !== undefined) : [];
+        if (only.length === 1 && only[0][0] === firstCol && isNotation(only[0][1])) {
+          na.fields[tableNaKey(table)] = { notation: only[0][1] };
+          continue;
+        }
         let order = 0;
         for (const tr of trs) {
           const rd: Record<string, FieldValue> = {};
@@ -351,14 +417,33 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
   for (const e of equipment) {
     const spec = getSpec(e.type);
     const unitRows = rows.filter((r) => r.equipmentId === e.id);
+    const completion = (fields: Record<string, NaMark | null>): Completion =>
+      computeCompletion({
+        spec,
+        unit: { ...e, naState: { ...e.naState, fields } },
+        rows: unitRows,
+        photos: [],
+        project,
+        openIssues: 0,
+      });
+    const automatic = (st: string | undefined) => st === 'auto-na' || st === 'scope-na';
     for (const [k, mark] of Object.entries(e.naState.fields)) {
       if (mark?.notation !== 'N/A') continue;
       const fields = { ...e.naState.fields };
       delete fields[k];
-      const trial = { ...e, naState: { ...e.naState, fields } };
-      const st = computeCompletion({ spec, unit: trial, rows: unitRows, photos: [], project, openIssues: 0 }).fields[k]
-        ?.state;
-      if (st === 'auto-na' || st === 'scope-na') e.naState.fields = fields;
+      const c = completion(fields);
+      const st = k.startsWith('table:')
+        ? c.tables[k.slice(6)]?.state
+        : k.startsWith('seq:')
+          ? c.sequences[k.slice(4)]?.state
+          : c.fields[k]?.state;
+      if (automatic(st)) e.naState.fields = fields;
+    }
+    // row columns (hood readings 2-3 on VelGrid filters, "No Filter" rows)
+    const c = completion(e.naState.fields);
+    for (const r of unitRows) {
+      const auto = c.tables[r.table]?.rows[r.id]?.auto ?? {};
+      for (const [k, mark] of Object.entries(r.na)) if (mark?.notation === 'N/A' && k in auto) delete r.na[k];
     }
   }
 

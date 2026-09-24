@@ -246,8 +246,11 @@ export async function addEquipment(
 
 /** Rows available in an airflow table of an equipment type (from the template map). */
 export function airflowTableCapacity(type: EquipmentTypeKey, table: string): number {
-  const def = TEMPLATE_MAP.equipment.find((e) => e.key === type)?.block.tables?.find((t) => t.key === table);
-  return def ? tableRows(def).length : 0;
+  const block = TEMPLATE_MAP.equipment.find((e) => e.key === type)?.block;
+  const def = block?.tables?.find((t) => t.key === table);
+  if (def) return tableRows(def).length;
+  // column tables (MAU filter grid: one filter per column)
+  return block?.columnTables?.find((t) => t.key === table)?.cols.length ?? 0;
 }
 
 export async function addAirflowRow(
