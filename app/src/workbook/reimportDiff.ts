@@ -30,6 +30,7 @@ import {
 import { equipmentType, EQUIPMENT_TYPES, type EquipmentTypeKey } from '../domain/equipmentTypes';
 import { getSpec, ROW_COLUMNS, type EquipmentSpec } from '../domain/specs';
 import type { AirflowRow, FieldValue, NaMark } from '../data/types';
+import { PRESSURE_INFO_KEYS, PRESSURE_LABELS } from '../domain/projectCompletion';
 import { fromProjectData, PROJECT_INFO_KEYS, toProjectData, type ProjectBundle } from './adapter';
 
 export type Val = string | number | null;
@@ -244,7 +245,8 @@ export function flatten(b: ProjectBundle, modes: Map<string, RowMode>): Map<stri
   const add = (r: FlatRec) => out.set(r.key, r);
   const p = b.project;
   const pc: Record<string, Val> = { name: p.name.trim() === '' ? null : p.name, tolerance: p.tolerance };
-  for (const k of [...PROJECT_INFO_KEYS, 'narrative']) pc[`info.${k}`] = valueOrMark(p.info[k], p.naState.fields[k]);
+  for (const k of [...PROJECT_INFO_KEYS, 'narrative', ...PRESSURE_INFO_KEYS])
+    pc[`info.${k}`] = valueOrMark(p.info[k], p.naState.fields[k]);
   add({ key: 'project', ref: { kind: 'project' }, cells: pc });
   p.blueprints
     .filter((bp) => bp.sheet.trim() !== '' || bp.revisionDate.trim() !== '')
@@ -362,6 +364,7 @@ const PROJECT_LABELS: Record<string, string> = {
   'info.projectManager': 'Project manager',
   'info.reportDate': 'Report date',
   'info.narrative': 'Narrative: system set-up description',
+  ...Object.fromEntries(Object.entries(PRESSURE_LABELS).map(([k, v]) => [`info.${k}`, v])),
 };
 const INSTRUMENT_LABELS: Record<string, string> = {
   type: 'Type',
@@ -591,6 +594,7 @@ export function reimportDiff(input: DiffInput): FullDiff {
       switch (ref.kind) {
         case 'project':
           info = { label: PROJECT_LABELS[cell] ?? cell, section: 'Project information' };
+          remark = /^info\.bb(\w+Remarks|Notes)$/.test(cell);
           break;
         case 'blueprint':
           info = { label: cell === 'sheet' ? 'Sheet' : 'Revision date', section: where.section };
@@ -623,7 +627,13 @@ export function reimportDiff(input: DiffInput): FullDiff {
         ...(ref.kind === 'project' && cell === 'info.narrative'
           ? { group: 'narrative', groupTitle: 'Narrative', groupOrder: 1 }
           : {}),
-        section: info.section,
+        ...(ref.kind === 'project' && PRESSURE_INFO_KEYS.includes(cell.replace(/^info\./, ''))
+          ? { group: 'pressures', groupTitle: 'Building pressures', groupOrder: 1 }
+          : {}),
+        section:
+          ref.kind === 'project' && PRESSURE_INFO_KEYS.includes(cell.replace(/^info\./, ''))
+            ? 'Building Balance'
+            : info.section,
         label: info.label,
         base: bv,
         app: av,

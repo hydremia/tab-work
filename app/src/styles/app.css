@@ -788,8 +788,9 @@ textarea {
   z-index: 10;
   margin: 0 -16px;
   padding: 8px 16px;
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  backdrop-filter: blur(6px);
+  /* opaque: scrolled text must not show through behind the chips */
+  background: var(--bg);
+  box-shadow: 0 1px 0 var(--border);
   display: flex;
   gap: 6px;
   overflow-x: auto;
@@ -1747,5 +1748,174 @@ textarea {
     align-self: flex-start;
     flex: 0 0 auto;
     min-width: 260px;
+  }
+}
+
+/* ---------------------------------------------------------------- needs attention */
+.tab-count[data-tone='attention'] {
+  background: var(--amber-bg);
+  color: var(--amber);
+}
+.attention-group {
+  padding: 12px 0 4px;
+}
+.attention-group h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px 6px;
+  font-size: 1rem;
+}
+.attention-group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.attention-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  text-decoration: none;
+}
+.attention-item > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.attention-item .status-icon {
+  margin-top: 2px;
+}
+.attention-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  color: var(--text);
+  text-decoration: none;
+}
+.attention-link .grow {
+  flex: 1;
+}
+
+/* ---------------------------------------------------------------- schedule import */
+.schedule-source {
+  display: grid;
+  gap: 12px;
+}
+.schedule-paste {
+  min-height: 120px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  white-space: pre;
+}
+.map-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.map-grid .field-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.preview-wrap {
+  overflow-x: auto;
+  margin: 0 -16px;
+  padding: 0 16px;
+}
+.preview-table {
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  min-width: 100%;
+}
+.preview-table th,
+.preview-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+.preview-table th {
+  background: var(--surface-2);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+}
+.preview-table tr[data-action='skip'] td {
+  background: var(--red-bg);
+}
+.preview-table tr[data-action='update'] td:first-child,
+.preview-table tr[data-action='create'] td:first-child {
+  font-weight: 600;
+}
+.preview-table .msgs {
+  white-space: normal;
+  min-width: 180px;
+}
+.preview-table .msg-error {
+  color: var(--red);
+}
+.preview-table .msg-warn {
+  color: var(--amber);
+}
+.action-pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--gray-bg);
+  color: var(--gray);
+}
+.action-pill[data-action='create'] {
+  background: var(--green-bg);
+  color: var(--green);
+}
+.action-pill[data-action='update'] {
+  background: var(--amber-bg);
+  color: var(--amber);
+}
+.action-pill[data-action='skip'] {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
+/* ---------------------------------------------------------------- building pressures */
+.pressure-row {
+  display: grid;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.pressure-row:last-of-type {
+  border-bottom: 0;
+}
+.pressure-row h3 {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+.type-head .rollup {
+  margin-left: auto;
+}
+.type-head h2 {
+  margin-right: auto;
+}
+.field-warning {
+  font-size: 0.8125rem;
+  color: var(--amber);
+  background: var(--amber-bg);
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+@media (max-width: 480px) {
+  .tabs a {
+    padding: 0 10px;
+    font-size: 0.875rem;
   }
 }

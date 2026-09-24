@@ -548,5 +548,18 @@ export async function recalcCrossCheck(file: string, wb: ProjectData, ui: Record
   await cmp('Building Balance exhaust actual total', 'Building Balance', 'K87', bb.exhaustActual);
   await cmp('Building Balance design balance', 'Building Balance', 'H89', bb.designBalance);
   await cmp('Building Balance actual balance', 'Building Balance', 'H91', bb.actualBalance);
+  // the measured building pressures are inputs: the recalculated sheet shows them as written
+  const pr = wb.sections.buildingBalance?.tables?.pressures ?? [];
+  const shown: string[] = [];
+  for (let i = 0; i < 3; i++) {
+    for (const col of ['B', 'E', 'H', 'K'])
+      shown.push(String((await val('Building Balance', `${col}${97 + i}`)) ?? ''));
+  }
+  const want = pr.flatMap((r) => [r.testSpace, r.referenceSpace, r.dp, r.remarks].map((x) => String(x ?? '')));
+  check(
+    'recalc: Building Balance pressure table (B97:K99) as exported',
+    pr.length === 3 && want.every((w, k) => w === shown[k]),
+    shown.join(' | '),
+  );
   rmSync(out, { force: true });
 }

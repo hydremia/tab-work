@@ -1,14 +1,23 @@
 import { blockLayout, TEMPLATE_MAP, UNIT_TYPE_COMPONENTS } from '@a2b/workbook/map';
-import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
-import { useAirflowRows, useEquipment, useIssues, usePhotos, useProject } from '../../data/hooks';
-import { deleteRecord, setField, setFields } from '../../data/repo';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
+import {
+  useAirflowRows,
+  useEquipment,
+  useEquipmentList,
+  useInstruments,
+  useIssues,
+  usePhotos,
+  useProject,
+} from '../../data/hooks';
+import { deleteRecord, duplicateEquipment, setField, setFields } from '../../data/repo';
+import { INSTRUMENT_FIELDS, pickerWarning } from '../../domain/instruments';
 import { NOTATIONS, type Equipment, type FieldValue, type NaMark, type Notation, type Project } from '../../data/types';
 import { formatNumber } from '../../domain/calc';
 import { computeCompletion, type Completion, type SectionResult } from '../../domain/completion';
 import { evalCond } from '../../domain/conditions';
 import { traverseLayout } from '../../domain/equipmentCalcs';
-import { equipmentType } from '../../domain/equipmentTypes';
+import { equipmentType, nextDesignation } from '../../domain/equipmentTypes';
 import { getSpec, type FieldSpec, type SectionSpec, type SequenceSpec } from '../../domain/specs';
 import { AirflowTable } from '../components/AirflowTable';
 import { CalcPanel, espText, unitEspCheck } from '../components/CalcPanels';
@@ -18,7 +27,7 @@ import { PhotoSlots } from '../components/PhotoSlots';
 import { Screen } from '../components/Screen';
 import { SpecField } from '../components/SpecField';
 import { StatusBadge, StatusIcon } from '../components/Status';
-import type { AirflowRow, Photo } from '../../data/types';
+import type { AirflowRow, Instrument, Photo } from '../../data/types';
 
 function fieldLabel(f: FieldSpec, data: Equipment['data']): string {
   if (!f.component) return f.label;
@@ -85,6 +94,7 @@ function SectionCard({
   completion,
   rows,
   photos,
+  instruments,
 }: {
   section: SectionSpec;
   equipment: Equipment;
@@ -92,6 +102,7 @@ function SectionCard({
   completion: Completion;
   rows: AirflowRow[];
   photos: Photo[];
+  instruments: Instrument[];
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [unfolded, setUnfolded] = useState(false);
@@ -188,6 +199,11 @@ function SectionCard({
                   mark={equipment.naState.fields[f.key]}
                   onChange={onField(f)}
                   onNa={f.recordField ? undefined : onNa(f)}
+                  warning={
+                    (INSTRUMENT_FIELDS as readonly string[]).includes(f.key)
+                      ? pickerWarning(equipment.data[f.key], instruments)
+                      : null
+                  }
                 />
               ))}
             </div>
@@ -229,6 +245,112 @@ function SectionCard({
   );
 }
 
+/** Duplicate the unit: next free designation and slot suggested; design data, optionally outlet rows w/o readings. */
+function DuplicateCard({ equipment, all }: { equipment: Equipment; all: Equipment[] }) {
+  const nav = useNavigate();
+  const info = equipmentType(equipment.type);
+  const same = all.filter((e) => e.type === equipment.type);
+  const suggestion = nextDesignation(
+    equipment.designation,
+    same.map((e) => e.designation),
+  );
+  const [open, setOpen] = useState(false);
+  const [designation, setDesignation] = useState<string | null>(null);
+  const [withRows, setWithRows] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const full = same.length >= info.capacity;
+  const slot = (() => {
+    const used = new Set(same.map((e) => e.slot));
+    for (let s = 1; s <= info.capacity; s++) if (!used.has(s)) return s;
+    return null;
+  })();
+  const name = (designation ?? suggestion).trim();
+  const taken = same.some((e) => e.designation.trim().toLowerCase() === name.toLowerCase());
+  const tables = getSpec(equipment.type).sections.some((s) => s.tables?.length);
+  return (
+    <section className="card card-pad stack" aria-labelledby="dup-h">
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <h2 id="dup-h" style={{ margin: 0 }}>
+          Duplicate
+        </h2>
+        {!open && (
+          <button
+            type="button"
+            className="btn"
+            data-testid="duplicate-open"
+            disabled={full}
+            onClick={() => setOpen(true)}
+          >
+            Duplicate {equipment.designation}
+          </button>
+        )}
+      </div>
+      {full && (
+        <p className="small muted" style={{ margin: 0 }}>
+          The workbook has room for {info.capacity} {info.plural}.
+        </p>
+      )}
+      {open && !full && (
+        <>
+          <p className="small muted" style={{ margin: 0 }}>
+            Copies the design (schedule) data and set-up: unit type, drive, motor nameplate, filters, instrument,
+            method. Not copied: serial number, readings, remarks and photos.
+          </p>
+          <div className="field">
+            <label className="field-label" htmlFor="dup-designation">
+              New designation
+            </label>
+            <input
+              id="dup-designation"
+              className="input"
+              value={designation ?? suggestion}
+              onChange={(e) => setDesignation(e.target.value)}
+              autoComplete="off"
+            />
+            <span className="field-hint">
+              {info.plural} slot {slot} in the workbook{taken ? ' · this designation is already used' : ''}
+            </span>
+          </div>
+          {tables && (
+            <label className="row small" style={{ gap: 8 }}>
+              <input type="checkbox" checked={withRows} onChange={(e) => setWithRows(e.target.checked)} />
+              Copy outlet / filter rows (without readings)
+            </label>
+          )}
+          {error && (
+            <div className="callout" data-tone="red" role="alert">
+              {error}
+            </div>
+          )}
+          <div className="row">
+            <button
+              type="button"
+              className="btn btn-primary"
+              data-testid="duplicate-create"
+              disabled={!name || taken}
+              onClick={() =>
+                void duplicateEquipment(equipment.id, name, { rows: withRows && tables })
+                  .then((copy) => {
+                    setOpen(false);
+                    setDesignation(null);
+                    nav(`/p/${equipment.projectId}/e/${copy.id}`);
+                    window.scrollTo(0, 0);
+                  })
+                  .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+              }
+            >
+              Create {name || '…'}
+            </button>
+            <button type="button" className="btn" onClick={() => setOpen(false)}>
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
 export function EquipmentPage() {
   const { projectId, equipmentId } = useParams();
   const project = useProject(projectId);
@@ -236,8 +358,18 @@ export function EquipmentPage() {
   const rows = useAirflowRows(equipmentId);
   const photos = usePhotos(projectId, equipmentId ?? null);
   const issues = useIssues(projectId);
+  const instruments = useInstruments(projectId);
+  const all = useEquipmentList(projectId);
   const nav = useNavigate();
+  const { hash } = useLocation();
   const back = `/p/${projectId}/equipment`;
+  const ready = Boolean(project && equipment && rows && photos && issues && instruments && all);
+  // a link to a section (needs-attention list, "Show missing"): scroll there once the form is rendered
+  useEffect(() => {
+    if (!ready || !hash) return;
+    const el = document.getElementById(decodeURIComponent(hash.slice(1)));
+    if (el) el.scrollIntoView({ block: 'start' });
+  }, [ready, hash, equipmentId]);
 
   if (project === null || equipment === null) {
     return (
@@ -246,7 +378,7 @@ export function EquipmentPage() {
       </Screen>
     );
   }
-  if (!project || !equipment || !rows || !photos || !issues)
+  if (!project || !equipment || !rows || !photos || !issues || !instruments || !all)
     return (
       <Screen title="Loading…" back={back}>
         {null}
@@ -379,8 +511,11 @@ export function EquipmentPage() {
           completion={c}
           rows={rows}
           photos={photos}
+          instruments={instruments}
         />
       ))}
+
+      <DuplicateCard equipment={equipment} all={all} />
 
       <section className="card card-pad stack" aria-label="Unit actions">
         <div className="field">
