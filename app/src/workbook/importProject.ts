@@ -56,6 +56,7 @@ const ALL_TABLES = () => [
   db.issues,
   db.instruments,
   db.photos,
+  db.photoUploads,
   db.fieldChanges,
   db.meta,
   db.revisions,

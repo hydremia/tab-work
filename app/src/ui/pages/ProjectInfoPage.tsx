@@ -1,9 +1,10 @@
 import { useNavigate } from 'react-router';
 import { usePhotos, useInstruments } from '../../data/hooks';
-import { addInstrument, deleteRecord, replacePhoto, setField } from '../../data/repo';
-import type { FieldValue, NaMark, Project } from '../../data/types';
+import { addInstrument, deleteRecord, setField } from '../../data/repo';
+import type { FieldValue, NaMark, Photo, Project } from '../../data/types';
 import { getSpec, type FieldSpec } from '../../domain/specs';
-import { IconCamera, IconPlus, IconTrash } from '../components/Icons';
+import { IconPlus, IconTrash } from '../components/Icons';
+import { PhotoPicker, SaverStatus, usePhotoSaver } from '../components/PhotoPicker';
 import { DateInput, TextInput } from '../components/inputs';
 import { PhotoThumb } from '../components/PhotoThumb';
 import { SpecField } from '../components/SpecField';
@@ -57,6 +58,30 @@ function InfoField({ project, field }: { project: Project; field: FieldSpec }) {
               })()
       }
     />
+  );
+}
+
+function CoverPhoto({ projectId, cover }: { projectId: string; cover: Photo | undefined }) {
+  const saver = usePhotoSaver(projectId);
+  return (
+    <div className="photo-grid">
+      <div className="photo-slot" data-testid="cover-slot">
+        {cover ? (
+          <PhotoThumb blob={cover.thumb ?? cover.blob} alt="Cover photo" />
+        ) : (
+          <div className="photo-empty">No cover photo</div>
+        )}
+        <PhotoPicker
+          label="Cover photo"
+          compact
+          takeText="Take photo"
+          chooseText="Choose from library"
+          disabled={Boolean(saver.busy)}
+          onFiles={(files) => void saver.save(files.slice(0, 1), { category: 'cover' }, { replace: true })}
+        />
+        <SaverStatus busy={saver.busy} error={saver.error} onDismiss={saver.clearError} />
+      </div>
+    </div>
   );
 }
 
@@ -208,28 +233,7 @@ export function ProjectInfoPage() {
         <p className="small muted" style={{ margin: 0 }}>
           Placed on the workbook's Cover Page at export, cropped to the photo box (about 1.685 : 1).
         </p>
-        <div className="photo-grid">
-          <div className="photo-slot">
-            {cover ? (
-              <PhotoThumb blob={cover.blob} alt="Cover photo" />
-            ) : (
-              <div className="photo-empty">No cover photo</div>
-            )}
-            <label className="btn file-btn">
-              <IconCamera size={18} /> {cover ? 'Replace' : 'Add photo'}
-              <input
-                type="file"
-                accept="image/*"
-                aria-label="Cover photo"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void replacePhoto(project.id, f, 'cover', null);
-                  e.target.value = '';
-                }}
-              />
-            </label>
-          </div>
-        </div>
+        <CoverPhoto projectId={project.id} cover={cover} />
       </section>
 
       <section className="card card-pad stack" aria-labelledby="cal-h">

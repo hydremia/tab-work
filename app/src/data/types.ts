@@ -106,15 +106,43 @@ export type PhotoCategory = 'cover' | 'unit' | 'tag' | 'oa_damper' | 'deficiency
 export interface Photo {
   id: string;
   projectId: string;
+  /** Linked equipment (unit / tag / OA damper / other photos of a unit); null for general and deficiency photos. */
   equipmentId: string | null;
+  /** Deficiency photos: the issue they document (numbered to it, e.g. Photo N-3.1). */
   issueId: string | null;
   category: PhotoCategory;
   caption: string;
+  /** The stored image: JPEG, EXIF orientation applied, long edge at most 2000 px, EXIF stripped. */
   blob: Blob;
+  /** Small JPEG (long edge 320 px) for lists; null for photos stored before v3 (the UI falls back to `blob`). */
+  thumb?: Blob | null;
   mimeType: string;
   fileName: string;
-  /** 0 = waiting for upload (Phase 5), 1 = uploaded. */
+  width?: number;
+  height?: number;
+  /** Capture time from the photo's EXIF (ms since epoch, device local time), null when unknown. */
+  capturedAt?: number | null;
+  /** GPS position from EXIF when present (metadata only). */
+  gps?: { lat: number; lon: number } | null;
+  /** Sort key within its group (equipment / issue / general). */
+  order?: number;
+  /** 0 = waiting for upload to Supabase Storage (Phase 5), 1 = uploaded. See PhotoUpload. */
   uploaded: 0 | 1;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * Upload queue for photo files (Supabase Storage, bucket "photos", path <projectId>/<photoId>.jpg). One entry per
+ * photo, created with the photo; the metadata record itself syncs through the field-change outbox. In local mode
+ * the queue just waits.
+ */
+export interface PhotoUpload {
+  photoId: string;
+  projectId: string;
+  status: 'pending' | 'uploading' | 'done' | 'failed';
+  attempts: number;
+  lastError: string | null;
   createdAt: number;
   updatedAt: number;
 }
