@@ -23,6 +23,7 @@ import {
 import { computeCompletion, isNaState, seqNaKey, tableNaKey, type Completion } from '../domain/completion';
 import { isBlank } from '../domain/conditions';
 import { equipmentType, type EquipmentTypeKey } from '../domain/equipmentTypes';
+import { PRESSURE_KEYS, PRESSURE_ROWS } from '../domain/projectCompletion';
 import { getSpec, seqKey, tableColumns, type EquipmentSpec, type RowTableSpec } from '../domain/specs';
 import {
   emptyNaState,
@@ -65,6 +66,7 @@ export const APP_SECTIONS = [
   'issuesNew',
   'issuesExisting',
   'calibration',
+  'buildingBalance',
   'equipmentSummary',
 ] as const;
 
@@ -128,6 +130,31 @@ export function toProjectData(b: ProjectBundle): { data: ProjectData; warnings: 
   const narrative = out(project.info.narrative, pn.narrative);
   if (narrative !== undefined) pd.sections.narrative = { fields: { text: narrative } };
   pd.sections.equipmentSummary = { fields: { tolerance: project.tolerance } };
+
+  // ---- Building Balance: measured building pressures (rows 97-99) and notes (B102-B104)
+  const hasHoods = b.equipment.some((e) => e.type === 'hood');
+  const pv = (k: string, auto?: boolean): Cell | undefined =>
+    out(project.info[k], pn[k] ?? (auto ? { notation: 'N/A' } : null));
+  const pressures: Record<string, Cell>[] = PRESSURE_ROWS.map((r, i) => {
+    const row: Record<string, Cell> = { testSpace: r.test, referenceSpace: r.ref };
+    put(row, 'dp', pv(r.dp, i === 1 && !hasHoods));
+    put(row, 'remarks', pv(r.remarks));
+    return row;
+  });
+  const spare: Record<string, Cell> = {};
+  put(spare, 'testSpace', pv(PRESSURE_KEYS.spareTest));
+  put(spare, 'referenceSpace', pv(PRESSURE_KEYS.spareRef));
+  put(spare, 'dp', pv(PRESSURE_KEYS.spareDp));
+  put(spare, 'remarks', pv(PRESSURE_KEYS.spareRemarks));
+  if (Object.keys(spare).length) pressures.push(spare);
+  for (const r of pressures)
+    if (typeof r.dp === 'string' && !isNotation(r.dp))
+      r.dp = coerce({ type: 'number' }, r.dp, 'Building pressures ΔP', warnings) ?? null;
+  const notes = project.info[PRESSURE_KEYS.notes];
+  pd.sections.buildingBalance = {
+    tables: { pressures },
+    ...(typeof notes === 'string' && notes.trim() ? { lines: { notes: splitLines(notes, 3) } } : {}),
+  };
 
   // ---- Calibration
   const instruments = [...b.instruments]
@@ -337,6 +364,26 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
   };
   for (const k of PROJECT_INFO_KEYS) take(k, pi[k], info, naState.fields);
   take('narrative', pd.sections.narrative?.fields?.text, info, naState.fields);
+  // Building Balance pressures: the fixed rows by position (their labels are the template's), the spare pair, notes.
+  // A plain "N/A" in the kitchen row of a project without hoods is the automatic N/A, not a mark.
+  const bb = pd.sections.buildingBalance;
+  const pr = bb?.tables?.pressures ?? [];
+  const hasHoods = Boolean(pd.equipment.hood?.length);
+  PRESSURE_ROWS.forEach((r, i) => {
+    const dpCell = pr[i]?.dp;
+    if (!(i === 1 && !hasHoods && dpCell === 'N/A')) take(r.dp, dpCell, info, naState.fields);
+    take(r.remarks, pr[i]?.remarks, info, naState.fields);
+  });
+  take(PRESSURE_KEYS.spareTest, pr[2]?.testSpace, info, naState.fields);
+  take(PRESSURE_KEYS.spareRef, pr[2]?.referenceSpace, info, naState.fields);
+  take(PRESSURE_KEYS.spareDp, pr[2]?.dp, info, naState.fields);
+  take(PRESSURE_KEYS.spareRemarks, pr[2]?.remarks, info, naState.fields);
+  const noteLines = bb?.lines?.notes ?? [];
+  if (noteLines.some((l) => l !== null && String(l).trim() !== ''))
+    info[PRESSURE_KEYS.notes] = noteLines
+      .map((l) => l ?? '')
+      .join('\n')
+      .replace(/\n+$/, '');
   const nameCell = pi.projectName;
   const name =
     typeof nameCell === 'string' && !isNotation(nameCell) ? nameCell : (opts.fallbackName ?? 'Imported project');

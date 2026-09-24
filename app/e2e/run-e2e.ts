@@ -19,6 +19,7 @@ import { importWorkbook } from '@a2b/workbook';
 import { fillNewTypes, readLivePanels, recalcCrossCheck, verifyNewTypes } from './newTypes';
 import { reimportFlow } from './reimport';
 import { photosFlow } from './photos';
+import { pressuresAndAttention, scheduleFlow } from './features';
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SHOTS = join(APP, 'e2e-screenshots');
@@ -356,6 +357,9 @@ async function main() {
     // ------------------------------------------------------------------ MAU, ERV, fan, small fan, hood, traverse
     const { ui } = await fillNewTypes(page, projectUrl, check, DOC_SHOTS, join(APP, 'public', 'icons', 'icon-512.png'));
 
+    // ------------------------------------------------------------------ building pressures, needs attention
+    await pressuresAndAttention(page, projectUrl, DOC_SHOTS, check);
+
     // ------------------------------------------------------------------ export
     await page.getByRole('link', { name: 'Export' }).click();
     const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-xlsm').click()]);
@@ -422,6 +426,22 @@ async function main() {
       JSON.stringify(u1?.tables),
     );
     check('workbook: remarks', u1?.lines?.remarks?.[0] === 'Belt replaced during TAB.');
+    const bb = wb.sections.buildingBalance;
+    check(
+      'workbook: Building Balance pressures (rows 97-99) and notes',
+      JSON.stringify(bb?.tables?.pressures) ===
+        JSON.stringify([
+          {
+            testSpace: 'Building',
+            referenceSpace: 'Outdoors',
+            dp: 0.02,
+            remarks: 'All doors closed, RTUs in occupied mode',
+          },
+          { testSpace: 'Kitchen', referenceSpace: 'Dining', dp: -0.01, remarks: 'Hood and MAU running' },
+          { testSpace: 'Suite 101', referenceSpace: 'Corridor', dp: 0.01 },
+        ]) && bb?.lines?.notes?.[0] === 'Measured at 2 pm, wind calm.',
+      JSON.stringify(bb),
+    );
     const wbNew = await verifyNewTypes(bytes, check);
     await recalcCrossCheck(file, wbNew, { ...ui, ...rtuUi }, check);
     check('workbook: RTU-2 in slot 2', u2?.schedule?.designation === 'RTU-2', JSON.stringify(u2));
@@ -574,6 +594,9 @@ async function main() {
 
     // ------------------------------------------------------------------ re-import of an issued workbook, revisions
     await reimportFlow(browser, BASE, file, OUT, DOC_SHOTS, check);
+
+    // ------------------------------------------------------------------ schedule import, duplicate (own project)
+    await scheduleFlow(browser, BASE, file, DOC_SHOTS, check);
 
     check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   } catch (e) {

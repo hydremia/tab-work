@@ -1,7 +1,9 @@
 /** Live (reactive) queries over IndexedDB for the UI. */
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo } from 'react';
+import { needsAttention, type AttentionItem } from '../domain/attention';
 import { computeCompletion, rollup, type Completion, type Rollup } from '../domain/completion';
+import { computeProjectCompletion, type ProjectCompletion } from '../domain/projectCompletion';
 import { EQUIPMENT_TYPES, type EquipmentTypeKey } from '../domain/equipmentTypes';
 import { getSpec } from '../domain/specs';
 import { db } from './db';
@@ -132,6 +134,54 @@ export function useProjectStatus(projectId: string | undefined): ProjectStatus |
       issues: data.issues,
     });
   }, [data]);
+}
+
+/** Needs-attention items of a project (live), reusing the unit completions of the project status when given. */
+export function useAttention(projectId: string | undefined, status?: ProjectStatus): AttentionItem[] | undefined {
+  const data = useLiveQuery(async () => {
+    if (!projectId) return undefined;
+    const inputs = await loadStatusInputs([projectId]);
+    const instruments = await db.instruments.where('projectId').equals(projectId).toArray();
+    return { ...inputs, instruments };
+  }, [projectId]);
+  return useMemo(() => {
+    const project = data?.projects[0];
+    if (!data || !project) return undefined;
+    return needsAttention({
+      project,
+      equipment: data.equipment,
+      rows: data.rows,
+      photos: data.photos,
+      issues: data.issues,
+      instruments: data.instruments,
+      completions: status?.byEquipment,
+    });
+  }, [data, status]);
+}
+
+/** Project-level completion (Project Information, cover, calibration, building pressures), live. */
+export function useProjectCompletion(project: Project | null | undefined): ProjectCompletion | undefined {
+  const data = useLiveQuery(async () => {
+    if (!project) return undefined;
+    const [hoods, cover, instruments] = await Promise.all([
+      db.equipment.where('[projectId+type]').equals([project.id, 'hood']).count(),
+      db.photos.where('[projectId+category]').equals([project.id, 'cover']).count(),
+      db.instruments.where('projectId').equals(project.id).toArray(),
+    ]);
+    return { hoods, cover, instruments };
+  }, [project?.id]);
+  return useMemo(
+    () =>
+      project && data
+        ? computeProjectCompletion({
+            project,
+            hasHoods: data.hoods > 0,
+            hasCover: data.cover > 0,
+            instruments: data.instruments,
+          })
+        : undefined,
+    [project, data],
+  );
 }
 
 /** Rollups for the project list. */

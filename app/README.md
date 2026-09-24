@@ -56,7 +56,10 @@ src/
   sync/        outbox.ts (pending / markSynced / applyRemoteChanges, last writer wins), engine.ts
                (LocalSyncEngine no-op, SupabaseSyncEngine push/pull), SyncProvider.tsx (status, online/offline)
   auth/        lazy Supabase client + Microsoft sign-in
-  domain/      equipmentTypes.ts (capacities from the template map), specs/ (field definitions for all 8 types;
+  domain/      scheduleImport.ts (schedule paste / file -> preview), duplicate.ts, projectCompletion.ts (project-level
+               completion incl. building pressures), attention.ts (needs-attention list), instruments.ts (instrument
+               kinds vs. calibration rows),
+               equipmentTypes.ts (capacities from the template map), specs/ (field definitions for all 8 types;
                unitSections.ts = the data block RTUs / MAUs / ERVs / Fans share), completion.ts (gray/amber/green/red
                engine), calc.ts (outlet CFM / %), equipmentCalcs.ts (MAU PSP / filter grid / profile pressure, ERV,
                hood, traverse and Building Balance calcs mirroring the workbook), staticProfile.ts / motorCalcs.ts
@@ -70,8 +73,8 @@ src/
   ui/          components/ (inputs with autosave, N/A menu, status badges, spec-driven row tables, reading grids,
                live-calc panels, photo slots) and pages/
 e2e/run-e2e.ts Playwright walk-through (+ newTypes.ts: MAU, ERV, fan, small fan, hood, traverse; reimport.ts;
-               photos.ts: photos, issues with photos, PDF reports, zip);  scripts/  template
-               copy, icon generation
+               photos.ts: photos, issues with photos, PDF reports, zip; features.ts: schedule import, duplicate,
+               building pressures, needs attention);  scripts/  template copy, icon generation
 ```
 
 ### Data model and saving
@@ -137,6 +140,95 @@ required only with Outlets. MAU (method total), hood (total) and traverse (CFM) 
 project tolerance at unit level; outlet tables row by row. Small fans past slot 30 show the Building Balance
 warning.
 
+## Equipment schedule import
+
+Equipment tab → **Import schedule** (or *Import* next to a type's heading, which preselects the type). Route
+`/p/:id/schedule`, code in `domain/scheduleImport.ts` (pure) and `ui/pages/ScheduleImportPage.tsx`.
+
+- **Sources.** *Paste rows*: rows copied from Excel or an engineer's schedule (tab-separated; comma / semicolon CSV
+  with quotes also works). *CSV / Excel file*: `.csv` / `.tsv` / `.txt`, or `.xlsx` / `.xlsm` (every sheet read as a
+  grid by `readSheetRows()` in `@a2b/workbook`; a sheet picker when there are several; date-formatted cells become ISO
+  dates). *TAB workbook*: an existing a2b workbook; `readScheduleSection()` reads **only the {Equipment Data Entry}
+  section** (every type at once; the untouched template's sample designations are ignored) — readings, remarks and
+  project data are not imported (that is *Import workbook*). A TAB workbook picked as a CSV / Excel file is recognised
+  and offered as a TAB workbook. File reading is lazy-loaded with the workbook library.
+- **Columns.** The targets are the {Equipment Data Entry} columns the app has a field for (RTU / MAU / fan: designation,
+  area served, location, manufacturer, model, HP, ESP, fan RPM, motor sheave, fan pulley, belts, C-C, voltage, phase,
+  design total / OA CFM; ERV: supply / exhaust CFM and ΔP; small fans: HP, voltage, phase, design CFM; VAV: inlet
+  size, terminal type, design max / min / heating / fan CFM, DDC address; hoods: manufacturer, design CFM, model,
+  length; traverses (no EDE section): designation, area served, design CFM, shape, width, height, liner). The first row
+  is taken as headers when it maps at least two columns (a checkbox overrides); headers are matched by synonyms
+  ("Mark", "Tag", "Mfr", "Supply CFM", "OA CFM", "E.S.P.", "Max CFM", "Htg CFM", "DDC Address", "V/Ph/Hz" …; exact
+  matches first, then the longest whole-word match, each field used once). Every column has a select to change or
+  ignore it. Without headers the first column is the designation.
+- **Validation (preview table).** Numbers: thousands separators, units (`1,200 CFM`, `0.75 in. w.g.`) and fractions
+  (`1/2`, `1-1/2`, `¾`) are accepted; anything else is an error for that row. Phase: `1`, `1 ph`, `single`, `3`, `3Φ`,
+  `three` … normalised to `1-phase` / `3-phase` (the BHP formula needs exactly that text); a `460/3/60` voltage fills
+  the voltage and, when the phase is blank, the phase. Voltages outside 115 / 120 / 200 / 208 / 220 / 230 / 240 / 277 /
+  380 / 460 / 480 / 575 / 600 are a warning. Selects (traverse shape) take a case-insensitive / prefix match. A row with
+  no designation, a designation repeated in the paste (the later row) or an error is **skipped**. A designation that
+  already exists (case-insensitive) **updates** that unit; the others are **new** and get the next free slots in order.
+  Rows past the type's capacity (RTU 40, MAU 10, ERV 10, fans 40, small fans 40, VAV 80, hoods 20, traverses 48) are
+  skipped as *over capacity*; small fans landing past slot 30 get the Building Balance warning. The summary shows new /
+  updated / skipped and the count after the import against the capacity.
+- **Writing.** `applyScheduleImport()` (repo): one transaction per type; a new unit is created like *Add equipment*
+  (New or Existing as chosen), then **every value goes through `setField`** (field changes in the outbox). An update
+  writes only the values the schedule has: a blank schedule cell never clears an app value.
+
+## Duplicate a unit
+
+Unit page → **Duplicate** (`duplicateEquipment()`, `domain/duplicate.ts`). The designation is suggested by
+incrementing its trailing number past the ones in use (`VAV-12` → `VAV-13`, or `VAV-14` when 13 exists;
+`EF-S3` → `EF-S4`); the unit goes into the next free slot (shown). Copied: the schedule fields and the unit's set-up
+(unit type, drive type, motor nameplate, filters, VFD answer, instrument(s), MAU method / PSP size / housing, hood
+type / filter type, small-fan design values), their field N/A marks and section N/A marks, New / Existing. Not copied:
+serial number, readings, remarks, photos, the whole-unit N/A. Optionally (default on) the outlet / filter rows are
+copied **without their readings** (initial / final velocities, hood readings, filter-grid velocities).
+
+## Building pressures
+
+Project Info → **Building pressures (Building Balance)**, stored as project fields `info.bb*` (so they sync, diff and
+re-import like the other project fields): Building vs Outdoors ΔP (required) and remarks; Kitchen vs Dining ΔP
+(required when the project has a hood, otherwise automatically N/A) and remarks; a spare pair (test space, reference
+space, ΔP, remarks, all optional); notes (up to 3 lines). Every value can be marked N/A / Not Avail. / Not Acc.
+Export writes the table to Building Balance rows 97–99 (B test space, E reference space, H ΔP, K remarks; B:E of the
+first two rows always get the template's labels Building / Outdoors and Kitchen / Dining, so they print even when the
+sheet was cleared) and the notes to B102–B104; the automatic kitchen N/A is written as `N/A` and read back as automatic.
+These are typed input cells in revision 05 (no formulas; checked with the recalculation in the e2e run). The section is
+reset when exporting onto a base workbook. The re-import review compares every pressure value and the notes (group
+*Building pressures*; remarks and notes count as remarks for *Accept all remarks*).
+
+**Project-level completion** (`domain/projectCompletion.ts`, card at the top of Info): project name and the required
+Project Information fields (REQUIRED_FIELDS.md), narrative, cover photo (can now be marked N/A), calibration (at least
+one instrument, every started row complete) and the building pressures. Each missing item links to its card.
+
+## Needs attention
+
+Project tab **Attention** (count badge on the tab and a card on the Equipment tab), `domain/attention.ts`. One list,
+grouped, every item linked to the unit (and section) or page:
+out of tolerance (outlet rows, MAU method / hood / traverse totals), open issues, design discrepancies (R8 schedule
+design CFM vs. outlet design sum; unit ESP actual vs. design outside ± tolerance), motor checks (amps above corrected
+FLA × SF, estimated BHP above the nameplate HP), missing required photos (started units only), calibration
+(instruments used without a calibration row, or whose calibration date is more than 12 months before the TAB date or
+missing), capacity (a type at its workbook capacity; small fans past slot 30).
+
+## Instruments and calibration
+
+New projects start with the template's 7 a2b instruments (`DEFAULT_INSTRUMENTS`); Info → Instruments edits, removes
+and adds them (8 slots, the Calibration sheet's capacity). A calibration date more than 12 months before the TAB date is
+flagged there. Unit, traverse and hood pages pick an instrument *kind* from the workbook's lists; the picker shows a
+warning when no calibration row covers that kind (`domain/instruments.ts`: Flow Hood → a balometer / flow hood;
+Velocity Grid, Pitot Traverse, the Manometer/… traverse kinds and the Evergreen VelGrid / Airfoil hood kinds → a
+(micro)manometer; hot-wire and rotating-vane anemometers → that meter; DDC / controller readings and "Other" need none).
+Readings imply meters for the needs-attention list too: volts / amps → a voltage / amperage meter, RPM → a tachometer,
+static pressures → a manometer.
+
+## Code splitting
+
+Every page is its own chunk (`React.lazy` in `App.tsx`; the project list and the project frame load with the app), the
+workbook library (JSZip) and pdf-lib load on first use. Main bundle ~515 kB (under Vite's 600 kB warning, which is left
+at its default); every chunk is precached by the service worker, so pages still open offline.
+
 ## How export works
 
 1. `toProjectData()` turns the project's records into the workbook library's `ProjectData`: field keys route to the
@@ -190,8 +282,8 @@ removed), units added / removed (matched by type + slot; removing a unit is decl
 *Accept all incoming*, *Accept all remarks*, *Accept all in this unit* (never resolve collisions). Unit colors after
 the merge are previewed. **Apply** (enabled once every collision is resolved) writes the accepted values through
 `setField` / `createRecord` / `deleteRecord` in one transaction (field changes in the outbox), keeps the file as the
-project's **base workbook** and records an *Imported* revision. Cancel changes nothing. Building Balance pressures are
-not in the app yet, so they are not compared.
+project's **base workbook** and records an *Imported* revision. Cancel changes nothing. Building Balance pressures and
+notes are compared too (group *Building pressures*).
 
 **Export onto the base workbook (F1).** With a base workbook, the export writes into it instead of the blank template,
 after `checkTemplateCompatibility()` (every template sheet and dropdown list present, every template formula still a
@@ -282,10 +374,15 @@ is 51 pages (unit test). The zip is built in memory (the stored JPEGs, not recom
 
 ## Tests
 
-- `npm test`: 218 tests (20 in `packages/workbook`: export onto an issued workbook (clearing, hand formatting kept,
+- `npm test`: 248 tests (23 in `packages/workbook`: the schedule readers (EDE section only, sheet grids), export onto an issued workbook (clearing, hand formatting kept,
   an Excel-style shared-strings save, formulas typed over inputs), the revision marker, the compatibility check (incl.
   revision 04 rejected), plus list and constants copies vs. the template, a map audit that
-  fills **every** block of every type, round trip, safety; 198 in the app, incl. photos (EXIF reader with generated JPEGs incl. big-endian / GPS, orientation transforms,
+  fills **every** block of every type, round trip, safety; 225 in the app, incl. schedule import (paste / CSV parsing, header mapping, numbers / phase /
+  V/Ph/Hz, preview with create / update / invalid / duplicate / over-capacity rows, apply through the outbox),
+  duplicate (next designation, what is copied, rows without readings), building pressures (export, automatic kitchen
+  N/A, import, re-import diff, project-level completion), needs attention and instrument / calibration matching, jsdom
+  tests of the MAU form (method switching), the hood form, duplicate, the Attention tab, the pressure card and the
+  schedule import page, photos (EXIF reader with generated JPEGs incl. big-endian / GPS, orientation transforms,
   downscale math, numbering / relabelling, zip names, photo repository and the v3 upgrade), reports (layout and
   pagination incl. a 200-photo report, the report model, PDFs checked with pdf-lib and `pdftotext`), the three-way re-import diff, apply through the outbox, revisions,
   export onto the base, the review screen and the schema upgrade): outbox and repository, remote apply,
@@ -310,6 +407,13 @@ is 51 pages (unit test). The zip is built in memory (the stored JPEGs, not recom
   also changed in the app, column width, row height, label text) → a LibreOffice re-save of it re-imported as an import
   source only (same review, Cancel) → re-import: 1 remark, 1 incoming reading, 1 collision, no false changes → resolve,
   apply → export *Rev 1* onto the issued workbook: formatting kept, VBA byte-identical, values read back correct.
+  **Building pressures and needs attention** (`e2e/features.ts`, before the export): the pressure table filled on
+  Info (kitchen row required: the project has a hood), exported to Building Balance B97:K99 / B102 and checked after
+  the LibreOffice recalculation; the Attention tab lists RTU-1's ESP and BHP checks and the out-of-date balometer, the
+  counts match, an item opens its unit at the section; the re-import walk also changes H97 in "Excel" and the review
+  shows it as an incoming *Building vs Outdoors ΔP*. **Schedule import** (own project): 9 MAUs pasted without a header,
+  then 4 RTUs with headers (one invalid CFM skipped, one column mapped by hand, phase / V/Ph/Hz normalised) and 2 MAUs
+  (MAU-11 over capacity), duplicate RTU-3 → RTU-4 (slot 4), and the TAB workbook source (EDE only) of the main export.
   **Photos** (`e2e/photos.ts`): RTU-1's tag / OA damper N/A cleared (amber) → an EXIF-rotated JPEG (orientation 6,
   capture time, GPS) and a second photo attached (green again; the stored tag photo is checked upright pixel by
   pixel) → New / Existing issues with deficiency photos (N-1.1, N-1.2, E-1.1; reorder relabels) → Photos tab
@@ -320,7 +424,8 @@ is 51 pages (unit test). The zip is built in memory (the stored JPEGs, not recom
   to `/opt/pw-browsers/chromium`) and `soffice` for the recalculation; never downloads a browser. Screenshots go to
   `e2e-screenshots/` (git-ignored); a few are kept in [`docs/screenshots/`](../docs/screenshots) (07–12: the new
   forms; 13: RTU motor and static-profile panels; 14: re-import review; 15: revisions; 16: Photos tab; 17: issue
-  with deficiency photos; 18 / 19: page 1 of the Photo and Issues reports).
+  with deficiency photos; 18 / 19: page 1 of the Photo and Issues reports; 20: schedule import preview; 21: needs attention; 22: building
+  pressures).
 
 ## Not done yet
 
@@ -328,5 +433,5 @@ Supabase sync against a live project (engine written, untested); the photo uploa
 and server columns for the new photo fields (`order`, `width`, `height`, `capturedAt`, `gps` are ignored by the
 server trigger until a migration adds them); photos tested in Chromium only (no real iPhone camera / HEIC run);
 revisions are not synced between devices; re-import behaviour after a real desktop-Excel save is untested (simulated
-with XML edits); Building Balance pressures, Certification; the hood schedule's "KEF interlock" column (EDE G, info only, not linked) is not
+with XML edits); Certification; the Building Balance spare OA rows; the hood schedule's "KEF interlock" column (EDE G, info only, not linked) is not
 written (the hood page's own "Associated exhaust fan" is).

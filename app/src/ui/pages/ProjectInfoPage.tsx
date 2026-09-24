@@ -1,11 +1,20 @@
 import { useNavigate } from 'react-router';
-import { usePhotos, useInstruments } from '../../data/hooks';
+import { usePhotos, useInstruments, useProjectCompletion } from '../../data/hooks';
 import { addInstrument, deleteRecord, setField } from '../../data/repo';
 import type { FieldValue, NaMark, Photo, Project } from '../../data/types';
+import { calibrationExpired } from '../../domain/instruments';
+import {
+  KITCHEN_NA_REASON,
+  PRESSURE_FIELDS,
+  PRESSURE_KEYS,
+  pressureStates,
+  type ProjectCompletion,
+} from '../../domain/projectCompletion';
 import { getSpec, type FieldSpec } from '../../domain/specs';
 import { IconPlus, IconTrash } from '../components/Icons';
 import { PhotoPicker, SaverStatus, usePhotoSaver } from '../components/PhotoPicker';
-import { DateInput, TextInput } from '../components/inputs';
+import { DateInput, NaSelect, TextInput } from '../components/inputs';
+import { StatusIcon } from '../components/Status';
 import { PhotoThumb } from '../components/PhotoThumb';
 import { SpecField } from '../components/SpecField';
 import { SCOPE_OPTIONS } from './NewProjectPage';
@@ -61,6 +70,116 @@ function InfoField({ project, field }: { project: Project; field: FieldSpec }) {
   );
 }
 
+const pressureField = (key: string) => PRESSURE_FIELDS.find((f) => f.key === key)!;
+
+function PressureField({
+  project,
+  fieldKey,
+  hasHoods,
+  label,
+}: {
+  project: Project;
+  fieldKey: string;
+  hasHoods: boolean;
+  label?: string;
+}) {
+  const field = pressureField(fieldKey);
+  const state = pressureStates(project, hasHoods)[fieldKey];
+  return (
+    <SpecField
+      idPrefix="bb"
+      field={field}
+      label={label}
+      value={project.info[fieldKey] ?? null}
+      mark={project.naState.fields[fieldKey]}
+      state={state}
+      onChange={(v) => void setField('projects', project.id, `info.${fieldKey}`, v)}
+      onNa={(m: NaMark | null) =>
+        void (async () => {
+          if (m) await setField('projects', project.id, `info.${fieldKey}`, null);
+          await setField('projects', project.id, `naState.fields.${fieldKey}`, m);
+        })()
+      }
+    />
+  );
+}
+
+/** Building Balance: measured building pressures (rows 97-99) and notes. */
+function BuildingPressures({ project, hasHoods }: { project: Project; hasHoods: boolean }) {
+  return (
+    <section className="card card-pad stack" aria-labelledby="bb-h" data-testid="building-pressures">
+      <h2 id="bb-h">Building pressures (Building Balance)</h2>
+      <p className="small muted" style={{ margin: 0 }}>
+        Measured ΔP in in. w.g., test space relative to the reference space.
+        {!hasHoods && ` Kitchen vs Dining is automatically N/A (${KITCHEN_NA_REASON}).`}
+      </p>
+      <div className="pressure-row">
+        <h3>Building vs Outdoors</h3>
+        <div className="form-grid">
+          <PressureField project={project} fieldKey={PRESSURE_KEYS.buildingDp} hasHoods={hasHoods} label="ΔP" />
+          <PressureField project={project} fieldKey={PRESSURE_KEYS.buildingRemarks} hasHoods={hasHoods} />
+        </div>
+      </div>
+      <div className="pressure-row">
+        <h3>Kitchen vs Dining</h3>
+        <div className="form-grid">
+          <PressureField project={project} fieldKey={PRESSURE_KEYS.kitchenDp} hasHoods={hasHoods} label="ΔP" />
+          <PressureField project={project} fieldKey={PRESSURE_KEYS.kitchenRemarks} hasHoods={hasHoods} />
+        </div>
+      </div>
+      <div className="pressure-row">
+        <h3>Spare pair (optional)</h3>
+        <div className="form-grid">
+          <PressureField project={project} fieldKey={PRESSURE_KEYS.spareTest} hasHoods={hasHoods} />
+          <PressureField project={project} fieldKey={PRESSURE_KEYS.spareRef} hasHoods={hasHoods} />
+          <PressureField project={project} fieldKey={PRESSURE_KEYS.spareDp} hasHoods={hasHoods} />
+          <PressureField project={project} fieldKey={PRESSURE_KEYS.spareRemarks} hasHoods={hasHoods} />
+        </div>
+      </div>
+      <div className="form-grid">
+        <PressureField project={project} fieldKey={PRESSURE_KEYS.notes} hasHoods={hasHoods} />
+      </div>
+    </section>
+  );
+}
+
+const SECTION_LINK: Record<ProjectCompletion['missing'][number]['section'], string> = {
+  info: '#pi-h',
+  cover: '#cover-h',
+  calibration: '#cal-h',
+  pressures: '#bb-h',
+};
+
+function ProjectStatusCard({ c }: { c: ProjectCompletion }) {
+  const done = c.missing.length === 0;
+  return (
+    <section className="card card-pad stack" aria-label="Project information status" data-testid="project-completion">
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <span className="row" style={{ gap: 6 }}>
+          <StatusIcon color={done ? 'green' : 'amber'} size={18} />
+          <b>
+            {done
+              ? 'Project information complete'
+              : `${c.missing.length} required item${c.missing.length > 1 ? 's' : ''} missing`}
+          </b>
+        </span>
+        <span className="small muted">
+          {c.satisfied} of {c.required}
+        </span>
+      </div>
+      {!done && (
+        <ul className="missing-list">
+          {c.missing.map((m) => (
+            <li key={m.key}>
+              <a href={SECTION_LINK[m.section]}>{m.label}</a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function CoverPhoto({ projectId, cover }: { projectId: string; cover: Photo | undefined }) {
   const saver = usePhotoSaver(projectId);
   return (
@@ -86,8 +205,11 @@ function CoverPhoto({ projectId, cover }: { projectId: string; cover: Photo | un
 }
 
 export function ProjectInfoPage() {
-  const { project } = useProjectContext();
+  const { project, equipment } = useProjectContext();
   const instruments = useInstruments(project.id);
+  const completion = useProjectCompletion(project);
+  const hasHoods = equipment.some((e) => e.type === 'hood');
+  const coverMark = project.naState.fields['photo:cover'];
   const cover = usePhotos(project.id, null)?.find((p) => p.category === 'cover');
   const nav = useNavigate();
   const blueprints = project.blueprints.length ? project.blueprints : [{ sheet: '', revisionDate: '' }];
@@ -95,6 +217,7 @@ export function ProjectInfoPage() {
 
   return (
     <>
+      {completion && <ProjectStatusCard c={completion} />}
       <section className="card card-pad stack" aria-labelledby="pi-h">
         <h2 id="pi-h">Project information</h2>
         <div className="form-grid">
@@ -234,10 +357,28 @@ export function ProjectInfoPage() {
           Placed on the workbook's Cover Page at export, cropped to the photo box (about 1.685 : 1).
         </p>
         <CoverPhoto projectId={project.id} cover={cover} />
+        {!cover && (
+          <div className="row small">
+            <span className="muted">
+              {coverMark ? `Cover photo: ${coverMark.notation}` : 'No cover photo for this report?'}
+            </span>
+            <NaSelect
+              label="Cover photo"
+              mark={coverMark}
+              onChange={(m) => void setField('projects', project.id, 'naState.fields.photo:cover', m)}
+            />
+          </div>
+        )}
       </section>
+
+      <BuildingPressures project={project} hasHoods={hasHoods} />
 
       <section className="card card-pad stack" aria-labelledby="cal-h">
         <h2 id="cal-h">Instruments (Calibration sheet)</h2>
+        <p className="small muted" style={{ margin: 0 }}>
+          Up to 8 instruments. New projects start with the 7 a2b instruments of the template; edit, remove or add your
+          own.
+        </p>
         {instruments?.map((ins) => (
           <div
             key={ins.id}
@@ -266,6 +407,11 @@ export function ProjectInfoPage() {
                   value={ins.calibrationDate}
                   onCommit={(v) => void setField('instruments', ins.id, 'calibrationDate', v ?? '')}
                 />
+                {calibrationExpired(ins.calibrationDate, project.info.tabDate) && (
+                  <span className="field-warning" data-testid="calibration-expired">
+                    More than 12 months before the TAB date
+                  </span>
+                )}
               </div>
             </div>
             <button

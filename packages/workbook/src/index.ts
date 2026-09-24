@@ -13,6 +13,7 @@ export * from './lists.js';
 export * from './docProps.js';
 export * from './inputCells.js';
 export * from './compat.js';
+export * from './schedule.js';
 
 /** File name of the template the map describes (at the repository root). */
 export const TEMPLATE_FILE_NAME = '05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm';
