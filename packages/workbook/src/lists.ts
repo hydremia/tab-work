@@ -72,6 +72,15 @@ export const UNIT_TYPE_COMPONENTS: Record<string, readonly (string | null)[]> = 
   EF: [null, null, null, null, 'Fan'],
 };
 
+/** Inlet label of the static-profile strip by unit type ({Dropdowns} AI2:AI6, first column of the table). */
+export const UNIT_TYPE_INLETS: Record<string, string> = {
+  RTU: 'RA / OA',
+  DOAS: 'OA',
+  MAU: 'OA',
+  ERV: 'OA / EA',
+  EF: 'Inlet',
+};
+
 /** The 7 a2b instruments pre-loaded on the template's Calibration sheet (pre-loaded into new projects). */
 export const DEFAULT_INSTRUMENTS = [
   {

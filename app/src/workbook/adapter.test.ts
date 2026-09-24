@@ -58,6 +58,25 @@ describe('toProjectData', () => {
     expect(d.schedule).toMatchObject({ belts: 'N/A', motorSheave: 'N/A' });
   });
 
+  it('leaves the leaving static of an absent component blank (the strip passes the entering static through)', () => {
+    const b = sampleBundle();
+    const u = toProjectData(b).data.equipment.rtu[0];
+    // RTU: component 2 is "—"; an "N/A" there would reach the coil's entering static and blank its ΔP
+    expect(u.fields).not.toHaveProperty('spLeaving2');
+    expect(u.fields).toMatchObject({ spEntering: -0.35, spLeaving1: -0.55, spLeaving5: 0.72 });
+    // no filters: the filter's leaving static is left blank too; the filter text itself is still "N/A"
+    b.equipment[0].data.hasFilters = 'No';
+    delete b.equipment[0].data.spLeaving1;
+    delete b.equipment[0].data.filters;
+    const nf = toProjectData(b).data.equipment.rtu[0];
+    expect(nf.fields).not.toHaveProperty('spLeaving1');
+    expect(nf.fields).toMatchObject({ filters: 'N/A' });
+    // an explicit mark on a component that applies is still written (rev 05 then blanks the downstream ΔP)
+    b.equipment[0].naState.fields.spLeaving3 = { notation: 'Not Acc.' };
+    delete b.equipment[0].data.spLeaving3;
+    expect(toProjectData(b).data.equipment.rtu[0].fields).toMatchObject({ spLeaving3: 'Not Acc.' });
+  });
+
   it('writes scope-profile N/A (Airflow Only) as "N/A" in the unit fields, not blanks', () => {
     const b = sampleBundle();
     b.project.scopeProfile = 'airflow';

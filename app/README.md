@@ -59,7 +59,8 @@ src/
   domain/      equipmentTypes.ts (capacities from the template map), specs/ (field definitions for all 8 types;
                unitSections.ts = the data block RTUs / MAUs / ERVs / Fans share), completion.ts (gray/amber/green/red
                engine), calc.ts (outlet CFM / %), equipmentCalcs.ts (MAU PSP / filter grid / profile pressure, ERV,
-               hood, traverse and Building Balance calcs mirroring the workbook), conditions.ts
+               hood, traverse and Building Balance calcs mirroring the workbook), staticProfile.ts / motorCalcs.ts
+               (static-pressure strip, TSP / ESP / unit ΔP, corrected FLA, estimated BHP), conditions.ts
   workbook/    adapter.ts (app records <-> ProjectData), exportProject.ts / importProject.ts (browser I/O)
   ui/          components/ (inputs with autosave, N/A menu, status badges, spec-driven row tables, reading grids,
                live-calc panels, photo slots) and pages/
@@ -105,6 +106,24 @@ dropdown lists from `@a2b/workbook`, automatic N/A rules, photos). Besides field
   grid (velocity × free area × 1.35), burner profile pressure (restored curve, linear interpolation, range
   warnings), MAU method total vs. design (override or outlet total), ERV supply / exhaust totals, hood CFM per
   filter / total / % / CFM per ft, traverse size, Ak, point layout, positions, VEL and CFM.
+- **static profile and motor panels** (RTUs, MAUs, ERVs, fans), calculated on exactly the values the export writes
+  (`unitCells()` in `workbook/adapter.ts`, so N/A marks count as the workbook's notation text):
+  - the workbook's schematic strip (inlet → components → fan, leaving statics, `Δ` per component, "absent" for a
+    `—` component), fan TSP, ESP and unit ΔP. Formulas (revision 05, identical on every block, P = anchor):
+    entering k+1 = leaving k if not blank, else entering k (a blank passes through, a notation is passed on);
+    ΔP k = leaving k − entering k (blank for a `—` component, a blank or a text operand; printed as
+    `"Δ "&TEXT(…,"0.00")`); **TSP** = fan leaving − fan entering; **ESP** = fan leaving − unit entering
+    (= "Unit ESP actual" on RTUs / MAUs / fans, shown next to the design unit ESP); **unit ΔP** = fan entering −
+    unit entering;
+  - average volts / amps (numeric legs only), **corrected FLA** = rated V ÷ AVERAGE(volts) × FLA (blank when volts
+    L1 is blank, when FLA or the rated voltage is blank / text, or no volts leg is a number), **estimated BHP** =
+    1-phase: V1 × A1 × 0.8 × 0.9 ÷ 746 (blank when L1 volts or amps is text; a blank L1 counts as 0), otherwise
+    (any phase that isn't `1-phase`, incl. blank) AVERAGE(volts) × AVERAGE(amps) × 0.8 × 0.9 × 1.732 ÷ 746;
+  - values marked **report** are the ones the workbook prints (same formula, same N/A rules);
+  - amber field checks (warnings, never blocking or changing the unit color): a measured amps leg above corrected
+    FLA × SF (nameplate FLA if the corrected FLA can't be calculated, SF 1.0 if none), estimated BHP above the
+    nameplate HP, and the actual ESP outside ± the project tolerance of the design unit ESP (also shown in the unit
+    summary beside the R8 design-CFM discrepancies).
 
 MAU: the "Method used" selector shows only that method's inputs; the other methods' inputs are automatically N/A
 even if values were entered before (kept, restored when switching back, exported as `N/A`). Outlet rows are
@@ -116,7 +135,10 @@ warning.
 
 1. `toProjectData()` turns the project's records into the workbook library's `ProjectData`: field keys route to the
    {Equipment Data Entry} row or the unit block by the template map; explicit N/A marks become `N/A` / `Not Avail.` /
-   `Not Acc.` in the cell (revision 05 formulas skip them); automatic and scope-profile N/A are written as `N/A` too (a blank cell never means N/A), and on import a plain `N/A` the app would set by itself is read back as automatic; app-only answers
+   `Not Acc.` in the cell (revision 05 formulas skip them); automatic and scope-profile N/A are written as `N/A` too (a blank cell never means N/A), and on import a plain `N/A` the app would set by itself is read back as automatic. **Exception:** the leaving static of
+   a static-profile component that is `—` on the unit type (or the filter on a unit without filters) is left blank:
+   the workbook's strip reads a blank as "component absent" and passes the entering static through, while an `N/A`
+   would be passed on and blank the downstream ΔP, the fan TSP and the unit ΔP; app-only answers
    ("VFD on the unit?") are not written; linked issues get a `RTU-1: ` prefix.
 2. The template (`public/templates/tab-template-rev05.xlsm`, copied from the repo root at dev/build time and
    precached by the service worker) is fetched, `exportWorkbook()` patches only input cells in the sheet XML
@@ -135,27 +157,31 @@ in the workbook, so they don't round-trip.
 
 ## Tests
 
-- `npm test`: 126 tests (10 in `packages/workbook`: list and constants copies vs. the template, a map audit that
-  fills **every** block of every type, round trip, safety; 116 in the app): outbox and repository, remote apply,
+- `npm test`: 147 tests (11 in `packages/workbook`: list and constants copies vs. the template, a map audit that
+  fills **every** block of every type, round trip, safety; 136 in the app): outbox and repository, remote apply,
   completion engine for all 8 types (colors, N/A levels, scope profiles, auto rules incl. MAU method switching,
   small-fan R6, traverse R7, hood readings, tolerance, R8 discrepancies), live calcs against the workbook's values
   (hood 5 × 16" x 20" Captrate = 2049.29 CFM, PSP, profile-pressure curve, traverse Ak / positions for 24" × 12" and
-  10" round), adapter mapping and a **round trip against the real template** with a fully filled unit of every
+  10" round), static profile and motor data against the revision 04/05 functional-test and export-spike values
+  (incl. notation cases), a **generated LibreOffice cross-check** (`staticMotor.recalc.test.ts`: 52 varied RTUs /
+  MAUs / ERVs / fans — every unit type, 1- / 3- / blank phase, blank and N/A legs, negative statics, notations in the
+  chain — exported onto the template, recalculated, 1,446 cells equal to the app's functions, max deviation ~5e-14;
+  skipped where `soffice` is missing, e.g. CI), adapter mapping and a **round trip against the real template** with a fully filled unit of every
   type incl. N/A cases (app project → export → import → app project, equal), and jsdom UI tests.
 - `npm run build && npm run e2e`: serves `dist/` with `vite preview` and drives Chromium at 390 × 844 through
   create project → project info (+ cover photo) → 2 RTUs → RTU-1 filled (outlet rows, fill-down, one N/A) → card
   colors → tolerance → one MAU (PSP; method switched to Filter Grid and back), ERV, fan, small fan, hood and
   traverse filled to green → export (download checked with the importer in Node, incl. the browser-cropped cover
   photo) → **LibreOffice recalculation** of the export: 0 error cells and the MAU method total, hood total,
-  traverse CFM, ERV totals and Building Balance totals equal the app's live calcs → reload (IndexedDB) → offline
+  traverse CFM, ERV totals, Building Balance totals and the TSP / ESP / unit ΔP / ΔP texts / corrected FLA / BHP
+  of RTU-1, MAU-1, ERV-1 and EF-1 equal the app's live calcs and what the panels showed → reload (IndexedDB) → offline
   (service worker shell, edits, export) → re-import. Uses `PLAYWRIGHT_BROWSERS_PATH` or `CHROMIUM_PATH` (falls back
   to `/opt/pw-browsers/chromium`) and `soffice` for the recalculation; never downloads a browser. Screenshots go to
   `e2e-screenshots/` (git-ignored); a few are kept in [`docs/screenshots/`](../docs/screenshots) (07–12: the new
-  forms).
+  forms; 13: RTU motor and static-profile panels).
 
 ## Not done yet
 
 Supabase sync against a live project (engine written, untested); photo upload and reports (Phase 4–5);
-import diff/merge review and issued-report revisions (Phase 3); Building Balance pressures, Certification; live
-TSP / ESP / corrected FLA / BHP; the hood schedule's "KEF interlock" column (EDE G, info only, not linked) is not
+import diff/merge review and issued-report revisions (Phase 3); Building Balance pressures, Certification; the hood schedule's "KEF interlock" column (EDE G, info only, not linked) is not
 written (the hood page's own "Associated exhaust fan" is).

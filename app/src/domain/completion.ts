@@ -41,6 +41,8 @@ export interface ItemResult {
   state: ItemState;
   notation?: Notation;
   reason?: string;
+  /** Automatic N/A the export leaves blank (see AutoNa.exportBlank). */
+  exportBlank?: boolean;
 }
 
 export interface RowResult {
@@ -190,7 +192,13 @@ export function computeCompletion(input: CompletionInput): Completion {
     const mark = na.fields[f.key];
     if (mark) return { state: 'na', notation: mark.notation, reason: mark.reason };
     const auto = firstAuto(f.autoNa, values);
-    if (auto) return { state: 'auto-na', notation: 'N/A', reason: auto.reason };
+    if (auto)
+      return {
+        state: 'auto-na',
+        notation: 'N/A',
+        reason: auto.reason,
+        ...(auto.exportBlank ? { exportBlank: true } : {}),
+      };
     if (f.recordField !== 'designation') {
       const sn = sectionNa(s, f.airflow ?? s.airflow);
       if (sn) return { state: levelState(sn.source), notation: sn.notation ?? 'N/A' };
