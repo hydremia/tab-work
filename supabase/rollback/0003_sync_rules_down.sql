@@ -4,6 +4,8 @@
 -- stay (unused by the old rules); the app keeps working (it measures no clock offset without server_time_ms and the
 -- server no longer refuses edits of locked projects: the devices still do).
 -- NOTE: the old rules have the bugs 0003 fixed (a retried push can re-apply a create; a project delete cannot sync).
+-- The privileges set by 0003 (internal functions not callable over the API, record tables written only through
+-- field_changes) and its record / project check in the apply trigger are kept.
 -- =====================================================================================================================
 
 -- Applies each pushed change to its record table. BEFORE INSERT, so a batch that creates a project and then
@@ -15,7 +17,19 @@ declare
   tbl text := public.sync_table(new.table_name);
   k text;
   ok boolean := true;
+  v_rec_project uuid;
 begin
+  -- the record must belong to the change's project (the insert policy checks only project_id; kept from 0003)
+  if new.table_name = 'projects' then
+    if new.record_id is distinct from new.project_id then
+      raise exception using errcode = '42501', message = 'TAB_FORBIDDEN: a project change must name the project itself';
+    end if;
+  else
+    execute format('select project_id from public.%I where id = $1', tbl) into v_rec_project using new.record_id;
+    if v_rec_project is not null and v_rec_project is distinct from new.project_id then
+      raise exception using errcode = '42501', message = 'TAB_FORBIDDEN: the record belongs to another project';
+    end if;
+  end if;
   if new.op = 'delete' then
     execute format('delete from public.%I where id = $1', tbl) using new.record_id;
   elsif new.op = 'create' then

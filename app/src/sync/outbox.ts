@@ -9,10 +9,20 @@ import { db } from '../data/db';
 import { appendHistory } from '../data/history';
 import { getDeviceId } from '../data/identity';
 import { deleteProjectLocally, forgetPhotoFile, historyKind, unitOf, writeTables } from '../data/repo';
-import { deepEqual, getPath, setPath } from '../data/paths';
+import { assertEditablePath, deepEqual, getPath, setPath } from '../data/paths';
 import type { FieldChange, ProjectLock, TableName } from '../data/types';
 import { uuid } from '../data/uuid';
 import { isConcurrent, laterWins, recordFieldConflict } from './conflicts';
+
+/** A field path this app edits (not id / projectId / timestamps, no prototype keys). */
+function isEditablePath(field: string): boolean {
+  try {
+    assertEditablePath(field);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** Projects kept on this device only (not uploaded to the cloud; chosen at the first sign-in). */
 export async function localOnlyProjects(): Promise<Set<string>> {
@@ -196,6 +206,12 @@ export async function applyRemoteChanges(changes: readonly RemoteChange[]): Prom
         res.skipped++; // already seen
         continue;
       }
+      // pulled rows are other devices' data: a field no device may edit is skipped (throwing here would stop every
+      // later pull on this device)
+      if (c.op === 'set' && !isEditablePath(c.field)) {
+        res.skipped++;
+        continue;
+      }
       const serverApplied = c.applied !== false || c.note === 'unknown field';
       const t = db.table(c.table as TableName) as Table<Record<string, unknown> & { id: string }, string>;
       const who = { userId: c.userId, deviceId: c.deviceId };
@@ -251,7 +267,12 @@ export async function applyRemoteChanges(changes: readonly RemoteChange[]): Prom
         }
       } else if (c.op === 'create') {
         if (serverApplied && !(await t.get(c.recordId)) && c.value && typeof c.value === 'object') {
-          const value = c.value as Record<string, unknown> & { id: string };
+          // the record is the change's record in the change's project (as on the server), whatever the value says
+          const value = {
+            ...(c.value as Record<string, unknown>),
+            id: c.recordId,
+            ...(c.table === 'projects' ? {} : { projectId: c.projectId }),
+          };
           // a photo arrives without its file (downloaded by sync/photoSync.ts)
           await t.put(c.table === 'photos' ? { blob: null, thumb: null, ...value, uploaded: 1 } : value);
           res.applied++;

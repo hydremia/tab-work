@@ -1,4 +1,3 @@
--- Grants that a real Supabase project gives by default (default privileges). Test-only, after the migration.
+-- Kept for the documented command line; the Supabase default privileges are now modelled in supabase_stub.sql
+-- (default privileges, applied as each object is created, so the migrations' revokes take effect as on Supabase).
 grant usage on schema public to authenticated;
-grant all on all tables in schema public to authenticated;
-grant execute on all functions in schema public to authenticated;

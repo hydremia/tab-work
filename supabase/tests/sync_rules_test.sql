@@ -7,7 +7,7 @@
 
 -- test helpers (owned by the superuser; executed as the test role)
 create schema if not exists t;
-grant usage on schema t to authenticated;
+grant usage on schema t to authenticated, anon;
 create function t.ok(name text, cond boolean) returns text language plpgsql as $$
 begin
   if cond is not true then raise exception 'FAIL %', name; end if;
@@ -27,7 +27,7 @@ begin
   end;
   raise exception 'FAIL %: no error', name;
 end $$;
-grant execute on all functions in schema t to authenticated;
+grant execute on all functions in schema t to authenticated, anon;
 
 -- a change row as JSON -> insert (the app's push: upsert ignoreDuplicates = ON CONFLICT (id) DO NOTHING)
 create function t.push(id uuid, tbl text, rec uuid, op text, fld text, val jsonb, dev text, ts bigint,
@@ -37,7 +37,7 @@ create function t.push(id uuid, tbl text, rec uuid, op text, fld text, val jsonb
   values (id, proj, tbl, rec, op, fld, val, coalesce(usr, auth.uid()), dev, ts, base)
   on conflict (id) do nothing
 $$;
-grant execute on all functions in schema t to authenticated;
+grant execute on all functions in schema t to authenticated, anon;
 
 insert into auth.users (id, email, raw_user_meta_data) values
  ('11111111-1111-4111-8111-111111111111', 'a@a2b.com', '{"full_name":"Tech A"}'),
@@ -103,8 +103,48 @@ select t.fails('other organization cannot delete the project',
 select t.fails('other organization cannot upload into the project folder',
   $$insert into storage.objects (bucket_id, name) values ('photos', 'aaaaaaaa-0000-4000-8000-000000000001/p1.jpg')$$,
   'row-level security');
+-- a change filed under the outsider's own project must not reach a record of another project (the trigger runs as
+-- the owner, so only its own check stands between the change and the record)
+select t.push(gen_random_uuid(), 'projects', 'eeeeeeee-0000-4000-8000-000000000001', 'create', '', '{"name":"Outsider"}', 'devX', 9000,
+  null, 'eeeeeeee-0000-4000-8000-000000000001');
+select t.fails('other organization cannot edit a record through its own project',
+  $$select t.push(gen_random_uuid(), 'equipment', 'bbbbbbbb-0000-4000-8000-000000000001', 'set', 'data.serial', '"hack"', 'devX', 9000,
+     null, 'eeeeeeee-0000-4000-8000-000000000001')$$,
+  'TAB_FORBIDDEN');
+select t.fails('other organization cannot delete a record through its own project',
+  $$select t.push(gen_random_uuid(), 'airflowRows', 'cccccccc-0000-4000-8000-000000000001', 'delete', '', null, 'devX', 9000,
+     null, 'eeeeeeee-0000-4000-8000-000000000001')$$,
+  'TAB_FORBIDDEN');
+select t.fails('other organization cannot edit / delete a project through its own project',
+  $$select t.push(gen_random_uuid(), 'projects', 'aaaaaaaa-0000-4000-8000-000000000001', 'delete', '', null, 'devX', 9000,
+     null, 'eeeeeeee-0000-4000-8000-000000000001')$$,
+  'TAB_FORBIDDEN');
+-- the apply helpers are internal (SECURITY DEFINER, no checks of their own): not callable over the API
+select t.fails('apply_set is not callable by a signed-in user',
+  $$select public.apply_set('equipment', 'bbbbbbbb-0000-4000-8000-000000000001', 'data.serial', '"rpc"')$$,
+  'permission denied');
+select t.fails('change_units / project_org are not callable by a signed-in user',
+  $$select public.change_units('equipment', 'set', 'bbbbbbbb-0000-4000-8000-000000000001', 'x', null), public.project_org('aaaaaaaa-0000-4000-8000-000000000001')$$,
+  'permission denied');
+reset role;
+set role anon;
+select t.fails('anon cannot call apply_set',
+  $$select public.apply_set('equipment', 'bbbbbbbb-0000-4000-8000-000000000001', 'data.serial', '"anon"')$$,
+  'permission denied');
+select t.fails('anon cannot read records', $$select count(*) from public.projects$$, 'permission denied');
+select t.fails('anon cannot read the sync log', $$select count(*) from public.field_changes$$, 'permission denied');
+reset role;
+set role authenticated;
 set request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
-select t.ok('nothing changed by the rejected writes', (select data ->> 'serial' from public.equipment) = 'SN-1');
+-- records change only through field_changes (the lock, the log and the other devices would not see a direct write)
+select t.fails('members cannot write record tables directly',
+  $$update public.equipment set data = '{"serial":"direct"}' where id = 'bbbbbbbb-0000-4000-8000-000000000001'$$,
+  'permission denied');
+select t.fails('members cannot delete projects directly',
+  $$delete from public.projects where id = 'aaaaaaaa-0000-4000-8000-000000000001'$$,
+  'permission denied');
+select t.ok('nothing changed by the rejected writes', (select data ->> 'serial' from public.equipment) = 'SN-1'
+  and (select count(*) from public.airflow_rows) = 1 and (select count(*) from public.projects) = 1);
 
 -- ------------------------------------------------------------------------------------ review cleared by the server
 -- A reviews RTU-1 (having seen everything so far); B edits the unit offline without knowing the review
@@ -164,6 +204,15 @@ exception when others then
   end if;
 end $$;
 select 'PASS lock error: SQLSTATE P0001, detail names the refused change';
+-- the lock cannot be bypassed by filing the change under another (unlocked) project of the organization
+select t.push(gen_random_uuid(), 'projects', 'aaaaaaaa-0000-4000-8000-000000000002', 'create', '', '{"name":"Other job"}', 'devB', 4150,
+  null, 'aaaaaaaa-0000-4000-8000-000000000002');
+select t.fails('locked project: a change filed under another project is refused',
+  $$select t.push(gen_random_uuid(), 'equipment', 'bbbbbbbb-0000-4000-8000-000000000001', 'set', 'data.serial', '"SN-X"', 'devB', 4160,
+     null, 'aaaaaaaa-0000-4000-8000-000000000002')$$,
+  'TAB_FORBIDDEN');
+select t.push(gen_random_uuid(), 'projects', 'aaaaaaaa-0000-4000-8000-000000000002', 'delete', '', null, 'devB', 4170,
+  null, 'aaaaaaaa-0000-4000-8000-000000000002');
 select t.ok('nothing of the refused changes was applied or logged',
   (select data ->> 'serial' from public.equipment) = 'SN-1'
   and (select count(*) from public.equipment) = 1
@@ -191,11 +240,21 @@ select t.ok('locked project can be deleted as a whole (cascade)',
   and (select count(*) from public.airflow_rows) = 0 and (select count(*) from public.issues) = 0);
 set request.jwt.claim.sub = '22222222-2222-4222-8222-222222222222';
 select t.ok('other members pull the project delete',
-  (select count(*) from public.field_changes where op = 'delete' and table_name = 'projects') = 1);
+  (select count(*) from public.field_changes where op = 'delete' and table_name = 'projects'
+    and record_id = 'aaaaaaaa-0000-4000-8000-000000000001') = 1);
 select t.push(gen_random_uuid(), 'projects', 'aaaaaaaa-0000-4000-8000-000000000001', 'create', '', '{"name":"again"}', 'devB', 8000);
 select t.ok('create of a deleted record is logged, not applied',
   (select count(*) from public.projects) = 0
   and (select note from public.field_changes where op = 'create' and table_name = 'projects' and not applied) = 'record was deleted');
+-- another organization cannot claim a deleted project's id (that would make its photo folder theirs)
+set request.jwt.claim.sub = '33333333-3333-4333-8333-333333333333';
+select t.fails('other organization cannot re-create a deleted project of another organization',
+  $$select t.push(gen_random_uuid(), 'projects', 'aaaaaaaa-0000-4000-8000-000000000001', 'create', '', '{"name":"mine now"}', 'devX', 9100)$$,
+  'TAB_FORBIDDEN');
+select t.fails('other organization cannot upload into a deleted project''s folder',
+  $$insert into storage.objects (bucket_id, name) values ('photos', 'aaaaaaaa-0000-4000-8000-000000000001/x.jpg')$$,
+  'row-level security');
+set request.jwt.claim.sub = '22222222-2222-4222-8222-222222222222';
 delete from storage.objects where name like 'aaaaaaaa-0000-4000-8000-000000000001/%';
 reset role;
 select t.ok('photo files of the deleted project can be removed by a member', (select count(*) from storage.objects) = 0);
