@@ -582,12 +582,6 @@ export function EquipmentPage() {
             />
           </div>
         </div>
-        {c.formIncomplete && (
-          <div className="callout" data-tone="info">
-            The full {info.plural} form is coming soon (Phase 2). Identity can be edited now; the unit stays amber until
-            the form is built.
-          </div>
-        )}
         {c.outOfTolerance.length > 0 && (
           <div className="callout" data-tone="red" role="status">
             <StatusIcon color="red" size={18} />

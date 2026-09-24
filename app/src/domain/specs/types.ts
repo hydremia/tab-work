@@ -192,8 +192,6 @@ export interface EquipmentSpec {
   /** Schedule design CFM checked against the sum of the outlet design CFMs (R8). */
   designCheck?: DesignCheck | readonly DesignCheck[];
   totalCheck?: { calc: TotalCalc; label: string };
-  /** False while the full form for the type is still to come: the unit can't turn green. */
-  formComplete: boolean;
 }
 
 /** Columns of every outlet / inlet table (template OUTLET_COLUMNS). */

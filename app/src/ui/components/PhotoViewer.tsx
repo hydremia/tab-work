@@ -168,7 +168,7 @@ export function PhotoViewer({ photoId, onClose }: { photoId: string; onClose: ()
                     })
                   }
                 >
-                  <option value="">General (no unit)</option>
+                  <option value="">General (N/A)</option>
                   {eqSorted.map((e) => (
                     <option key={e.id} value={e.id}>
                       {e.designation}

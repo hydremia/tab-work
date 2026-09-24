@@ -29,10 +29,15 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
+      - name: PWA check (manifest, icons, service worker, hosting headers; no browser needed)
+        run: npm run pwa-check -w app
+      # a downloadable build of every PR / push (Actions run → Artifacts → app-dist-<sha>): unzip and serve it with
+      # `npx serve -s` or `npm run serve-dist -w app` to try a preview without a hosting account (docs/DEPLOY.md)
       - uses: actions/upload-artifact@v4
         with:
-          name: app-dist
+          name: app-dist-${{ github.sha }}
           path: app/dist
-          retention-days: 7
+          retention-days: 14
 # The export spike (spike/export, `npm run spike`) needs LibreOffice and is run by hand.
-# The browser e2e walk (`npm run e2e -w app`) needs a local Chromium; see app/README.md.
+# The browser e2e walk (`npm run e2e -w app`) needs a local Chromium and LibreOffice; see app/README.md. It serves
+# app/dist with the production headers (deploy/serve-dist.ts), so it also checks the Content-Security-Policy.
