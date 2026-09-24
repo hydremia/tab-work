@@ -59,15 +59,16 @@ describe('template lists', () => {
     const table: { type: string; size: string; area: unknown; k: unknown }[] = [];
     for (let r = 2; r <= 50; r++) {
       const key = v(`H${r}`);
-      if (typeof key !== 'string' || !key.includes('|')) continue; // H45 holds the source note (template quirk)
+      if (typeof key !== 'string' || !key.includes('|')) continue;
       const [type, size] = key.split('|');
       expect(v(`I${r}`), `I${r}`).toBe(size);
       expect(v(`L${r}`), `L${r}`).toBe(type);
       table.push({ type, size, area: v(`J${r}`), k: v(`K${r}`) });
     }
     expect(FILTER_CONSTANTS).toEqual(table);
-    expect(v('H45')).toMatch(/^Source:/); // the Supply Filter 24x24 key is overwritten by the note
-    expect(filterSizesFor('Supply Filter (VelGrid)')).not.toContain('24" x 24"');
+    expect(v('H45')).toBe('Supply Filter (VelGrid)|24" x 24"'); // key restored in the 2026-09-24 rev 05 build
+    expect(v('AP1')).toMatch(/^Source:/); // the constants' source note moved here
+    expect(filterSizesFor('Supply Filter (VelGrid)')).toContain('24" x 24"');
     expect(filterSizesFor('HVC / Slot (Airfoil)')).toEqual(['No Filter', '16" Wide', '20" Wide']);
     PSP_K.forEach(([w, k], i) => expect([v(`R${i + 2}`), v(`S${i + 2}`)]).toEqual([w, k]));
     PROFILE_CURVE.pressures.forEach((p, i) => {
