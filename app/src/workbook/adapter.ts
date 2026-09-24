@@ -356,8 +356,8 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
       const fields = { ...e.naState.fields };
       delete fields[k];
       const trial = { ...e, naState: { ...e.naState, fields } };
-      const st = computeCompletion({ spec, unit: trial, rows: unitRows, photos: [], project, openIssues: 0 })
-        .fields[k]?.state;
+      const st = computeCompletion({ spec, unit: trial, rows: unitRows, photos: [], project, openIssues: 0 }).fields[k]
+        ?.state;
       if (st === 'auto-na' || st === 'scope-na') e.naState.fields = fields;
     }
   }
