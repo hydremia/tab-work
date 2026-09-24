@@ -22,8 +22,12 @@ import {
   TEMPLATE_MAP,
   type ProjectData,
 } from '@a2b/workbook';
-import { fromProjectData } from '../src/workbook/adapter';
+import { fromProjectData, unitCells } from '../src/workbook/adapter';
+import { computeCompletion } from '../src/domain/completion';
 import { buildingBalance, ervTotals, hoodTotals, mauTotals, traverseTotals } from '../src/domain/equipmentCalcs';
+import { motorCalc, motorInputs } from '../src/domain/motorCalcs';
+import { getSpec } from '../src/domain/specs';
+import { staticInputs, staticProfile } from '../src/domain/staticProfile';
 
 type Check = (name: string, ok: boolean, detail?: string) => void;
 
@@ -72,6 +76,15 @@ async function scrollTo(page: Page, id: string) {
     if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 110);
   }, id);
   await page.waitForTimeout(200);
+}
+
+/** Reads the static-profile and motor panels (the values shown to the tech) into ui[`${prefix}.<id>`]. */
+export async function readLivePanels(page: Page, prefix: string, ui: Record<string, string>) {
+  for (const id of ['sp-tsp', 'sp-esp', 'sp-unitdp', 'motor-fla', 'motor-bhp', 'motor-avg-volts', 'motor-avg-amps'])
+    ui[`${prefix}.${id}`] = (await page.getByTestId(id).innerText()).trim();
+  for (let k = 1; k <= 5; k++) ui[`${prefix}.sp-dp-${k}`] = (await page.getByTestId(`sp-dp-${k}`).innerText()).trim();
+  if ((await page.getByTestId('unit-esp-actual').count()) > 0)
+    ui[`${prefix}.unit-esp-actual`] = (await page.getByTestId('unit-esp-actual').innerText()).trim();
 }
 
 async function addUnit(page: Page, projectUrl: string, typePlural: string, designation: string) {
@@ -132,6 +145,7 @@ export async function fillNewTypes(
   await photo(page, 'Unit label / tag', photoFile);
   await page.waitForTimeout(600);
   const mauBadge = await badge(page);
+  await readLivePanels(page, 'mau', ui);
   ui.mauMethodTotal = await page.getByTestId('mau-method-total').innerText();
   check(
     'MAU-1 (PSP) complete (green)',
@@ -190,6 +204,7 @@ export async function fillNewTypes(
   await photo(page, 'Unit', photoFile);
   await photo(page, 'Unit label / tag', photoFile);
   await page.waitForTimeout(600);
+  await readLivePanels(page, 'erv', ui);
   ui.ervSupply = await page.getByTestId('erv-supply').innerText();
   ui.ervExhaust = await page.getByTestId('erv-exhaust').innerText();
   check(
@@ -212,6 +227,7 @@ export async function fillNewTypes(
   await photo(page, 'Unit', photoFile);
   await photo(page, 'Unit label / tag', photoFile);
   await page.waitForTimeout(600);
+  await readLivePanels(page, 'fan', ui);
   const fanStatic = await page.locator('#sec-static').innerText();
   check(
     'EF-1 complete (green); only the fan is on the static profile',
@@ -467,6 +483,64 @@ export async function recalcCrossCheck(file: string, wb: ProjectData, ui: Record
   await cmp('ERV-1 supply actual', 'ERVs', 'L9', et.supply.actual);
   await cmp('ERV-1 exhaust design', 'ERVs', 'K10', et.exhaust.design);
   await cmp('ERV-1 exhaust actual', 'ERVs', 'L10', et.exhaust.actual);
+  // static-pressure profile and motor data (RTU-1, MAU-1, ERV-1, EF-1): workbook = app functions = what the UI showed
+  const fmt2 = (x: unknown, unit: string) =>
+    typeof x === 'number'
+      ? `${x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${unit}`
+      : '—';
+  for (const [type, sheet, espRow] of [
+    ['rtu', 'RTUs', 8],
+    ['mau', 'MAUs', 6],
+    ['erv', 'ERVs', null],
+    ['fan', 'Fans', 6],
+  ] as const) {
+    const e = unit(type);
+    const c = computeCompletion({
+      spec: getSpec(type),
+      unit: e,
+      rows: rowsOf(e.id),
+      photos: [],
+      project: bundle.project,
+      openIssues: 0,
+    });
+    const cells = unitCells(e, c);
+    const sp = staticProfile(staticInputs(cells));
+    const mc = motorCalc(motorInputs(cells));
+    const P0 = anchorRow(TEMPLATE_MAP.equipment.find((x) => x.key === type)!.block.anchor, 1);
+    const name = e.designation;
+    await cmp(`${name} fan TSP`, sheet, `E${P0 + 25}`, sp.tsp);
+    await cmp(`${name} ESP`, sheet, `I${P0 + 25}`, sp.esp);
+    await cmp(`${name} unit ΔP`, sheet, `M${P0 + 25}`, sp.unitDp);
+    if (espRow !== null) await cmp(`${name} unit ESP actual`, sheet, `L${P0 + espRow}`, sp.esp);
+    await cmp(`${name} corrected FLA`, sheet, `D${P0 + 14}`, mc.correctedFla);
+    await cmp(`${name} estimated BHP`, sheet, `G${P0 + 14}`, mc.bhp);
+    const dps: string[] = [];
+    for (const col of ['D', 'F', 'H', 'J', 'L']) dps.push(String((await val(sheet, `${col}${P0 + 24}`)) ?? ''));
+    check(
+      `recalc: ${name} component ΔP texts (${sheet}!D:L${P0 + 24}) = app`,
+      dps.every((t, k) => t === (sp.dpText[k] ?? '')),
+      dps.join(' | '),
+    );
+    // what the tech saw in the panels equals the recalculated workbook
+    const key = type;
+    const shown = (id: string) => ui[`${key}.${id}`];
+    const wbTsp = await val(sheet, `E${P0 + 25}`);
+    const wbEsp = await val(sheet, `I${P0 + 25}`);
+    const wbFla = await val(sheet, `D${P0 + 14}`);
+    const wbBhp = await val(sheet, `G${P0 + 14}`);
+    const uiDps = [1, 2, 3, 4, 5].map((k) => shown(`sp-dp-${k}`));
+    check(
+      `UI panels = recalculated workbook: ${name} TSP ${shown('sp-tsp')}, ESP ${shown('sp-esp')}, corrected FLA ${shown('motor-fla')}, BHP ${shown('motor-bhp')}`,
+      shown('sp-tsp') === fmt2(wbTsp, ' in. w.g.') &&
+        shown('sp-esp') === fmt2(wbEsp, ' in. w.g.') &&
+        shown('motor-fla') === fmt2(wbFla, ' A') &&
+        shown('motor-bhp') === fmt2(wbBhp, '') &&
+        (espRow === null || shown('unit-esp-actual') === fmt2(wbEsp, '')) &&
+        uiDps.every((t, k) => (sp.absent[k] ? t === 'absent' : t === (dps[k] || 'Δ —'))),
+      `workbook TSP ${String(wbTsp)}, ESP ${String(wbEsp)}, FLA ${String(wbFla)}, BHP ${String(wbBhp)}; ΔP ${uiDps.join(' ')}`,
+    );
+  }
+
   const bb = buildingBalance(bundle.equipment, bundle.rows);
   await cmp('Building Balance OA design total', 'Building Balance', 'C87', bb.oaDesign);
   await cmp('Building Balance OA actual total', 'Building Balance', 'E87', bb.oaActual);

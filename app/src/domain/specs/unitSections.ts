@@ -10,7 +10,17 @@ export const ONE_PHASE: AutoNa = { when: { field: 'phase', eq: '1-phase' }, reas
 export const NOT_BELT: AutoNa = { when: { field: 'driveType', in: ['Direct', 'ECM'] }, reason: 'direct / ECM drive' };
 export const NO_VFD: AutoNa = { when: { field: 'hasVfd', notIn: ['Yes'] }, reason: 'no VFD' };
 export const NO_FILTERS: AutoNa = { when: { field: 'hasFilters', eq: 'No' }, reason: 'no filters' };
-const absent = (n: number): AutoNa => ({ when: { componentAbsent: n }, reason: 'not on this unit type' });
+/**
+ * A component that is "—" on the unit type (or a filter section on a unit without filters) has no leaving static.
+ * The export leaves that cell blank: the workbook's strip then passes the entering static through to the next
+ * component, which is how it skips an absent component (an "N/A" there would blank the downstream ΔP, TSP and ESP).
+ */
+const absent = (n: number): AutoNa => ({
+  when: { componentAbsent: n },
+  reason: 'not on this unit type',
+  exportBlank: true,
+});
+const NO_FILTERS_STATIC: AutoNa = { ...NO_FILTERS, exportBlank: true };
 
 const leaving = (n: number, extra: AutoNa[] = []): FieldSpec => ({
   key: `spLeaving${n}`,
@@ -34,7 +44,9 @@ export const SCHEDULE_FIELDS = {
 } as const satisfies Record<string, FieldSpec>;
 
 export function designSection(fields: readonly FieldSpec[]): SectionSpec {
-  return { key: 'design', label: 'Design data (schedule)', airflow: false, fields };
+  // the unit ESP actual (from the static profile) is shown next to the design unit ESP
+  const calc = fields.some((f) => f.key === 'unitEsp') ? ({ calc: 'unitEsp' } as const) : {};
+  return { key: 'design', label: 'Design data (schedule)', airflow: false, fields, ...calc };
 }
 
 /** Unit type (sets the static-profile components) + serial number. */
@@ -61,6 +73,7 @@ export const motorSection: SectionSpec = {
   key: 'motor',
   label: 'Motor data',
   airflow: false,
+  calc: 'motor',
   fields: [
     { key: 'motorManufacturer', label: 'Motor manufacturer', input: 'text' },
     { key: 'motorRpm', label: 'Motor RPM', input: 'number', unit: 'rpm' },
@@ -130,9 +143,10 @@ export function staticSection(enteringLabel = 'Entering static (first component)
     key: 'static',
     label: 'Static pressure profile',
     airflow: false,
+    calc: 'staticProfile',
     fields: [
       { key: 'spEntering', label: enteringLabel, input: 'number', unit: 'in. w.g.' },
-      leaving(1, [NO_FILTERS]),
+      leaving(1, [NO_FILTERS_STATIC]),
       leaving(2),
       leaving(3),
       leaving(4),

@@ -171,23 +171,9 @@ export function toProjectData(b: ProjectBundle): { data: ProjectData; warnings: 
     const fields: Record<string, Cell> = {};
     if (def.ede) schedule.designation = e.designation;
     else if (layout.fields?.some((f) => f.key === 'designation')) fields.designation = e.designation;
-    const keys = new Set([...Object.keys(e.data), ...Object.keys(e.naState.fields), ...Object.keys(c.fields)]);
-    for (const key of keys) {
-      if (key === 'designation' || key === 'remarks') continue;
-      const edeDef = def.ede?.fields.find((f) => f.key === key);
-      const blockDef = layout.fields?.find((f) => f.key === key);
-      if (!edeDef && !blockDef) continue; // app-only (hasVfd, photo:/table:/seq: marks, sequence readings)
-      const st = c.fields[key];
-      const levelMark: NaMark | null =
-        st && isNaState(st.state) && st.state !== 'na' && st.notation ? { notation: st.notation } : null;
-      // automatic N/A that overrides an entered value (MAU: a method that is not the chosen one) exports as N/A
-      const raw = st?.state === 'auto-na' ? 'N/A' : out(e.data[key], e.naState.fields[key] ?? levelMark);
-      if (raw === undefined) continue;
-      const v = coerce(edeDef ?? blockDef, raw, `${path}.${key}`, warnings);
-      if (v === undefined) continue;
-      if (edeDef) schedule[key] = v;
-      else fields[key] = v;
-    }
+    const cells = unitFieldCells(e, c, warnings, path);
+    Object.assign(schedule, cells.schedule);
+    Object.assign(fields, cells.fields);
     if (Object.keys(schedule).length) unit.schedule = schedule;
     if (Object.keys(fields).length) unit.fields = fields;
 
@@ -254,6 +240,63 @@ export function toProjectData(b: ProjectBundle): { data: ProjectData; warnings: 
   }
   for (const k of Object.keys(pd.equipment)) pd.equipment[k].sort((a, c) => a.slot - c.slot);
   return { data: pd, warnings };
+}
+
+/**
+ * The values the export writes into a unit's {Equipment Data Entry} row (`schedule`) and unit block (`fields`),
+ * by field key: entered values, N/A marks as their notation, automatic / scope N/A as "N/A" (except automatic N/A
+ * marked exportBlank, which stays blank). Keys that are not written are absent. The live calcs use these, so they
+ * see exactly what the workbook's formulas will see.
+ */
+export function unitFieldCells(
+  e: Pick<Equipment, 'type' | 'designation' | 'data' | 'naState' | 'slot'>,
+  c: Completion,
+  warnings: string[] = [],
+  path = e.designation,
+): { schedule: Record<string, Cell>; fields: Record<string, Cell> } {
+  const schedule: Record<string, Cell> = {};
+  const fields: Record<string, Cell> = {};
+  const def = TEMPLATE_MAP.equipment.find((d) => d.key === e.type);
+  if (!def) return { schedule, fields };
+  const layout = blockLayout(def, e.slot);
+  const keys = new Set([...Object.keys(e.data), ...Object.keys(e.naState.fields), ...Object.keys(c.fields)]);
+  for (const key of keys) {
+    if (key === 'designation' || key === 'remarks') continue;
+    const edeDef = def.ede?.fields.find((f) => f.key === key);
+    const blockDef = layout.fields?.find((f) => f.key === key);
+    if (!edeDef && !blockDef) continue; // app-only (hasVfd, photo:/table:/seq: marks, sequence readings)
+    const st = c.fields[key];
+    if (st?.state === 'auto-na' && st.exportBlank) continue; // blank on purpose (absent static-profile component)
+    const levelMark: NaMark | null =
+      st && isNaState(st.state) && st.state !== 'na' && st.notation ? { notation: st.notation } : null;
+    // automatic N/A that overrides an entered value (MAU: a method that is not the chosen one) exports as N/A
+    const raw = st?.state === 'auto-na' ? 'N/A' : out(e.data[key], e.naState.fields[key] ?? levelMark);
+    if (raw === undefined) continue;
+    const v = coerce(edeDef ?? blockDef, raw, `${path}.${key}`, warnings);
+    if (v === undefined) continue;
+    if (edeDef) schedule[key] = v;
+    else fields[key] = v;
+  }
+  return { schedule, fields };
+}
+
+/**
+ * One unit's cells as its formulas see them (schedule + block merged by field key; null = blank). A field the export
+ * does not write keeps the template's value, which for the unit type is the sheet's preset (RTU / MAU / ERV / EF).
+ */
+export function unitCells(
+  e: Pick<Equipment, 'type' | 'designation' | 'data' | 'naState' | 'slot'>,
+  c: Completion,
+): Record<string, Cell> {
+  const { schedule, fields } = unitFieldCells(e, c);
+  const cells: Record<string, Cell> = { ...schedule, ...fields };
+  if (!('unitType' in cells)) {
+    const preset = getSpec(e.type)
+      .sections.flatMap((s) => s.fields)
+      .find((f) => f.key === 'unitType')?.preset;
+    if (preset !== undefined) cells.unitType = preset;
+  }
+  return cells;
 }
 
 const specTables = (spec: EquipmentSpec): RowTableSpec[] => spec.sections.flatMap((sec) => sec.tables ?? []);
