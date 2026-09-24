@@ -27,6 +27,7 @@ const S1_FINAL = 512; // was 505
 const AMPS_EXCEL = 3.8; // was 3.9
 const AMPS_APP = 4.2;
 const RPM_APP = 1110; // was 1105
+const BUILDING_DP_EXCEL = 0.03; // was 0.02 (Building Balance H97)
 
 async function editSheet(bytes: Uint8Array, sheet: string, edit: (xml: string) => string): Promise<Uint8Array> {
   const zip = await JSZip.loadAsync(bytes);
@@ -146,6 +147,9 @@ export async function reimportFlow(
       x = x.replace(/<row r="52" ht="[^"]*"/, '<row r="52" ht="27.5"');
       return x;
     });
+    issued = await editSheet(issued, 'Building Balance', (xml) =>
+      editCell(xml, 'H97', (t) => t.replace(/<v>[^<]*<\/v>/, `<v>${BUILDING_DP_EXCEL}</v>`)),
+    );
     issued = await editSheet(issued, '{Project Information}', (xml) =>
       editCell(xml, 'B2', (t) => t.replace(/ s="\d+"/, ' s="3"')),
     );
@@ -170,14 +174,17 @@ export async function reimportFlow(
       const remark = c.items.filter((i) => i.cell === 'remarks');
       const reading = c.items.filter((i) => i.kind === 'incoming' && i.cell === 'finalVel');
       const collision = c.items.filter((i) => i.kind === 'collision');
+      const pressure = c.items.filter((i) => i.kind === 'incoming' && i.cell === 'info.bbBuildingDp');
       check(
-        `${label}: 1 remark change, 1 incoming reading, 1 collision, no false changes`,
-        c.items.length === 3 &&
+        `${label}: 1 remark change, 1 incoming reading, 1 building pressure, 1 collision, no false changes`,
+        c.items.length === 4 &&
           remark.length === 1 &&
           reading.length === 1 &&
+          pressure.length === 1 &&
+          /Building vs Outdoors ΔP/.test(pressure[0].text) &&
           collision.length === 1 &&
           collision[0].cell === 'amps1' &&
-          c.incoming === 2 &&
+          c.incoming === 3 &&
           c.collisions === 1 &&
           c.added === 0,
         JSON.stringify(c),
@@ -318,6 +325,7 @@ export async function reimportFlow(
         u1.tables?.supply?.[0]?.finalVel === S1_FINAL &&
         u1.fields?.amps1 === AMPS_EXCEL &&
         u1.fields?.fanRpmFinal === RPM_APP &&
+        back.project.sections.buildingBalance?.tables?.pressures?.[0]?.dp === BUILDING_DP_EXCEL &&
         back.marker?.label === 'Rev 1' &&
         back.marker.revisionId !== prelimRead.marker?.revisionId,
       JSON.stringify({ r: u1?.lines?.remarks, s: u1?.tables?.supply?.[0], a: u1?.fields?.amps1, m: back.marker }),

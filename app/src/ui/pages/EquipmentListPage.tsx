@@ -4,7 +4,7 @@ import { STATUS_LABEL, type Completion } from '../../domain/completion';
 import { EQUIPMENT_TYPES } from '../../domain/equipmentTypes';
 import type { Equipment } from '../../data/types';
 import { IconPlus } from '../components/Icons';
-import { ProgressBar, StatusBadge } from '../components/Status';
+import { ProgressBar, StatusBadge, StatusIcon } from '../components/Status';
 import { useProjectContext } from './ProjectLayout';
 
 type Filter = 'all' | 'needs' | 'attention' | 'complete';
@@ -53,7 +53,7 @@ function EquipmentCard({ e, c, projectId }: { e: Equipment; c: Completion; proje
 }
 
 export function EquipmentListPage() {
-  const { project, equipment, status } = useProjectContext();
+  const { project, equipment, status, attention } = useProjectContext();
   const [filter, setFilter] = useState<Filter>('all');
   const f = FILTERS.find((x) => x.key === filter)!;
 
@@ -68,10 +68,30 @@ export function EquipmentListPage() {
               : 'Add the units you will test and balance.'}
           </p>
         </div>
-        <Link to={`/p/${project.id}/add`} className="btn btn-primary" data-testid="add-equipment">
-          <IconPlus size={18} /> Add equipment
-        </Link>
+        <div className="row" style={{ gap: 8, justifyContent: 'flex-end' }}>
+          <Link to={`/p/${project.id}/schedule`} className="btn" data-testid="import-schedule">
+            Import schedule
+          </Link>
+          <Link to={`/p/${project.id}/add`} className="btn btn-primary" data-testid="add-equipment">
+            <IconPlus size={18} /> Add equipment
+          </Link>
+        </div>
       </div>
+      {attention && attention.length > 0 && (
+        <Link to={`/p/${project.id}/attention`} className="card card-link attention-link" data-testid="attention-card">
+          <StatusIcon color="amber" size={20} />
+          <span className="grow">
+            <b>Needs attention</b>
+            <span className="small muted" style={{ display: 'block' }}>
+              {attention.length} item{attention.length > 1 ? 's' : ''}: tolerance, discrepancies, motor checks, photos,
+              issues, calibration
+            </span>
+          </span>
+          <span className="tab-count" data-tone="attention" data-testid="attention-count">
+            {attention.length}
+          </span>
+        </Link>
+      )}
       {status && status.total.total > 0 && <ProgressBar rollup={status.total} />}
       {equipment.length > 0 && (
         <div className="filters" role="group" aria-label="Filter equipment">
@@ -109,6 +129,13 @@ export function EquipmentListPage() {
                 <span className="rollup" data-testid={`rollup-${t.key}`}>
                   {t.plural} {r.green}/{r.total} complete
                 </span>
+                <Link
+                  to={`/p/${project.id}/schedule?type=${t.key}`}
+                  className="small"
+                  aria-label={`Import ${t.plural} schedule`}
+                >
+                  Import
+                </Link>
               </div>
               <div className="equip-grid">
                 {list.map((e) => (

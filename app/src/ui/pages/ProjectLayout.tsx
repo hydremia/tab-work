@@ -1,6 +1,15 @@
-import { NavLink, Outlet, useOutletContext, useParams } from 'react-router';
-import { useEquipmentList, useIssues, useProject, useProjectStatus, type ProjectStatus } from '../../data/hooks';
+import { Suspense, useEffect, useRef } from 'react';
+import { useLocation, NavLink, Outlet, useOutletContext, useParams } from 'react-router';
+import {
+  useAttention,
+  useEquipmentList,
+  useIssues,
+  useProject,
+  useProjectStatus,
+  type ProjectStatus,
+} from '../../data/hooks';
 import type { Equipment, Issue, Project } from '../../data/types';
+import type { AttentionItem } from '../../domain/attention';
 import { AppHeader, ModeBanner } from '../components/AppHeader';
 
 export interface ProjectContext {
@@ -8,6 +17,7 @@ export interface ProjectContext {
   equipment: Equipment[];
   issues: Issue[];
   status: ProjectStatus | undefined;
+  attention: AttentionItem[] | undefined;
 }
 
 export function useProjectContext(): ProjectContext {
@@ -20,6 +30,14 @@ export function ProjectLayout() {
   const equipment = useEquipmentList(projectId);
   const issues = useIssues(projectId);
   const status = useProjectStatus(projectId);
+  const attention = useAttention(projectId, status);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const { pathname } = useLocation();
+  // the tab bar scrolls sideways on a phone: keep the active tab in view
+  useEffect(() => {
+    const active = tabsRef.current?.querySelector('a.active') as HTMLElement | null;
+    active?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [pathname, project]);
 
   if (project === null) {
     return (
@@ -34,10 +52,11 @@ export function ProjectLayout() {
   if (!project || !equipment || !issues) return <AppHeader title="Loading…" back="/" />;
 
   const open = issues.filter((i) => i.status === 'Open').length;
-  const tabs = [
+  const tabs: { to: string; label: string; count?: number; tone?: string }[] = [
     { to: 'info', label: 'Info' },
     { to: 'equipment', label: 'Equipment', count: equipment.length },
     { to: 'issues', label: 'Issues', count: open || undefined },
+    { to: 'attention', label: 'Attention', count: attention?.length || undefined, tone: 'attention' },
     { to: 'photos', label: 'Photos' },
     { to: 'export', label: 'Export' },
   ];
@@ -50,17 +69,23 @@ export function ProjectLayout() {
       />
       <ModeBanner />
       <nav className="tabs" aria-label="Project sections">
-        <div className="tabs-inner">
+        <div className="tabs-inner" ref={tabsRef}>
           {tabs.map((t) => (
             <NavLink key={t.to} to={t.to} className={({ isActive }) => (isActive ? 'active' : undefined)}>
               {t.label}
-              {t.count !== undefined && <span className="tab-count">{t.count}</span>}
+              {t.count !== undefined && (
+                <span className="tab-count" data-tone={t.tone} data-testid={`tab-count-${t.to}`}>
+                  {t.count}
+                </span>
+              )}
             </NavLink>
           ))}
         </div>
       </nav>
       <main className="page">
-        <Outlet context={{ project, equipment, issues, status } satisfies ProjectContext} />
+        <Suspense fallback={<p className="muted">Loading…</p>}>
+          <Outlet context={{ project, equipment, issues, status, attention } satisfies ProjectContext} />
+        </Suspense>
       </main>
     </>
   );

@@ -56,3 +56,24 @@ export function suggestDesignation(prefix: string, existing: readonly string[]):
   }
   return `${prefix}${max + 1}`;
 }
+
+/**
+ * Designation for a copy of a unit: the trailing number incremented to the next one not used by the type
+ * (VAV-12 -> VAV-13, or VAV-14 when VAV-13 exists; EF-S3 -> EF-S4). Without a trailing number: "<name> 2", "<name> 3" ….
+ */
+export function nextDesignation(designation: string, existing: readonly string[]): string {
+  const taken = new Set(existing.map((d) => d.trim().toLowerCase()));
+  const m = /^(.*?)(\d+)(\D*)$/.exec(designation.trim());
+  if (m) {
+    const [, head, digits, tail] = m;
+    for (let n = Number(digits) + 1; n < Number(digits) + 1000; n++) {
+      const num = String(n).padStart(digits.length, '0');
+      const d = `${head}${num}${tail}`;
+      if (!taken.has(d.toLowerCase())) return d;
+    }
+  }
+  for (let n = 2; ; n++) {
+    const d = `${designation.trim()} ${n}`;
+    if (!taken.has(d.toLowerCase())) return d;
+  }
+}

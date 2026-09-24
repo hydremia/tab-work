@@ -191,10 +191,14 @@ describe('round trip: app project -> export (rev 05 template) -> import -> app p
     const { bytes, report } = await exportWorkbookWithReport(template(), data);
     expect(report.warnings).toEqual([expect.stringMatching(/revisionDate\) has no date number format/)]); // known template quirk (spike README)
     const imported = await importWorkbook(bytes);
-    // 1. workbook level: everything written is read back (Building Balance keeps the template's own
-    //    pre-filled pressure labels: the app does not manage that sheet yet)
-    const { buildingBalance: _bb, ...importedSections } = imported.sections;
-    expect(diff(normalizeProject({ ...imported, sections: importedSections }), normalizeProject(data))).toEqual([]);
+    // 1. workbook level: everything written is read back (incl. the Building Balance pressures and notes)
+    expect(data.sections.buildingBalance?.tables?.pressures).toEqual([
+      { testSpace: 'Building', referenceSpace: 'Outdoors', dp: 0.03, remarks: 'Doors closed, all units running' },
+      { testSpace: 'Kitchen', referenceSpace: 'Dining', dp: -0.02 },
+      { testSpace: 'Suite 101', referenceSpace: 'Corridor', dp: 0.01 },
+    ]);
+    expect(data.sections.buildingBalance?.lines?.notes).toEqual(['Measured at 2 pm.', 'Wind calm.']);
+    expect(diff(normalizeProject(imported), normalizeProject(data))).toEqual([]);
     // 2. app level
     let i = 0;
     const back: ProjectBundle = fromProjectData(imported, { newId: () => `id-${++i}`, now: 1 });
