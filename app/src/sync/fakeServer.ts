@@ -117,9 +117,20 @@ export class FakeSyncServer {
     const project = this.record('projects', row.project_id);
     const org =
       project?.orgId ??
-      (row.table_name === 'projects' && row.op === 'create' ? user.orgId : this.projectOrg(row.project_id));
+      (row.table_name === 'projects' && row.op === 'create'
+        ? (this.projectOrg(row.project_id) ?? user.orgId)
+        : this.projectOrg(row.project_id));
     if (org !== user.orgId)
       throw new FakeServerError('TAB_FORBIDDEN: the project belongs to another organization', '42501');
+    // the record must belong to the change's project (the checks above and the lock are about project_id)
+    if (row.table_name === 'projects') {
+      if (row.record_id !== row.project_id)
+        throw new FakeServerError('TAB_FORBIDDEN: a project change must name the project itself', '42501');
+    } else {
+      const target = this.record(row.table_name, row.record_id);
+      if (target && target.projectId !== row.project_id)
+        throw new FakeServerError('TAB_FORBIDDEN: the record belongs to another project', '42501');
+    }
     const lock = project?.lock;
     if (
       project &&

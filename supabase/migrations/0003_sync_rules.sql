@@ -53,7 +53,7 @@ create or replace function public.project_org(p uuid) returns uuid
 language sql stable security definer set search_path = public as $$
   select coalesce(
     (select org_id from public.projects where id = p),
-    (select org_id from public.field_changes where project_id = p and org_id is not null limit 1)
+    (select org_id from public.field_changes where project_id = p and org_id is not null order by server_seq limit 1)
   )
 $$;
 
@@ -104,6 +104,7 @@ declare
   v_unit uuid;
   v_review_seq bigint;
   v_review_ts bigint;
+  v_rec_project uuid;
 begin
   -- 1. idempotent re-push: a change already in the log is neither inserted nor applied again
   if exists (select 1 from public.field_changes f where f.id = new.id) then
@@ -118,7 +119,8 @@ begin
   v_found := found;
   if not v_found then
     if new.table_name = 'projects' and new.op = 'create' then
-      v_org := public.current_org_id();
+      -- a new project is the user's organization's; a deleted one's id stays its organization's
+      v_org := coalesce(public.project_org(new.project_id), public.current_org_id());
     else
       v_org := public.project_org(new.project_id);  -- a deleted project: its organization from the log
     end if;
@@ -127,6 +129,18 @@ begin
     raise exception using errcode = '42501', message = 'TAB_FORBIDDEN: the project belongs to another organization';
   end if;
   new.org_id := v_org;
+  -- the record must belong to the change's project: the checks above (organization, lock) are about new.project_id,
+  -- and this function runs as the owner, so a change filed under one project must not reach another project's record
+  if new.table_name = 'projects' then
+    if new.record_id is distinct from new.project_id then
+      raise exception using errcode = '42501', message = 'TAB_FORBIDDEN: a project change must name the project itself';
+    end if;
+  else
+    execute format('select project_id from public.%I where id = $1', tbl) into v_rec_project using new.record_id;
+    if v_rec_project is not null and v_rec_project is distinct from new.project_id then
+      raise exception using errcode = '42501', message = 'TAB_FORBIDDEN: the record belongs to another project';
+    end if;
+  end if;
 
   -- 3. report lock: only the lock itself and deleting the whole project while locked
   if v_found and jsonb_typeof(v_lock) = 'object'
@@ -226,6 +240,34 @@ create policy "members append field changes" on public.field_changes
   for insert to authenticated with check (user_id = auth.uid() and org_id = public.current_org_id());
 
 grant execute on function public.server_time_ms() to authenticated;
+
+-- Privileges. Supabase grants everything in public to anon and authenticated by default (and PostgreSQL lets PUBLIC
+-- execute every function), which would expose the SECURITY DEFINER internals over the API: apply_set() writes any
+-- record with no checks at all. Only field_changes (the sync log) is written by the app; the record tables are
+-- written by the apply trigger (as the owner), so a direct write cannot bypass the lock, the log and the devices.
+revoke all on all tables in schema public from anon;
+revoke execute on all functions in schema public from public, anon;
+revoke execute on function
+  public.apply_set(text, uuid, text, jsonb),
+  public.apply_field_change(),
+  public.handle_new_user(),
+  public.change_units(text, text, uuid, text, jsonb),
+  public.project_org(uuid),
+  public.jsonb_set_deep(jsonb, text[], jsonb),
+  public.sync_table(text)
+from authenticated;
+-- used by the RLS policies (evaluated as the signed-in user) and the app
+grant execute on function
+  public.current_org_id(),
+  public.can_access_project(uuid),
+  public.can_write_project(uuid),
+  public.can_access_photo_path(text),
+  public.server_time_ms()
+to authenticated;
+revoke insert, update, delete, truncate on public.organizations, public.projects, public.equipment,
+  public.airflow_rows, public.issues, public.photos, public.instruments, public.sync_columns from authenticated;
+revoke update, delete, truncate on public.field_changes from authenticated;
+revoke insert, delete, truncate on public.profiles from authenticated;
 
 -- storage: photo files of a deleted project stay readable / removable by its organization's members (the deleting
 -- device removes them after the project delete synced; before this, a deleted project's folder was unreachable)

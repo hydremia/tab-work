@@ -91,3 +91,44 @@ describe('applyRemoteChanges (last writer wins per field)', () => {
     expect(await db.equipment.get('e1')).toBeUndefined();
   });
 });
+
+describe('applyRemoteChanges (untrusted rows from the server log)', () => {
+  it('a pulled create lands at its own record id and project, not where its value says', async () => {
+    const p = await createProject({ name: 'Mine' });
+    const other = await createProject({ name: 'Other' });
+    const res = await applyRemoteChanges([
+      remote({
+        projectId: 'new-project',
+        table: 'projects',
+        recordId: 'new-project',
+        op: 'create',
+        field: '',
+        value: { ...other, id: p.id, name: 'Overwritten' },
+      }),
+      remote({
+        projectId: other.id,
+        table: 'instruments',
+        recordId: 'inst-1',
+        op: 'create',
+        field: '',
+        value: { id: 'inst-1', projectId: p.id, order: 0, type: 'x', manufacturer: '', model: '', serial: '' },
+      }),
+    ]);
+    expect(res.applied).toBe(2);
+    expect((await db.projects.get(p.id))?.name).toBe('Mine');
+    expect((await db.projects.get('new-project'))?.name).toBe('Overwritten');
+    expect((await db.instruments.get('inst-1'))?.projectId).toBe(other.id);
+  });
+
+  it('a pulled change of a field no device may edit is skipped instead of stopping every later pull', async () => {
+    const p = await createProject({ name: 'Job' });
+    const res = await applyRemoteChanges([
+      remote({ projectId: p.id, recordId: p.id, field: 'id', value: 'x', applied: false, note: 'unknown field' }),
+      remote({ projectId: p.id, recordId: p.id, field: 'info.__proto__.polluted', value: 'yes' }),
+      remote({ projectId: p.id, recordId: p.id, field: 'info.architect', value: 'Still applied' }),
+    ]);
+    expect(res).toMatchObject({ applied: 1, skipped: 2 });
+    expect((await db.projects.get(p.id))?.info.architect).toBe('Still applied');
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+});

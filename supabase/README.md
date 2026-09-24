@@ -34,7 +34,8 @@ fixes three problems found by testing the sync engine against a fake server and 
 | **Review clearing** | A device that changes a reviewed unit clears the review itself (synced). When a change of a unit, its rows or photos reaches the server and the device had *not* seen the unit's review (its `base_seq` is older than the review's `server_seq`, or unknown), the server clears the review with a change of its own (`device_id = 'server'`, ordered after the change, timestamp after the review), which every device pulls. Issues and project-level changes never clear a review. |
 | `base_seq` | The device's pull position when the change was made; used for the review rule and by the devices to detect conflicts. |
 | `server_time_ms()` | The server clock (ms); devices measure their clock offset with it (timestamps are server-corrected). |
-| Explicit checks | `TAB_FORBIDDEN` when a change is not made as the signed-in user or targets another organization's project (RLS still checks both). |
+| Explicit checks | `TAB_FORBIDDEN` when a change is not made as the signed-in user, targets another organization's project (RLS still checks both), or names a record of another project than its `project_id` (a project change must name the project itself; a deleted project's id stays its organization's). |
+| Privileges | `anon` has nothing on the tables and functions. The SECURITY DEFINER internals (`apply_set`, `change_units`, `project_org`, the trigger functions) are not executable over the API; `authenticated` executes only the RLS helpers and `server_time_ms()`. Record tables are read-only for `authenticated`: every write goes through `field_changes` (so the lock, the log and the other devices always see it). |
 | Storage | Photo files of a deleted project stay readable / removable by its organization (the deleting device removes them). |
 
 Rollback: `rollback/0003_sync_rules_down.sql` restores the 0001 / 0002 rules and keeps the data (docs/SYNC_SETUP.md §10).
@@ -91,7 +92,7 @@ psql -d <other empty db, same setup> -f supabase/tests/smoke_test.sql
 ```
 
 `sync_rules_test.sql` asserts every rule and stops at the first failure (`PASS <name>` per check). **Last run
-(PostgreSQL 16.13, 2026-09-24): 35 PASS, "ALL SYNC RULE TESTS PASSED"**: creates / sets, changes carry the organization,
+(PostgreSQL 16.13, 2026-09-24): 48 PASS, "ALL SYNC RULE TESTS PASSED"**: creates / sets, changes carry the organization,
 a re-pushed create is not applied again (a later rename kept) and every re-pushed change is logged once, last writer
 wins, spoofed user rejected (`TAB_FORBIDDEN`), another organization sees no projects / changes and cannot edit, lock,
 unlock, delete or upload, review cleared by the server only for a change made without knowing the review (not by an
@@ -99,7 +100,11 @@ issue), locked project refuses field edits / new units / row deletes / reviews /
 (SQLSTATE P0001, the detail names the refused change, nothing applied or logged), a retry of a change accepted before
 the lock is skipped without error, unlock then edit works (also both in one request), a locked project can be deleted
 as a whole (cascade) and other members pull the delete, a create of a deleted record is logged but not applied, photo
-files of a deleted project can be removed, server clock. `smoke_test.sql` (the 0001 checks) still passes on 0001–0003
+files of a deleted project can be removed, server clock; and (security review) a change filed under one project cannot
+edit / delete another project's or organization's record or bypass a lock that way, another organization cannot
+re-create a deleted project's id, `apply_set` & co. are not callable by `authenticated` or `anon`, `anon` reads
+nothing, members cannot write record tables directly (`supabase_stub.sql` models Supabase's default privileges, so the
+migrations' revokes are tested as on Supabase). `smoke_test.sql` (the 0001 checks) still passes on 0001–0003
 (the spoofed user / outsider are now refused by the trigger's explicit checks before RLS). The two bugs fixed by 0003
 were first reproduced on 0001 + 0002 (a retried create reverted a rename; a project delete failed RLS). The rollback
 script was checked the same way (smoke test as on 0001, 0003 re-applies).

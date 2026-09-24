@@ -69,6 +69,35 @@ describe('fake server rules (as 0003)', () => {
     expect(() => s.upload(x.id, `${P}/p.jpg`, new Blob(['1']), 'image/jpeg')).toThrow(/row-level security/);
   });
 
+  it('a change reaches only records of its own project (no cross-organization / lock bypass via project_id)', () => {
+    const { s, a, x } = setup();
+    const X = 'eeeeeeee-0000-4000-8000-000000000001';
+    const P2 = 'aaaaaaaa-0000-4000-8000-000000000002';
+    s.push(x.id, [row({ project_id: X, table_name: 'projects', record_id: X, op: 'create', field: '', value: {} })]);
+    expect(refused(() => s.push(x.id, [row({ project_id: X, value: 'hack' })])).message).toMatch(/another project/);
+    expect(refused(() => s.push(x.id, [row({ project_id: X, op: 'delete', field: '', value: null })])).code).toBe(
+      '42501',
+    );
+    expect(
+      refused(() =>
+        s.push(x.id, [row({ project_id: X, table_name: 'projects', record_id: P, op: 'delete', field: '' })]),
+      ).message,
+    ).toMatch(/^TAB_FORBIDDEN/);
+    // same organization: a locked project's unit cannot be edited by filing the change under another project
+    s.push(a.id, [
+      row({ project_id: P2, table_name: 'projects', record_id: P2, op: 'create', field: '', value: {} }),
+      row({ table_name: 'projects', record_id: P, field: 'lock', value: { label: 'Prelim' } }),
+    ]);
+    expect(refused(() => s.push(a.id, [row({ project_id: P2, value: 'bypass' })])).message).toMatch(/another project/);
+    expect(s.valueOf('equipment', U, 'data.serial')).toBeUndefined();
+    // a deleted project's id stays its organization's
+    s.push(a.id, [row({ table_name: 'projects', record_id: P, op: 'delete', field: '', value: null })]);
+    expect(
+      refused(() => s.push(x.id, [row({ table_name: 'projects', record_id: P, op: 'create', field: '', value: {} })]))
+        .message,
+    ).toMatch(/another organization/);
+  });
+
   it('a request is atomic; failed requests still use up log positions (gaps, as a Postgres identity)', () => {
     const { s, a } = setup();
     const before = s.log.length;
