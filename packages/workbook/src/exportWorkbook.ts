@@ -11,7 +11,7 @@ import {
 import {
   anchorRow, ColumnDef, FieldDef, Layout, NOTATIONS, sequenceCells, tableRows, TEMPLATE_MAP, TemplateMap,
 } from './templateMap.js';
-import { anchorSizeEmu, cropResizeJpeg, drawingPictures } from './coverPhoto.js';
+import { anchorSizeEmu, type CoverPhotoCropper, drawingPictures } from './coverPhoto.js';
 import type { Cell, LayoutData, ProjectData } from './types.js';
 
 export class FormulaCellError extends Error {
@@ -24,8 +24,10 @@ export class MapError extends Error { constructor(msg: string) { super(msg); thi
 export class ValidationError extends Error { constructor(msg: string) { super(msg); this.name = 'ValidationError'; } }
 
 export interface ExportOptions {
-  /** Cover photo (JPEG bytes). Omitted: the template placeholder picture stays. */
+  /** Cover photo (encoded image bytes). Omitted: the template placeholder picture stays. */
   coverPhoto?: Uint8Array;
+  /** Crops / downscales / encodes the cover photo (required with coverPhoto): browser or Node implementation. */
+  cropCoverPhoto?: CoverPhotoCropper;
   coverPhotoMaxWidth?: number;
   jpegQuality?: number;
   /** Alternative map (tests). */
@@ -510,7 +512,8 @@ async function replaceCoverPhoto(zip: JSZip, sheets: { name: string; part: strin
 
   const box = anchorSizeEmu(sheetXml, pic.anchor);
   const aspect = box.cx / box.cy;
-  const photo = cropResizeJpeg(opts.coverPhoto!, aspect, opts.coverPhotoMaxWidth ?? 1600, opts.jpegQuality ?? 85);
+  if (!opts.cropCoverPhoto) throw new MapError('coverPhoto given without a cropCoverPhoto implementation');
+  const photo = await opts.cropCoverPhoto(opts.coverPhoto!, aspect, opts.coverPhotoMaxWidth ?? 1600, opts.jpegQuality ?? 85);
 
   // new media part imageN.jpeg (next free N)
   const used = Object.keys(zip.files).map((n) => /^xl\/media\/image(\d+)\./.exec(n)?.[1]).filter(Boolean).map(Number);

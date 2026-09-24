@@ -1,0 +1,20 @@
+{
+  "name": "@a2b/workbook",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "TAB workbook (revision 05) template map, direct-XML export and import. Plain TypeScript source package.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./map": "./src/map.ts",
+    "./browser": "./src/coverPhotoBrowser.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1"
+  }
+}

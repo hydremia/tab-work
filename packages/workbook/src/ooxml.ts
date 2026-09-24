@@ -27,6 +27,7 @@ export function splitRef(ref: string): { col: string; row: number } {
 
 // ------------------------------------------------------------------------------------------ XML text
 // XML 1.0 forbids most control characters; Excel refuses the file if they appear.
+// eslint-disable-next-line no-control-regex -- stripping XML-invalid control characters is the point
 const INVALID_XML = /[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g;
 export function xmlEscape(s: string): string {
   return s.replace(INVALID_XML, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');

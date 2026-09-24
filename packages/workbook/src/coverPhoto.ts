@@ -1,12 +1,11 @@
 /**
- * Cover photo: find the "Project Photo" picture on the Cover Page drawing, compute its box from the
- * sheet's column widths / row heights, centre-crop the supplied JPEG to that aspect ratio, downscale,
- * and re-encode as JPEG.
- *
- * Pure JS (jpeg-js), so it also runs in a browser; the real app should use a canvas / createImageBitmap
- * instead (much faster, honours EXIF orientation, decodes HEIC on iOS Safari).
+ * Cover photo: find the "Project Photo" picture on the Cover Page drawing and compute its box from the
+ * sheet's column widths / row heights. The pixel work (centre crop to the box aspect, downscale, JPEG encode)
+ * is platform specific and injected into the exporter as a `CoverPhotoCropper`:
+ *  - browser: `cropCoverPhotoBrowser` in ./coverPhotoBrowser.ts (createImageBitmap + canvas, honours EXIF
+ *    orientation, decodes HEIC on iOS Safari);
+ *  - Node: `cropResizeJpeg` in spike/export/src/coverPhotoNode.ts (jpeg-js, pure JS).
  */
-import jpeg from 'jpeg-js';
 import { attr } from './ooxml.js';
 
 export interface AnchorBox {
@@ -75,30 +74,15 @@ export interface CroppedPhoto {
   crop: { x: number; y: number; w: number; h: number };
 }
 
-/** Centre-crop to `aspect` (width / height), box-filter downscale to at most maxWidth, encode JPEG. */
-export function cropResizeJpeg(src: Uint8Array, aspect: number, maxWidth = 1600, quality = 85): CroppedPhoto {
-  const img = jpeg.decode(src, { useTArray: true, formatAsRGBA: true, maxMemoryUsageInMB: 1024, maxResolutionInMP: 200 });
-  const W = img.width, H = img.height;
+/** Centre-crop `src` (encoded image bytes) to `aspect` (width / height), downscale to at most maxWidth, encode JPEG. */
+export type CoverPhotoCropper = (src: Uint8Array, aspect: number, maxWidth: number, quality: number) => CroppedPhoto | Promise<CroppedPhoto>;
+
+/** Centre crop rectangle of a W x H image for the given aspect, and the output size (at most maxWidth wide). */
+export function centreCrop(W: number, H: number, aspect: number, maxWidth: number):
+  { x: number; y: number; w: number; h: number; outW: number; outH: number } {
   let cw = W, ch = Math.round(W / aspect);
   if (ch > H) { ch = H; cw = Math.round(H * aspect); }
-  const cx0 = Math.floor((W - cw) / 2), cy0 = Math.floor((H - ch) / 2);
-  const tw = Math.min(maxWidth, cw), th = Math.max(1, Math.round(tw / aspect));
-  const out = new Uint8Array(tw * th * 4);
-  const sx = cw / tw, sy = ch / th;
-  const data = img.data;
-  for (let ty = 0; ty < th; ty++) {
-    const y0 = cy0 + Math.floor(ty * sy), y1 = Math.max(y0 + 1, cy0 + Math.floor((ty + 1) * sy));
-    for (let tx = 0; tx < tw; tx++) {
-      const x0 = cx0 + Math.floor(tx * sx), x1 = Math.max(x0 + 1, cx0 + Math.floor((tx + 1) * sx));
-      let r = 0, g = 0, b = 0, n = 0;
-      for (let y = y0; y < y1; y++) {
-        let i = (y * W + x0) * 4;
-        for (let x = x0; x < x1; x++, i += 4) { r += data[i]; g += data[i + 1]; b += data[i + 2]; n++; }
-      }
-      const o = (ty * tw + tx) * 4;
-      out[o] = r / n; out[o + 1] = g / n; out[o + 2] = b / n; out[o + 3] = 255;
-    }
-  }
-  const enc = jpeg.encode({ data: out, width: tw, height: th }, quality);
-  return { jpeg: new Uint8Array(enc.data), width: tw, height: th, srcWidth: W, srcHeight: H, crop: { x: cx0, y: cy0, w: cw, h: ch } };
+  const x = Math.floor((W - cw) / 2), y = Math.floor((H - ch) / 2);
+  const outW = Math.min(maxWidth, cw), outH = Math.max(1, Math.round(outW / aspect));
+  return { x, y, w: cw, h: ch, outW, outH };
 }

@@ -3,9 +3,8 @@
  * project data and the NEBB / Evergreen formulas (never read from the workbook). Constants that live in
  * the template's {Dropdowns} sheet are restated here from the Evergreen worksheet (and the rev 04 test).
  */
-import { anchorRow, TEMPLATE_MAP } from './templateMap.js';
-import { isoToSerial } from './ooxml.js';
-import type { Cell, ProjectData } from './types.js';
+import { anchorRow, isoToSerial, TEMPLATE_MAP } from '@a2b/workbook';
+import type { Cell, ProjectData } from '@a2b/workbook';
 
 const Q = 52; // continuation page offset
 

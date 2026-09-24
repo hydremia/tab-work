@@ -3,13 +3,14 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Phase 0 export spike: fill the a2b TAB workbook template (rev 05) by patching sheet XML with JSZip.",
+  "description": "Phase 0 export spike: fill the a2b TAB workbook template (rev 05) by patching sheet XML with JSZip. Uses the shared @a2b/workbook package.",
   "scripts": {
     "spike": "tsx src/runSpike.ts",
     "make-photo": "tsx src/makeTestPhoto.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@a2b/workbook": "*",
     "jpeg-js": "^0.4.4",
     "jszip": "^3.10.1"
   },

@@ -5,10 +5,15 @@ revision 05 template (`05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm`) by writing **o
 XML with JSZip. It never loads the workbook into a spreadsheet library. It then reads the same cells back.
 
 ```
+npm install          # at the repository root (npm workspaces)
 cd spike/export
-npm install
 npm run spike        # ~30 s; needs LibreOffice Calc (libreoffice-calc) and, for the PNGs, poppler-utils
 ```
+
+The reusable code (template map, exporter, importer, OOXML helpers, cover-photo box maths) now lives in the shared
+package [`packages/workbook`](../../packages/workbook) (`@a2b/workbook`), which the app also uses. The spike keeps
+only the Node-specific parts: the jpeg-js cover-photo cropper (`src/coverPhotoNode.ts`), the runner, the
+expectations and the test photo generator.
 
 `npm run make-photo` regenerates the synthetic cover photo `sample/cover-photo.jpg`. The spike also creates it
 automatically when it is missing.
@@ -51,11 +56,12 @@ The two INFO rows:
 
 | File | What it is |
 |---|---|
-| `src/templateMap.ts` | Typed, data-driven template map: sections, equipment types, block anchor formulas, fields, tables, remark lines, reading grids, column tables and list names. Sheets are resolved by name through `workbook.xml` and its rels. |
-| `src/exportWorkbook.ts` | `exportWorkbook(templateBytes, project, opts)`. The `…WithReport` variant also returns changed parts, counts and warnings. |
-| `src/importWorkbook.ts` | `importWorkbook(bytes)`: reads inline strings, shared strings, numbers and dates back into `ProjectData`. Also `normalizeProject` and `diff`. |
-| `src/ooxml.ts` | Browser-safe helpers for OOXML: rels, sheets, defined names, cells, shared strings, date styles and date serials. |
-| `src/coverPhoto.ts` | Anchor box size from column widths and row heights; centre crop, box-filter downscale and JPEG encode (jpeg-js). |
+| `packages/workbook/src/templateMap.ts` | Typed, data-driven template map: sections, equipment types, block anchor formulas, fields, tables, remark lines, reading grids, column tables and list names. Sheets are resolved by name through `workbook.xml` and its rels. |
+| `packages/workbook/src/exportWorkbook.ts` | `exportWorkbook(templateBytes, project, opts)`. The `…WithReport` variant also returns changed parts, counts and warnings. The cover-photo cropper is passed in (`opts.cropCoverPhoto`). |
+| `packages/workbook/src/importWorkbook.ts` | `importWorkbook(bytes)`: reads inline strings, shared strings, numbers and dates back into `ProjectData`. Also `normalizeProject` and `diff`. |
+| `packages/workbook/src/ooxml.ts` | Browser-safe helpers for OOXML: rels, sheets, defined names, cells, shared strings, date styles and date serials. |
+| `packages/workbook/src/coverPhoto.ts` | Anchor box size from column widths and row heights, centre-crop maths. The browser cropper (`createImageBitmap` + canvas, EXIF orientation) is `coverPhotoBrowser.ts`. |
+| `src/coverPhotoNode.ts` | Node cropper for the spike: centre crop, box-filter downscale and JPEG encode (jpeg-js). |
 | `src/expectations.ts` | Independent expected results for the sample project. |
 | `src/makeTestPhoto.ts` | Synthetic 4032×3024 test photo (grid, circle and square, red "CROP" bands that must not be visible). |
 | `sample/project.json` | Sample project: 3 RTUs (3-phase belt with full data; 1-phase direct drive; one with N/A, Not Avail. and Not Acc.), MAU with PSP, 2 exhaust fans, 3 VAVs, a Captrate hood with 3 readings on some filters, small fans #1 and #21, 2 quick-entry traverses, 2 new issues and 1 existing issue, narrative, one calibration row, building pressures. |
@@ -87,11 +93,9 @@ The two INFO rows:
    **1.685 : 1**. The export crops to that ratio. LibreOffice sizes columns differently: its render shows the box
    at about 1.83 : 1, so the test circle looks about 8 % wide in `out/cover-page.png`. The crop itself is correct:
    no red band is visible, and TOP / BOTTOM / LEFT / RIGHT are all visible. Open the export in desktop Excel once
-   and confirm the circle is round. If it is not, change `MDW` / `colWidthPx` in `src/coverPhoto.ts`.
-2. **Browser build.** `jpeg-js` works in the browser but is slow (about 3 s for 12 MP) and ignores EXIF
-   orientation. The app should crop with `createImageBitmap(file, { imageOrientation: 'from-image' })` and a
-   canvas, then call `canvas.toBlob('image/jpeg')`. This also covers HEIC on iOS Safari. The rest of the code
-   (JSZip, string patching) has no Node dependencies. Only `runSpike.ts` and `makeTestPhoto.ts` use Node APIs.
+   and confirm the circle is round. If it is not, change `MDW` / `colWidthPx` in `packages/workbook/src/coverPhoto.ts`.
+2. **Browser build.** Done: the app crops with `createImageBitmap(file, { imageOrientation: 'from-image' })` and a
+   canvas (`packages/workbook/src/coverPhotoBrowser.ts`); jpeg-js stays in the spike only.
 3. **The template map is a subset.** It covers the areas the spike needed plus ERVs, and the map audit proves
    every entry. Still to add: the Building Balance spare OA rows 67–86, hood and traverse page remarks,
    Certification (signature, date, stamp), the traverse point label, and ToC. The map is TypeScript data today;
