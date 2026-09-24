@@ -1,0 +1,290 @@
+{
+  "templateRevision": "05",
+  "name": "Spike Project",
+  "coverPhoto": "cover-photo.jpg",
+  "sections": {
+    "projectInfo": {
+      "fields": {
+        "projectName": "Riverside Medical Office Building",
+        "address": "1450 Riverside Dr, Sacramento, CA 95815",
+        "architect": "Lionakis",
+        "mechanicalEngineer": "Capital Engineering Consultants",
+        "electricalEngineer": "Salas O'Brien",
+        "generalContractor": "Otto & Sons Construction",
+        "mechanicalContractor": "Air Systems <North> Inc.",
+        "tabDate": "2026-09-15",
+        "technicians": "J. Alvarez, M. Chen",
+        "projectManager": "R. Singh",
+        "reportDate": "2026-09-23"
+      },
+      "tables": {
+        "blueprints": [
+          { "sheet": "M-101 Mechanical Floor Plan", "revisionDate": "2026-06-12" },
+          { "sheet": "M-501 Mechanical Schedules", "revisionDate": "2026-07-01" }
+        ]
+      }
+    },
+    "narrative": {
+      "fields": {
+        "text": "The building is served by three packaged rooftop units (RTU-1 to RTU-3), one direct-fired make-up air unit (MAU-1) for the kitchen, two exhaust fans and three VAV terminals.\nAll systems were balanced to within ±10 % of design where possible; see the Summary pages for exceptions.\nNotes: \"Not Acc.\" = not accessible; readings marked N/A do not apply. Coil ΔP on RTU-3 < 0.1 in. w.g. could not be read."
+      }
+    },
+    "issuesNew": {
+      "tables": {
+        "issues": [
+          { "no": 1, "remark": "RTU-1: supply fan belt worn; replaced during TAB.", "status": "Closed", "comments": "A42 belt replaced 9/15." },
+          { "no": 2, "remark": "VAV-2 fan-powered box: fan CFM 1 % low at max speed.", "status": "Open", "comments": "Controls contractor to verify ECM setting." }
+        ]
+      }
+    },
+    "issuesExisting": {
+      "tables": {
+        "issues": [
+          { "no": 1, "remark": "Existing RTU-3 coil access panel seized; coil leaving static Not Acc.", "status": "Open", "comments": "Owner to repair & re-test." }
+        ]
+      }
+    },
+    "calibration": {
+      "tables": {
+        "instruments": [
+          { "type": "Balometer", "manufacturer": "Evergreen Telemetry", "model": "Three Pounder", "serial": "2400180B", "calibrationDate": "2026-03-14" }
+        ]
+      }
+    },
+    "buildingBalance": {
+      "tables": {
+        "pressures": [
+          { "testSpace": "Building", "referenceSpace": "Outdoors", "dp": 0.02, "remarks": "Positive, all doors closed" },
+          { "testSpace": "Kitchen", "referenceSpace": "Dining", "dp": -0.01, "remarks": "Kitchen negative to dining" }
+        ]
+      },
+      "lines": { "notes": ["Pressures measured at 2 pm with all units in occupied mode."] }
+    },
+    "equipmentSummary": { "fields": { "tolerance": 0.1 } }
+  },
+  "equipment": {
+    "rtu": [
+      {
+        "slot": 1,
+        "schedule": {
+          "designation": "RTU-1", "areaServed": "Lobby / Suites 101-104", "location": "Roof", "manufacturer": "Carrier",
+          "model": "48FC-D07", "hp": 3, "unitEsp": 0.8, "fanRpm": 1100, "motorSheave": "1VP44 x 7/8", "fanPulley": "AK74 x 1",
+          "belts": "A42", "cToC": "14 1/4", "voltage": 460, "phase": "3-phase", "designTotalCfm": 2400, "designOaCfm": 600
+        },
+        "fields": {
+          "driveType": "Belt", "rotationDesign": "CW", "rotationActual": "CW", "sheaveBore": "7/8 / 1", "serial": "4719G20331",
+          "filters": "2\" pleated 16x20 x 4", "motorManufacturer": "WEG", "motorRpm": 1725, "serviceFactor": "SF 1.15",
+          "fla": 4.8, "frame": "182T", "volts1": 468, "volts2": 465, "volts3": 470, "finalSettings": "Sheave 2.5 turns open",
+          "amps1": 3.9, "amps2": 4.1, "amps3": 4.0, "motorRpmInitial": 1740, "motorRpmFinal": 1742,
+          "fanRpmInitial": 1060, "fanRpmFinal": 1105, "spEntering": -0.35, "oaDamper": "35% open",
+          "spLeaving1": -0.55, "spLeaving3": -0.95, "spLeaving4": -1.05, "spLeaving5": 0.72,
+          "unitType": "RTU", "instrument": "Flow Hood", "akNotes": "Flow hood direct read (Ak 1.0) unless noted"
+        },
+        "tables": {
+          "supply": [
+            { "no": "S-1", "area": "Lobby", "type": "CD", "size": "24x24", "ak": 1, "designCfm": 250, "initialVel": 240, "finalVel": 255 },
+            { "no": "S-2", "area": "Lobby", "type": "CD", "size": "24x24", "ak": 1, "designCfm": 250, "initialVel": 236, "finalVel": 248 },
+            { "no": "S-3", "area": "Suite 101", "type": "CD", "size": "24x24", "ak": 1, "designCfm": 200, "initialVel": 190, "finalVel": 204 },
+            { "no": "S-4", "area": "Suite 101", "type": "CD", "size": "24x24", "ak": 1, "designCfm": 200, "initialVel": 212, "finalVel": 198 },
+            { "no": "S-5", "area": "Suite 102", "type": "CD", "size": "24x24", "ak": 1, "designCfm": 200, "initialVel": 185, "finalVel": 202 },
+            { "no": "S-6", "area": "Suite 102", "type": "CD", "size": "24x24", "ak": 1, "designCfm": 200, "initialVel": 205, "finalVel": 207 },
+            { "no": "S-7", "area": "Suite 103", "type": "CD", "size": "24x24", "ak": 1, "designCfm": 200, "initialVel": 188, "finalVel": 196 },
+            { "no": "S-8", "area": "Suite 103", "type": "CD", "size": "24x24", "ak": 1, "designCfm": 200, "initialVel": 190, "finalVel": 201 },
+            { "no": "S-9", "area": "Conf 104", "type": "CD", "size": "24x24", "ak": 1, "designCfm": 225, "initialVel": 210, "finalVel": 229 },
+            { "no": "S-10", "area": "Conf 104", "type": "CD", "size": "24x24", "ak": 1, "designCfm": 225, "initialVel": 215, "finalVel": 221 },
+            { "no": "S-11", "area": "Corridor", "type": "LD", "size": "48\" slot", "ak": 0.62, "designCfm": 125, "initialVel": 190, "finalVel": 205 },
+            { "no": "S-12", "area": "Restroom", "type": "SG", "size": "10x6", "ak": 0.28, "designCfm": 125, "initialVel": 420, "finalVel": 450 }
+          ],
+          "return": [
+            { "no": "R-1", "area": "Lobby plenum", "type": "RG", "size": "24x24", "ak": 1 },
+            { "no": "R-2", "area": "Suite 103", "type": "RG", "size": "22x22", "ak": 1, "designCfm": 300, "finalVel": 290 }
+          ],
+          "oa": [
+            { "no": "OA-1", "area": "Economizer hood", "type": "OA", "size": "36x18", "ak": 4.5, "designCfm": 600, "initialVel": 125, "finalVel": 130 }
+          ]
+        },
+        "lines": {
+          "remarks": [
+            "Belt replaced during TAB (A42).",
+            "Motor sheave opened 2.5 turns to reach design airflow.",
+            "OA damper minimum position set at 35 %.",
+            "Continuation remark: S-11/S-12 read with a velocity grid, Ak per manufacturer & <catalog>."
+          ]
+        }
+      },
+      {
+        "slot": 2,
+        "schedule": {
+          "designation": "RTU-2", "areaServed": "Electrical Room", "location": "Roof", "manufacturer": "Goodman",
+          "model": "GPC1336H41", "hp": 0.5, "unitEsp": 0.5, "fanRpm": 1075, "motorSheave": "N/A", "fanPulley": "N/A",
+          "belts": "N/A", "cToC": "N/A", "voltage": 208, "phase": "1-phase", "designTotalCfm": 1200, "designOaCfm": 0
+        },
+        "fields": {
+          "driveType": "Direct", "serial": "1904123456", "motorManufacturer": "Regal Beloit", "motorRpm": 1075,
+          "serviceFactor": "SF 1.0", "fla": 3.2, "frame": "48", "volts1": 206, "amps1": 2.7, "fanRpmFinal": 1070,
+          "spEntering": -0.2, "spLeaving1": -0.3, "spLeaving3": -0.4, "spLeaving5": 0.35, "unitType": "RTU", "instrument": "Flow Hood"
+        },
+        "tables": {
+          "supply": [
+            { "no": "S-1", "area": "Elec Rm", "type": "CD", "size": "12x12", "ak": 1, "designCfm": 400, "finalVel": 390 },
+            { "no": "S-2", "area": "Elec Rm", "type": "CD", "size": "12x12", "ak": 1, "designCfm": 400, "finalVel": 410 },
+            { "no": "S-3", "area": "IDF", "type": "CD", "size": "12x12", "ak": 1, "designCfm": 400, "finalVel": 385 }
+          ]
+        }
+      },
+      {
+        "slot": 3,
+        "schedule": {
+          "designation": "RTU-3", "areaServed": "Suite 200", "location": "Roof", "manufacturer": "Trane", "model": "YSC090",
+          "hp": 2, "unitEsp": "Not Avail.", "fanRpm": 900, "voltage": 208, "phase": "3-phase", "designTotalCfm": 3000, "designOaCfm": 900
+        },
+        "fields": {
+          "driveType": "Belt", "serial": "Not Acc.", "motorRpm": "Not Avail.", "fla": 7.5,
+          "volts1": 207, "volts2": "Not Acc.", "volts3": 209, "amps1": 6.8, "amps2": 7.0, "amps3": "Not Acc.",
+          "fanRpmFinal": "Not Acc.", "spEntering": -0.4, "spLeaving1": -0.6, "spLeaving3": "Not Acc.", "spLeaving4": -1.0,
+          "spLeaving5": 0.8, "unitType": "RTU", "instrument": "Flow Hood"
+        },
+        "tables": {
+          "supply": [
+            { "no": "S-1", "area": "Suite 200 open office", "type": "CD", "size": "24x24", "ak": 1, "designCfm": 1000, "finalVel": 980 },
+            { "no": "S-2", "area": "Suite 200 open office", "type": "CD", "size": "24x24", "ak": 1, "designCfm": 1000, "finalVel": "Not Acc." },
+            { "no": "S-3", "area": "Suite 200 conf", "type": "CD", "size": "24x24", "ak": 1, "designCfm": "N/A", "finalVel": 950 }
+          ],
+          "oa": [
+            { "no": "OA-1", "area": "OA intake", "type": "OA", "size": "40x20", "ak": "Not Acc.", "designCfm": 900, "finalVel": 200 }
+          ]
+        },
+        "lines": { "remarks": ["Coil access panel seized: coil leaving static Not Acc. (see Summary - (E) #1)."] }
+      }
+    ],
+    "mau": [
+      {
+        "slot": 1,
+        "schedule": {
+          "designation": "MAU-1", "areaServed": "Kitchen", "location": "Roof", "manufacturer": "CaptiveAire",
+          "model": "A1-D.500-G10", "hp": 1.5, "unitEsp": 0.6, "fanRpm": 1250, "voltage": 208, "phase": "3-phase",
+          "designTotalCfm": 2100, "designOaCfm": 2100
+        },
+        "fields": {
+          "driveType": "Belt", "serial": "MA-22-0931", "unitType": "MAU",
+          "pspLength": 96, "pspWidth": 12, "pspBlanks": 1, "method": "PSP", "designCfmOverride": 2100,
+          "methodRemarks": "PSP read with Evergreen VelGrid"
+        },
+        "sequences": {
+          "pspVelocities": [300, 305, 310, 295, 290, 300, 315, 305, 298, 302, 296, 304, 310, 300, 292, 308, 301, 299, 303, 297]
+        }
+      }
+    ],
+    "fan": [
+      {
+        "slot": 1,
+        "schedule": {
+          "designation": "EF-1", "areaServed": "Restrooms", "location": "Roof", "manufacturer": "Greenheck", "model": "G-095-VG",
+          "hp": 0.25, "unitEsp": 0.5, "fanRpm": 1400, "voltage": 115, "phase": "1-phase", "designTotalCfm": 600
+        },
+        "fields": { "driveType": "Direct", "unitType": "EF", "spEntering": -0.45, "spLeaving5": 0.05, "instrument": "Flow Hood" },
+        "tables": {
+          "outlets": [
+            { "no": "E-1", "area": "Men's RR", "type": "EG", "size": "12x12", "ak": 0.6, "designCfm": 200, "finalVel": 330 },
+            { "no": "E-2", "area": "Women's RR", "type": "EG", "size": "12x12", "ak": 0.6, "designCfm": 200, "finalVel": 350 },
+            { "no": "E-3", "area": "Unisex RR", "type": "EG", "size": "12x12", "ak": 0.6, "designCfm": 200, "finalVel": 320 }
+          ]
+        }
+      },
+      {
+        "slot": 2,
+        "schedule": {
+          "designation": "EF-2", "areaServed": "Kitchen hood KH-1", "location": "Roof", "manufacturer": "CaptiveAire",
+          "model": "DU180HFA", "hp": 2, "fanRpm": 1180, "voltage": 208, "phase": "3-phase", "designTotalCfm": 2000
+        },
+        "fields": { "driveType": "Direct", "unitType": "EF", "instrument": "Pitot Traverse" },
+        "tables": {
+          "outlets": [
+            { "no": "1", "area": "Hood KH-1 duct", "type": "Duct", "size": "16x16", "ak": 1, "designCfm": 1000, "finalVel": 1010 },
+            { "no": "2", "area": "Hood KH-1 duct", "type": "Duct", "size": "16x16", "ak": 1, "designCfm": 1000, "finalVel": 1040 }
+          ]
+        }
+      }
+    ],
+    "smallFan": [
+      {
+        "slot": 1,
+        "schedule": { "designation": "EF-S1", "areaServed": "Toilet 101", "location": "Ceiling", "manufacturer": "Broan", "model": "L150",
+          "hp": 0.05, "voltage": 115, "phase": "1-phase", "designCfm": 110 },
+        "fields": { "serial": "BR-5521", "amps": 0.9, "instrument": "Flow Hood" },
+        "tables": { "outlets": [{ "no": "1", "area": "Toilet 101", "type": "EG", "size": "8x8", "ak": 1, "designCfm": 110, "finalVel": 104 }] }
+      },
+      {
+        "slot": 21,
+        "schedule": { "designation": "EF-S21", "areaServed": "Toilet 221", "location": "Ceiling", "manufacturer": "Panasonic",
+          "model": "FV-0511VQ1", "hp": 0.03, "voltage": 115, "phase": "1-phase", "designCfm": 90 },
+        "fields": { "serial": "PN-88213", "amps": 0.4, "instrument": "Flow Hood", "speedDesign": "High", "speedActual": "High" },
+        "tables": { "outlets": [{ "no": "1", "area": "Toilet 221", "type": "EG", "size": "8x8", "ak": 1, "designCfm": 90, "finalVel": 95 }] }
+      }
+    ],
+    "vav": [
+      {
+        "slot": 1,
+        "schedule": { "designation": "VAV-101", "areaServed": "Suite 101", "location": "Ceiling", "manufacturer": "Titus", "model": "DESV",
+          "inletSize": 8, "terminalType": "Pressure Independent", "designMaxCfm": 600, "designMinCfm": 150, "heatingCfm": 300, "ddcAddress": "AV-101" },
+        "fields": { "instrument": "Flow Hood", "serial": "T-778812", "minCfmActual": 155, "calibrationFactor": 1.02, "ddcMaxMin": "600 / 150", "heatingCfmActual": 310 },
+        "tables": { "outlets": [
+          { "no": "1", "area": "Suite 101", "type": "CD", "size": "12x12", "ak": 1, "designCfm": 200, "finalVel": 195 },
+          { "no": "2", "area": "Suite 101", "type": "CD", "size": "12x12", "ak": 1, "designCfm": 200, "finalVel": 205 },
+          { "no": "3", "area": "Suite 101", "type": "CD", "size": "12x12", "ak": 1, "designCfm": 200, "finalVel": 210 }
+        ] }
+      },
+      {
+        "slot": 2,
+        "schedule": { "designation": "VAV-102", "areaServed": "Suite 102", "location": "Ceiling", "manufacturer": "Titus", "model": "TQS",
+          "inletSize": 10, "terminalType": "Series Fan Powered", "designMaxCfm": 800, "designMinCfm": 250, "fanCfm": 800, "ddcAddress": "AV-102" },
+        "fields": { "instrument": "Flow Hood", "serial": "T-778901", "minCfmActual": 245, "fanCfmActual": 790, "ddcMaxMin": "800 / 250" },
+        "tables": { "outlets": [
+          { "no": "1", "area": "Suite 102", "type": "CD", "size": "12x12", "ak": 1, "designCfm": 400, "finalVel": 395 },
+          { "no": "2", "area": "Suite 102", "type": "CD", "size": "12x12", "ak": 1, "designCfm": 400, "finalVel": 402 }
+        ] },
+        "lines": { "remarks": ["Fan CFM 1 % low; see Summary - New #2."] }
+      },
+      {
+        "slot": 3,
+        "schedule": { "designation": "VAV-103", "areaServed": "Conf 104", "location": "Ceiling", "manufacturer": "Price", "model": "SDV",
+          "inletSize": 6, "terminalType": "Pressure Independent", "designMaxCfm": 250, "designMinCfm": "N/A", "ddcAddress": "AV-103" },
+        "fields": { "instrument": "Flow Hood", "serial": "P-120334", "minCfmActual": "N/A" },
+        "tables": { "outlets": [
+          { "no": "1", "area": "Conf 104", "type": "CD", "size": "10x10", "ak": 1, "designCfm": 250, "finalVel": 262 }
+        ] }
+      }
+    ],
+    "hood": [
+      {
+        "slot": 1,
+        "schedule": { "designation": "KH-1", "areaServed": "Kitchen", "location": "Cook line", "manufacturer": "CaptiveAire",
+          "designCfm": 2000, "kefInterlock": "EF-2", "model": "5424ND-2-PSP-F", "lengthFt": 8 },
+        "fields": { "associatedFan": "EF-2", "serial": "CA-2024-5512", "hoodType": "Type I", "filterManufacturer": "CaptiveAire",
+          "filterType": "Captrate (VelGrid)", "instrument": "Evergreen VelGrid" },
+        "tables": { "filters": [
+          { "size": "16\" x 20\"", "init1": 170, "init2": 180, "init3": 175, "final1": 177 },
+          { "size": "16\" x 20\"", "init1": 182, "init2": 186, "init3": 190, "final1": 187 },
+          { "size": "16\" x 20\"", "final1": 180, "final2": 183, "final3": 186 },
+          { "size": "16\" x 20\"", "final1": 175 },
+          { "size": "16\" x 20\"", "final1": 162 }
+        ] },
+        "lines": { "technicianNotes": ["Grease filters cleaned before test."] }
+      }
+    ],
+    "traverse": [
+      {
+        "slot": 1,
+        "fields": { "areaServed": "RTU-1 supply main", "designCfm": 1000, "initialVel": 490, "instrument": "Manometer/Pitot Tube",
+          "ductStatic": 0.45, "temperature": 55, "shape": "Rectangular", "width": 24, "height": 12, "liner": 0 },
+        "sequences": { "readings": [480, 484, 488, 492, 496, 500, 504, 508, 512, 516, 520, 524] }
+      },
+      {
+        "slot": 2,
+        "fields": { "areaServed": "EF-2 discharge", "designCfm": 350, "instrument": "Manometer/Pitot Tube",
+          "ductStatic": 0.3, "temperature": 72, "shape": "Round", "width": 10 },
+        "sequences": { "readings": [600, 600, 600, 600, 600, 600, 600, 600, 620, 620, 620, 620, 620, 620, 620, 620] }
+      }
+    ]
+  }
+}

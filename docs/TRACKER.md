@@ -80,6 +80,7 @@ Last updated: 2026-09-23
 | 2026-09-23 | Equipment tagged New/Existing. All users have equal permissions. Tolerance ±10%. Equipment photos are required unless N/A. |
 | 2026-09-23 | PR #1 merged into `main`. **N/A (option A):** revision 05 hardens formulas so `N/A`, `Not Avail.` and `Not Acc.` print in numeric cells without errors. |
 | 2026-09-23 | Full offline support is required. Most sites are online, so sync runs continuously when connected, and offline is the fallback rather than the normal mode. |
+| 2026-09-24 | Export writes **every** N/A: automatic and scope-profile N/A as `N/A`, never a blank. Photos are not in the workbook: re-import into the same project keeps them; a new project comes back amber until photos are added. |
 | 2026-09-23 | **Revision 05 built.** The app now targets revision 05 (same layout as 04, so the revision 04 analysis applies). |
 | 2026-09-23 | **The app targets revision 04 (`04 - a2b_Blank_TAB_Workbook 9-18-26.xlsm`)**, which includes the Evergreen hood method, MAU supply methods, building pressures, cover photo box, traverse grids, Equipment Summary and Small Fans. |
 
@@ -88,40 +89,40 @@ Last updated: 2026-09-23
 ## Phase 0 — Discovery & template spike
 - [x] Inventory workbook sheets, blocks and capacities ([WORKBOOK_ANALYSIS.md](./WORKBOOK_ANALYSIS.md))
 - [x] Draft roadmap, architecture and services list ([ROADMAP.md](./ROADMAP.md))
-- [~] Answer open questions (round 1 and 2 answered; round 3 E1, F1–F4, R1–R4 open)
+- [x] Answer open questions (all rounds answered)
 - [x] ~~Fix template bugs~~: already fixed in revision 01. The duplicate fix on the 4-16-26 backup was reverted.
 - [x] Merge [PR #1](https://github.com/hydremia/tab-work/pull/1) (revisions 01–04) into `main`
-- [x] **Revision 05** (`05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm`): N/A-safe formulas, cover-page link fix, burner profile curve restored. 256/256 checks, 0 error cells (LibreOffice). Still needs a check in desktop Excel.
+- [x] **Revision 05** (`05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm`): N/A-safe formulas, cover-page link fix, burner profile curve restored. 262/262 checks, 0 error cells (LibreOffice). Merged via [PR #2](https://github.com/hydremia/tab-work/pull/2). Still needs a check in desktop Excel.
 - [x] Building Balance: Small Fans 21–30 added in revision 05 (B1). The app warns past 30.
 - [x] Redo the workbook analysis and required fields on revision 04 (`04 - a2b_Blank_TAB_Workbook 9-18-26.xlsm`)
-- [ ] Template map v1: Project Information, Equipment Data Entry, Cover Page
-- [ ] Template map v1: RTU Data / RTU Airflow (all 40 blocks)
-- [ ] Template map v1: MAU, Fans, VAV, Hoods, Traverses, Summary, Calibration
-- [ ] **Spike:** write values into the .xlsm through XML patching, open it in desktop Excel, and verify macros, images, formulas and print setup
-- [ ] **Spike:** insert a cover photo into the Cover Page drawing
+- [x] Template map v1 (`spike/export/src/templateMap.ts`): project info, EDE, cover, RTU/MAU/ERV/Fan/Small Fan/VAV/Hood/Traverse blocks, Summaries, Narrative, Calibration, Building Balance pressures. Audited on the first and last block of every type.
+- [ ] Template map: remaining areas (Building Balance spare OA rows, hood/traverse page remarks, Certification). Convert to versioned JSON per template revision.
+- [x] **Export spike** (`spike/export`, `npm run spike`): 71 PASS / 0 FAIL. 634 cells written directly into the XML; 66 of 83 parts byte-identical, VBA unchanged; 0 error cells after recalculation; 189/189 expected values; import round trip with 0 differences (also after a LibreOffice re-save); 6/6 unsafe writes rejected.
+- [x] **Spike:** cover photo cropped (≈1.685:1) and inserted into the Cover Page drawing
+- [ ] **Open the spike export in desktop Excel**: no repair prompt, recalculation on open, macros/ToC button, dropdown values, cover photo proportions, print layout
 - [x] Propose default required fields per equipment type ([REQUIRED_FIELDS.md](./REQUIRED_FIELDS.md))
 - [x] Accounts and admin setup checklist ([SETUP_ACCOUNTS.md](./SETUP_ACCOUNTS.md))
 - [x] Compare Hoods sheet with the Evergreen worksheet (aligned in revision 01; see E1)
 
 ## Phase 1 — Foundation
-- [ ] Create Supabase project (dev and prod) and GitHub repo structure
-- [ ] Scaffold PWA (Vite, React, TS, routing, UI kit, mobile-first layout)
-- [ ] Lint, format, unit tests, GitHub Actions CI, preview deploys
-- [ ] Auth: Sign in with Microsoft (Entra ID app registration)
-- [ ] DB schema, migrations and row-level security policies
-- [ ] Project list, create project and project membership
+- [~] Create Supabase project (dev and prod) and GitHub repo structure. Repo structure done (`app/`, `packages/workbook/`, `supabase/`, npm workspaces). Supabase projects still to be created (SETUP_ACCOUNTS.md §2).
+- [x] Scaffold PWA (Vite, React, TS, routing, UI kit, mobile-first layout): `app/`. Plain CSS instead of a UI kit; installable, offline app shell, auto-update.
+- [~] Lint, format, unit tests, GitHub Actions CI, preview deploys. ESLint, Prettier, Vitest (64 tests), Playwright e2e walk, `.github/workflows/ci.yml` done. Preview deploys wait for the hosting account.
+- [~] Auth: Sign in with Microsoft (Entra ID app registration). "Sign in with Microsoft" (Supabase Azure provider) is wired behind `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`; the app runs in local mode without them. Entra app registration and Supabase provider settings pending ([supabase/README.md](../supabase/README.md)).
+- [x] DB schema, migrations and row-level security policies: `supabase/migrations/0001_init.sql` (tables, `field_changes` sync log with last-writer-wins trigger, RLS on every table, `photos` bucket). Checked on local PostgreSQL 16; not yet applied to a Supabase project.
+- [x] Project list, create project and project membership. Membership = the organization (all users equal, F4); no per-project membership.
 
 ## Phase 2 — Core data entry (offline, single device)
-- [ ] Local DB (IndexedDB/Dexie) and field-change log
-- [ ] Project Information form
-- [ ] Equipment list by type, with add, duplicate and bulk schedule import
-- [ ] Forms generated from the template map: RTU/AHU, MAU/SF, ERV, EF/KEF, VAV, Hoods, Traverses
-- [ ] Airflow outlet entry (fast numeric keypad, fill-down)
-- [ ] Calc engine (CFM, %, totals, TSP/ESP, corrected FLA, BHP) with tests against Excel values
-- [ ] Completion status engine and color coding (card, type rollup, project rollup, filters)
-- [ ] N/A handling (field, section, equipment, automatic) and project scope profiles
-- [ ] Tolerance flags
-- [ ] Offline verification (airplane-mode test)
+- [x] Local DB (IndexedDB/Dexie) and field-change log (every edit via `setField`, outbox coalescing; sync push/pull engine written, not yet run against Supabase)
+- [x] Project Information form (incl. report date, blueprints, narrative, scope/tolerance, cover photo, instruments)
+- [~] Equipment list by type, with add, duplicate and bulk schedule import. List by type with rollups and filters, add (capacities enforced, New/Existing) done; duplicate and bulk schedule import not yet.
+- [~] Forms generated from the template map: RTU/AHU, MAU/SF, ERV, EF/KEF, VAV, Hoods, Traverses. Spec-driven forms: RTU/AHU/DOAS and VAV complete; the other types show identity only ("coming soon").
+- [x] Airflow outlet entry (fast numeric keypad, fill-down): decimal keypad, new row copies area/type/size/Ak and numbers S-1 → S-2
+- [~] Calc engine (CFM, %, totals, TSP/ESP, corrected FLA, BHP) with tests against Excel values. CFM = VEL × Ak, % of design, totals done; TSP/ESP, corrected FLA, BHP not yet.
+- [x] Completion status engine and color coding (card, type rollup, project rollup, filters)
+- [x] N/A handling (field, section, equipment, automatic) and project scope profiles. Automatic rules exist for the RTU and VAV specs; other types get theirs with their forms.
+- [x] Tolerance flags
+- [~] Offline verification (airplane-mode test). Automated offline run in Chromium passes (app shell, edits, export); a real phone in airplane mode is still to do.
 
 ## Phase 3 — Excel export & import (first usable release)
 - [ ] Export engine (XML patching, shared strings, `fullCalcOnLoad`)
