@@ -18,6 +18,7 @@ const AttentionPage = page(() => import('./ui/pages/AttentionPage'), 'AttentionP
 const EquipmentListPage = page(() => import('./ui/pages/EquipmentListPage'), 'EquipmentListPage');
 const EquipmentPage = page(() => import('./ui/pages/EquipmentPage'), 'EquipmentPage');
 const ExportPage = page(() => import('./ui/pages/ExportPage'), 'ExportPage');
+const HistoryPage = page(() => import('./ui/pages/HistoryPage'), 'HistoryPage');
 const ImportPage = page(() => import('./ui/pages/ImportPage'), 'ImportPage');
 const IssuesPage = page(() => import('./ui/pages/IssuesPage'), 'IssuesPage');
 const NewProjectPage = page(() => import('./ui/pages/NewProjectPage'), 'NewProjectPage');
@@ -64,6 +65,7 @@ export const routes = [
           { path: 'attention', element: AttentionPage },
           { path: 'photos', element: PhotosPage },
           { path: 'export', element: ExportPage },
+          { path: 'history', element: HistoryPage },
         ],
       },
       { path: 'p/:projectId/add', element: AddEquipmentPage },

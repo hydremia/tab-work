@@ -5,16 +5,27 @@ import {
   useAirflowRows,
   useEquipment,
   useEquipmentList,
+  useHistory,
   useInstruments,
   useIssues,
   usePhotos,
   useProject,
+  useUserName,
 } from '../../data/hooks';
-import { deleteRecord, duplicateEquipment, setField, setFields } from '../../data/repo';
+import { clearReview, deleteRecord, duplicateEquipment, markReviewed, setField, setFields } from '../../data/repo';
+import { makeContext } from '../../domain/historyView';
+import { HistoryList } from '../components/HistoryList';
+import { LockBanner } from '../components/LockBanner';
 import { INSTRUMENT_FIELDS, pickerWarning } from '../../domain/instruments';
 import { NOTATIONS, type Equipment, type FieldValue, type NaMark, type Notation, type Project } from '../../data/types';
 import { formatNumber } from '../../domain/calc';
-import { computeCompletion, type Completion, type SectionResult } from '../../domain/completion';
+import {
+  computeCompletion,
+  displayColor,
+  STATUS_LABEL,
+  type Completion,
+  type SectionResult,
+} from '../../domain/completion';
 import { evalCond } from '../../domain/conditions';
 import { traverseLayout } from '../../domain/equipmentCalcs';
 import { equipmentType, nextDesignation } from '../../domain/equipmentTypes';
@@ -22,12 +33,12 @@ import { getSpec, type FieldSpec, type SectionSpec, type SequenceSpec } from '..
 import { AirflowTable } from '../components/AirflowTable';
 import { CalcPanel, espText, unitEspCheck } from '../components/CalcPanels';
 import { SequenceGrid, type GridShape } from '../components/SequenceGrid';
-import { IconChevron, IconTrash } from '../components/Icons';
+import { IconChevron, IconHistory, IconTrash } from '../components/Icons';
 import { PhotoSlots } from '../components/PhotoSlots';
 import { Screen } from '../components/Screen';
 import { SpecField } from '../components/SpecField';
 import { StatusBadge, StatusIcon } from '../components/Status';
-import type { AirflowRow, Instrument, Photo } from '../../data/types';
+import type { AirflowRow, Instrument, Issue, Photo } from '../../data/types';
 
 function fieldLabel(f: FieldSpec, data: Equipment['data']): string {
   if (!f.component) return f.label;
@@ -351,6 +362,142 @@ function DuplicateCard({ equipment, all }: { equipment: Equipment; all: Equipmen
   );
 }
 
+const stamp = (t: number) => new Date(t).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+
+/** Review sign-off: any user can mark a green unit reviewed (blue); any later change of the unit clears it. */
+function ReviewRow({
+  equipment,
+  completion,
+  locked,
+}: {
+  equipment: Equipment;
+  completion: Completion;
+  locked: boolean;
+}) {
+  const saved = useUserName();
+  const [typed, setTyped] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const name = typed ?? saved ?? '';
+  const review = equipment.review;
+  const green = completion.color === 'green';
+  const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
+  if (review) {
+    return (
+      <div className="review-row" data-testid="review-row">
+        <span className="grow">
+          {green ? (
+            <span className="review-done" data-testid="review-status">
+              <StatusIcon color="blue" size={16} /> Reviewed{review.name ? ` by ${review.name}` : ''} ·{' '}
+              {stamp(review.at)}
+            </span>
+          ) : (
+            <span className="small" data-testid="review-status">
+              Reviewed{review.name ? ` by ${review.name}` : ''} on {stamp(review.at)}, but the unit is no longer
+              complete.
+            </span>
+          )}
+        </span>
+        <button
+          type="button"
+          className="btn"
+          disabled={locked}
+          data-testid="clear-review"
+          onClick={() => void clearReview(equipment.id).catch(fail)}
+        >
+          Clear review
+        </button>
+        {error && (
+          <span className="small" role="alert">
+            {error}
+          </span>
+        )}
+      </div>
+    );
+  }
+  if (!green)
+    return (
+      <p className="small muted" style={{ margin: 0 }} data-testid="review-status">
+        Can be marked reviewed once complete (green).
+      </p>
+    );
+  return (
+    <div className="review-row" data-testid="review-row">
+      <label className="visually-hidden" htmlFor="reviewer">
+        Reviewer name
+      </label>
+      <input
+        id="reviewer"
+        className="input"
+        placeholder="Reviewer name"
+        value={name}
+        disabled={locked}
+        onChange={(e) => setTyped(e.target.value)}
+        autoComplete="name"
+      />
+      <button
+        type="button"
+        className="btn btn-primary"
+        disabled={locked || !name.trim()}
+        data-testid="mark-reviewed"
+        onClick={() => void markReviewed(equipment.id, name).then(() => setTyped(null), fail)}
+      >
+        <StatusIcon color="blue" size={16} /> Mark reviewed
+      </button>
+      {error && (
+        <span className="small" role="alert">
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** The unit's change history (its fields, N/A marks, rows, photos, linked issues, review). */
+function UnitHistory({
+  equipment,
+  all,
+  rows,
+  issues,
+  instruments,
+}: {
+  equipment: Equipment;
+  all: Equipment[];
+  rows: AirflowRow[];
+  issues: Issue[];
+  instruments: Instrument[];
+}) {
+  const [open, setOpen] = useState(false);
+  const entries = useHistory(equipment.projectId, equipment.id);
+  const ctx = makeContext({ equipment: all, rows, issues, instruments });
+  const shown = 40;
+  return (
+    <section className="card card-pad stack" aria-labelledby="uh-h" data-testid="unit-history">
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <h2 id="uh-h" style={{ margin: 0 }}>
+          History
+        </h2>
+        <button
+          type="button"
+          className="btn"
+          aria-expanded={open}
+          data-testid="unit-history-toggle"
+          onClick={() => setOpen(!open)}
+        >
+          <IconHistory size={18} /> {open ? 'Hide' : `Show${entries ? ` (${entries.length})` : ''}`}
+        </button>
+      </div>
+      {open && entries && (
+        <>
+          <HistoryList entries={entries.slice(0, shown)} ctx={ctx} showSubject={false} />
+          <Link to={`/p/${equipment.projectId}/history?unit=${equipment.id}`} className="small">
+            {entries.length > shown ? `All ${entries.length} changes` : 'Open'} in the project History (filters)
+          </Link>
+        </>
+      )}
+    </section>
+  );
+}
+
 export function EquipmentPage() {
   const { projectId, equipmentId } = useParams();
   const project = useProject(projectId);
@@ -393,16 +540,20 @@ export function EquipmentPage() {
   const values = { ...equipment.data, designation: equipment.designation };
   const sections = spec.sections.filter((s) => !s.showWhen || evalCond(s.showWhen, values));
   const esp = unitEspCheck(equipment, c, project.tolerance);
+  const locked = Boolean(project.lock);
+  const shown = displayColor(c.color, Boolean(equipment.review));
 
   return (
     <Screen title={equipment.designation} subtitle={`${info.label} · ${project.name}`} back={back}>
+      <LockBanner project={project} />
       <section className="card unit-summary" aria-label="Status">
         <div className="row" style={{ justifyContent: 'space-between' }}>
-          <StatusBadge color={c.color} label={c.label} />
+          <StatusBadge color={shown} label={shown === 'blue' ? STATUS_LABEL.blue : c.label} />
           <div className="segmented" role="group" aria-label="New or existing" style={{ flex: '0 0 auto' }}>
             <button
               type="button"
               aria-pressed={!equipment.isExisting}
+              disabled={locked}
               onClick={() => void setField('equipment', equipment.id, 'isExisting', false)}
             >
               New
@@ -410,6 +561,7 @@ export function EquipmentPage() {
             <button
               type="button"
               aria-pressed={equipment.isExisting}
+              disabled={locked}
               onClick={() => void setField('equipment', equipment.id, 'isExisting', true)}
             >
               Existing
@@ -484,6 +636,7 @@ export function EquipmentPage() {
             </ul>
           </details>
         )}
+        <ReviewRow equipment={equipment} completion={c} locked={locked} />
       </section>
 
       {sections.length > 2 && (
@@ -502,58 +655,63 @@ export function EquipmentPage() {
         </nav>
       )}
 
-      {sections.map((s) => (
-        <SectionCard
-          key={s.key}
-          section={s}
-          equipment={equipment}
-          project={project}
-          completion={c}
-          rows={rows}
-          photos={photos}
-          instruments={instruments}
-        />
-      ))}
+      <fieldset className="lockable" disabled={locked} data-testid="unit-form">
+        <legend className="visually-hidden">{equipment.designation} data</legend>
+        {sections.map((s) => (
+          <SectionCard
+            key={s.key}
+            section={s}
+            equipment={equipment}
+            project={project}
+            completion={c}
+            rows={rows}
+            photos={photos}
+            instruments={instruments}
+          />
+        ))}
 
-      <DuplicateCard equipment={equipment} all={all} />
+        <DuplicateCard equipment={equipment} all={all} />
 
-      <section className="card card-pad stack" aria-label="Unit actions">
-        <div className="field">
-          <label className="field-label" htmlFor="unit-na">
-            Whole unit N/A
-          </label>
-          <select
-            id="unit-na"
-            className="select"
-            value={equipment.naState.equipment?.notation ?? ''}
-            onChange={(e) =>
-              void setField(
-                'equipment',
-                equipment.id,
-                'naState.equipment',
-                e.target.value ? { notation: e.target.value as Notation } : null,
-              )
-            }
+        <section className="card card-pad stack" aria-label="Unit actions">
+          <div className="field">
+            <label className="field-label" htmlFor="unit-na">
+              Whole unit N/A
+            </label>
+            <select
+              id="unit-na"
+              className="select"
+              value={equipment.naState.equipment?.notation ?? ''}
+              onChange={(e) =>
+                void setField(
+                  'equipment',
+                  equipment.id,
+                  'naState.equipment',
+                  e.target.value ? { notation: e.target.value as Notation } : null,
+                )
+              }
+            >
+              <option value="">Applies (not N/A)</option>
+              {NOTATIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            className="btn btn-danger"
+            onClick={() => {
+              if (window.confirm(`Delete ${equipment.designation} and its readings?`))
+                void deleteRecord('equipment', equipment.id).then(() => nav(back, { replace: true }));
+            }}
           >
-            <option value="">Applies (not N/A)</option>
-            {NOTATIONS.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button
-          type="button"
-          className="btn btn-danger"
-          onClick={() => {
-            if (window.confirm(`Delete ${equipment.designation} and its readings?`))
-              void deleteRecord('equipment', equipment.id).then(() => nav(back, { replace: true }));
-          }}
-        >
-          <IconTrash size={16} /> Delete {equipment.designation}
-        </button>
-      </section>
+            <IconTrash size={16} /> Delete {equipment.designation}
+          </button>
+        </section>
+      </fieldset>
+
+      <UnitHistory equipment={equipment} all={all} rows={rows} issues={issues} instruments={instruments} />
     </Screen>
   );
 }

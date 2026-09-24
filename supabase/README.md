@@ -60,9 +60,13 @@ database:
 
 ```
 psql -d <empty db> -v ON_ERROR_STOP=1 -f supabase/tests/supabase_stub.sql \
-     -f supabase/migrations/0001_init.sql -f supabase/tests/grants_for_stub.sql
+     -f supabase/migrations/0001_init.sql -f supabase/migrations/0002_review_lock.sql \
+     -f supabase/tests/grants_for_stub.sql
 psql -d <empty db> -f supabase/tests/smoke_test.sql
 ```
+
+`0002_review_lock.sql` (Phase 6) adds `equipment.review` and `projects.lock` (jsonb) and their `sync_columns` rows; checked
+on PostgreSQL 16 (applies cleanly, the smoke test still passes, `apply_set` writes both fields).
 
 Last run (PostgreSQL 16.13): the migration applies cleanly; creates, nested JSON sets
 (`blueprints.0.sheet`, `customScope.rtu.static`, `naState.fields.fla`), last-writer-wins (an older edit arriving

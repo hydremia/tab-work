@@ -4,6 +4,7 @@ import type {
   BaseWorkbook,
   Equipment,
   FieldChange,
+  HistoryEntry,
   Instrument,
   Issue,
   Meta,
@@ -25,6 +26,7 @@ export class TabDatabase extends Dexie {
   revisions!: EntityTable<Revision, 'id'>;
   baseWorkbooks!: EntityTable<BaseWorkbook, 'projectId'>;
   photoUploads!: EntityTable<PhotoUpload, 'photoId'>;
+  history!: EntityTable<HistoryEntry, 'id'>;
 
   constructor(name = 'a2b-tab') {
     super(name);
@@ -75,6 +77,45 @@ export class TabDatabase extends Dexie {
               updatedAt: p.createdAt,
             } satisfies PhotoUpload);
         }
+      });
+    // v4 (Phase 6): the append-only change history (audit). Backfilled from the outbox / audit log: those entries
+    // have no previous value (shown as "—"), and repeated unsynced edits that the outbox coalesced stay one entry.
+    this.version(4)
+      .stores({ history: 'id, projectId, equipmentId, ts, [projectId+ts]' })
+      .upgrade(async (tx) => {
+        const owner = new Map<string, string | null>();
+        for (const name of ['airflowRows', 'photos', 'issues'] as const) {
+          await tx
+            .table(name)
+            .toCollection()
+            .each((r: { id: string; equipmentId?: string | null }) => owner.set(r.id, r.equipmentId ?? null));
+        }
+        const out: HistoryEntry[] = [];
+        await tx
+          .table('fieldChanges')
+          .toCollection()
+          .each((c: FieldChange) => {
+            const created =
+              c.op === 'create' && c.value && typeof c.value === 'object' ? (c.value as Record<string, unknown>) : null;
+            out.push({
+              id: c.id,
+              projectId: c.projectId,
+              ts: c.ts,
+              kind: c.op === 'set' ? 'edit' : c.op,
+              table: c.table,
+              recordId: c.recordId,
+              equipmentId:
+                c.table === 'equipment'
+                  ? c.recordId
+                  : ((created?.equipmentId as string | null | undefined) ?? owner.get(c.recordId) ?? null),
+              field: c.field,
+              ...(c.op === 'set' ? { value: c.value } : {}),
+              ...(created && typeof created.designation === 'string' ? { note: created.designation } : {}),
+              userId: c.userId,
+              deviceId: c.deviceId,
+            });
+          });
+        await tx.table('history').bulkPut(out);
       });
   }
 }

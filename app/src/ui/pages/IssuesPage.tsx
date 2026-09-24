@@ -157,7 +157,7 @@ function IssueCard({
 }
 
 export function IssuesPage() {
-  const { project, equipment, issues } = useProjectContext();
+  const { project, equipment, issues, locked } = useProjectContext();
   const photos = usePhotos(project.id);
   const [viewing, setViewing] = useState<string | null>(null);
   const sorted = [...equipment].sort((a, b) =>
@@ -180,34 +180,37 @@ export function IssuesPage() {
           </p>
         </div>
       </div>
-      {groups.map((g) => {
-        const list = issues.filter((i) => i.kind === g.kind);
-        return (
-          <section key={g.kind} className="stack" aria-labelledby={`ig-${g.kind}`}>
-            <div className="type-head">
-              <h2 id={`ig-${g.kind}`}>{g.title}</h2>
-              <span className="rollup small muted">
-                {list.filter((i) => i.status === 'Open').length} open · {g.sheet}
-              </span>
-            </div>
-            {list.map((i, k) => (
-              <IssueCard
-                key={i.id}
-                issue={i}
-                equipment={sorted}
-                photos={issuePhotos(deficiency, i.id)}
-                labels={labels}
-                first={k === 0}
-                last={k === list.length - 1}
-                onOpenPhoto={setViewing}
-              />
-            ))}
-            <button type="button" className="btn" onClick={() => void addIssue(project.id, { kind: g.kind })}>
-              <IconPlus size={18} /> Add {g.kind} issue
-            </button>
-          </section>
-        );
-      })}
+      <fieldset className="lockable" disabled={locked}>
+        <legend className="visually-hidden">Issues</legend>
+        {groups.map((g) => {
+          const list = issues.filter((i) => i.kind === g.kind);
+          return (
+            <section key={g.kind} className="stack" aria-labelledby={`ig-${g.kind}`}>
+              <div className="type-head">
+                <h2 id={`ig-${g.kind}`}>{g.title}</h2>
+                <span className="rollup small muted">
+                  {list.filter((i) => i.status === 'Open').length} open · {g.sheet}
+                </span>
+              </div>
+              {list.map((i, k) => (
+                <IssueCard
+                  key={i.id}
+                  issue={i}
+                  equipment={sorted}
+                  photos={issuePhotos(deficiency, i.id)}
+                  labels={labels}
+                  first={k === 0}
+                  last={k === list.length - 1}
+                  onOpenPhoto={setViewing}
+                />
+              ))}
+              <button type="button" className="btn" onClick={() => void addIssue(project.id, { kind: g.kind })}>
+                <IconPlus size={18} /> Add {g.kind} issue
+              </button>
+            </section>
+          );
+        })}
+      </fieldset>
       {viewing && <PhotoViewer photoId={viewing} onClose={() => setViewing(null)} />}
     </>
   );

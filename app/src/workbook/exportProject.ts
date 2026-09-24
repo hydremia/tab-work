@@ -15,6 +15,7 @@ import {
 } from '@a2b/workbook';
 import { cropCoverPhotoBrowser } from '@a2b/workbook/browser';
 import { db } from '../data/db';
+import { lockProject } from '../data/repo';
 import type { Revision } from '../data/types';
 import { uuid } from '../data/uuid';
 import { APP_SECTIONS, toProjectData } from './adapter';
@@ -49,6 +50,11 @@ export interface ExportOptions {
   template?: Uint8Array;
   /** false: ignore the base workbook and use the blank template. */
   useBase?: boolean;
+  /**
+   * Issue the report: after the export is saved as a revision, the project is locked at it (edits are refused until
+   * it is unlocked for follow-up).
+   */
+  issue?: boolean;
 }
 
 export interface ExportResult {
@@ -112,8 +118,10 @@ export async function exportProject(projectId: string, opts: ExportOptions = {})
     bytes: new Blob([out.bytes as BlobPart], { type: XLSM_MIME }),
     baseline,
     onBase: baseFileName !== undefined,
+    ...(opts.issue ? { issued: true } : {}),
   };
   await saveRevision(revision);
+  if (opts.issue) await lockProject(projectId, label, revisionId);
   return { bytes: out.bytes, fileName, report: out.report, warnings, revision, baseFileName };
 }
 
