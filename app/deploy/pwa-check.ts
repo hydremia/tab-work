@@ -96,7 +96,8 @@ for (const i of icons) ok(precached.has(i.src.replace(/^\//, '')), `SW precaches
 ok(/NavigationRoute/.test(sw) && /index\.html/.test(sw), 'SW: navigation fallback to index.html (offline deep links)');
 // "prompt" updates: skipWaiting() only inside the SKIP_WAITING message handler (the update toast's Reload)
 ok(
-  (sw.match(/skipWaiting\(\)/g) ?? []).length === 1 && /"SKIP_WAITING"===e\.data\.type&&self\.skipWaiting\(\)/.test(sw),
+  (sw.match(/skipWaiting\(\)/g) ?? []).length === 1 &&
+    /"SKIP_WAITING"===\w+\.data\.type&&self\.skipWaiting\(\)/.test(sw),
   'SW waits for the update toast (skipWaiting only on the SKIP_WAITING message)',
 );
 ok(/clientsClaim\(\)/.test(sw), 'SW claims the page on first install (offline from the first visit)');

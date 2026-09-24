@@ -18,6 +18,7 @@ import { DateInput, NaSelect, TextInput } from '../components/inputs';
 import { StatusIcon } from '../components/Status';
 import { PhotoThumb } from '../components/PhotoThumb';
 import { SpecField } from '../components/SpecField';
+import { ConflictKeysContext, conflictKeys } from '../components/ConflictFlag';
 import { SCOPE_OPTIONS } from './NewProjectPage';
 import { INFO_FIELDS } from '../../domain/projectFields';
 import { useProjectContext } from './ProjectLayout';
@@ -192,7 +193,7 @@ function CoverPhoto({ projectId, cover }: { projectId: string; cover: Photo | un
 }
 
 export function ProjectInfoPage() {
-  const { project, equipment, locked } = useProjectContext();
+  const { project, equipment, locked, conflicts } = useProjectContext();
   const instruments = useInstruments(project.id);
   const completion = useProjectCompletion(project);
   const hasHoods = equipment.some((e) => e.type === 'hood');
@@ -203,7 +204,7 @@ export function ProjectInfoPage() {
   const scopeSpecs = EQUIPMENT_TYPES.map((t) => ({ type: t.key, plural: t.plural, spec: getSpec(t.key) }));
 
   return (
-    <>
+    <ConflictKeysContext.Provider value={conflictKeys(conflicts, project.id)}>
       {completion && <ProjectStatusCard c={completion} />}
       <fieldset className="lockable" disabled={locked} data-testid="info-form">
         <legend className="visually-hidden">Project data</legend>
@@ -447,6 +448,6 @@ export function ProjectInfoPage() {
           <IconTrash size={16} /> Delete project
         </button>
       </section>
-    </>
+    </ConflictKeysContext.Provider>
   );
 }

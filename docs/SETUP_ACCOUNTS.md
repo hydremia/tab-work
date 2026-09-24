@@ -13,12 +13,12 @@ their M365 account is disabled, they automatically lose access to the app.
 
 **Who:** someone with the *Global Administrator* or *Application Administrator* role in Microsoft 365.
 
-**Steps.** I'll provide exact values when we reach Phase 1.
+**Steps.** Exact values and the Supabase side: **[SYNC_SETUP.md](./SYNC_SETUP.md)** (steps 4–5).
 1. Go to **entra.microsoft.com → App registrations → New registration**.
    - Name: `TAB App`
    - Supported account types: **"Accounts in this organizational directory only"** (single tenant, company
      accounts only)
-   - Redirect URI (Web): the Supabase callback URL, which I'll provide
+   - Redirect URI (Web): `https://<project-ref>.supabase.co/auth/v1/callback` (the Supabase project's address)
 2. Under **Certificates & secrets**, create a client secret and copy its value.
 3. Under **API permissions**, keep the default `User.Read` (plus `openid`, `email`, `profile`), then click
    **Grant admin consent**.
@@ -39,6 +39,9 @@ domain. No admin is needed, and we can switch to Microsoft sign-in later.
   and about 100 GB of storage).
 - Add me as a developer, or share the project URL and keys through a secure channel when we get there.
 - **Photos are stored here**, in cloud storage managed by Supabase. Nothing is self-hosted and nothing goes in Dropbox.
+- Once the projects exist, **[SYNC_SETUP.md](./SYNC_SETUP.md)** walks through the rest: applying the database
+  migrations, the photo bucket, Microsoft sign-in, the two Vercel settings, the first sign-in, a two-device check and
+  the rollback plan.
 
 ## 3. Web hosting (Vercel, Netlify or Cloudflare Pages)
 

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import {
   useAirflowRows,
+  useConflicts,
   useEquipment,
   useEquipmentList,
   useHistory,
@@ -15,6 +16,8 @@ import {
 import { clearReview, deleteRecord, duplicateEquipment, markReviewed, setField, setFields } from '../../data/repo';
 import { makeContext } from '../../domain/historyView';
 import { HistoryList } from '../components/HistoryList';
+import { ConflictKeysContext, conflictKeys } from '../components/ConflictFlag';
+import { ConflictList } from '../components/Conflicts';
 import { LockBanner } from '../components/LockBanner';
 import { INSTRUMENT_FIELDS, pickerWarning } from '../../domain/instruments';
 import { NOTATIONS, type Equipment, type FieldValue, type NaMark, type Notation, type Project } from '../../data/types';
@@ -507,6 +510,7 @@ export function EquipmentPage() {
   const issues = useIssues(projectId);
   const instruments = useInstruments(projectId);
   const all = useEquipmentList(projectId);
+  const conflicts = useConflicts(projectId);
   const nav = useNavigate();
   const { hash } = useLocation();
   const back = `/p/${projectId}/equipment`;
@@ -542,170 +546,185 @@ export function EquipmentPage() {
   const esp = unitEspCheck(equipment, c, project.tolerance);
   const locked = Boolean(project.lock);
   const shown = displayColor(c.color, Boolean(equipment.review));
+  const unitConflicts = (conflicts ?? []).filter((x) => x.equipmentId === equipment.id);
 
   return (
     <Screen title={equipment.designation} subtitle={`${info.label} · ${project.name}`} back={back}>
-      <LockBanner project={project} />
-      <section className="card unit-summary" aria-label="Status">
-        <div className="row" style={{ justifyContent: 'space-between' }}>
-          <StatusBadge color={shown} label={shown === 'blue' ? STATUS_LABEL.blue : c.label} />
-          <div className="segmented" role="group" aria-label="New or existing" style={{ flex: '0 0 auto' }}>
-            <button
-              type="button"
-              aria-pressed={!equipment.isExisting}
-              disabled={locked}
-              onClick={() => void setField('equipment', equipment.id, 'isExisting', false)}
-            >
-              New
-            </button>
-            <button
-              type="button"
-              aria-pressed={equipment.isExisting}
-              disabled={locked}
-              onClick={() => void setField('equipment', equipment.id, 'isExisting', true)}
-            >
-              Existing
-            </button>
-          </div>
-        </div>
-        <div>
-          <div className="row small muted" style={{ justifyContent: 'space-between' }}>
-            <span data-testid="unit-progress">
-              {c.satisfied} of {c.required} required items
-            </span>
-            <span>{pct} %</span>
-          </div>
-          <div className="progress" style={{ marginTop: 4 }}>
-            <span
-              className={c.color === 'green' ? 'seg-green' : c.color === 'red' ? 'seg-red' : 'seg-amber'}
-              style={{ width: `${pct}%` }}
+      <ConflictKeysContext.Provider value={conflictKeys(unitConflicts, equipment.id)}>
+        <LockBanner project={project} />
+        {unitConflicts.length > 0 && (
+          <section className="card card-pad stack" data-testid="unit-conflicts" aria-labelledby="unit-conflicts-h">
+            <h2 id="unit-conflicts-h">Sync conflicts</h2>
+            <ConflictList
+              conflicts={unitConflicts}
+              project={project}
+              equipment={all}
+              issues={issues}
+              linkUnit={false}
             />
-          </div>
-        </div>
-        {c.outOfTolerance.length > 0 && (
-          <div className="callout" data-tone="red" role="status">
-            <StatusIcon color="red" size={18} />
-            <span>
-              Out of ±{Math.round(project.tolerance * 100)} % tolerance:{' '}
-              {c.outOfTolerance.map((t) => `${t.label} (${Math.round(t.ratio * 100)} %)`).join(', ')}
-            </span>
-          </div>
+          </section>
         )}
-        {unitIssues.length > 0 && (
-          <div className="callout" data-tone="red">
-            <StatusIcon color="red" size={18} />
-            <span>
-              {unitIssues.length} open issue{unitIssues.length > 1 ? 's' : ''}:{' '}
-              <Link to={`/p/${project.id}/issues`}>view issues</Link>
-            </span>
+        <section className="card unit-summary" aria-label="Status">
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <StatusBadge color={shown} label={shown === 'blue' ? STATUS_LABEL.blue : c.label} />
+            <div className="segmented" role="group" aria-label="New or existing" style={{ flex: '0 0 auto' }}>
+              <button
+                type="button"
+                aria-pressed={!equipment.isExisting}
+                disabled={locked}
+                onClick={() => void setField('equipment', equipment.id, 'isExisting', false)}
+              >
+                New
+              </button>
+              <button
+                type="button"
+                aria-pressed={equipment.isExisting}
+                disabled={locked}
+                onClick={() => void setField('equipment', equipment.id, 'isExisting', true)}
+              >
+                Existing
+              </button>
+            </div>
           </div>
-        )}
-        {c.designDiscrepancies.map((d) => (
-          <div className="callout" data-tone="amber" key={d.field}>
-            Design discrepancy: schedule {formatNumber(d.schedule)} CFM vs. {d.label} {formatNumber(d.outlets)} CFM.
+          <div>
+            <div className="row small muted" style={{ justifyContent: 'space-between' }}>
+              <span data-testid="unit-progress">
+                {c.satisfied} of {c.required} required items
+              </span>
+              <span>{pct} %</span>
+            </div>
+            <div className="progress" style={{ marginTop: 4 }}>
+              <span
+                className={c.color === 'green' ? 'seg-green' : c.color === 'red' ? 'seg-red' : 'seg-amber'}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
           </div>
-        ))}
-        {esp && (
-          <div className="callout" data-tone="amber" data-testid="summary-esp-warning">
-            {espText(esp)} Outside ±{Math.round(project.tolerance * 100)} % (static pressure profile).
-          </div>
-        )}
-        {info.warnAbove && equipment.slot > info.warnAbove && (
-          <div className="callout" data-tone="amber" role="status">
-            {equipment.designation} is {info.plural.toLowerCase()} slot {equipment.slot}: Building Balance lists{' '}
-            {info.plural.toLowerCase()} 1–{info.warnAbove} only, so it is left out of the building exhaust total.
-          </div>
-        )}
-        {c.missing.length > 0 && (
-          <details>
-            <summary className="small" style={{ cursor: 'pointer', minHeight: 32 }}>
-              Show missing ({c.missing.length})
-            </summary>
-            <ul className="missing-list">
-              {c.missing.map((m) => (
-                <li key={`${m.section}-${m.key}`}>
-                  <a href={`#sec-${m.section}`}>{m.label}</a>
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
-        <ReviewRow equipment={equipment} completion={c} locked={locked} />
-      </section>
-
-      {sections.length > 2 && (
-        <nav className="section-nav" aria-label="Jump to section">
-          {sections.map((s) => {
-            const r = c.sections[s.key];
-            const color =
-              r.state === 'incomplete' ? (r.satisfied ? 'amber' : 'gray') : r.state === 'empty' ? 'gray' : 'green';
-            return (
-              <a key={s.key} href={`#sec-${s.key}`}>
-                <StatusIcon color={color} size={14} />
-                {s.label.replace(/ \(.*\)$/, '')}
-              </a>
-            );
-          })}
-        </nav>
-      )}
-
-      <fieldset className="lockable" disabled={locked} data-testid="unit-form">
-        <legend className="visually-hidden">{equipment.designation} data</legend>
-        {sections.map((s) => (
-          <SectionCard
-            key={s.key}
-            section={s}
-            equipment={equipment}
-            project={project}
-            completion={c}
-            rows={rows}
-            photos={photos}
-            instruments={instruments}
-          />
-        ))}
-
-        <DuplicateCard equipment={equipment} all={all} />
-
-        <section className="card card-pad stack" aria-label="Unit actions">
-          <div className="field">
-            <label className="field-label" htmlFor="unit-na">
-              Whole unit N/A
-            </label>
-            <select
-              id="unit-na"
-              className="select"
-              value={equipment.naState.equipment?.notation ?? ''}
-              onChange={(e) =>
-                void setField(
-                  'equipment',
-                  equipment.id,
-                  'naState.equipment',
-                  e.target.value ? { notation: e.target.value as Notation } : null,
-                )
-              }
-            >
-              <option value="">Applies (not N/A)</option>
-              {NOTATIONS.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button
-            type="button"
-            className="btn btn-danger"
-            onClick={() => {
-              if (window.confirm(`Delete ${equipment.designation} and its readings?`))
-                void deleteRecord('equipment', equipment.id).then(() => nav(back, { replace: true }));
-            }}
-          >
-            <IconTrash size={16} /> Delete {equipment.designation}
-          </button>
+          {c.outOfTolerance.length > 0 && (
+            <div className="callout" data-tone="red" role="status">
+              <StatusIcon color="red" size={18} />
+              <span>
+                Out of ±{Math.round(project.tolerance * 100)} % tolerance:{' '}
+                {c.outOfTolerance.map((t) => `${t.label} (${Math.round(t.ratio * 100)} %)`).join(', ')}
+              </span>
+            </div>
+          )}
+          {unitIssues.length > 0 && (
+            <div className="callout" data-tone="red">
+              <StatusIcon color="red" size={18} />
+              <span>
+                {unitIssues.length} open issue{unitIssues.length > 1 ? 's' : ''}:{' '}
+                <Link to={`/p/${project.id}/issues`}>view issues</Link>
+              </span>
+            </div>
+          )}
+          {c.designDiscrepancies.map((d) => (
+            <div className="callout" data-tone="amber" key={d.field}>
+              Design discrepancy: schedule {formatNumber(d.schedule)} CFM vs. {d.label} {formatNumber(d.outlets)} CFM.
+            </div>
+          ))}
+          {esp && (
+            <div className="callout" data-tone="amber" data-testid="summary-esp-warning">
+              {espText(esp)} Outside ±{Math.round(project.tolerance * 100)} % (static pressure profile).
+            </div>
+          )}
+          {info.warnAbove && equipment.slot > info.warnAbove && (
+            <div className="callout" data-tone="amber" role="status">
+              {equipment.designation} is {info.plural.toLowerCase()} slot {equipment.slot}: Building Balance lists{' '}
+              {info.plural.toLowerCase()} 1–{info.warnAbove} only, so it is left out of the building exhaust total.
+            </div>
+          )}
+          {c.missing.length > 0 && (
+            <details>
+              <summary className="small" style={{ cursor: 'pointer', minHeight: 32 }}>
+                Show missing ({c.missing.length})
+              </summary>
+              <ul className="missing-list">
+                {c.missing.map((m) => (
+                  <li key={`${m.section}-${m.key}`}>
+                    <a href={`#sec-${m.section}`}>{m.label}</a>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          <ReviewRow equipment={equipment} completion={c} locked={locked} />
         </section>
-      </fieldset>
 
-      <UnitHistory equipment={equipment} all={all} rows={rows} issues={issues} instruments={instruments} />
+        {sections.length > 2 && (
+          <nav className="section-nav" aria-label="Jump to section">
+            {sections.map((s) => {
+              const r = c.sections[s.key];
+              const color =
+                r.state === 'incomplete' ? (r.satisfied ? 'amber' : 'gray') : r.state === 'empty' ? 'gray' : 'green';
+              return (
+                <a key={s.key} href={`#sec-${s.key}`}>
+                  <StatusIcon color={color} size={14} />
+                  {s.label.replace(/ \(.*\)$/, '')}
+                </a>
+              );
+            })}
+          </nav>
+        )}
+
+        <fieldset className="lockable" disabled={locked} data-testid="unit-form">
+          <legend className="visually-hidden">{equipment.designation} data</legend>
+          {sections.map((s) => (
+            <SectionCard
+              key={s.key}
+              section={s}
+              equipment={equipment}
+              project={project}
+              completion={c}
+              rows={rows}
+              photos={photos}
+              instruments={instruments}
+            />
+          ))}
+
+          <DuplicateCard equipment={equipment} all={all} />
+
+          <section className="card card-pad stack" aria-label="Unit actions">
+            <div className="field">
+              <label className="field-label" htmlFor="unit-na">
+                Whole unit N/A
+              </label>
+              <select
+                id="unit-na"
+                className="select"
+                value={equipment.naState.equipment?.notation ?? ''}
+                onChange={(e) =>
+                  void setField(
+                    'equipment',
+                    equipment.id,
+                    'naState.equipment',
+                    e.target.value ? { notation: e.target.value as Notation } : null,
+                  )
+                }
+              >
+                <option value="">Applies (not N/A)</option>
+                {NOTATIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={() => {
+                if (window.confirm(`Delete ${equipment.designation} and its readings?`))
+                  void deleteRecord('equipment', equipment.id).then(() => nav(back, { replace: true }));
+              }}
+            >
+              <IconTrash size={16} /> Delete {equipment.designation}
+            </button>
+          </section>
+        </fieldset>
+
+        <UnitHistory equipment={equipment} all={all} rows={rows} issues={issues} instruments={instruments} />
+      </ConflictKeysContext.Provider>
     </Screen>
   );
 }

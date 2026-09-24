@@ -158,3 +158,10 @@ export const IconRefresh = (p: P) => (
     <path d="M20 4v7h-7" />
   </svg>
 );
+/** Two arrows meeting: a sync conflict. */
+export const IconConflict = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M4 7h11l-3-3M20 17H9l3 3" />
+    <path d="M18 5v4M6 15v4" />
+  </svg>
+);
