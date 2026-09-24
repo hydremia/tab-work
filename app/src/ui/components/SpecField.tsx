@@ -13,6 +13,8 @@ export interface SpecFieldProps {
   onChange: (v: FieldValue) => void;
   onNa?: (m: NaMark | null) => void;
   wide?: boolean;
+  /** Amber note under the input (e.g. an instrument with no calibration row). */
+  warning?: string | null;
 }
 
 const NA_TEXT: Record<string, string> = {
@@ -33,6 +35,7 @@ export function SpecField({
   onChange,
   onNa,
   wide,
+  warning,
 }: SpecFieldProps) {
   const id = `${idPrefix}-${field.key}`;
   const st = state?.state;
@@ -133,6 +136,11 @@ export function SpecField({
       {field.hint && (
         <span className="field-hint" id={`${id}-hint`}>
           {field.hint}
+        </span>
+      )}
+      {warning && (
+        <span className="field-warning" role="status" data-testid={`warning-${field.key}`}>
+          {warning}
         </span>
       )}
     </div>

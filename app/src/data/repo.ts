@@ -5,7 +5,9 @@
  */
 import { DEFAULT_INSTRUMENTS, TEMPLATE_MAP, TEMPLATE_REVISION, tableRows } from '@a2b/workbook/map';
 import type { Table } from 'dexie';
+import { duplicateData, duplicateRow } from '../domain/duplicate';
 import { equipmentType, nextFreeSlot, type EquipmentTypeKey } from '../domain/equipmentTypes';
+import type { PreviewRow } from '../domain/scheduleImport';
 import { db } from './db';
 import { uuid } from './uuid';
 import { getCurrentUser, getDeviceId, nextTimestamp } from './identity';
@@ -295,6 +297,82 @@ export async function addAirflowRow(
       createdAt: now,
       updatedAt: now,
     });
+  });
+}
+
+// ------------------------------------------------------------------------------------------ schedule import
+/**
+ * Create / update units from a schedule import preview (domain/scheduleImport.ts) in one transaction: a new unit is
+ * created (next free slot, like "Add equipment"), then every value goes through setField; an existing unit (same
+ * designation) gets only the values the schedule has (blank schedule cells never clear app values). Rows with
+ * action 'skip' are ignored.
+ */
+export async function applyScheduleImport(
+  projectId: string,
+  type: EquipmentTypeKey,
+  rows: readonly Pick<PreviewRow, 'action' | 'designation' | 'values' | 'existingId'>[],
+  isExisting = false,
+): Promise<{ created: Equipment[]; updated: number }> {
+  return db.transaction('rw', db.equipment, db.fieldChanges, db.meta, async () => {
+    const created: Equipment[] = [];
+    let updated = 0;
+    for (const r of rows) {
+      if (r.action === 'skip') continue;
+      let id = r.existingId;
+      if (r.action === 'create') {
+        const unit = await addEquipment(projectId, type, r.designation, isExisting);
+        created.push(unit);
+        id = unit.id;
+      } else updated++;
+      if (!id) continue;
+      for (const [k, v] of Object.entries(r.values)) {
+        if (v === null || v === '') continue;
+        await setField('equipment', id, `data.${k}`, v);
+      }
+    }
+    return { created, updated };
+  });
+}
+
+/**
+ * Duplicate a unit: same type, next free slot, the design / schedule data and configuration (domain/duplicate.ts),
+ * optionally its outlet / filter rows without readings. Photos, readings, serial and remarks are not copied.
+ */
+export async function duplicateEquipment(
+  sourceId: string,
+  designation: string,
+  opts: { rows?: boolean } = {},
+): Promise<Equipment> {
+  return db.transaction('rw', db.equipment, db.airflowRows, db.fieldChanges, db.meta, async () => {
+    const src = await db.equipment.get(sourceId);
+    if (!src) throw new Error('unit not found');
+    const unit = await addEquipment(src.projectId, src.type, designation, src.isExisting);
+    const { data, fieldMarks } = duplicateData(src);
+    for (const [k, v] of Object.entries(data)) await setField('equipment', unit.id, `data.${k}`, v);
+    for (const [k, m] of Object.entries(fieldMarks)) await setField('equipment', unit.id, `naState.fields.${k}`, m);
+    for (const [k, m] of Object.entries(src.naState.sections))
+      if (m) await setField('equipment', unit.id, `naState.sections.${k}`, m);
+    if (opts.rows) {
+      const rows = (await db.airflowRows.where('equipmentId').equals(src.id).toArray()).sort(
+        (a, b) => a.order - b.order,
+      );
+      for (const r of rows) {
+        const copy = duplicateRow(src.type, r);
+        const now = Date.now();
+        await createRecord<AirflowRow>('airflowRows', {
+          id: uuid(),
+          projectId: src.projectId,
+          equipmentId: unit.id,
+          table: r.table,
+          order: r.order,
+          data: copy.data,
+          na: copy.na,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    }
+    return (await db.equipment.get(unit.id))!;
   });
 }
 
