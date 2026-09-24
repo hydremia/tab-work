@@ -321,10 +321,10 @@ Remarks: one 3-line area per page, page start S = 5 + 49k: rows S+45 (D:M), S+46
 | Voltage.Options | B1:B7 | Voltage (header), 115, 120, 208, 230, 460, 480 |
 | Phase | C1:C3 | Phase (header), 1-phase, 3-phase |
 
-**Constants table quirk (found 2026-09-24):** row 45's key cell H45 holds the long source note ("Source:
-CaptiveAire / Evergreen …") instead of `Supply Filter (VelGrid)|24" x 24"`, so that pair has no constants in
-revision 05 (I45:L45 still hold 24" x 24", 3.36, 1.35). A 24" x 24" filter on the MAU filter grid gives 0 CFM. The app
-does not offer it; revision 06 could move the note to another cell.
+**Constants table quirk (found and fixed 2026-09-24):** row 45's key cell H45 held the long source note ("Source:
+CaptiveAire / Evergreen …") instead of `Supply Filter (VelGrid)|24" x 24"`, so a 24" x 24" filter on the MAU filter
+grid gave 0 CFM. ✅ The rebuilt revision 05 restores the key in H45 and moves the source note to `{Dropdowns}!AP1`
+(build step 2d); the app offers that size.
 
 Only a filter type/size pair that exists in the constants table (H2:K50) gives a CFM. Any other pair gives 0 with
 no warning. For example, the MAU filter grid always uses Supply Filter (VelGrid), which has no 10×16, 10×20, 20×16

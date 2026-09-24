@@ -567,6 +567,25 @@ def step_remove_mau_traverse(parts, titles, log, wb_part="xl/workbook.xml"):
     log.append("  {Dropdowns}!T6 'Traverse' removed; Airflow.Method now $T$2:$T$5 (Outlets, PSP, Filter Grid, Profile Pressure)")
 
 
+def step_supply_filter_24(parts, titles, log):
+    """{Dropdowns} H45 held the constants' source note instead of the key "Supply Filter (VelGrid)|24" x 24"", so a
+    24" x 24" supply filter (MAU filter grid) looked up nothing and gave 0 CFM. Put the key back in H45 and move the
+    note to the free cell AP1 (user decision 2026-09-24)."""
+    part = titles["{Dropdowns}"]
+    xml = parts[part]
+    m = re.search(r'<c r="H45"[^>]*?(?:/>|>(.*?)</c>)', xml, re.S)
+    t = re.search(r"<t[^>]*>(.*?)</t>", m.group(1) or "", re.S) if m else None
+    note = html.unescape(t.group(1)) if t else ""
+    if not note.startswith("Source: CaptiveAire"):
+        raise ValueError("{Dropdowns}!H45 does not hold the source note as expected")
+    if re.search(r'<c r="AP1"[^>]*>', xml):
+        raise ValueError("{Dropdowns}!AP1 is not free")
+    xml = set_values(xml, {"H45": 'Supply Filter (VelGrid)|24" x 24"', "AP1": note})
+    xml = xml.replace('<dimension ref="A1:AN50"/>', '<dimension ref="A1:AP50"/>', 1)
+    parts[part] = xml
+    log.append("  {Dropdowns}!H45 key restored: Supply Filter (VelGrid)|24\" x 24\" (3.36 ft2, K 1.35); source note moved to AP1")
+
+
 def step_balance_small_fans(parts, titles, log):
     """Building Balance: list Small Fans 21-30 in the 10 empty exhaust rows 47-56 (beside the MAU rows), same
     formulas as the Small Fans 1-20 rows 67-86. Totals (rows 7-86) and the hide-unused macro already cover them.
@@ -660,6 +679,8 @@ def build(src=None, out=OUT):
     step_dropdowns(parts, titles, log)
     log.append("Step 2b - MAU 'Method used' list: Traverse option removed:")
     step_remove_mau_traverse(parts, titles, log)
+    log.append("Step 2d - {Dropdowns}: 24\" x 24\" supply filter key restored:")
+    step_supply_filter_24(parts, titles, log)
     log.append("Step 2c - Building Balance: Small Fans 21-30 in the free exhaust rows:")
     step_balance_small_fans(parts, titles, log)
     log.append("Step 3 - notation-tolerant formulas:")
