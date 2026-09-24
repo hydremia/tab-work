@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/dev-dist/**', '**/node_modules/**', 'spike/**', 'tools/**', 'app/public/**', 'app/e2e-screenshots/**'],
+    ignores: ['**/dist/**', '**/dist-fake/**', '**/dev-dist/**', '**/node_modules/**', 'spike/**', 'tools/**', 'app/public/**', 'app/e2e-screenshots/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

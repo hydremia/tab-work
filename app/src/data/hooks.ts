@@ -26,6 +26,7 @@ import type {
   Photo,
   Project,
   Revision,
+  SyncConflict,
 } from './types';
 
 export function useProjects(): Project[] | undefined {
@@ -300,7 +301,7 @@ export function usePhotoStats(
     const pendingUploads = await db.photoUploads
       .where('projectId')
       .equals(projectId)
-      .filter((u) => u.status !== 'done')
+      .filter((u) => u.status !== 'done' && u.status !== 'delete')
       .count();
     return { count, bytes, pendingUploads };
   }, [projectId]);
@@ -329,4 +330,13 @@ export function useUserName(): string | undefined {
     const row = await db.meta.get('userName');
     return typeof row?.value === 'string' ? row.value : '';
   }, []);
+}
+
+/** Open sync conflicts of a project (newest first). */
+export function useConflicts(projectId: string | undefined): SyncConflict[] | undefined {
+  return useLiveQuery(async () => {
+    if (!projectId) return [];
+    const list = await db.conflicts.where('[projectId+status]').equals([projectId, 'open']).toArray();
+    return list.sort((a, b) => b.detectedAt - a.detectedAt);
+  }, [projectId]);
 }

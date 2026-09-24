@@ -139,8 +139,11 @@ export interface Photo {
   issueId: string | null;
   category: PhotoCategory;
   caption: string;
-  /** The stored image: JPEG, EXIF orientation applied, long edge at most 2000 px, EXIF stripped. */
-  blob: Blob;
+  /**
+   * The stored image: JPEG, EXIF orientation applied, long edge at most 2000 px, EXIF stripped. null on a device that
+   * pulled the photo from another device and has not downloaded the file yet (sync/photoSync.ts).
+   */
+  blob: Blob | null;
   /** Small JPEG (long edge 320 px) for lists; null for photos stored before v3 (the UI falls back to `blob`). */
   thumb?: Blob | null;
   mimeType: string;
@@ -167,9 +170,12 @@ export interface Photo {
 export interface PhotoUpload {
   photoId: string;
   projectId: string;
-  status: 'pending' | 'uploading' | 'done' | 'failed';
+  /** 'delete': the photo was deleted after its file was uploaded; the file is removed from storage, then the entry. */
+  status: 'pending' | 'uploading' | 'done' | 'failed' | 'delete';
   attempts: number;
   lastError: string | null;
+  /** Retry with backoff: not before this time (ms). */
+  nextAttemptAt?: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -208,10 +214,59 @@ export interface FieldChange {
   deviceId: string;
   /** Client timestamp (ms since epoch). Later edit wins on conflict. */
   ts: number;
-  /** 0 = in the outbox, 1 = pushed to the server. (IndexedDB cannot index booleans.) */
-  synced: 0 | 1;
+  /**
+   * 0 = in the outbox, 1 = pushed to the server (or pulled from it), 2 = held: refused by the server because the
+   * project's report was issued (locked) on another device; pushed again when the project is unlocked, or discarded.
+   * (IndexedDB cannot index booleans.)
+   */
+  synced: 0 | 1 | 2;
   /** Set when this edit lost a last-writer-wins conflict against a newer remote edit (kept for review). */
   conflict?: 0 | 1;
+  /**
+   * What the device had pulled when the edit was made (its pull cursor, a server_seq). Two edits of the same field
+   * conflict when neither device had seen the other's edit (sync/conflicts.ts).
+   */
+  baseSeq?: number;
+  /** The change's position in the server log (known after push / pull). */
+  serverSeq?: number;
+}
+
+/**
+ * A sync conflict (Dexie v5 `conflicts`, local to the device). kind 'field': two devices edited the same field
+ * without seeing each other's edit; the later edit won everywhere (last writer wins) and the other value is kept here
+ * until someone resolves it (keep the current value, or restore the other one through setField). kind 'held': changes
+ * of this device were refused by the server because the report was issued (locked) on another device meanwhile; they
+ * wait on the device (FieldChange.synced = 2) until the project is unlocked, or are discarded.
+ */
+export interface SyncConflict {
+  id: string;
+  projectId: string;
+  kind: 'field' | 'held';
+  table: TableName | null;
+  recordId: string | null;
+  /** The unit the record belongs to (for the unit badge / page). */
+  equipmentId: string | null;
+  field: string;
+  /** The value now in the record (the later edit), and the one that lost. */
+  current?: ConflictSide;
+  other?: ConflictSide;
+  /** kind 'held': how many changes wait, and the lock that refused them. */
+  held?: { count: number; label: string; by: string };
+  status: 'open' | 'resolved';
+  detectedAt: number;
+  resolvedAt?: number;
+  /** superseded: someone edited the field again later (having seen both values). */
+  resolution?: 'kept' | 'restored' | 'released' | 'discarded' | 'superseded';
+}
+
+export interface ConflictSide {
+  value: unknown;
+  ts: number;
+  userId: string;
+  deviceId: string;
+  /** This device's edit. */
+  local: boolean;
+  changeId: string;
 }
 
 /**
@@ -246,7 +301,17 @@ export interface Revision {
 }
 
 export type HistoryKind =
-  'edit' | 'create' | 'delete' | 'review' | 'review-cleared' | 'lock' | 'unlock' | 'import' | 'revision';
+  | 'edit'
+  | 'create'
+  | 'delete'
+  | 'review'
+  | 'review-cleared'
+  | 'lock'
+  | 'unlock'
+  | 'import'
+  | 'revision'
+  | 'conflict'
+  | 'conflict-resolved';
 
 /**
  * Change history (audit), schema v4: an append-only local table. The outbox (fieldChanges) coalesces repeated

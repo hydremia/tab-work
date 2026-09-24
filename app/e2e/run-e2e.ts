@@ -11,7 +11,7 @@
  * Browser: playwright-core's Chromium from PLAYWRIGHT_BROWSERS_PATH, or CHROMIUM_PATH / /opt/pw-browsers/chromium.
  * Screenshots go to app/e2e-screenshots/ (git-ignored).
  */
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +24,7 @@ import { photosFlow } from './photos';
 import { pressuresAndAttention, scheduleFlow } from './features';
 import { workflowFlow } from './workflow';
 import { deployFlow } from './deploy';
+import { syncFlow } from './sync';
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SHOTS = join(APP, 'e2e-screenshots');
@@ -75,6 +76,38 @@ async function startPreview(): Promise<ChildProcess | null> {
   }
   stopServer(proc);
   throw new Error('vite preview did not start');
+}
+
+/**
+ * The two-device sync walk runs on a second build with VITE_FAKE_SYNC=1 (app/dist-fake; the production build has no
+ * fake code) served on PORT + 1 with the fake sync server (deploy/serve-dist.ts, SERVE_FAKE_SYNC=1).
+ */
+async function startFakeCloud(): Promise<{ proc: ChildProcess; base: string } | null> {
+  if (USE_VITE || process.env.E2E_BASE_URL || process.env.E2E_SKIP_SYNC) return null;
+  const port = PORT + 1;
+  const base = `http://localhost:${port}`;
+  const built = spawnSync('npx', ['vite', 'build', '--outDir', 'dist-fake', '--emptyOutDir', '--logLevel', 'error'], {
+    cwd: APP,
+    env: { ...process.env, VITE_FAKE_SYNC: '1' },
+    stdio: 'inherit',
+  });
+  if (built.status !== 0) throw new Error('fake-cloud build failed');
+  const proc = spawn('npx', ['tsx', 'deploy/serve-dist.ts'], {
+    cwd: APP,
+    stdio: 'pipe',
+    detached: true,
+    env: { ...process.env, PORT: String(port), DIST_DIR: 'dist-fake', SERVE_FAKE_SYNC: '1' },
+  });
+  for (let i = 0; i < 100; i++) {
+    try {
+      if ((await fetch(base)).ok) return { proc, base };
+    } catch {
+      /* not up yet */
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  stopServer(proc);
+  throw new Error('fake-cloud server did not start');
 }
 
 /** Stop the server's whole process group (npx leaves its child running when only npx is killed). */
@@ -665,6 +698,16 @@ async function main() {
     await deployFlow(browser, BASE, file, DOC_SHOTS, SHOTS, check, {
       testHooks: !USE_VITE && !process.env.E2E_BASE_URL,
     });
+
+    // ------------------------------------------------------------------ two devices: sign-in, sync, conflict
+    const cloud = await startFakeCloud();
+    if (cloud) {
+      try {
+        await syncFlow(browser, cloud.base, file, DOC_SHOTS, check, SHOTS);
+      } finally {
+        stopServer(cloud.proc);
+      }
+    } else console.log('SKIP  two-device sync walk (needs the local serve-dist server)');
 
     check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
     check(

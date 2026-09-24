@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { STATUS_LABEL, type Completion, type DisplayColor } from '../../domain/completion';
 import { EQUIPMENT_TYPES } from '../../domain/equipmentTypes';
 import type { Equipment } from '../../data/types';
+import { ConflictFlag } from '../components/ConflictFlag';
 import { IconPlus } from '../components/Icons';
 import { ProgressBar, StatusBadge, StatusIcon } from '../components/Status';
 import { useProjectContext } from './ProjectLayout';
@@ -17,7 +18,19 @@ const FILTERS: { key: Filter; label: string; test: (c: Completion, d: DisplayCol
   { key: 'reviewed', label: 'Reviewed', test: (_c, d) => d === 'blue' },
 ];
 
-function EquipmentCard({ e, c, d, projectId }: { e: Equipment; c: Completion; d: DisplayColor; projectId: string }) {
+function EquipmentCard({
+  e,
+  c,
+  d,
+  projectId,
+  conflict,
+}: {
+  e: Equipment;
+  c: Completion;
+  d: DisplayColor;
+  projectId: string;
+  conflict?: boolean;
+}) {
   const area = typeof e.data.areaServed === 'string' ? e.data.areaServed : '';
   const detail =
     c.color === 'gray'
@@ -44,6 +57,7 @@ function EquipmentCard({ e, c, d, projectId }: { e: Equipment; c: Completion; d:
         <div className="row" style={{ gap: 8 }}>
           <span className="name">{e.designation}</span>
           {e.isExisting && <span className="chip chip-existing">Existing</span>}
+          {conflict && <ConflictFlag />}
         </div>
         <div className="sub">{[area, detail].filter(Boolean).join(' · ')}</div>
       </div>
@@ -53,7 +67,8 @@ function EquipmentCard({ e, c, d, projectId }: { e: Equipment; c: Completion; d:
 }
 
 export function EquipmentListPage() {
-  const { project, equipment, status, attention, locked } = useProjectContext();
+  const { project, equipment, status, attention, conflicts, locked } = useProjectContext();
+  const conflictUnits = new Set((conflicts ?? []).map((c) => c.equipmentId));
   const [filter, setFilter] = useState<Filter>('all');
   const f = FILTERS.find((x) => x.key === filter)!;
 
@@ -152,6 +167,7 @@ export function EquipmentListPage() {
                     key={e.id}
                     e={e}
                     c={status.byEquipment.get(e.id)!}
+                    conflict={conflictUnits.has(e.id)}
                     d={status.display.get(e.id)!}
                     projectId={project.id}
                   />

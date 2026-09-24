@@ -5,6 +5,7 @@ import { ProjectLayout } from './ui/pages/ProjectLayout';
 import { ProjectListPage } from './ui/pages/ProjectListPage';
 import { Screen } from './ui/components/Screen';
 import { UpdateToast } from './ui/components/PwaPrompts';
+import { LockedToast } from './ui/components/LockedToast';
 
 /**
  * Route-level code splitting: the project list and the project frame load with the app; every page is its own
@@ -26,6 +27,9 @@ const NewProjectPage = page(() => import('./ui/pages/NewProjectPage'), 'NewProje
 const PhotosPage = page(() => import('./ui/pages/PhotosPage'), 'PhotosPage');
 const ProjectInfoPage = page(() => import('./ui/pages/ProjectInfoPage'), 'ProjectInfoPage');
 const ScheduleImportPage = page(() => import('./ui/pages/ScheduleImportPage'), 'ScheduleImportPage');
+const AccountPage = page(() => import('./ui/pages/SyncPages'), 'AccountPage');
+const AuthCallbackPage = page(() => import('./ui/pages/SyncPages'), 'AuthCallbackPage');
+const CloudSetupPage = page(() => import('./ui/pages/SyncPages'), 'CloudSetupPage');
 
 function Root() {
   return (
@@ -34,6 +38,7 @@ function Root() {
         <Outlet />
       </Suspense>
       <UpdateToast />
+      <LockedToast />
     </div>
   );
 }
@@ -56,6 +61,9 @@ export const routes = [
       { index: true, element: <ProjectListPage /> },
       { path: 'new', element: NewProjectPage },
       { path: 'import', element: ImportPage },
+      { path: 'account', element: AccountPage },
+      { path: 'auth/callback', element: AuthCallbackPage },
+      { path: 'cloud-setup', element: CloudSetupPage },
       {
         path: 'p/:projectId',
         element: <ProjectLayout />,
