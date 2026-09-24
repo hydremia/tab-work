@@ -11,7 +11,8 @@ import { prepareReview, type ParsedImport } from '../workbook/importProject';
 import { saveRevision } from '../workbook/revisions';
 import { ReimportReview } from './components/ReimportReview';
 
-const unit = (pd: ProjectData, type: string, slot: number): UnitData => pd.equipment[type].find((u) => u.slot === slot)!;
+const unit = (pd: ProjectData, type: string, slot: number): UnitData =>
+  pd.equipment[type].find((u) => u.slot === slot)!;
 
 async function store(b: ProjectBundle) {
   await db.transaction(
@@ -86,7 +87,7 @@ describe('re-import review screen', () => {
 });
 
 describe('database upgrade', () => {
-  it('a version 1 database opens as version 2 with its data and the new revision tables', async () => {
+  it('a version 1 database opens as the current version with its data, the revision tables and the photo queue', async () => {
     const name = 'a2b-tab-upgrade-test';
     const v1 = new Dexie(name);
     v1.version(1).stores({
@@ -101,10 +102,27 @@ describe('database upgrade', () => {
     });
     await v1.open();
     await v1.table('projects').put({ id: 'p1', name: 'Old job', updatedAt: 1 });
+    await v1.table('photos').put({
+      id: 'ph1',
+      projectId: 'p1',
+      equipmentId: null,
+      issueId: null,
+      category: 'other',
+      caption: '',
+      blob: new Blob([new Uint8Array([1])]),
+      mimeType: 'image/jpeg',
+      fileName: 'a.jpg',
+      uploaded: 0,
+      createdAt: 5,
+      updatedAt: 5,
+    });
     v1.close();
     const v2 = new TabDatabase(name);
     await v2.open();
-    expect(v2.verno).toBe(2);
+    expect(v2.verno).toBe(3);
+    // v3: photos get a sort order and an upload-queue entry
+    expect((await v2.photos.get('ph1'))?.order).toBe(5);
+    expect(await v2.photoUploads.get('ph1')).toMatchObject({ status: 'pending', projectId: 'p1' });
     expect((await v2.projects.get('p1'))?.name).toBe('Old job');
     expect(await v2.revisions.count()).toBe(0);
     expect(await v2.baseWorkbooks.count()).toBe(0);

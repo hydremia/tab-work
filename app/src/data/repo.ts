@@ -10,6 +10,7 @@ import { db } from './db';
 import { uuid } from './uuid';
 import { getCurrentUser, getDeviceId, nextTimestamp } from './identity';
 import { deepEqual, getPath, setPath, assertEditablePath } from './paths';
+import { comparePhotos, groupKeyOf, sortKey } from '../photos/labels';
 import {
   emptyNaState,
   type AirflowRow,
@@ -38,7 +39,7 @@ function projectIdOf(name: TableName, rec: AnyRecord): string {
 /** Outbox copy of a record: photos are logged without their Blob (the file uploads separately). */
 function loggable(name: TableName, rec: AnyRecord): unknown {
   if (name === 'photos') {
-    const { blob: _blob, ...rest } = rec as unknown as Photo;
+    const { blob: _blob, thumb: _thumb, ...rest } = rec as unknown as Photo;
     return rest;
   }
   return rec;
@@ -134,6 +135,7 @@ export async function deleteRecord(table: TableName, recordId: string): Promise<
       db.photos,
       db.instruments,
       db.fieldChanges,
+      db.photoUploads,
       // only a project delete touches the local revision tables (keeps nested transactions of other deletes valid)
       ...(table === 'projects' ? [db.revisions, db.baseWorkbooks] : []),
     ],
@@ -142,6 +144,7 @@ export async function deleteRecord(table: TableName, recordId: string): Promise<
       if (!rec) return;
       const log = async (name: TableName, r: AnyRecord) => {
         await tableOf(name).delete(r.id);
+        if (name === 'photos') await db.photoUploads.delete(r.id);
         await db.fieldChanges.add(
           await change(
             { projectId: projectIdOf(name, r), table: name, recordId: r.id, op: 'delete', field: '', value: null },
@@ -163,6 +166,9 @@ export async function deleteRecord(table: TableName, recordId: string): Promise<
         for (const i of await db.issues.where('equipmentId').equals(recordId).toArray()) {
           await setField('issues', i.id, 'equipmentId', null); // the issue becomes "General (N/A)"
         }
+      } else if (table === 'issues') {
+        // an issue's deficiency photos go with it
+        for (const p of await db.photos.where('issueId').equals(recordId).toArray()) await log('photos', p);
       }
       await log(table, rec);
     },
@@ -317,47 +323,157 @@ export async function addIssue(
 }
 
 // ------------------------------------------------------------------------------------------ photos
+/** What a new photo is attached to. */
+export interface PhotoTarget {
+  category: PhotoCategory;
+  equipmentId?: string | null;
+  issueId?: string | null;
+  caption?: string;
+}
+
+/** A processed image (see photos/process.ts); a raw Blob is stored as is (tests, legacy callers). */
+export interface PhotoImage {
+  blob: Blob;
+  thumb?: Blob | null;
+  width?: number;
+  height?: number;
+  capturedAt?: number | null;
+  gps?: { lat: number; lon: number } | null;
+  fileName?: string;
+}
+
+const photoTables = () => [db.photos, db.photoUploads, db.fieldChanges, db.meta];
+
+/** Next sort key at the end of the photo's group. */
+async function nextPhotoOrder(
+  projectId: string,
+  target: Pick<Photo, 'category' | 'equipmentId' | 'issueId'>,
+  exceptId?: string,
+) {
+  const key = groupKeyOf(target);
+  const all = await db.photos.where('projectId').equals(projectId).toArray();
+  return all.filter((p) => p.id !== exceptId && groupKeyOf(p) === key).reduce((m, p) => Math.max(m, sortKey(p)), 0) + 1;
+}
+
 export async function addPhoto(
   projectId: string,
-  file: Blob & { name?: string },
-  category: PhotoCategory,
+  file: (Blob & { name?: string }) | PhotoImage,
+  categoryOrTarget: PhotoCategory | PhotoTarget,
   equipmentId: string | null = null,
 ): Promise<Photo> {
+  const target: PhotoTarget =
+    typeof categoryOrTarget === 'string' ? { category: categoryOrTarget, equipmentId } : categoryOrTarget;
+  const img: PhotoImage = file instanceof Blob ? { blob: file, fileName: (file as { name?: string }).name } : file;
   const now = Date.now();
-  return createRecord<Photo>('photos', {
-    id: uuid(),
-    projectId,
-    equipmentId,
-    issueId: null,
-    category,
-    caption: '',
-    blob: file,
-    mimeType: file.type || 'image/jpeg',
-    fileName: file.name ?? `${category}.jpg`,
-    uploaded: 0,
-    createdAt: now,
-    updatedAt: now,
+  return db.transaction('rw', photoTables(), async () => {
+    const base = {
+      category: target.category,
+      equipmentId:
+        target.category === 'deficiency' || target.category === 'cover' ? null : (target.equipmentId ?? null),
+      issueId: target.category === 'deficiency' ? (target.issueId ?? null) : null,
+    };
+    const photo = await createRecord<Photo>('photos', {
+      id: uuid(),
+      projectId,
+      ...base,
+      caption: target.caption ?? '',
+      blob: img.blob,
+      thumb: img.thumb ?? null,
+      mimeType: img.blob.type || 'image/jpeg',
+      fileName: img.fileName ?? `${target.category}.jpg`,
+      width: img.width,
+      height: img.height,
+      capturedAt: img.capturedAt ?? null,
+      gps: img.gps ?? null,
+      order: await nextPhotoOrder(projectId, base),
+      uploaded: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await db.photoUploads.put({
+      photoId: photo.id,
+      projectId,
+      status: 'pending',
+      attempts: 0,
+      lastError: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return photo;
   });
 }
 
-/** Replace the photo of a single-photo category (cover, unit, tag, OA damper). */
+/** Replace the photo of a single-photo slot (cover, unit, tag, OA damper); the new photo keeps the old one's place. */
 export async function replacePhoto(
   projectId: string,
-  file: Blob & { name?: string },
+  file: (Blob & { name?: string }) | PhotoImage,
   category: PhotoCategory,
   equipmentId: string | null = null,
 ): Promise<Photo> {
   return db.transaction(
     'rw',
-    [db.photos, db.fieldChanges, db.meta, db.projects, db.equipment, db.airflowRows, db.issues, db.instruments],
+    [...photoTables(), db.projects, db.equipment, db.airflowRows, db.issues, db.instruments],
     async () => {
       const old = (await db.photos.where('[projectId+category]').equals([projectId, category]).toArray()).filter(
         (p) => p.equipmentId === equipmentId,
       );
       for (const p of old) await deleteRecord('photos', p.id);
-      return addPhoto(projectId, file, category, equipmentId);
+      const photo = await addPhoto(projectId, file, { category, equipmentId });
+      if (old[0]) await setField('photos', photo.id, 'order', sortKey(old[0]));
+      return (await db.photos.get(photo.id))!;
     },
   );
+}
+
+/** Move a photo one place earlier (-1) or later (+1) within its group (swaps sort keys with the neighbour). */
+export async function movePhoto(photoId: string, dir: -1 | 1): Promise<void> {
+  await db.transaction('rw', photoTables(), async () => {
+    const photo = await db.photos.get(photoId);
+    if (!photo) return;
+    const key = groupKeyOf(photo);
+    const group = (await db.photos.where('projectId').equals(photo.projectId).toArray())
+      .filter((p) => groupKeyOf(p) === key)
+      .sort(comparePhotos);
+    const i = group.findIndex((p) => p.id === photoId);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= group.length) return;
+    // renumber the whole group 1..n in the new order (sort keys may tie for legacy photos)
+    [group[i], group[j]] = [group[j], group[i]];
+    for (let k = 0; k < group.length; k++) await setField('photos', group[k].id, 'order', k + 1);
+  });
+}
+
+/** Re-attach a photo (category, equipment, issue); it moves to the end of its new group. */
+export async function reassignPhoto(photoId: string, target: PhotoTarget): Promise<void> {
+  await db.transaction('rw', photoTables(), async () => {
+    const photo = await db.photos.get(photoId);
+    if (!photo) return;
+    const next = {
+      category: target.category,
+      equipmentId:
+        target.category === 'deficiency' || target.category === 'cover' ? null : (target.equipmentId ?? null),
+      issueId: target.category === 'deficiency' ? (target.issueId ?? null) : null,
+    };
+    const moved = groupKeyOf(next) !== groupKeyOf(photo);
+    await setFields('photos', photoId, next);
+    if (moved) await setField('photos', photoId, 'order', await nextPhotoOrder(photo.projectId, next, photoId));
+  });
+}
+
+/** Swap an issue with its neighbour of the same kind (their numbers swap; deficiency photo labels follow). */
+export async function moveIssue(issueId: string, dir: -1 | 1): Promise<void> {
+  await db.transaction('rw', db.issues, db.fieldChanges, db.meta, async () => {
+    const issue = await db.issues.get(issueId);
+    if (!issue) return;
+    const same = (await db.issues.where('[projectId+kind]').equals([issue.projectId, issue.kind]).toArray()).sort(
+      (a, b) => a.number - b.number,
+    );
+    const i = same.findIndex((x) => x.id === issueId);
+    const other = same[i + dir];
+    if (!other) return;
+    await setField('issues', issue.id, 'number', other.number);
+    await setField('issues', other.id, 'number', issue.number);
+  });
 }
 
 // ------------------------------------------------------------------------------------------ instruments

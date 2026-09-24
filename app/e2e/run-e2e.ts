@@ -18,6 +18,7 @@ import { chromium, type Browser, type Page } from 'playwright-core';
 import { importWorkbook } from '@a2b/workbook';
 import { fillNewTypes, readLivePanels, recalcCrossCheck, verifyNewTypes } from './newTypes';
 import { reimportFlow } from './reimport';
+import { photosFlow } from './photos';
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SHOTS = join(APP, 'e2e-screenshots');
@@ -453,6 +454,9 @@ async function main() {
         `${jpeg} ${w}x${h}`,
       );
     }
+
+    // ------------------------------------------------------------------ photos, issues with photos, PDF reports, zip
+    await photosFlow(page, projectUrl, OUT, DOC_SHOTS, check);
 
     // ------------------------------------------------------------------ reload: persisted in IndexedDB
     await page.goto(BASE);

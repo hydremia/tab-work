@@ -8,6 +8,7 @@ import type {
   Issue,
   Meta,
   Photo,
+  PhotoUpload,
   Project,
   Revision,
 } from './types';
@@ -23,6 +24,7 @@ export class TabDatabase extends Dexie {
   meta!: EntityTable<Meta, 'key'>;
   revisions!: EntityTable<Revision, 'id'>;
   baseWorkbooks!: EntityTable<BaseWorkbook, 'projectId'>;
+  photoUploads!: EntityTable<PhotoUpload, 'photoId'>;
 
   constructor(name = 'a2b-tab') {
     super(name);
@@ -45,6 +47,34 @@ export class TabDatabase extends Dexie {
       })
       .upgrade(async (tx) => {
         await tx.table('meta').put({ key: 'schemaUpgradedTo2', value: Date.now() });
+      });
+    // v3 (Phase 4, photos): issueId index on photos, photo sort order, the photo upload queue. Existing photos get
+    // an order (their creation time) and an upload-queue entry; thumbnails are made on demand by the UI.
+    this.version(3)
+      .stores({
+        photos: 'id, projectId, equipmentId, issueId, [projectId+category]',
+        photoUploads: 'photoId, projectId, status',
+      })
+      .upgrade(async (tx) => {
+        const uploads = tx.table('photoUploads');
+        await tx
+          .table('photos')
+          .toCollection()
+          .modify((p: Photo) => {
+            if (p.order === undefined) p.order = p.createdAt;
+          });
+        for (const p of (await tx.table('photos').toArray()) as Photo[]) {
+          if (!p.uploaded)
+            await uploads.put({
+              photoId: p.id,
+              projectId: p.projectId,
+              status: 'pending',
+              attempts: 0,
+              lastError: null,
+              createdAt: p.createdAt,
+              updatedAt: p.createdAt,
+            } satisfies PhotoUpload);
+        }
       });
   }
 }
