@@ -15,6 +15,8 @@ Step 2 - {Dropdowns} profile-pressure curve restored, duct-shape / unit-type lis
   Fans: 880 unit-type lookup references repointed
 Step 2b - MAU 'Method used' list: Traverse option removed:
   {Dropdowns}!T6 'Traverse' removed; Airflow.Method now $T$2:$T$5 (Outlets, PSP, Filter Grid, Profile Pressure)
+Step 2d - {Dropdowns}: 24" x 24" supply filter key restored:
+  {Dropdowns}!H45 key restored: Supply Filter (VelGrid)|24" x 24" (3.36 ft2, K 1.35); source note moved to AP1
 Step 2c - Building Balance: Small Fans 21-30 in the free exhaust rows:
   Building Balance H/I/K/M47:56 -> Small Fans 21-30 (anchors D484 ... D700); totals already sum rows 7-86
 Step 3 - notation-tolerant formulas:

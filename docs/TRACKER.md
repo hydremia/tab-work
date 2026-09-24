@@ -80,6 +80,8 @@ Last updated: 2026-09-24
 | 2026-09-23 | Equipment tagged New/Existing. All users have equal permissions. Tolerance ±10%. Equipment photos are required unless N/A. |
 | 2026-09-23 | PR #1 merged into `main`. **N/A (option A):** revision 05 hardens formulas so `N/A`, `Not Avail.` and `Not Acc.` print in numeric cells without errors. |
 | 2026-09-23 | Full offline support is required. Most sites are online, so sync runs continuously when connected, and offline is the fallback rather than the normal mode. |
+| 2026-09-24 | **Exception approved:** the leaving static of a component the unit type doesn't have (and the filter leaving static on a unit with no filters) is exported **blank**, because the workbook reads blank there as "component absent". Writing N/A blanked fan TSP / unit ΔP downstream. Everything else follows "blank never means N/A". |
+| 2026-09-24 | **24" × 24" supply filter fixed** in revision 05 (rebuilt): `{Dropdowns}!H45` key restored, source note moved to AP1. The MAU filter grid now calculates that size, and the app offers it. |
 | 2026-09-24 | Export writes **every** N/A: automatic and scope-profile N/A as `N/A`, never a blank. Photos are not in the workbook: re-import into the same project keeps them; a new project comes back amber until photos are added. |
 | 2026-09-23 | **Revision 05 built.** The app now targets revision 05 (same layout as 04, so the revision 04 analysis applies). |
 | 2026-09-23 | **The app targets revision 04 (`04 - a2b_Blank_TAB_Workbook 9-18-26.xlsm`)**, which includes the Evergreen hood method, MAU supply methods, building pressures, cover photo box, traverse grids, Equipment Summary and Small Fans. |

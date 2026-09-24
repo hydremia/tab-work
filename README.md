@@ -68,7 +68,7 @@ python3 tools/functional_test_rev02.py "02 - a2b_Blank_TAB_Workbook <date>.xlsm"
 python3 tools/functional_test_rev03.py "03 - a2b_Blank_TAB_Workbook <date>.xlsm" # 99 expected values (rev 03)
 python3 tools/functional_test_rev04.py "04 - a2b_Blank_TAB_Workbook <date>.xlsm" # 133 expected values (rev 04)
 python3 tools/build_rev05.py --selftest "04 - a2b_Blank_TAB_Workbook <date>.xlsm"  # formula parser round-trip + transform cases
-python3 tools/functional_test_rev05.py "05 - a2b_Blank_TAB_Workbook <date>.xlsm"  # 262 checks (rev 04 checks, same results as rev 04, N/A notations, stress, profile curve, MAU method list, Building Balance small fans)
+python3 tools/functional_test_rev05.py "05 - a2b_Blank_TAB_Workbook <date>.xlsm"  # 265 checks (rev 04 checks, same results as rev 04, N/A notations, stress, profile curve, MAU method list, Building Balance small fans, 24" x 24" supply filter)
 ```
 
 The functional test needs LibreOffice Calc (`apt-get install libreoffice-calc`; `libreoffice-core` alone reports "source file could not be loaded" for every spreadsheet); for realistic page previews also install `fonts-crosextra-carlito` (Calibri-metric). Every change is a function in `tools/build_workbook.py` / `tools/build_steps2.py`; the build log is written to `docs/build-log.txt`.
