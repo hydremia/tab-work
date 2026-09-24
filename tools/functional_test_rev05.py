@@ -568,6 +568,19 @@ base = base if isinstance(base, (int, float)) else 0
 check(S, "I87 exhaust design total = sample total + 200 + 150 (fan 31 not listed)", bb["I87"].value, base + 350)
 check(S, "error cells", count_errors(wbE), 0)
 
+# ----------------------------------------------------------------------------------------- F. 24" x 24" supply filter
+def fill_grid_24(wb):
+    mu = wb["MAUs"]
+    mu["C65"] = '24" x 24"'; mu["C66"] = 300
+
+
+wbF = prepared(SRC, "F05", fill_rev04, fill_grid_24)
+dF = load_workbook(SRC)["{Dropdowns}"]
+check("F filter 24x24", "{Dropdowns}!H45 key and AP1 source note",
+      (dF["H45"].value, str(dF["AP1"].value).startswith("Source: CaptiveAire")), ('Supply Filter (VelGrid)|24" x 24"', True))
+check("F filter 24x24", "MAUs C67 = 300 x 3.36 x 1.35", r4(wbF["MAUs"]["C67"].value), r4(300 * 3.36 * 1.35))
+check("F filter 24x24", "error cells", count_errors(wbF), 0)
+
 # ----------------------------------------------------------------------------------------- report
 bad = [x for x in results if not x[4]]
 sections = {}

@@ -71,7 +71,10 @@ describe('MAU filter grid (Supply Filter (VelGrid), K 1.35)', () => {
     expect(r2(g.total)).toBe(r2(400 * 1.75 * 1.35 + 300 * 1.52 * 1.35));
   });
   it('a pair without constants gives 0 like the workbook', () => {
-    expect(filterCfm('Supply Filter (VelGrid)', '24" x 24"', 400)).toBe(0); // H45 template quirk
+    expect(filterCfm('Supply Filter (VelGrid)', '16" Wide', 400)).toBe(0);
+  });
+  it('24" x 24" supply filter has constants again ({Dropdowns}!H45 key restored)', () => {
+    expect(filterCfm('Supply Filter (VelGrid)', '24" x 24"', 400)).toBeCloseTo(400 * 3.36 * 1.35, 9);
   });
 });
 

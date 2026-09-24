@@ -137,8 +137,8 @@ export const DEFAULT_INSTRUMENTS = [
 /**
  * CaptiveAire / Evergreen filter constants ({Dropdowns} H2:K50, key "type|size"): free area (ft²) and K-factor.
  * CFM per filter = velocity x free area x K. A pair that is not in this table gives 0 CFM in the workbook.
- * Note: the template's row 45 key cell holds the source note instead of "Supply Filter (VelGrid)|24" x 24"", so
- * that pair has no constants in revision 05 (it is left out here, and the app does not offer it).
+ * Revision 05 (rebuilt 2026-09-24) restored the row 45 key "Supply Filter (VelGrid)|24" x 24"" (its source note
+ * moved to {Dropdowns}!AP1), so that pair now has constants like every other supply-filter size.
  */
 export interface FilterConstant {
   type: string;
@@ -191,6 +191,7 @@ export const FILTER_CONSTANTS: readonly FilterConstant[] = [
   FC('Supply Filter (VelGrid)', '16" x 25"', 2.24, 1.35),
   FC('Supply Filter (VelGrid)', '20" x 20"', 2.25, 1.35),
   FC('Supply Filter (VelGrid)', '20" x 25"', 2.88, 1.35),
+  FC('Supply Filter (VelGrid)', '24" x 24"', 3.36, 1.35),
   FC('Baffle (VelGrid)', 'No Filter', 0, 0),
   FC('Captrate (VelGrid)', 'No Filter', 0, 0),
   FC('Condensate Baffle (Airfoil)', 'No Filter', 0, 0),
