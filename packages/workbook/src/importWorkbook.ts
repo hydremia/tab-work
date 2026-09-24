@@ -4,7 +4,7 @@
  */
 import JSZip from 'jszip';
 import { cellValue, listSheets, loadSharedStrings, parseCells, RawCell, readText, serialToIso, usToIso } from './ooxml.js';
-import { anchorRow, FieldType, Layout, sequenceCells, tableRows, TEMPLATE_MAP, TemplateMap } from './templateMap.js';
+import { anchorRow, blockLayout, fieldPreset, FieldType, Layout, sequenceCells, tableRows, TEMPLATE_MAP, TemplateMap } from './templateMap.js';
 import type { Cell, LayoutData, ProjectData, UnitData, Value } from './types.js';
 
 export interface ImportOptions { map?: TemplateMap }
@@ -112,9 +112,9 @@ export async function importWorkbookWithReport(bytes: Uint8Array, opts: ImportOp
           if (v !== undefined) (unit.schedule ??= {})[fd.key] = v;
         }
       }
-      const data = await readLayout(def.block, def.block.sheet, anchorRow(def.block.anchor, slot), where);
+      const data = await readLayout(blockLayout(def, slot), def.block.sheet, anchorRow(def.block.anchor, slot), where);
       // a slot is used when it has a designation or any value other than the template's presets
-      const presets = new Map((def.block.fields ?? []).filter((f) => f.preset !== undefined).map((f) => [f.key, f.preset]));
+      const presets = new Map((def.block.fields ?? []).map((f) => [f.key, fieldPreset(f, slot)] as const).filter(([, p]) => p !== undefined));
       const blockData = Object.entries(data.fields ?? {}).some(([k, v]) => presets.get(k) !== v)
         || Object.keys(data).some((k) => k !== 'fields');
       // the untouched template's sample designation (RTU-1, MUA-1, ...) alone does not make slot 1 a unit

@@ -10,7 +10,14 @@ import {
   readText,
   workbookPart,
 } from './ooxml.js';
-import { DEFAULT_INSTRUMENTS, TEMPLATE_LISTS } from './lists.js';
+import {
+  DEFAULT_INSTRUMENTS,
+  FILTER_CONSTANTS,
+  filterSizesFor,
+  PROFILE_CURVE,
+  PSP_K,
+  TEMPLATE_LISTS,
+} from './lists.js';
 import { importWorkbook } from './importWorkbook.js';
 import { TEMPLATE_FILE_NAME } from './index.js';
 import { TEMPLATE_PATH, templateBytes } from './testTemplate.js';
@@ -40,6 +47,31 @@ describe('template lists', () => {
       const actual = name === 'Service.Factors2' ? vals.slice(1) : vals; // first entry is the "SF" header
       expect(actual, name).toEqual(expected);
     }
+  });
+
+  it('filter constants, PSP K-factors and the profile-pressure curve match {Dropdowns}', async () => {
+    const zip = await JSZip.loadAsync(templateBytes());
+    const info = (await listSheets(zip)).find((s) => s.name === '{Dropdowns}')!;
+    const cells = parseCells(await readText(zip, info.part));
+    const v = (ref: string) => cellValue(cells.get(ref), []);
+    const table: { type: string; size: string; area: unknown; k: unknown }[] = [];
+    for (let r = 2; r <= 50; r++) {
+      const key = v(`H${r}`);
+      if (typeof key !== 'string' || !key.includes('|')) continue; // H45 holds the source note (template quirk)
+      const [type, size] = key.split('|');
+      expect(v(`I${r}`), `I${r}`).toBe(size);
+      expect(v(`L${r}`), `L${r}`).toBe(type);
+      table.push({ type, size, area: v(`J${r}`), k: v(`K${r}`) });
+    }
+    expect(FILTER_CONSTANTS).toEqual(table);
+    expect(v('H45')).toMatch(/^Source:/); // the Supply Filter 24x24 key is overwritten by the note
+    expect(filterSizesFor('Supply Filter (VelGrid)')).not.toContain('24" x 24"');
+    expect(filterSizesFor('HVC / Slot (Airfoil)')).toEqual(['No Filter', '16" Wide', '20" Wide']);
+    PSP_K.forEach(([w, k], i) => expect([v(`R${i + 2}`), v(`S${i + 2}`)]).toEqual([w, k]));
+    PROFILE_CURVE.pressures.forEach((p, i) => {
+      expect(v(`U${i + 2}`)).toBe(p);
+      PROFILE_CURVE.cfm.forEach((col, h) => expect(v(`${'VWXYZ'[h]}${i + 2}`)).toBe(col[i]));
+    });
   });
 
   it('DEFAULT_INSTRUMENTS are the Calibration sheet pre-loads', async () => {

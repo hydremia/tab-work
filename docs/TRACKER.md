@@ -2,7 +2,7 @@
 
 Legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked
 
-Last updated: 2026-09-23
+Last updated: 2026-09-24
 
 ## Open questions (need answers to finish Phase 0)
 
@@ -96,7 +96,7 @@ Last updated: 2026-09-23
 - [x] Building Balance: Small Fans 21–30 added in revision 05 (B1). The app warns past 30.
 - [x] Redo the workbook analysis and required fields on revision 04 (`04 - a2b_Blank_TAB_Workbook 9-18-26.xlsm`)
 - [x] Template map v1 (`spike/export/src/templateMap.ts`): project info, EDE, cover, RTU/MAU/ERV/Fan/Small Fan/VAV/Hood/Traverse blocks, Summaries, Narrative, Calibration, Building Balance pressures. Audited on the first and last block of every type.
-- [ ] Template map: remaining areas (Building Balance spare OA rows, hood/traverse page remarks, Certification). Convert to versioned JSON per template revision.
+- [~] Template map: remaining areas. Hood/traverse page remarks and traverse point labels done; every block of every type audited (`packages/workbook/src/mapAudit.test.ts`). Still to do: Building Balance spare OA rows, Certification, versioned JSON per template revision.
 - [x] **Export spike** (`spike/export`, `npm run spike`): 71 PASS / 0 FAIL. 634 cells written directly into the XML; 66 of 83 parts byte-identical, VBA unchanged; 0 error cells after recalculation; 189/189 expected values; import round trip with 0 differences (also after a LibreOffice re-save); 6/6 unsafe writes rejected.
 - [x] **Spike:** cover photo cropped (≈1.685:1) and inserted into the Cover Page drawing
 - [ ] **Open the spike export in desktop Excel**: no repair prompt, recalculation on open, macros/ToC button, dropdown values, cover photo proportions, print layout
@@ -116,11 +116,11 @@ Last updated: 2026-09-23
 - [x] Local DB (IndexedDB/Dexie) and field-change log (every edit via `setField`, outbox coalescing; sync push/pull engine written, not yet run against Supabase)
 - [x] Project Information form (incl. report date, blueprints, narrative, scope/tolerance, cover photo, instruments)
 - [~] Equipment list by type, with add, duplicate and bulk schedule import. List by type with rollups and filters, add (capacities enforced, New/Existing) done; duplicate and bulk schedule import not yet.
-- [~] Forms generated from the template map: RTU/AHU, MAU/SF, ERV, EF/KEF, VAV, Hoods, Traverses. Spec-driven forms: RTU/AHU/DOAS and VAV complete; the other types show identity only ("coming soon").
+- [x] Forms generated from the template map: RTU/AHU, MAU/SF, ERV, EF/KEF, VAV, Hoods, Traverses. Every type has a complete spec-driven form (MAU supply methods Outlets / PSP / Filter Grid / Profile Pressure, ERV supply + exhaust, fans, small fans (R6), hood filter readings (VelGrid / Airfoil), traverse point grid (R7)); round trip against the rev 05 template and LibreOffice cross-check in the e2e run.
 - [x] Airflow outlet entry (fast numeric keypad, fill-down): decimal keypad, new row copies area/type/size/Ak and numbers S-1 → S-2
-- [~] Calc engine (CFM, %, totals, TSP/ESP, corrected FLA, BHP) with tests against Excel values. CFM = VEL × Ak, % of design, totals done; TSP/ESP, corrected FLA, BHP not yet.
+- [~] Calc engine (CFM, %, totals, TSP/ESP, corrected FLA, BHP) with tests against Excel values. CFM = VEL × Ak, % of design, totals; MAU PSP / filter grid / profile pressure / method total, ERV totals, hood filter CFM and totals, traverse layout / Ak / CFM and Building Balance totals done and checked against the workbook (unit tests + LibreOffice recalculation in e2e); TSP/ESP, corrected FLA, BHP not yet.
 - [x] Completion status engine and color coding (card, type rollup, project rollup, filters)
-- [x] N/A handling (field, section, equipment, automatic) and project scope profiles. Automatic rules exist for the RTU and VAV specs; other types get theirs with their forms.
+- [x] N/A handling (field, section, equipment, automatic) and project scope profiles. Automatic rules for every type (incl. MAU unchosen methods, hood VelGrid readings 2–3 and No Filter rows, round-duct height); N/A tables and reading runs are exported as the notation in their first cell.
 - [x] Tolerance flags
 - [~] Offline verification (airplane-mode test). Automated offline run in Chromium passes (app shell, edits, export); a real phone in airplane mode is still to do.
 

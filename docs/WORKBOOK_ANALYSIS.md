@@ -272,13 +272,13 @@ CFM per filter = average velocity × free area × K-factor, looked up by *filter
 H:K. **Every velocity goes into P–U**, including single VelGrid readings (type it in P / S). J and L are
 averages; the sheet note suggests typing over them, but the app must not.
 Remarks: one 5-line area per page, shared by both hoods: page start S = 4 + 49k, rows S+43 (D:M) and
-S+44 … S+47 (B:M).
+S+44 … S+47 (B:M). The app gives the first hood on the page lines 1–3 and the second hood lines 4–5.
 
 ### 4.8 Traverses (anchor T; three per 49-row page)
 
 | Row | Input cells | Formula cells |
 |---|---|---|
-| +2 | C:E Area served, I Design CFM, **J Initial VEL** (single value) | B Point label `T-n` (typed text), F:G Size text, H Ak, K Initial CFM, **L Final VEL = average of the grid**, M Final CFM |
+| +2 | **B Point label** (typed text, pre-filled `T-1` … `T-48`; not a formula), C:E Area served, I Design CFM, **J Initial VEL** (single value) | F:G Size text, H Ak, K Initial CFM, **L Final VEL = average of the grid**, M Final CFM |
 | +3 | D:G Instrument `[Traverse.Instrument]`, K Duct static pressure, M Temperature | — |
 | +4 | D:E Duct shape `[Duct.Shape]`, G Width or diameter (in), I Height (in), K Liner thickness (in) | M Point layout (e.g. `4 x 3`, `8 x 2 axes`), N helper |
 | +5 | — | D:M Traverse positions (in), N helper |
@@ -289,7 +289,7 @@ Quick entry: reading *k* (1-based, grid order: across the first depth or axis, t
 P + ⌊(k−1)/10⌋, row T + 6 + ((k−1) mod 10). **The app writes readings to P:W only.** A value typed into the
 grid replaces that cell's link. Points: rectangular, per axis < 12" = 2, otherwise ⌈L/6⌉ with a minimum of 3
 (max 10 across × 8 down); round 6–9" = 6, 10–12" = 8, > 12" = 10 per axis, on two axes.
-Remarks: one 3-line area per page, page start S = 5 + 49k: rows S+45 (D:M), S+46, S+47 (B:M).
+Remarks: one 3-line area per page, page start S = 5 + 49k: rows S+45 (D:M), S+46, S+47 (B:M). The app maps one line to each traverse on the page (1st: S+45, 2nd: S+46, 3rd: S+47).
 
 ## 5. Other input areas
 
@@ -320,6 +320,11 @@ Remarks: one 3-line area per page, page start S = 5 + 49k: rows S+45 (D:M), S+46
 | Service.Factors2 | A1:A6 | SF (header), SF 1.0, SF 1.15, SF 1.25, SF 1.35, SF 1.5 |
 | Voltage.Options | B1:B7 | Voltage (header), 115, 120, 208, 230, 460, 480 |
 | Phase | C1:C3 | Phase (header), 1-phase, 3-phase |
+
+**Constants table quirk (found 2026-09-24):** row 45's key cell H45 holds the long source note ("Source:
+CaptiveAire / Evergreen …") instead of `Supply Filter (VelGrid)|24" x 24"`, so that pair has no constants in
+revision 05 (I45:L45 still hold 24" x 24", 3.36, 1.35). A 24" x 24" filter on the MAU filter grid gives 0 CFM. The app
+does not offer it; revision 06 could move the note to another cell.
 
 Only a filter type/size pair that exists in the constants table (H2:K50) gives a CFM. Any other pair gives 0 with
 no warning. For example, the MAU filter grid always uses Supply Filter (VelGrid), which has no 10×16, 10×20, 20×16
@@ -393,6 +398,10 @@ columns, so the final check is in desktop Excel.
    instead of relying on the template rows.
 5. **LibreOffice re-save is not safe to ship.** It shrinks `vbaProject.bin` from 93,696 to 17,920 bytes and the
    package from 83 to 55 parts. Only the app's direct-XML export is used for deliverables.
+
+6. **Traverse point labels are inputs.** Traverses B+2 (`T-1` … `T-48`) is typed text in every block, not a formula
+   (§4.8 listed it with the formula cells). The app writes the traverse designation there; on import a label equal
+   to its block's pre-fill does not make the slot "used".
 
 ## 9. History
 

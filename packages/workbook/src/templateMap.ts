@@ -9,8 +9,7 @@
  *  - outlet tables, remark lines, reading grids and column tables are generic shapes.
  *
  * Source: docs/WORKBOOK_ANALYSIS.md (rev 04 layout, same in rev 05) + checks against the rev 05 XML.
- * This is the spike subset. It is structured so the remaining inputs (the 20 spare OA rows on
- * Building Balance, hood/traverse page remarks, Certification, ...) are more entries, not more code.
+ * Still to add: the 20 spare OA rows on Building Balance and Certification (more entries, not more code).
  */
 
 export const TEMPLATE_REVISION = '05';
@@ -35,6 +34,8 @@ export interface FieldDef {
   placeholder?: string | number;
   /** Value the template ships with in every block (e.g. unit type "RTU"). Ignored when detecting used slots. */
   preset?: string;
+  /** Like `preset`, but different in every block: `{n}` is the block number (traverse point label "T-{n}"). */
+  slotPreset?: string;
   /** Values the importer treats as blank (e.g. the "SF" header text used as a placeholder). */
   blankValues?: readonly string[];
   label?: string;
@@ -70,6 +71,11 @@ export interface TableDef {
 export interface LinesDef {
   key: string;
   cells: readonly { col: string; row: number }[];
+  /**
+   * Paged blocks only: the lines belong to the block at this position on its page (0-based), rows relative to
+   * that block's anchor. Used for the remark box a page shares between its hoods / traverses.
+   */
+  pagePosition?: number;
 }
 
 /** A grid of single readings filled in reading order (traverse quick entry, PSP velocities). Data: array. */
@@ -108,6 +114,23 @@ export function anchorRow(a: Anchor, n: number): number {
   if (a.kind === 'linear') return a.first + a.stride * (n - 1);
   const per = a.offsets.length;
   return a.first + a.pageRows * Math.floor((n - 1) / per) + a.offsets[(n - 1) % per];
+}
+
+/** Position of block n on its page (0-based; always 0 for linear anchors). */
+export function pagePosition(a: Anchor, n: number): number {
+  return a.kind === 'linear' ? 0 : (n - 1) % a.offsets.length;
+}
+
+/** Preset value of a field in block n (`preset`, or `slotPreset` with {n} replaced). */
+export function fieldPreset(fd: FieldDef, n: number): string | undefined {
+  return fd.slotPreset !== undefined ? fd.slotPreset.replace('{n}', String(n)) : fd.preset;
+}
+
+/** The block layout as it applies to block n: page-position lines are kept only for their position. */
+export function blockLayout(def: EquipmentDef, n: number): Layout {
+  const pos = pagePosition(def.block.anchor, n);
+  const lines = def.block.lines?.filter((l) => l.pagePosition === undefined || l.pagePosition === pos);
+  return { ...def.block, lines };
 }
 
 export interface SheetSection extends Layout {
@@ -478,7 +501,13 @@ export const TEMPLATE_MAP: TemplateMap = {
             c('init1', 'P', 'number'), c('init2', 'Q', 'number'), c('init3', 'R', 'number'),
             c('final1', 'S', 'number'), c('final2', 'T', 'number'), c('final3', 'U', 'number')],
         }],
-        lines: [{ key: 'technicianNotes', cells: [{ col: 'P', row: 1 }, { col: 'P', row: 2 }, { col: 'P', row: 3 }] }],
+        lines: [
+          { key: 'technicianNotes', cells: [{ col: 'P', row: 1 }, { col: 'P', row: 2 }, { col: 'P', row: 3 }] },
+          // One 5-line remark box per page (page start S: D S+43, B S+44 ... S+47), shared by the page's two hoods:
+          // the first hood on the page gets lines 1-3, the second lines 4-5 (rows relative to each hood's anchor).
+          { key: 'remarks', pagePosition: 0, cells: [{ col: 'D', row: 43 }, { col: 'B', row: 44 }, { col: 'B', row: 45 }] },
+          { key: 'remarks', pagePosition: 1, cells: [{ col: 'B', row: 25 }, { col: 'B', row: 26 }] },
+        ],
       },
     },
     // ------------------------------------------------------------------------------ Traverses
@@ -488,6 +517,8 @@ export const TEMPLATE_MAP: TemplateMap = {
         sheet: 'Traverses',
         anchor: { kind: 'paged', first: 5, pageRows: 49, offsets: [0, 15, 30] },
         fields: [
+          // B+2 is a typed label pre-filled "T-1" ... "T-48" in the template (not a formula)
+          f('designation', 'B', 2, 'text', { slotPreset: 'T-{n}' }),
           f('areaServed', 'C', 2, 'text'), f('designCfm', 'I', 2, 'number'), f('initialVel', 'J', 2, 'number'),
           f('instrument', 'D', 3, 'list', { list: 'Traverse.Instrument' }),
           f('ductStatic', 'K', 3, 'number'), f('temperature', 'M', 3, 'number'),
@@ -496,6 +527,12 @@ export const TEMPLATE_MAP: TemplateMap = {
         ],
         // Quick entry: reading k goes to column P + floor((k-1)/10), row T + 6 + ((k-1) mod 10). Never the grid.
         sequences: [{ key: 'readings', type: 'number', row: 6, rows: 10, cols: cols('P', 'W'), order: 'colMajor' }],
+        // One 3-line remark box per page (page start S: D S+45, B S+46, B S+47), one line per traverse on the page.
+        lines: [
+          { key: 'remarks', pagePosition: 0, cells: [{ col: 'D', row: 45 }] },
+          { key: 'remarks', pagePosition: 1, cells: [{ col: 'B', row: 31 }] },
+          { key: 'remarks', pagePosition: 2, cells: [{ col: 'B', row: 17 }] },
+        ],
       },
     },
   ],

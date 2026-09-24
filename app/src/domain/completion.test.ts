@@ -335,22 +335,6 @@ describe('VAV', () => {
   });
 });
 
-describe('types without a full form yet', () => {
-  it('never turn green', () => {
-    const c = computeCompletion({
-      spec: getSpec('mau'),
-      unit: { designation: 'MAU-1', data: { areaServed: 'Kitchen', location: 'Roof' }, naState: emptyNaState() },
-      rows: [],
-      photos: [],
-      project,
-      openIssues: 0,
-    });
-    expect(c.missing).toEqual([]);
-    expect(c.formIncomplete).toBe(true);
-    expect(c.color).toBe('amber');
-  });
-});
-
 describe('rollup', () => {
   it('counts colors', () => {
     expect(rollup(['green', 'green', 'amber', 'gray', 'red'])).toEqual({

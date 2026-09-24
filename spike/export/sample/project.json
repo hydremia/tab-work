@@ -275,13 +275,13 @@
     "traverse": [
       {
         "slot": 1,
-        "fields": { "areaServed": "RTU-1 supply main", "designCfm": 1000, "initialVel": 490, "instrument": "Manometer/Pitot Tube",
+        "fields": { "designation": "T-1", "areaServed": "RTU-1 supply main", "designCfm": 1000, "initialVel": 490, "instrument": "Manometer/Pitot Tube",
           "ductStatic": 0.45, "temperature": 55, "shape": "Rectangular", "width": 24, "height": 12, "liner": 0 },
         "sequences": { "readings": [480, 484, 488, 492, 496, 500, 504, 508, 512, 516, 520, 524] }
       },
       {
         "slot": 2,
-        "fields": { "areaServed": "EF-2 discharge", "designCfm": 350, "instrument": "Manometer/Pitot Tube",
+        "fields": { "designation": "T-2", "areaServed": "EF-2 discharge", "designCfm": 350, "instrument": "Manometer/Pitot Tube",
           "ductStatic": 0.3, "temperature": 72, "shape": "Round", "width": 10 },
         "sequences": { "readings": [600, 600, 600, 600, 600, 600, 600, 600, 620, 620, 620, 620, 620, 620, 620, 620] }
       }

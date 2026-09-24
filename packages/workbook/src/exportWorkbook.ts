@@ -9,7 +9,7 @@ import {
   parseRels, RawCell, readText, relsPathFor, resolveTarget, sheetDataRange, splitRef, workbookPart, xmlEscape,
 } from './ooxml.js';
 import {
-  anchorRow, ColumnDef, FieldDef, Layout, NOTATIONS, sequenceCells, tableRows, TEMPLATE_MAP, TemplateMap,
+  anchorRow, blockLayout, ColumnDef, FieldDef, Layout, NOTATIONS, sequenceCells, tableRows, TEMPLATE_MAP, TemplateMap,
 } from './templateMap.js';
 import { anchorSizeEmu, type CoverPhotoCropper, drawingPictures } from './coverPhoto.js';
 import type { Cell, LayoutData, ProjectData } from './types.js';
@@ -56,6 +56,7 @@ type CellWrite = { kind: 'text'; text: string } | { kind: 'number'; n: number } 
 class SheetPatcher {
   private cells: Map<string, RawCell>;
   private merges: { c1: number; r1: number; c2: number; r2: number; ref: string }[];
+  private mergesByRow = new Map<number, { c1: number; r1: number; c2: number; r2: number; ref: string }[]>();
   private colStyles: { min: number; max: number; style?: string }[];
   readonly writes = new Map<string, { w: CellWrite; source: string; styleFrom?: string }>();
   stats = { written: 0, cleared: 0, created: 0, rowsCreated: 0 };
@@ -65,6 +66,12 @@ class SheetPatcher {
     this.merges = [...xml.matchAll(/<mergeCell\b[^>]*ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"/g)].map((m) => ({
       c1: colToNum(m[1]), r1: Number(m[2]), c2: colToNum(m[3]), r2: Number(m[4]), ref: `${m[1]}${m[2]}:${m[3]}${m[4]}`,
     }));
+    for (const mg of this.merges) {
+      for (let r = mg.r1; r <= mg.r2; r++) {
+        if (!this.mergesByRow.has(r)) this.mergesByRow.set(r, []);
+        this.mergesByRow.get(r)!.push(mg);
+      }
+    }
     this.colStyles = [...xml.matchAll(/<col\b[^>]*\/>/g)].map((m) => ({
       min: Number(attr(m[0], 'min')), max: Number(attr(m[0], 'max')), style: attr(m[0], 'style'),
     }));
@@ -78,7 +85,7 @@ class SheetPatcher {
     if (cur?.formula !== undefined) throw new FormulaCellError(this.sheet, ref, cur.formula, source);
     const { col, row } = splitRef(ref);
     const c = colToNum(col);
-    const mg = this.merges.find((m) => c >= m.c1 && c <= m.c2 && row >= m.r1 && row <= m.r2);
+    const mg = this.mergesByRow.get(row)?.find((m) => c >= m.c1 && c <= m.c2);
     if (mg && (mg.c1 !== c || mg.r1 !== row)) {
       throw new MapError(`${source}: ${this.sheet}!${ref} is inside merged range ${mg.ref} but not its top-left cell (the value would be hidden)`);
     }
@@ -125,7 +132,7 @@ class SheetPatcher {
       while (pending.length && pending[0] < beforeRow) {
         const r = pending.shift()!;
         if (done.has(r)) continue;
-        const cells = this.buildRow(r, undefined, '');
+        const cells = this.buildRow(r, undefined, '', byRow.get(r)!);
         if (cells !== null) { s += `<row r="${r}">${cells}</row>`; this.stats.rowsCreated++; changed = true; }
         done.add(r);
       }
@@ -136,7 +143,7 @@ class SheetPatcher {
       out += inner.slice(last, m.index) + emitNewRows(r);
       last = m.index! + m[0].length;
       if (byRow.has(r)) {
-        const cells = this.buildRow(r, m[1], m[2] ?? '');
+        const cells = this.buildRow(r, m[1], m[2] ?? '', byRow.get(r)!);
         if (cells !== null && cells !== (m[2] ?? '')) {
           out += `<row${m[1]}>${cells}</row>`;
           changed = true;
@@ -154,8 +161,7 @@ class SheetPatcher {
   }
 
   /** New inner XML of row r, or null when nothing changes. */
-  private buildRow(r: number, rowAttrs: string | undefined, inner: string): string | null {
-    const writes = byRowRefs(this.writes, r);
+  private buildRow(r: number, rowAttrs: string | undefined, inner: string, writes: Map<string, CellWrite>): string | null {
     const existing = [...inner.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)];
     // make sure the regex consumed the whole row (anything else in a row would be unexpected)
     if (existing.map((m) => m[0]).join('') !== inner.replace(/^\s+|\s+$/g, '')) {
@@ -204,12 +210,6 @@ class SheetPatcher {
     const ref = `${toCol(c1)}${r1}:${toCol(c2)}${r2}`;
     this.xml = this.xml.replace(/(<dimension\b[^>]*ref=")[^"]*(")/, `$1${ref}$2`);
   }
-}
-
-function byRowRefs(writes: Map<string, { w: CellWrite }>, r: number): Map<string, CellWrite> {
-  const out = new Map<string, CellWrite>();
-  for (const [ref, { w }] of writes) if (splitRef(ref).row === r) out.set(ref, w);
-  return out;
 }
 
 function numberText(n: number): string {
@@ -421,7 +421,7 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
           sh.set(ref, await toWrite(fd, v, sh, ref, `${path}.schedule.${k}`), `${path}.schedule.${k}`);
         }
       }
-      await writeLayout(def.block, def.block.sheet, anchorRow(def.block.anchor, u.slot), u, path);
+      await writeLayout(blockLayout(def, u.slot), def.block.sheet, anchorRow(def.block.anchor, u.slot), u, path);
     }
   }
   // sample designations (RTU-1, MUA-1, ...) on the first data-entry row of unused sections
