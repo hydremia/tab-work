@@ -104,24 +104,24 @@ Last updated: 2026-09-23
 - [x] Compare Hoods sheet with the Evergreen worksheet (aligned in revision 01; see E1)
 
 ## Phase 1 — Foundation
-- [ ] Create Supabase project (dev and prod) and GitHub repo structure
-- [ ] Scaffold PWA (Vite, React, TS, routing, UI kit, mobile-first layout)
-- [ ] Lint, format, unit tests, GitHub Actions CI, preview deploys
-- [ ] Auth: Sign in with Microsoft (Entra ID app registration)
-- [ ] DB schema, migrations and row-level security policies
-- [ ] Project list, create project and project membership
+- [~] Create Supabase project (dev and prod) and GitHub repo structure. Repo structure done (`app/`, `packages/workbook/`, `supabase/`, npm workspaces). Supabase projects still to be created (SETUP_ACCOUNTS.md §2).
+- [x] Scaffold PWA (Vite, React, TS, routing, UI kit, mobile-first layout): `app/`. Plain CSS instead of a UI kit; installable, offline app shell, auto-update.
+- [~] Lint, format, unit tests, GitHub Actions CI, preview deploys. ESLint, Prettier, Vitest (64 tests), Playwright e2e walk, `.github/workflows/ci.yml` done. Preview deploys wait for the hosting account.
+- [~] Auth: Sign in with Microsoft (Entra ID app registration). "Sign in with Microsoft" (Supabase Azure provider) is wired behind `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`; the app runs in local mode without them. Entra app registration and Supabase provider settings pending ([supabase/README.md](../supabase/README.md)).
+- [x] DB schema, migrations and row-level security policies: `supabase/migrations/0001_init.sql` (tables, `field_changes` sync log with last-writer-wins trigger, RLS on every table, `photos` bucket). Checked on local PostgreSQL 16; not yet applied to a Supabase project.
+- [x] Project list, create project and project membership. Membership = the organization (all users equal, F4); no per-project membership.
 
 ## Phase 2 — Core data entry (offline, single device)
-- [ ] Local DB (IndexedDB/Dexie) and field-change log
-- [ ] Project Information form
-- [ ] Equipment list by type, with add, duplicate and bulk schedule import
-- [ ] Forms generated from the template map: RTU/AHU, MAU/SF, ERV, EF/KEF, VAV, Hoods, Traverses
-- [ ] Airflow outlet entry (fast numeric keypad, fill-down)
-- [ ] Calc engine (CFM, %, totals, TSP/ESP, corrected FLA, BHP) with tests against Excel values
-- [ ] Completion status engine and color coding (card, type rollup, project rollup, filters)
-- [ ] N/A handling (field, section, equipment, automatic) and project scope profiles
-- [ ] Tolerance flags
-- [ ] Offline verification (airplane-mode test)
+- [x] Local DB (IndexedDB/Dexie) and field-change log (every edit via `setField`, outbox coalescing; sync push/pull engine written, not yet run against Supabase)
+- [x] Project Information form (incl. report date, blueprints, narrative, scope/tolerance, cover photo, instruments)
+- [~] Equipment list by type, with add, duplicate and bulk schedule import. List by type with rollups and filters, add (capacities enforced, New/Existing) done; duplicate and bulk schedule import not yet.
+- [~] Forms generated from the template map: RTU/AHU, MAU/SF, ERV, EF/KEF, VAV, Hoods, Traverses. Spec-driven forms: RTU/AHU/DOAS and VAV complete; the other types show identity only ("coming soon").
+- [x] Airflow outlet entry (fast numeric keypad, fill-down): decimal keypad, new row copies area/type/size/Ak and numbers S-1 → S-2
+- [~] Calc engine (CFM, %, totals, TSP/ESP, corrected FLA, BHP) with tests against Excel values. CFM = VEL × Ak, % of design, totals done; TSP/ESP, corrected FLA, BHP not yet.
+- [x] Completion status engine and color coding (card, type rollup, project rollup, filters)
+- [x] N/A handling (field, section, equipment, automatic) and project scope profiles. Automatic rules exist for the RTU and VAV specs; other types get theirs with their forms.
+- [x] Tolerance flags
+- [~] Offline verification (airplane-mode test). Automated offline run in Chromium passes (app shell, edits, export); a real phone in airplane mode is still to do.
 
 ## Phase 3 — Excel export & import (first usable release)
 - [ ] Export engine (XML patching, shared strings, `fullCalcOnLoad`)

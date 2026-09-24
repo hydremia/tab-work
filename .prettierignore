@@ -1,0 +1,13 @@
+dist
+dev-dist
+node_modules
+package-lock.json
+app/public/templates
+app/e2e-screenshots
+# Ported from the Phase 0 spike with its original compact formatting (keeps git history / blame readable).
+packages/workbook/src/templateMap.ts
+packages/workbook/src/exportWorkbook.ts
+packages/workbook/src/importWorkbook.ts
+packages/workbook/src/ooxml.ts
+packages/workbook/src/types.ts
+packages/workbook/src/coverPhoto.ts

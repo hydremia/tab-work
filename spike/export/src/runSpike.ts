@@ -19,14 +19,16 @@ import { fileURLToPath } from 'node:url';
 import JSZip from 'jszip';
 import jpeg from 'jpeg-js';
 import { XMLValidator } from 'fast-xml-parser';
-import { bytesEqual, exportWorkbookWithReport, FormulaCellError, MapError, ValidationError } from './exportWorkbook.js';
-import { diff, importWorkbookWithReport, normalizeProject } from './importWorkbook.js';
-import { cellValue, listSheets, loadSharedStrings, parseCells, parseRels, RawCell, readText } from './ooxml.js';
-import { drawingPictures } from './coverPhoto.js';
-import { Layout, NOTATIONS, sequenceCells, tableRows, TEMPLATE_MAP, TemplateMap } from './templateMap.js';
+import {
+  bytesEqual, cellValue, diff, drawingPictures, exportWorkbookWithReport, FormulaCellError, importWorkbookWithReport, listSheets,
+  loadSharedStrings, MapError, normalizeProject, NOTATIONS, parseCells, parseRels, readText, sequenceCells, tableRows, TEMPLATE_MAP,
+  ValidationError,
+} from '@a2b/workbook';
+import type { Layout, RawCell, TemplateMap } from '@a2b/workbook';
+import { cropResizeJpeg } from './coverPhotoNode.js';
 import { expectations, Expected } from './expectations.js';
 import { makeTestPhoto, TEST_PHOTO_PATH } from './makeTestPhoto.js';
-import type { Cell, LayoutData, ProjectData, UnitData } from './types.js';
+import type { Cell, LayoutData, ProjectData, UnitData } from '@a2b/workbook';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -172,7 +174,7 @@ async function main() {
 
   console.log(`Template: ${basename(TEMPLATE)}\nExporting sample/project.json -> out/${outName}`);
   const te = Date.now();
-  const { bytes, report } = await exportWorkbookWithReport(template, project, { coverPhoto: photo });
+  const { bytes, report } = await exportWorkbookWithReport(template, project, { coverPhoto: photo, cropCoverPhoto: cropResizeJpeg });
   const exportMs = Date.now() - te;
   writeFileSync(outPath, bytes);
   rec('export', 'exportWorkbook completed', true,
