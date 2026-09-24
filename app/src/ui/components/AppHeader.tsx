@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { useSync, type SyncStatus } from '../../sync/SyncProvider';
 import { IconBack, IconCloudCheck, IconCloudOff, IconCloudUp, IconDevice } from './Icons';
 
@@ -8,6 +8,7 @@ export function SyncIndicator() {
   const text: Record<SyncStatus, string> = {
     local: 'Local',
     'signed-out': 'Not signed in',
+    setup: 'Choose projects',
     offline: s.pending ? `Offline · ${s.pending} unsynced` : 'Offline',
     syncing: 'Syncing…',
     synced: 'Synced',
@@ -15,7 +16,7 @@ export function SyncIndicator() {
     error: 'Sync error',
   };
   const icon =
-    s.status === 'local' || s.status === 'signed-out' ? (
+    s.status === 'local' || s.status === 'signed-out' || s.status === 'setup' ? (
       <IconDevice size={16} />
     ) : s.status === 'offline' || s.status === 'error' ? (
       <IconCloudOff size={16} />
@@ -29,11 +30,19 @@ export function SyncIndicator() {
       ? `Local mode: saved on this device only (${s.pending} changes logged). ${s.online ? 'Online' : 'Offline'}.`
       : (s.error ?? text[s.status]);
   return (
-    <span className="sync-pill" data-status={s.status} title={title} role="status" data-testid="sync-status">
+    <Link
+      to="/account"
+      className="sync-pill"
+      data-status={s.status}
+      title={title}
+      role="status"
+      aria-label={`${text[s.status]}: sync and account`}
+      data-testid="sync-status"
+    >
       {icon}
       {text[s.status]}
       {s.status === 'local' && (s.online ? <span className="hide-sm"> mode</span> : <span> · offline</span>)}
-    </span>
+    </Link>
   );
 }
 
@@ -74,6 +83,7 @@ export function AppHeader({
 /** Local-mode / offline / sign-in banner under the header. */
 export function ModeBanner() {
   const s = useSync();
+  const { pathname } = useLocation();
   if (s.status === 'local') {
     return (
       <div className="banner" data-testid="local-banner">
@@ -88,12 +98,24 @@ export function ModeBanner() {
   }
   if (s.status === 'signed-out') {
     return (
-      <div className="banner" data-tone="warn">
+      <div className="banner" data-tone="warn" data-testid="signed-out-banner">
         <div className="banner-inner">
           <span>Not signed in: changes are saved on this device and sync after you sign in.</span>
-          <button className="btn btn-primary" onClick={() => void s.signIn()}>
-            Sign in with Microsoft
-          </button>
+          <Link className="btn btn-primary" to="/account">
+            Sign in
+          </Link>
+        </div>
+      </div>
+    );
+  }
+  if (s.status === 'setup' && pathname !== '/cloud-setup') {
+    return (
+      <div className="banner" data-tone="warn" data-testid="setup-banner">
+        <div className="banner-inner">
+          <span>Signed in. Choose which projects on this device move to the cloud before syncing starts.</span>
+          <Link className="btn btn-primary" to="/cloud-setup">
+            Choose
+          </Link>
         </div>
       </div>
     );

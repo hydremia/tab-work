@@ -12,6 +12,7 @@ import type {
   PhotoUpload,
   Project,
   Revision,
+  SyncConflict,
 } from './types';
 
 export class TabDatabase extends Dexie {
@@ -27,6 +28,7 @@ export class TabDatabase extends Dexie {
   baseWorkbooks!: EntityTable<BaseWorkbook, 'projectId'>;
   photoUploads!: EntityTable<PhotoUpload, 'photoId'>;
   history!: EntityTable<HistoryEntry, 'id'>;
+  conflicts!: EntityTable<SyncConflict, 'id'>;
 
   constructor(name = 'a2b-tab') {
     super(name);
@@ -117,7 +119,34 @@ export class TabDatabase extends Dexie {
           });
         await tx.table('history').bulkPut(out);
       });
+    // v5 (Phase 5, sync): conflicts found on pull (and changes held back by a report lock). New table only.
+    this.version(5).stores({ conflicts: 'id, projectId, recordId, status, [projectId+status]' });
   }
 }
 
-export const db = new TabDatabase();
+export const DEFAULT_DB_NAME = 'a2b-tab';
+
+/** The app's database. `let` so tests can simulate several devices in one process (switchDatabase). */
+export let db = new TabDatabase(DEFAULT_DB_NAME);
+
+const instances = new Map<string, TabDatabase>([[DEFAULT_DB_NAME, db]]);
+
+/**
+ * Test hook: switch every module to another database (another simulated device). Modules import `db` as a live
+ * binding, so they see the switch. Call resetIdentityCache() afterwards (the device id lives in the database).
+ */
+export function switchDatabase(name: string): TabDatabase {
+  let next = instances.get(name);
+  if (!next) instances.set(name, (next = new TabDatabase(name)));
+  db = next;
+  return db;
+}
+
+/** Test hook: delete a simulated device's database. */
+export async function dropDatabase(name: string): Promise<void> {
+  const d = instances.get(name);
+  if (!d || name === DEFAULT_DB_NAME) return;
+  instances.delete(name);
+  d.close();
+  await d.delete();
+}

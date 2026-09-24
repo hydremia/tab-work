@@ -115,7 +115,7 @@ describe('database upgrade', () => {
     v1.close();
     const v2 = new TabDatabase(name);
     await v2.open();
-    expect(v2.verno).toBe(4);
+    expect(v2.verno).toBe(5);
     // v3: photos get a sort order and an upload-queue entry
     expect((await v2.photos.get('ph1'))?.order).toBe(5);
     expect(await v2.photoUploads.get('ph1')).toMatchObject({ status: 'pending', projectId: 'p1' });

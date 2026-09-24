@@ -1,6 +1,7 @@
 import type { ItemResult } from '../../domain/completion';
 import type { FieldSpec } from '../../domain/specs';
 import type { FieldValue, NaMark } from '../../data/types';
+import { ConflictFlag, useConflictKey } from './ConflictFlag';
 import { DateInput, NaSelect, NumberInput, SelectInput, TextArea, TextInput, YesNo } from './inputs';
 
 export interface SpecFieldProps {
@@ -38,6 +39,7 @@ export function SpecField({
   warning,
 }: SpecFieldProps) {
   const id = `${idPrefix}-${field.key}`;
+  const conflict = useConflictKey(field.key);
   const st = state?.state;
   const blank = value === undefined || value === null || value === '';
   const className = `field${wide || field.input === 'textarea' ? ' span-2' : ''}`;
@@ -121,6 +123,7 @@ export function SpecField({
             *
           </span>
         )}
+        {conflict && <ConflictFlag title="Sync conflict: see Sync conflicts at the top of the page" />}
       </label>
       <div className="field-control">
         {input}

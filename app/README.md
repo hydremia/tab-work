@@ -68,9 +68,67 @@ Copy `.env.example` to `.env.local` and fill in both values to enable Supabase:
 
 With either value missing the app runs in **local mode**: a "Local mode — not signed in / not syncing" banner,
 everything is saved in IndexedDB on this device, and every edit still lands in the sync outbox (so nothing is lost
-when sync is switched on later). With both set, the header offers **Sign in with Microsoft**
-(`supabase.auth.signInWithOAuth({ provider: 'azure', options: { scopes: 'email' } })`) and the status pill shows
-Synced / N unsynced / Offline. Backend setup: [`supabase/README.md`](../supabase/README.md).
+when sync is switched on later). With both set, the app offers **Sign in with Microsoft** and syncs (next section).
+Switching it on for real (migrations, bucket, Azure provider, Vercel, first sign-in, rollback):
+[`docs/SYNC_SETUP.md`](../docs/SYNC_SETUP.md). Backend reference: [`supabase/README.md`](../supabase/README.md).
+
+## Sign-in and sync (Phase 5)
+
+Built and tested without accounts: against an in-memory fake server with the server's rules
+(`src/sync/fakeServer.ts`, the same rules as `supabase/migrations/0003_sync_rules.sql`) and a mocked Supabase auth
+client. Nothing has run against a real Supabase project yet.
+
+**Sign-in** (`src/sync/cloud.ts`, `src/auth/supabase.ts`, pages in `src/ui/pages/SyncPages.tsx`). The status pill in the
+header opens **Sync & account** (`/account`): sync state, last sync, *Sync now*, *Sign in with Microsoft*, *Sign out*,
+and projects kept on this device only. Sign-in is the Supabase Azure provider with PKCE: Microsoft → Supabase →
+`/auth/callback`, which exchanges the code for the session (errors from Microsoft, e.g. "not assigned to the app", are
+shown there with *Try again*). The session is kept in localStorage and refreshed automatically, so the app opens signed
+in. **Sign out** asks first and, when changes have not synced, says how many and that they stay on the device; local
+data is kept and syncing stops until someone signs in again. **First sign-in on a device with local projects**:
+syncing waits (pill *Choose projects*, banner) until the user picks on **Move projects to the cloud** (`/cloud-setup`)
+which projects to upload (all ticked); they go up through the normal push, the others stay on this device only
+(`meta.localOnlyProjects`, never pushed; *Move to the cloud* later from Sync & account).
+
+**Engine** (`src/sync/engine.ts`, `CloudSyncEngine` over a `SyncBackend`: `supabaseBackend.ts` or the fake). A sync =
+measure the clock offset → pull → release held changes → push → pull again if something was pushed → photo files. It
+runs 1.5 s after an edit, every 30 s, when the device comes back online, and on a Realtime insert hint.
+
+- **Push**: the outbox oldest first, 200 changes per request (one request is atomic on the server); each row carries
+  the device's pull position (`base_seq`) and a server-corrected timestamp. A retried push is harmless: the server skips
+  ids it already has. An edit made while its push is in flight (the outbox coalesces repeated edits of a field into the
+  unsynced entry) is kept: the pushed value stays under its id and the newer value is re-queued under a new id.
+- **Pull**: the organization's log by `server_seq`, 500 per page. The saved restart point only advances over rows
+  older than 2 minutes (server time), so a request that got a lower seq but committed later is not skipped; re-read
+  rows are recognised by id. Applied in server order, last writer wins per field (the server's rule), remote changes
+  logged as synced; a pulled project delete cascades on the device.
+- **Clocks**: timestamps decide which of two edits of a field wins ("the later edit wins", also for edits made offline
+  hours before they sync), so each sync measures the offset to the server clock (`server_time_ms()`, half the round
+  trip) and pushes `ts + offset`; pulled timestamps are converted back. A phone whose clock is 10 minutes fast does not
+  win every conflict. (Assumes the offset is about the same between an offline edit and its push.)
+- **Report lock from another device**: the pull brings the lock, the forms turn read-only and an edit typed meanwhile
+  is refused with a message (*Not saved: the report was issued as Prelim; unlock the project to edit.*, a toast for
+  any refused save). Edits made on this device *before* the lock arrived are **held** (`synced = 2`) instead of pushed
+  (or when the server answers `TAB_LOCKED`): kept on the device, listed in Attention as *N changes not synced*, pushed
+  automatically when the project is unlocked, or **discarded** (records rebuilt from the log without them).
+- **Photos** (`src/sync/photoSync.ts`): files upload after their project is on the server (bucket `photos`,
+  `<projectId>/<photoId>.jpg`), retried with backoff 5 s, 10 s, 20 s … ≤ 1 h; the queue is in IndexedDB, so it resumes
+  after a reload (an upload interrupted by closing the app is retried). A photo deleted after upload queues the file's
+  removal; other devices get the record delete. Photos pulled from other devices show *Downloading…* until their file
+  is fetched (a few per sync).
+
+**Conflicts** (`src/sync/conflicts.ts`, docs/ROADMAP.md rule). Two edits of the *same field* conflict when neither
+device had seen the other's edit: `A.baseSeq < B.serverSeq` and `B.baseSeq < A.serverSeq` (an edit not on the server
+yet cannot have been seen). The later edit wins everywhere; **both** devices record the conflict when they pull the
+other's edit (Dexie v5 table `conflicts` + a history event), so an ordinary later correction ("I saw your value and
+changed it") is not flagged and different fields merge silently. Shown as a **Conflict** badge on the unit card, a flag
+on the field's label, a *Sync conflicts* card on the unit page and a **Conflicts** group at the top of the Attention
+tab (counted in its badge): both values, which device, when. **Keep current** closes it; **Use "…"** restores the other
+value through `setField` (a normal edit: it syncs, wins everywhere and settles the conflict on the other device;
+refused while locked). A later deliberate edit of the field also settles it.
+
+**Server rules** (0003, also in the fake server): lock refusals, review clearing when a change reaches the server for
+a unit whose review the device had not seen, idempotent retries, project deletes; see
+[`supabase/README.md`](../supabase/README.md#0003-server-side-sync-rules).
 
 ## Structure
 
@@ -79,9 +137,13 @@ src/
   data/        Dexie schema (db.ts), record types (types.ts), repository (repo.ts: setField + creates/deletes, report
                lock, review), change history (history.ts: append / prune), live-query hooks (hooks.ts), device / user
                identity, dotted-path helpers
-  sync/        outbox.ts (pending / markSynced / applyRemoteChanges, last writer wins), engine.ts
-               (LocalSyncEngine no-op, SupabaseSyncEngine push/pull), SyncProvider.tsx (status, online/offline)
-  auth/        lazy Supabase client + Microsoft sign-in
+  sync/        outbox.ts (pending / markSynced / hold / release / applyRemoteChanges, last writer wins), engine.ts
+               (LocalSyncEngine no-op, CloudSyncEngine), backend.ts (SyncBackend interface, row mapping, errors),
+               supabaseBackend.ts, fakeServer.ts + fakeBackend.ts (in-memory server with the 0003 rules; tests),
+               fakeHttp.ts (the fake over HTTP, VITE_FAKE_SYNC builds only), conflicts.ts (detection, resolve,
+               discard held), photoSync.ts (upload / delete / download queue), cloud.ts (auth + backend, lazy),
+               SyncProvider.tsx (status, online/offline, onboarding, sign-in / out)
+  auth/        supabase.ts: lazy Supabase client, Microsoft sign-in (PKCE), callback, sign-out
   domain/      historyView.ts (history labels, old / new text, filters, grouping), projectFields.ts,
                scheduleImport.ts (schedule paste / file -> preview), duplicate.ts, projectCompletion.ts (project-level
                completion incl. building pressures), attention.ts (needs-attention list), instruments.ts (instrument
@@ -219,7 +281,9 @@ it pulls); it is not pushed.
 - **Storage:** `pruneHistory()` runs at start-up: entries older than **12 months** are dropped, and each project keeps at
   most the newest **5,000** (~0.2–0.5 kB each, so ≤ ~2.5 MB per project). Deleting a project deletes its history.
 - Server: `supabase/migrations/0002_review_lock.sql` adds the `review` / `lock` columns and their sync-column rows
-  (checked on PostgreSQL 16). The server does not enforce the lock; every device's repository does.
+  (checked on PostgreSQL 16). Every device's repository enforces the lock, and since `0003_sync_rules.sql` the server
+  does too (a change pushed into a locked project is refused and held on the device until the project is unlocked; see
+  *Sign-in and sync*).
 
 ## Equipment schedule import
 
@@ -399,7 +463,7 @@ over a JPEG; a browser that cannot decode a file shows a clear message (HEIC-spe
 **Storage.** Dexie schema **v3**: `photos` gains `thumb`, `width`, `height`, `capturedAt`, `gps`, `order` and an
 `issueId` index; the upgrade gives old photos an order and an upload-queue entry (their thumbnails fall back to the
 full image). `photoUploads` is the upload queue for Supabase Storage (one entry per photo, `pending` → `done`,
-bucket `photos`, path `<projectId>/<photoId>.jpg`); it only waits in local mode (Phase 5 uploads it). Photo
+bucket `photos`, path `<projectId>/<photoId>.jpg`); it only waits in local mode; signed in, `src/sync/photoSync.ts` uploads it (see *Sign-in and sync*). Photo
 metadata syncs through the field-change outbox like every other record (the Blobs are never in the outbox). The
 Photos tab shows the storage used by the project, the upload queue and whether storage is persistent:
 `navigator.storage.persist()` is requested on the first photo and can be asked again from there.
@@ -455,10 +519,25 @@ is 51 pages (unit test). The zip is built in memory (the stored JPEGs, not recom
 
 ## Tests
 
-- `npm test`: 294 tests (23 in `packages/workbook`: the schedule readers (EDE section only, sheet grids), export onto an issued workbook (clearing, hand formatting kept,
+- `npm test`: 348 tests (23 in `packages/workbook`: the schedule readers (EDE section only, sheet grids), export onto an issued workbook (clearing, hand formatting kept,
   an Excel-style shared-strings save, formulas typed over inputs), the revision marker, the compatibility check (incl.
   revision 04 rejected), plus list and constants copies vs. the template, a map audit that
-  fills **every** block of every type, round trip, safety; 271 in the app, incl. `deploy/hosting.test.ts` (generated hosting files up to date, caching rules, CSP), `ui/deploy.test.tsx` (install card incl. the iPhone hint, update toast, export status and the leave reminder, Share… and its fallback, custom scope for every type), the Phase 6 workflow (`data/workflow.test.ts`: review only when green,
+  fills **every** block of every type, round trip, safety; 325 in the app, incl. **sync** (54 tests, two or three
+  simulated devices, each with its own IndexedDB, over the in-memory fake server: `sync/engine.test.ts` push batching
+  and order, a lost-response retry applied once (also a re-pushed create after a rename / delete), partial failure
+  mid-batch, a request refused as a whole, an edit while its push is in flight, offline → online, pull paging by cursor
+  and the settle window (a late commit with a lower seq), a device clock 10 min fast, the report lock arriving from
+  another device (local edits refused, earlier offline edits held then released on unlock, or refused by the server
+  and held, or discarded), the own lock after own edits, a locked project deleted everywhere, server review clearing;
+  `sync/conflicts.test.ts` same field on both devices flagged on both (either push order), later corrections /
+  different fields / equal values not flagged, project fields, resolve keep / restore (settles the other device, refused
+  while locked); `sync/photoSync.test.ts` upload after push, download on the other device, backoff 5 s → 10 s … 1 h,
+  resume after reload, deletes propagate, whole-project delete; `sync/fakeServer.test.ts` the 0003 rules mirrored from
+  the SQL test, error mapping, the Supabase backend's calls with a mocked client; jsdom `ui/sync.test.tsx` with a
+  mocked Supabase auth client: local mode, sign-in (Azure, PKCE redirect to `/auth/callback`), callback code exchange,
+  provider error, failed exchange, persisted session, first sign-in choosing projects to upload, device-only projects
+  moved later, sign-out warning / cancel / data kept, the conflict UI (Attention group, unit badge, field flag, keep /
+  use, held changes discarded) and the lock toast), `deploy/hosting.test.ts` (generated hosting files up to date, caching rules, CSP), `ui/deploy.test.tsx` (install card incl. the iPhone hint, update toast, export status and the leave reminder, Share… and its fallback, custom scope for every type), the Phase 6 workflow (`data/workflow.test.ts`: review only when green,
   blue rollups, automatic clear on field / row / photo changes but not on issue or remote edits, the lock refusing
   every kind of write at the repository level with nothing written, unlock, remote lock, lock / unlock / revision
   events, previous values while the outbox coalesces, schedule-import source, prune, the v3 → v4 upgrade; an issued
@@ -516,7 +595,14 @@ is 51 pages (unit test). The zip is built in memory (the stored JPEGs, not recom
   `beforeinstallprompt` (the prompt is called once), the iPhone hint (dismissal survives a reload), the update toast
   after `sw.js` changes on the server (Reload activates the new worker), the export reminder when leaving a never-
   exported project and after an edit, *Download again* without Web Share, *Share…* of the `.xlsm` and a PDF with a
-  Web Share stub, and a MAU section switched off by the Custom scope. Every page of every context is checked for
+  Web Share stub, and a MAU section switched off by the Custom scope. **Two devices syncing** (`e2e/sync.ts`): a second
+  build with `VITE_FAKE_SYNC=1` (`app/dist-fake`, git-ignored; the production build contains no fake code) served on
+  `E2E_PORT + 1` with the fake sync server (`deploy/serve-dist.ts`, `SERVE_FAKE_SYNC=1`), two browser contexts:
+  A imports a project while signed out, signs in (redirect to `/auth/callback`), *Move projects to the cloud* lists it,
+  upload → *Synced*; B signs in and gets it; both go offline and change RTU-1's serial → the later value on both, both
+  flag the field, list it on the unit page, badge the unit card and show the Attention tab's Conflicts group (screenshot
+  29) → A restores its value → B gets it and B's conflict is settled → B signs out, the project stays
+  (`E2E_SKIP_SYNC=1` skips this walk). Every page of every context is checked for
   **CSP violations** (none) and the production headers are checked on `/`.
   Uses `PLAYWRIGHT_BROWSERS_PATH` or `CHROMIUM_PATH` (falls back
   to `/opt/pw-browsers/chromium`) and `soffice` for the recalculation; never downloads a browser. Screenshots go to
@@ -524,16 +610,17 @@ is 51 pages (unit test). The zip is built in memory (the stored JPEGs, not recom
   forms; 13: RTU motor and static-profile panels; 14: re-import review; 15: revisions; 16: Photos tab; 17: issue
   with deficiency photos; 18 / 19: page 1 of the Photo and Issues reports; 20: schedule import preview; 21: needs attention; 22: building
   pressures; 23: reviewed (blue) units; 24: locked (issued) unit page; 25: History; 26: install card; 27: export with
-  Share…; 28: the icon set, rendered by `npm run icons`).
+  Share…; 28: the icon set, rendered by `npm run icons`; 29: a sync conflict in the Attention tab).
 
 ## Not done yet
 
-Supabase sync against a live project (engine written, untested); the report lock is enforced by each device, not by
-the server (an old app version or a device that has not pulled the lock yet can still push edits); the history is
-per device (not synced, so a new device starts with what it pulls); photos can't be opened from a unit page while the
-project is locked (use the Photos tab, whose viewer is read-only then); the photo upload itself (queue in place, Phase 5)
-and server columns for the new photo fields (`order`, `width`, `height`, `capturedAt`, `gps` are ignored by the
-server trigger until a migration adds them); photos tested in Chromium only (no real iPhone camera / HEIC run);
+Sign-in and sync against a live Supabase project and Microsoft tenant (built and tested against the fake server and a
+mocked auth client; steps in [`docs/SYNC_SETUP.md`](../docs/SYNC_SETUP.md)); two offline devices can give two units the
+same workbook slot (not resolved on pull yet); a record deleted on one device while edited on another is not flagged as
+a conflict (the history shows both); the history is per device (not synced, so a new device starts with what it pulls);
+photos can't be opened from a unit page while the project is locked (use the Photos tab, whose viewer is read-only
+then); server columns for the newer photo fields (`order`, `width`, `height`, `capturedAt`, `gps` sync through the log
+but are not in the server's `photos` table); photos tested in Chromium only (no real iPhone camera / HEIC run);
 revisions are not synced between devices; re-import behaviour after a real desktop-Excel save is untested (simulated
-with XML edits); Certification; the Building Balance spare OA rows; the hood schedule's "KEF interlock" column (EDE G, info only, not linked) is not
-written (the hood page's own "Associated exhaust fan" is).
+with XML edits); Certification; the Building Balance spare OA rows; the hood schedule's "KEF interlock" column (EDE G,
+info only, not linked) is not written (the hood page's own "Associated exhaust fan" is).

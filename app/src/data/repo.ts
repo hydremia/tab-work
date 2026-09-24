@@ -19,7 +19,7 @@ import { getSpec } from '../domain/specs';
 import { db } from './db';
 import { appendHistory, currentActor } from './history';
 import { uuid } from './uuid';
-import { getCurrentUser, getDeviceId, getUserName, nextTimestamp, setUserName } from './identity';
+import { currentBaseSeq, getCurrentUser, getDeviceId, getUserName, nextTimestamp, setUserName } from './identity';
 import { deepEqual, getPath, setPath, assertEditablePath } from './paths';
 import { comparePhotos, groupKeyOf, sortKey } from '../photos/labels';
 import {
@@ -55,6 +55,7 @@ export const writeTables = () => [
   db.history,
   db.meta,
   db.photoUploads,
+  db.conflicts,
 ];
 
 /** Where a write comes from (recorded in the history). */
@@ -134,7 +135,53 @@ async function change(
     deviceId: await getDeviceId(),
     ts,
     synced: 0,
+    baseSeq: await currentBaseSeq(),
   };
+}
+
+/**
+ * A photo's file leaves with it: never uploaded -> drop the queue entry; uploaded -> the entry becomes 'delete' and
+ * sync/photoSync.ts removes the file from storage. `remote`: another device deleted it (and removes the file).
+ */
+export async function forgetPhotoFile(photoId: string, remote = false): Promise<void> {
+  const u = await db.photoUploads.get(photoId);
+  if (!u) return;
+  if (u.status === 'done' && !remote)
+    await db.photoUploads.put({
+      ...u,
+      status: 'delete',
+      attempts: 0,
+      lastError: null,
+      nextAttemptAt: 0,
+      updatedAt: Date.now(),
+    });
+  else await db.photoUploads.delete(photoId);
+}
+
+/**
+ * Delete a project and everything in it on this device only (no outbox entries): its records, photo queue entries,
+ * pending changes, conflicts, revisions, base workbook and history. Used by deleteRecord('projects') (which logs the
+ * one project delete) and when another device's project delete is pulled (the server cascades the same way).
+ */
+export async function deleteProjectLocally(projectId: string, remote = false): Promise<void> {
+  for (const name of ['airflowRows', 'photos', 'issues', 'instruments', 'equipment'] as const) {
+    const t = tableOf(name);
+    if (name === 'photos')
+      for (const id of (await t.where('projectId').equals(projectId).primaryKeys()) as string[])
+        await forgetPhotoFile(id, remote);
+    await t.where('projectId').equals(projectId).delete();
+  }
+  await db.projects.delete(projectId);
+  // changes of the project not on the server yet are moot now (the delete is what the server needs)
+  await db.fieldChanges
+    .where('projectId')
+    .equals(projectId)
+    .filter((c) => c.synced !== 1)
+    .delete();
+  await db.conflicts.where('projectId').equals(projectId).delete();
+  await db.revisions.where('projectId').equals(projectId).delete();
+  await db.baseWorkbooks.delete(projectId);
+  await db.history.where('projectId').equals(projectId).delete();
 }
 
 /** Refuse writes to a locked project (the lock field itself stays writable, so it can be unlocked). */
@@ -192,7 +239,12 @@ export async function setField(
     const prev = pending.sort((a, b) => b.ts - a.ts)[0];
     if (prev) {
       // coalesced: the entry keeps the value before its first edit
-      await db.fieldChanges.update(prev.id, { value: value ?? null, ts, userId: getCurrentUser() });
+      await db.fieldChanges.update(prev.id, {
+        value: value ?? null,
+        ts,
+        userId: getCurrentUser(),
+        baseSeq: await currentBaseSeq(),
+      });
     } else {
       await db.fieldChanges.add(
         await change(
@@ -274,11 +326,30 @@ export async function deleteRecord(table: TableName, recordId: string, opts: Wri
     async () => {
       const rec = await tableOf(table).get(recordId);
       if (!rec) return;
-      // deleting a whole (locked) project is allowed; anything inside a locked project is not
-      if (table !== 'projects') await assertUnlocked(projectIdOf(table, rec), table, '');
+      if (table === 'projects') {
+        // Deleting a whole project (also while locked) is ONE change: the server and every other device cascade it
+        // (supabase/migrations/0003_sync_rules.sql, sync/outbox.ts). A project that never reached the server leaves
+        // nothing to sync.
+        const neverSynced = await db.fieldChanges
+          .where('[table+recordId+field]')
+          .equals(['projects', recordId, ''])
+          .filter((c) => c.op === 'create' && c.synced !== 1)
+          .count();
+        await deleteProjectLocally(recordId);
+        if (!neverSynced)
+          await db.fieldChanges.add(
+            await change(
+              { projectId: recordId, table, recordId, op: 'delete', field: '', value: null },
+              nextTimestamp(),
+            ),
+          );
+        return;
+      }
+      // anything inside a locked project is refused
+      await assertUnlocked(projectIdOf(table, rec), table, '');
       const log = async (name: TableName, r: AnyRecord) => {
         await tableOf(name).delete(r.id);
-        if (name === 'photos') await db.photoUploads.delete(r.id);
+        if (name === 'photos') await forgetPhotoFile(r.id);
         const ts = nextTimestamp();
         const projectId = projectIdOf(name, r);
         await db.fieldChanges.add(
@@ -299,14 +370,7 @@ export async function deleteRecord(table: TableName, recordId: string, opts: Wri
           actor,
         );
       };
-      if (table === 'projects') {
-        for (const name of ['airflowRows', 'photos', 'issues', 'instruments', 'equipment'] as const) {
-          for (const child of await tableOf(name).where('projectId').equals(recordId).toArray()) await log(name, child);
-        }
-        // local revision history, the base workbook and the change history go with the project (not synced)
-        await db.revisions.where('projectId').equals(recordId).delete();
-        await db.baseWorkbooks.delete(recordId);
-      } else if (table === 'equipment') {
+      if (table === 'equipment') {
         for (const r of await db.airflowRows.where('equipmentId').equals(recordId).toArray())
           await log('airflowRows', r);
         for (const p of await db.photos.where('equipmentId').equals(recordId).toArray()) await log('photos', p);
@@ -318,8 +382,7 @@ export async function deleteRecord(table: TableName, recordId: string, opts: Wri
         for (const p of await db.photos.where('issueId').equals(recordId).toArray()) await log('photos', p);
       }
       await log(table, rec);
-      if (table === 'projects') await db.history.where('projectId').equals(recordId).delete();
-      else if (table === 'airflowRows' || table === 'photos') await clearReviewAfter(table, rec, '', opts);
+      if (table === 'airflowRows' || table === 'photos') await clearReviewAfter(table, rec, '', opts);
     },
   );
 }
