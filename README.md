@@ -12,13 +12,17 @@ npm run dev          # http://localhost:5173
 npm run lint && npm run typecheck && npm test && npm run build
 ```
 
+**Deploying:** the app is a static site (`app/dist`); `vercel.json`, `netlify.toml` and `app/public/_headers` /
+`_redirects` hold the hosting settings (security headers incl. a strict Content-Security-Policy, caching, SPA
+fallback). Step by step for Vercel, Netlify or Cloudflare Pages: [docs/DEPLOY.md](docs/DEPLOY.md).
+
 | Folder | What it is |
 |---|---|
 | [`app/`](app/README.md) | The PWA (React + TypeScript + Vite, IndexedDB via Dexie) |
 | [`packages/workbook/`](packages/workbook) | Shared workbook library: template map, direct-XML export, import (used by the app and the spike) |
 | [`supabase/`](supabase/README.md) | Database schema, row-level security, photo storage and the Microsoft sign-in settings (not deployed yet) |
 | [`spike/export/`](spike/export/README.md) | Phase 0 export spike (LibreOffice verification) |
-| [`docs/`](docs) | Roadmap, tracker, required fields, workbook analysis, account setup, [screenshots](docs/screenshots) |
+| [`docs/`](docs) | Roadmap, tracker, required fields, workbook analysis, account setup, [deployment](docs/DEPLOY.md), [user guide](docs/guide/USER_GUIDE.md), [screenshots](docs/screenshots) |
 
 ## Workbook files
 

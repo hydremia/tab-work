@@ -19,7 +19,6 @@ const IDENTITY = identitySection();
 
 export const HOOD_SPEC: EquipmentSpec = {
   type: 'hood',
-  formComplete: true,
   totalCheck: { calc: 'hood', label: 'Hood total' },
   sections: [
     // the schedule's location column is not printed on the hood page: optional

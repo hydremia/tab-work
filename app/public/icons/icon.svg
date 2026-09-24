@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0f4c81"/>
+      <stop offset="1" stop-color="#0a365d"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <g transform="translate(0 0) scale(1)">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="#ffffff" stroke-width="34" transform="translate(-20 -20)">
+      <circle cx="136" cy="226" r="50"/>
+      <path d="M186 176 V276"/>
+      <path d="M228 170 C234 146 252 136 272 136 C298 136 316 153 316 176 C316 198 302 212 282 228 L230 276 H322"/>
+      <path d="M366 116 V276"/>
+      <circle cx="416" cy="226" r="50"/>
+    </g>
+    <path transform="translate(0 -20)" d="M96 326 C150 306 196 346 256 326 S362 306 416 326" stroke="#8fd0ff" stroke-width="14" opacity="0.9"/>
+    <g stroke="#8fd0ff" stroke-width="26" transform="translate(-14 -20)">
+      <path d="M150 370 H226 M188 370 V438"/>
+      <path d="M244 438 L276 370 L308 438 M256 414 H296"/>
+      <path d="M332 370 V438 M332 370 H356 C376 370 384 380 384 390 C384 400 376 404 358 404 H332 M358 404 C380 404 390 412 390 422 C390 432 380 438 358 438 H332"/>
+    </g>
+  </g>
+  </g>
+</svg>

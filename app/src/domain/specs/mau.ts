@@ -31,7 +31,6 @@ const notChosen = (m: Method): AutoNa => ({ when: otherThan(m), reason: `method 
 
 export const MAU_SPEC: EquipmentSpec = {
   type: 'mau',
-  formComplete: true,
   designCheck: { field: 'designTotalCfm', table: 'supply' },
   totalCheck: { calc: 'mau', label: 'Method total' },
   sections: [

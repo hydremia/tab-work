@@ -7,11 +7,11 @@ import { IconPlus } from '../components/Icons';
 import { ProgressBar, StatusBadge, StatusIcon } from '../components/Status';
 import { useProjectContext } from './ProjectLayout';
 
-type Filter = 'all' | 'needs' | 'attention' | 'complete' | 'unreviewed' | 'reviewed';
+type Filter = 'all' | 'needs' | 'red' | 'complete' | 'unreviewed' | 'reviewed';
 const FILTERS: { key: Filter; label: string; test: (c: Completion, d: DisplayColor) => boolean }[] = [
   { key: 'all', label: 'All', test: () => true },
-  { key: 'needs', label: 'Needs data', test: (c) => c.missing.length > 0 || c.color === 'gray' || c.formIncomplete },
-  { key: 'attention', label: 'Needs attention', test: (c) => c.color === 'red' },
+  { key: 'needs', label: 'Needs data', test: (c) => c.missing.length > 0 || c.color === 'gray' },
+  { key: 'red', label: 'Issue / tolerance', test: (c) => c.color === 'red' },
   { key: 'complete', label: 'Complete', test: (c) => c.color === 'green' },
   { key: 'unreviewed', label: 'To review', test: (_c, d) => d === 'green' },
   { key: 'reviewed', label: 'Reviewed', test: (_c, d) => d === 'blue' },
@@ -29,11 +29,9 @@ function EquipmentCard({ e, c, d, projectId }: { e: Equipment; c: Completion; d:
           ]
             .filter(Boolean)
             .join(' · ')
-        : c.formIncomplete
-          ? 'Full form coming soon'
-          : c.missing.length
-            ? `${c.missing.length} required item${c.missing.length > 1 ? 's' : ''} missing`
-            : `${c.satisfied}/${c.required} done`;
+        : c.missing.length
+          ? `${c.missing.length} required item${c.missing.length > 1 ? 's' : ''} missing`
+          : `${c.satisfied}/${c.required} done`;
   return (
     <Link
       to={`/p/${projectId}/e/${e.id}`}

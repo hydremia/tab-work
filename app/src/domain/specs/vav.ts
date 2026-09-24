@@ -8,7 +8,6 @@ const NO_HEATING: AutoNa = { when: { field: 'heatingCfm', blank: true }, reason:
 
 export const VAV_SPEC: EquipmentSpec = {
   type: 'vav',
-  formComplete: true,
   designCheck: { field: 'designMaxCfm', table: 'outlets' },
   sections: [
     identitySection(),

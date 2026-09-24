@@ -3,13 +3,17 @@ import type { IssueKind } from '../../data/types';
 import type { PerPage } from '../../reports/layout';
 import type { ReportRequest, ReportResult } from '../../reports/generate';
 import { Link, useSearchParams } from 'react-router';
-import { useBaseWorkbook, useRevisions } from '../../data/hooks';
+import { useBaseWorkbook, useExportStatus, useRevisions } from '../../data/hooks';
 import type { Revision } from '../../data/types';
 import type { ExportResult } from '../../workbook/exportProject';
+
+const XLSM_MIME = 'application/vnd.ms-excel.sheet.macroEnabled.12';
 import { KEEP_REVISION_FILES, suggestLabel } from '../../workbook/revisions';
 import { IconDownload, IconLock, IconUpload } from '../components/Icons';
 import { issuedText, useUnlock } from '../components/LockBanner';
 import { ProgressBar, RollupCounts } from '../components/Status';
+import { ExportStateLine } from '../components/ExportReminder';
+import { ShareFile } from '../components/ShareFile';
 import { useProjectContext } from './ProjectLayout';
 
 const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
@@ -22,6 +26,7 @@ export function ExportPage() {
   const { unlock } = useUnlock(project);
   const revisions = useRevisions(project.id);
   const base = useBaseWorkbook(project.id);
+  const exportState = useExportStatus(project.id);
   const [params] = useSearchParams();
   const applied = params.get('applied');
   const [typed, setTyped] = useState<string | null>(null);
@@ -33,7 +38,7 @@ export function ExportPage() {
   const [withDeficiency, setWithDeficiency] = useState(true);
   const [scope, setScope] = useState<IssueScope>('all');
   const [reportBusy, setReportBusy] = useState<string | null>(null);
-  const [reportResult, setReportResult] = useState<ReportResult | null>(null);
+  const [reportResult, setReportResult] = useState<(ReportResult & { mime: string }) | null>(null);
   const [reportError, setReportError] = useState<string | null>(null);
   const smallFans = equipment.filter((e) => e.type === 'smallFan').length;
   const suggested = revisions ? suggestLabel(revisions) : '';
@@ -55,8 +60,9 @@ export function ExportPage() {
         req === 'zip'
           ? await gen.generatePhotoZip(project.id, l, progress)
           : await gen.generateReport(project.id, { ...req, label: l }, progress);
-      gen.downloadFile(r.bytes, r.fileName, req === 'zip' ? 'application/zip' : 'application/pdf');
-      setReportResult(r);
+      const mime = req === 'zip' ? 'application/zip' : 'application/pdf';
+      gen.downloadFile(r.bytes, r.fileName, mime);
+      setReportResult({ ...r, mime });
     } catch (e) {
       setReportError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -88,6 +94,11 @@ export function ExportPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function downloadAgain(bytes: Uint8Array, fileName: string, mime?: string) {
+    const { downloadBytes } = await import('../../workbook/exportProject');
+    downloadBytes(bytes, fileName, mime);
   }
 
   async function download(r: Revision) {
@@ -135,6 +146,8 @@ export function ExportPage() {
           </dd>
           <dt>Template</dt>
           <dd>Revision {project.templateRevision}</dd>
+          <dt>Last export</dt>
+          <dd>{exportState && <ExportStateLine status={exportState} />}</dd>
           <dt>Written into</dt>
           <dd data-testid="export-base">
             {base ? (
@@ -240,16 +253,39 @@ export function ExportPage() {
         )}
         {result && (
           <div className="callout" data-tone="info" role="status" data-testid="export-result">
-            <div>
-              <b>{result.fileName}</b> downloaded ({mb(result.bytes.length)}, {result.report.cellsWritten} cells written
-              {result.baseFileName ? `, into ${result.baseFileName}` : ''}). Save it to the project's Dropbox folder.
-              {[...result.warnings, ...result.report.warnings].length > 0 && (
+            <div className="grow">
+              <b>{result.fileName}</b> downloaded ({mb(result.bytes.length)}
+              {result.baseFileName ? `, written into ${result.baseFileName}` : ''}). Save it to the project's Dropbox
+              folder.
+              {result.warnings.length > 0 && (
                 <ul className="warn-list">
-                  {[...result.warnings, ...result.report.warnings].map((w) => (
+                  {result.warnings.map((w) => (
                     <li key={w}>{w}</li>
                   ))}
                 </ul>
               )}
+              <ShareFile
+                bytes={result.bytes}
+                fileName={result.fileName}
+                mime={XLSM_MIME}
+                testId="share-xlsm"
+                onDownload={() => void downloadAgain(result.bytes, result.fileName)}
+              />
+              <details className="tech-details" data-testid="export-details">
+                <summary>Technical details</summary>
+                <p className="small muted">
+                  {result.report.cellsWritten} input cells written. Notes from the workbook writer, for support:
+                </p>
+                {result.report.warnings.length > 0 ? (
+                  <ul className="small muted">
+                    {result.report.warnings.map((w) => (
+                      <li key={w}>{w}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="small muted">None.</p>
+                )}
+              </details>
             </div>
           </div>
         )}
@@ -377,6 +413,13 @@ export function ExportPage() {
               <b>{reportResult.fileName}</b> downloaded ({mb(reportResult.bytes.length)}
               {reportResult.pages ? `, ${reportResult.pages} page${reportResult.pages === 1 ? '' : 's'}` : ''},{' '}
               {reportResult.photos} photo{reportResult.photos === 1 ? '' : 's'}).
+              <ShareFile
+                bytes={reportResult.bytes}
+                fileName={reportResult.fileName}
+                mime={reportResult.mime}
+                testId="share-report"
+                onDownload={() => void downloadAgain(reportResult.bytes, reportResult.fileName, reportResult.mime)}
+              />
             </div>
           </div>
         )}

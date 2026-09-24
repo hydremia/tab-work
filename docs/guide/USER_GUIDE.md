@@ -18,9 +18,10 @@ print layout stay as they are.
 7. [Photos](#7-photos)
 8. [Exports](#8-exports)
 9. [Follow-up: re-importing an issued workbook](#9-follow-up-re-importing-an-issued-workbook)
-10. [Coming soon](#10-coming-soon)
-11. [Troubleshooting and FAQ](#11-troubleshooting-and-faq)
-12. [Field cheat sheet](#field-cheat-sheet)
+10. [Review, issuing the report, and History](#10-review-issuing-the-report-and-history)
+11. [Coming later](#11-coming-later)
+12. [Troubleshooting and FAQ](#12-troubleshooting-and-faq)
+13. [Field cheat sheet](#field-cheat-sheet)
 
 ---
 
@@ -29,7 +30,19 @@ print layout stay as they are.
 ### Install it as an app
 
 There's no App Store or Play Store listing. You add the web app to your home screen instead. Open the app link
-your office sent you, then follow the steps for your device:
+your office sent you.
+
+![Install card](../screenshots/26-install-prompt.png)
+
+The **Projects** screen offers it for you:
+
+- **Android, or Chrome / Edge on a laptop:** a card **Install a2b TAB on this device** with an **Install app**
+  button. Tap it, then **Install** in the browser's dialog.
+- **iPhone / iPad:** the card explains the two taps instead (iOS has no install button): **Share** → **Add to Home
+  Screen**.
+
+**Not now** / **Got it** hides the card on that device. It also disappears once the app is installed. If you
+dismissed it, or the card doesn't show, use the browser menu:
 
 | Device | Browser | Steps |
 |---|---|---|
@@ -70,10 +83,27 @@ to the project's Dropbox folder (see [Exports](#8-exports)). If a phone is lost,
 project back from that file with **Import workbook** on the Projects screen. Photos aren't in the workbook, so
 also save the **Photos (.zip)** when photos matter.
 
+The app keeps count for you:
+
+- Each project card on the **Projects** screen, and the **Export** tab (**Last export**), show *Last exported Sep 24,
+  2026, 3:10 PM (Prelim) · 12 changes since*, or *Not exported yet · 9 changes*. It turns amber when there are
+  changes that aren't in an export yet. A "change" is one saved edit (a field, a row, a photo, an issue…).
+- When you **leave a project** (the back arrow to the Projects screen) with changes since the last export, the app
+  asks **Export before you leave?**: **Go to Export**, **Leave without exporting**, or **Don't remind me again
+  today** (for that project, on this device).
+
+The reminder only works inside the app. Closing the app or the browser tab doesn't trigger it.
+
 ### Updates
 
-The app updates itself. When a new version is published, it downloads in the background and is used the next time
-you open the app. Your data isn't touched. If something looks out of date, close the app fully and reopen it.
+The app updates itself. When a new version is published, it downloads in the background while you work. Then a
+bar at the bottom says **Update available. Reload to use the new version; your entries are saved.**
+
+- **Reload** switches to the new version right away. Everything you entered stays.
+- **Later** hides the bar. The new version starts the next time you open the app after closing it fully.
+
+It never reloads by itself, so a half-typed reading isn't lost. If something looks out of date, close the app fully
+(swipe it away) and reopen it.
 
 ---
 
@@ -101,10 +131,15 @@ Inside a project, the tabs are **Info**, **Equipment**, **Issues**, **Attention*
 |---|---|
 | **Full TAB** | Everything (the default). |
 | **Airflow Only** | Identity, design CFM, airflow readings and the instrument. Unit data, motor, drive, RPM, static profile, misc. info and equipment photos are set to N/A for you. |
-| **Custom** | You turn sections on or off yourself (Info → **Scope and tolerance**). For now this covers the RTU and VAV sections. |
+| **Custom** | You turn sections on or off yourself, per equipment type (Info → **Scope and tolerance**). |
 
-You can change the profile later on **Info → Scope and tolerance → Scope profile**. On any unit, a section switched
-off by the scope can be switched back on with **⋮ → Include (override scope)**.
+You can change the profile later on **Info → Scope and tolerance → Scope profile**.
+
+With **Custom**, the card lists every equipment type (RTUs, MAUs, ERVs, Fans, Small fans, VAVs, Hoods, Traverses).
+Tap a type to open it, then tap a section chip to switch it off (or on again). The type's line shows e.g. *2 of 14
+sections off*. A switched-off section shows **N/A (scope)** on every unit of that type.
+
+On any unit, a section switched off by the scope can be switched back on with **⋮ → Include (override scope)**.
 
 ### Tolerance and report type
 
@@ -241,19 +276,30 @@ Every unit card, type heading and project shows a status. Each one has its own i
 | Gray (dashed circle) | **Not started** | Nothing entered yet. |
 | Amber (half circle) | **In progress** | Some required items are still blank. **Show missing** on the unit lists them. |
 | Green (check) | **Complete** | Every required item is filled in or marked N/A. |
-| Red (triangle) | **Needs attention** | The unit has an **open issue**, or a reading is **outside the tolerance** (e.g. ±10 % of design). |
+| Red (triangle) | **Issue / tolerance** | The unit has an **open issue**, or a reading is **outside the tolerance** (e.g. ±10 % of design). The card says which: *1 open issue · 2 out of tolerance*. |
+| Blue (square with a double check) | **Reviewed** | Complete, and signed off by a reviewer (see [section 10](#10-review-issuing-the-report-and-history)). |
 
 A unit can be red even when all its data is filled in. Close the issue or re-check the reading to clear it.
 
-The filter chips on the Equipment tab (**All**, **Needs data**, **Needs attention**, **Complete**) narrow the list.
-The **Needs attention** chip shows only **red** units.
+The filter chips on the Equipment tab narrow the list:
+
+| Chip | Shows |
+|---|---|
+| **All** | Every unit |
+| **Needs data** | Units with required items still blank (and units not started) |
+| **Issue / tolerance** | Red units only |
+| **Complete** | Green units (reviewed or not) |
+| **To review** | Complete units that aren't reviewed yet |
+| **Reviewed** | Blue units |
+
+Each type heading counts them too, e.g. *RTUs 5/8 complete, 3 reviewed*.
 
 ### The Attention tab
 
 ![Needs attention](../screenshots/21-needs-attention.png)
 
-The **Attention** tab (with a count badge; also a card at the top of Equipment) is your list of things to check
-**before issuing the report**. Everything on it is grouped, and each item opens the unit at the right section:
+The **Attention** tab (with a count badge; also a **Needs attention** card at the top of Equipment) is your list of
+things to check **before issuing the report**. It's wider than the red units: it also lists amber warnings. Everything on it is grouped, and each item opens the unit at the right section:
 
 - readings out of tolerance
 - open issues
@@ -496,7 +542,8 @@ Most Compatible**.
 ![Photos tab](../screenshots/16-photos-tab.png)
 
 - **Required photos missing**: each unit that still needs photos, with a link to it. (Only units you've started.)
-- **Add photos**: pick **Attach to** (a unit, or **General (no unit)**), then take or choose photos.
+- **Add photos**: pick **Attach to** (a unit, or **General (N/A)** for a photo that isn't of one unit), then take
+  or choose photos. Issues use the same words: an issue that isn't about one unit is linked to **General (N/A)**.
 - Category filter chips, and thumbnails grouped by cover, unit, issue and general.
 - Tap a photo to open it. There you can edit the **Caption**, change the **Category**, **Issue** or
   **Equipment**, move it **← Earlier** / **Later →** within its group, or **Delete** it.
@@ -526,9 +573,24 @@ sent anywhere by itself.
 2. Check the **Revision** label. The app suggests **Prelim** first, then **Rev 1**, **Rev 2**… and you can type
    **Final** or anything else.
 3. Tap **Export Prelim (.xlsm)** (the button shows the label).
-4. The file `<Project> - TAB Report <date>.xlsm` downloads.
+4. The file `<Project> - TAB Report <date>.xlsm` downloads, and a box under the button confirms it.
 
 You can export even when some units aren't complete. The app just notes that it's a preliminary workbook.
+
+To send out the report *and* freeze the data, use **Issue report as Prelim** instead (see
+[section 10](#issue-the-report-lock)). The plain **Export** button never locks anything, so use it for working copies
+and daily backups.
+
+![Export with Share](../screenshots/27-export-share.png)
+
+**Share… (phones).** Where the phone can share the file, the confirmation box has a **Share…** button. It opens the
+phone's share sheet, so you can send the file straight to **Dropbox** (or Files, Mail, Teams…) without looking for
+it in Downloads. iPhone and iPad can share every export (workbook, PDFs, zip). Android's Chrome can share the PDF
+reports but not the `.xlsm` or `.zip` files. For those, and on laptops, the box shows **Download again** instead,
+and you save the downloaded file as below.
+
+The box also has a collapsed **Technical details** line (the number of cells written, and notes from the workbook
+writer). You don't need it; it's there in case support asks.
 
 Each export is kept as a **revision** in the **Revisions** list at the bottom of the tab, with its label, date and
 size. You can download any of the newest 5 again from there. Older ones keep only their values, which is enough for
@@ -538,7 +600,7 @@ re-import. **The copy you saved to Dropbox is the official record.**
 
 The app has no Dropbox connection. You save the file yourself:
 
-- **iPhone/iPad:** when the download finishes, open it → **Share** → **Save to Files** → **Dropbox** → the project
+- **iPhone/iPad:** tap **Share…** in the export box → **Dropbox** (or **Save to Files** → **Dropbox**) → the project
   folder. Missed it? **Files** app → **Downloads**.
 - **Android:** **Dropbox** app → **+** → **Upload files** → **Downloads** → the file. (Or share it from the download
   notification to Dropbox.)
@@ -572,8 +634,9 @@ On the same tab, **Photo and Issues reports (PDF)**:
 | **Issues + Photos** | The Issues Report followed by the Photo Report |
 | **Photos (.zip)** | All photo files, named like `RTU-1 - Unit - 01.jpg`, `Issue N-3 - 1.jpg`, `Cover.jpg` |
 
-Large reports take a moment. The button shows *Placing photo 12 of 80…* while it works. Save these to Dropbox the
-same way.
+Large reports take a moment. The button shows *Placing photo 12 of 80…* while it works. When it's done, the box
+under the buttons names the file and offers **Share…** (or **Download again**), like the workbook. Save these to
+Dropbox the same way.
 
 ---
 
@@ -624,18 +687,82 @@ but **no photos** (photos aren't in the workbook), so units come back amber unti
 
 ---
 
-## 10. Coming soon
+## 10. Review, issuing the report, and History
 
-These are being built now. Details may change, so don't rely on them yet.
+### Review and sign-off (blue)
 
-> **Coming soon: review and sign-off.** A PM will be able to mark a complete unit as **Reviewed** (a blue status),
-> with the equipment list showing reviewed counts and a **To review** / **Reviewed** filter.
+![Reviewed units](../screenshots/23-reviewed.png)
 
-> **Coming soon: report lock / unlock.** Issuing a report (e.g. **Issue report as Rev 2** on the Export tab) will
-> lock the project, so the issued data can't change by accident. Anyone can unlock it for follow-up work.
+Anyone can sign off a **complete (green)** unit:
 
-> **Coming soon: change history.** A **History** tab will show who changed what and when, including locks and
-> unlocks.
+1. Open the unit. The status card at the top has a review line under the progress bar.
+2. Type your name in **Reviewer name** (only the first time; the device remembers it) and tap **Mark reviewed**.
+3. The unit turns **blue** (*Reviewed*), and the line says *Reviewed by Dana Ruiz · Sep 24, 2026, 3:10 PM*.
+
+Until the unit is green, the line says *Can be marked reviewed once complete (green)*.
+
+Where you see it:
+
+- Unit cards and badges turn blue; the progress bars have a blue part.
+- Counts: *RTUs 5/8 complete, 3 reviewed* on each type heading, *12 of 20 complete · 3 reviewed* on the Equipment
+  tab and the project card, and *Reviewed: 3 of 20 units (2 complete, not reviewed)* on the Export tab.
+- Filter chips **To review** (complete, not reviewed yet) and **Reviewed** on the Equipment tab.
+
+**The review clears itself** when the unit changes after the sign-off: any field, N/A mark, New / Existing, an
+outlet or filter row added, edited or removed, or a photo added or removed (also through a schedule import or a
+re-import). The unit goes back to green and needs a new review. The History shows *Review cleared automatically
+(the unit changed)*. Changes elsewhere in the project (tolerance, scope, other units) don't clear it.
+
+If an **issue is opened** on a reviewed unit, the unit shows **red**, not blue, until the issue is closed. The
+review line then says *Reviewed by … but the unit is no longer complete*. **Clear review** removes a review by hand.
+
+### Issue the report (lock)
+
+![Locked unit page](../screenshots/24-locked.png)
+
+When a revision goes out (to the engineer, the GC…), issue it from the **Export** tab:
+
+1. Check the **Revision** label (e.g. *Prelim*, *Rev 1*, *Final*).
+2. Tap **Issue report as Prelim**, and confirm.
+3. The workbook is exported and downloaded as that revision (like **Export**), marked **Issued** in the Revisions
+   list, and the project is **locked**.
+
+While the project is locked:
+
+- Every project page shows the banner **Issued as Prelim on Sep 24, 2026 — unlock to edit** with an **Unlock**
+  button, and the project card on the Projects screen shows a lock chip with the label (e.g. 🔒 *Prelim*).
+- Forms are read-only (Info, units, Issues, Photos). **Add equipment**, **Import schedule** and **Re-import
+  workbook** are hidden or blocked.
+- You can still **export** (a copy of the workbook) and make the **PDF reports** and the **Photos (.zip)**, and you
+  can view photos from the Photos tab.
+
+**Unlock for follow-up** (the banner's **Unlock**, or the link on the Export tab): the confirm names the issued
+revision and the label the next export will suggest, e.g. *Rev 1*. Anyone can unlock. The lock and the unlock
+(who, when) are recorded in the History.
+
+### History
+
+![History tab](../screenshots/25-history.png)
+
+The **History** tab lists every change made to the project **on this device**, newest first, grouped by day:
+
+- Edits read *Field: old → new*, e.g. *Serial number: 4719G20331-B → 4719G20331-C* or *Supply outlets S-2: Final
+  VEL: 850 → 910*. Each line shows the unit (or *Report* / project), the person and device, and the time.
+- Events: *Marked reviewed by Dana Ruiz*, *Review cleared automatically (the unit changed)*, *Report issued and
+  locked as Prelim*, *Report unlocked for follow-up (was Prelim)*, *Issued Prelim (file name)*, re-imports.
+- **Filters** (tap to open): **Unit** (or *Project-level only*), **Field** (text, e.g. *Final VEL*), **From** /
+  **To** date, **User / device**. **Clear filters** resets them. The line shows how many changes match.
+- **Show more** loads older entries.
+
+Each unit page also has a **History** section at the bottom (**Show (N)**) with that unit's own changes, and a link to
+the History tab filtered to the unit.
+
+The history is kept on the device for **12 months** (at most 5,000 entries per project) and is deleted with the
+project. Changes made on another phone aren't in it (each device has its own history until sync arrives).
+
+---
+
+## 11. Coming later
 
 > **Later: Microsoft sign-in and cloud sync.** You'll sign in with your company Microsoft account. Projects and
 > photos will then sync between devices and teammates, and the **Local mode** banner will go away. Until then, data
@@ -643,7 +770,7 @@ These are being built now. Details may change, so don't rely on them yet.
 
 ---
 
-## 11. Troubleshooting and FAQ
+## 12. Troubleshooting and FAQ
 
 **I lost signal. Did I lose anything?**
 No. Everything saves on the device as you type, and the app keeps working offline, including export. The banner
@@ -668,7 +795,15 @@ The device may clear app data when it runs low on space. Install the app to the 
 and export the photos regularly.
 
 **The app looks old / a fix isn't showing up.**
-Updates install themselves the next time the app opens. Close it fully (swipe it away) and open it again.
+Tap **Reload** on the *Update available* bar if it's showing. Otherwise close the app fully (swipe it away) and open it
+again.
+
+**I can't edit anything, and there's a blue "Issued as …" banner.**
+The report was issued, so the project is locked. Tap **Unlock** in the banner when you start follow-up work.
+
+**A unit was blue yesterday and is green today.**
+Someone changed the unit after it was reviewed, so the review was cleared. The **History** shows what changed. Review
+it again.
 
 **Excel says macros are disabled or blocked.**
 See [Opening it in Excel](#opening-it-in-excel-macros): **Enable Content**, or **Properties → Unblock** for a
@@ -688,8 +823,12 @@ No. Mark it **N/A**, **Not Avail.** or **Not Acc.** Blank means "not done" and p
 **I can't add another unit.**
 That type is at the workbook's capacity (e.g. 10 MAUs). Remove an unused one.
 
-**The export shows a note about a date "written as text".**
-It's informational. The workbook is fine.
+**The export box has "Technical details". Do I need them?**
+No. They're notes from the workbook writer (for example, that a date was written as text). The workbook is fine.
+
+**Where's the Share… button?**
+It appears only where the device can share that kind of file: every export on iPhone / iPad, PDF reports on Android.
+Elsewhere you get **Download again**; save the file from Downloads.
 
 **Where did my download go?**
 iPhone: **Files → Downloads**. Android: **Files → Downloads**. Laptop: the **Downloads** folder.
@@ -741,9 +880,11 @@ Check the instruments' calibration dates (Info).
 **End of day (every day)**
 
 1. **Attention** tab: work through what you can.
-2. **Export → Export Prelim (.xlsm)** (or the next Rev).
-3. Save it to the project's **Dropbox** folder.
+2. **Export → Export Prelim (.xlsm)** (or the next Rev). The project card should then say *no changes since*.
+3. **Share… → Dropbox** (iPhone), or save it to the project's **Dropbox** folder.
 4. **Photos (.zip)** too, if you took new photos.
+
+**Sending out a report:** review the units (blue), then **Export → Issue report as …**. **Unlock** for follow-up.
 
 **Never:** clear browser data, delete the app, or reset the phone without exporting first. In Local mode, that's the
 only copy.

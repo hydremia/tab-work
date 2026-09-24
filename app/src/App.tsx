@@ -4,6 +4,7 @@ import { SyncProvider } from './sync/SyncProvider';
 import { ProjectLayout } from './ui/pages/ProjectLayout';
 import { ProjectListPage } from './ui/pages/ProjectListPage';
 import { Screen } from './ui/components/Screen';
+import { UpdateToast } from './ui/components/PwaPrompts';
 
 /**
  * Route-level code splitting: the project list and the project frame load with the app; every page is its own
@@ -32,6 +33,7 @@ function Root() {
       <Suspense fallback={<p className="page muted">Loading…</p>}>
         <Outlet />
       </Suspense>
+      <UpdateToast />
     </div>
   );
 }

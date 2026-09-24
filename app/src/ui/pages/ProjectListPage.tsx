@@ -1,10 +1,13 @@
 import { Link } from 'react-router';
-import { useAllProjectRollups, useProjects } from '../../data/hooks';
+import { useAllExportStatus, useAllProjectRollups, useProjects } from '../../data/hooks';
+import type { ExportStatus } from '../../data/exportStatus';
 import type { Project } from '../../data/types';
 import { rollup, type Rollup } from '../../domain/completion';
 import { IconFolder, IconLock, IconPlus, IconUpload } from '../components/Icons';
 import { Screen } from '../components/Screen';
 import { ProgressBar, RollupCounts } from '../components/Status';
+import { ExportStateLine } from '../components/ExportReminder';
+import { InstallPrompt } from '../components/PwaPrompts';
 
 const SCOPE: Record<Project['scopeProfile'], string> = {
   full: 'Full TAB',
@@ -18,7 +21,7 @@ export function formatDate(iso: unknown): string {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function ProjectCard({ project, r }: { project: Project; r: Rollup }) {
+function ProjectCard({ project, r, ex }: { project: Project; r: Rollup; ex?: ExportStatus }) {
   const tab = formatDate(project.info.tabDate);
   return (
     <Link to={`/p/${project.id}/equipment`} className="card card-link project-card" data-testid="project-card">
@@ -47,6 +50,7 @@ function ProjectCard({ project, r }: { project: Project; r: Rollup }) {
         </span>
         {r.total > 0 && <RollupCounts rollup={r} />}
       </div>
+      {ex && <ExportStateLine status={ex} testId="project-export-state" />}
     </Link>
   );
 }
@@ -54,6 +58,7 @@ function ProjectCard({ project, r }: { project: Project; r: Rollup }) {
 export function ProjectListPage() {
   const projects = useProjects();
   const rollups = useAllProjectRollups();
+  const exports = useAllExportStatus();
   return (
     <Screen title="a2b TAB">
       <div className="page-head">
@@ -70,6 +75,7 @@ export function ProjectListPage() {
           </Link>
         </div>
       </div>
+      <InstallPrompt />
       {projects && projects.length === 0 && (
         <div className="card empty">
           <IconFolder size={40} />
@@ -79,7 +85,7 @@ export function ProjectListPage() {
       )}
       <div className="stack">
         {projects?.map((p) => (
-          <ProjectCard key={p.id} project={p} r={rollups?.get(p.id) ?? rollup([])} />
+          <ProjectCard key={p.id} project={p} r={rollups?.get(p.id) ?? rollup([])} ex={exports?.get(p.id)} />
         ))}
       </div>
     </Screen>
