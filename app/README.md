@@ -56,11 +56,15 @@ src/
   sync/        outbox.ts (pending / markSynced / applyRemoteChanges, last writer wins), engine.ts
                (LocalSyncEngine no-op, SupabaseSyncEngine push/pull), SyncProvider.tsx (status, online/offline)
   auth/        lazy Supabase client + Microsoft sign-in
-  domain/      equipmentTypes.ts (capacities from the template map), specs/ (field definitions per type: RTU and
-               VAV complete, others identity-only), completion.ts (gray/amber/green/red engine), calc.ts, conditions.ts
+  domain/      equipmentTypes.ts (capacities from the template map), specs/ (field definitions for all 8 types;
+               unitSections.ts = the data block RTUs / MAUs / ERVs / Fans share), completion.ts (gray/amber/green/red
+               engine), calc.ts (outlet CFM / %), equipmentCalcs.ts (MAU PSP / filter grid / profile pressure, ERV,
+               hood, traverse and Building Balance calcs mirroring the workbook), conditions.ts
   workbook/    adapter.ts (app records <-> ProjectData), exportProject.ts / importProject.ts (browser I/O)
-  ui/          components/ (inputs with autosave, N/A menu, status badges, airflow table, photo slots) and pages/
-e2e/run-e2e.ts Playwright walk-through;  scripts/  template copy, icon generation
+  ui/          components/ (inputs with autosave, N/A menu, status badges, spec-driven row tables, reading grids,
+               live-calc panels, photo slots) and pages/
+e2e/run-e2e.ts Playwright walk-through (+ newTypes.ts: MAU, ERV, fan, small fan, hood, traverse);  scripts/  template
+               copy, icon generation
 ```
 
 ### Data model and saving
@@ -83,8 +87,30 @@ of the same unit then never touch the same field, which is what the field-level 
 rows, photos, the project's scope profile and tolerance, and open issues. Gray = nothing entered, amber = required
 items missing, green = all required items filled or N/A, red = linked open issue or a reading outside ±tolerance
 (default ±10 %). N/A levels: scope profile (Full TAB / Airflow Only / Custom), section, field, automatic (direct/ECM
-drive, design OA 0, no VFD, 1-phase, no filters, unit-type components, VAV not fan-powered / no heating). A section
-can be set to "Include (override scope)". Status is shown with a different icon shape per state, not color alone.
+drive, design OA 0, no VFD, 1-phase, no filters, unit-type components, VAV not fan-powered / no heating, MAU supply
+method not chosen, hood VelGrid readings 2–3 and "No Filter" rows, round-duct height). A section can be set to
+"Include (override scope)". Status is shown with a different icon shape per state, not color alone.
+
+### Equipment forms
+
+Every type is a spec in `src/domain/specs/` (data: sections, fields, required / conditional / optional flags,
+dropdown lists from `@a2b/workbook`, automatic N/A rules, photos). Besides fields a section can hold:
+
+- **row tables** (own records per row): outlets / inlets (RTU, MAU, ERV supply + exhaust, fans 56, small fans 6,
+  VAVs), hood filters (size from the sizes that have constants for the filter type, stored exactly as `16" x 20"`;
+  1 reading for VelGrid types, 3 for Airfoil) and the MAU filter grid (up to 11). Add, fill-down and duplicate rows.
+- **reading runs** (`data.<key>_<i>`, one field per reading): MAU PSP velocities (20) and the traverse quick entry
+  (80, laid out on the calculated point grid with the insertion positions). A reading or the whole run can be N/A.
+- **live-calc panels** that mirror the workbook formulas: PSP CFM and CFM/ft (Evergreen K 0.88 / 0.95), filter
+  grid (velocity × free area × 1.35), burner profile pressure (restored curve, linear interpolation, range
+  warnings), MAU method total vs. design (override or outlet total), ERV supply / exhaust totals, hood CFM per
+  filter / total / % / CFM per ft, traverse size, Ak, point layout, positions, VEL and CFM.
+
+MAU: the "Method used" selector shows only that method's inputs; the other methods' inputs are automatically N/A
+even if values were entered before (kept, restored when switching back, exported as `N/A`). Outlet rows are
+required only with Outlets. MAU (method total), hood (total) and traverse (CFM) are checked against design with the
+project tolerance at unit level; outlet tables row by row. Small fans past slot 30 show the Building Balance
+warning.
 
 ## How export works
 
@@ -98,26 +124,38 @@ can be set to "Include (override scope)". Status is shown with a different icon 
    (`createImageBitmap` with EXIF orientation + canvas) to the cover box.
 3. The browser downloads `<Project> - TAB Report <date>.xlsm`. Works offline.
 
+N/A tables (e.g. an unchosen MAU filter grid) and N/A reading runs are written as the notation in their first cell;
+hood filter readings go to the off-print P–U cells only (never the J/L averages); traverse readings go to the P:W
+quick entry only; hood and traverse remarks use the page's shared remark box (hoods: lines 1–3 / 4–5, traverses:
+one line each).
+
 Import runs `importWorkbook()` on a picked file and `fromProjectData()`; the confirmation screen creates a new
 project or updates an existing one field by field (the full accept/decline diff review is Phase 3). Photos are not
 in the workbook, so they don't round-trip.
 
 ## Tests
 
-- `npm test`: 56 unit / component tests: outbox and repository (atomic setField, coalescing, rollback, cascades),
-  remote apply (last writer wins, conflicts), completion engine (colors, all N/A levels, scope profiles, auto rules,
-  tolerance incl. the ±10 % boundary, R8 discrepancy), adapter mapping and a **round trip against the real
-  template** (app project → export → import → app project, equal), and jsdom UI tests (project list, create project,
-  RTU form autosave / N/A / live CFM).
+- `npm test`: 126 tests (10 in `packages/workbook`: list and constants copies vs. the template, a map audit that
+  fills **every** block of every type, round trip, safety; 116 in the app): outbox and repository, remote apply,
+  completion engine for all 8 types (colors, N/A levels, scope profiles, auto rules incl. MAU method switching,
+  small-fan R6, traverse R7, hood readings, tolerance, R8 discrepancies), live calcs against the workbook's values
+  (hood 5 × 16" x 20" Captrate = 2049.29 CFM, PSP, profile-pressure curve, traverse Ak / positions for 24" × 12" and
+  10" round), adapter mapping and a **round trip against the real template** with a fully filled unit of every
+  type incl. N/A cases (app project → export → import → app project, equal), and jsdom UI tests.
 - `npm run build && npm run e2e`: serves `dist/` with `vite preview` and drives Chromium at 390 × 844 through
   create project → project info (+ cover photo) → 2 RTUs → RTU-1 filled (outlet rows, fill-down, one N/A) → card
-  colors → tolerance → export (download checked with the importer in Node, incl. the browser-cropped cover photo)
-  → reload (IndexedDB) → offline (service worker shell, edits, export) → re-import. Uses `PLAYWRIGHT_BROWSERS_PATH`
-  or `CHROMIUM_PATH` (falls back to `/opt/pw-browsers/chromium`); never downloads a browser. Screenshots go to
-  `e2e-screenshots/` (git-ignored); a few are kept in [`docs/screenshots/`](../docs/screenshots).
+  colors → tolerance → one MAU (PSP; method switched to Filter Grid and back), ERV, fan, small fan, hood and
+  traverse filled to green → export (download checked with the importer in Node, incl. the browser-cropped cover
+  photo) → **LibreOffice recalculation** of the export: 0 error cells and the MAU method total, hood total,
+  traverse CFM, ERV totals and Building Balance totals equal the app's live calcs → reload (IndexedDB) → offline
+  (service worker shell, edits, export) → re-import. Uses `PLAYWRIGHT_BROWSERS_PATH` or `CHROMIUM_PATH` (falls back
+  to `/opt/pw-browsers/chromium`) and `soffice` for the recalculation; never downloads a browser. Screenshots go to
+  `e2e-screenshots/` (git-ignored); a few are kept in [`docs/screenshots/`](../docs/screenshots) (07–12: the new
+  forms).
 
 ## Not done yet
 
-Full forms for MAU, ERV, fans, small fans, hoods and traverses (they show identity + "coming soon" and can't turn
-green); Supabase sync against a live project (engine written, untested); photo upload and reports (Phase 4–5);
-import diff/merge review and issued-report revisions (Phase 3); Building Balance pressures, Certification.
+Supabase sync against a live project (engine written, untested); photo upload and reports (Phase 4–5);
+import diff/merge review and issued-report revisions (Phase 3); Building Balance pressures, Certification; live
+TSP / ESP / corrected FLA / BHP; the hood schedule's "KEF interlock" column (EDE G, info only, not linked) is not
+written (the hood page's own "Associated exhaust fan" is).

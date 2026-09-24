@@ -90,6 +90,81 @@ describe('toProjectData', () => {
   });
 });
 
+describe('toProjectData: MAU, ERV, fans, small fans, hoods, traverses', () => {
+  const { data, warnings } = toProjectData(sampleBundle());
+  const unitOf = (type: string, slot: number) => data.equipment[type].find((u) => u.slot === slot)!;
+
+  it('exports without warnings', () => expect(warnings).toEqual([]));
+
+  it('MAU PSP: velocities as a sequence (per-reading notation), unchosen methods written as N/A', () => {
+    const m = unitOf('mau', 1);
+    expect(m.fields).toMatchObject({
+      method: 'PSP',
+      pspLength: 96,
+      pspWidth: 12,
+      profileHousing: 'N/A',
+      profilePressure: 'N/A',
+    });
+    expect(m.sequences?.pspVelocities).toHaveLength(20);
+    expect(m.sequences?.pspVelocities?.[6]).toBe('Not Acc.');
+    expect(m.columnTables?.filterGrid).toEqual([{ size: 'N/A' }]); // an N/A table: its notation in the first cell
+    expect(m.tables?.supply).toBeUndefined(); // optional with PSP, no rows
+  });
+
+  it('MAU filter grid rows become the column table; values of a method switched away from are not exported', () => {
+    expect(unitOf('mau', 2).columnTables?.filterGrid).toEqual([
+      { size: '16" x 20"', velocity: 400 },
+      { size: '12" x 24"', velocity: 300 },
+      { size: '16" x 20"', velocity: 'Not Avail.' },
+    ]);
+    const b = sampleBundle();
+    const mau2 = b.equipment.find((e) => e.designation === 'MAU-2')!;
+    mau2.data.method = 'PSP';
+    mau2.data.pspLength = 90;
+    const u = toProjectData(b).data.equipment.mau.find((x) => x.slot === 2)!;
+    expect(u.columnTables?.filterGrid).toEqual([{ size: 'N/A' }]);
+    mau2.data.method = 'Filter Grid';
+    expect(toProjectData(b).data.equipment.mau.find((x) => x.slot === 2)!.fields).toMatchObject({ pspLength: 'N/A' });
+  });
+
+  it('ERV: design supply / exhaust CFM and ΔP in the schedule, both tables, exhaust instrument', () => {
+    const e = unitOf('erv', 1);
+    expect(e.schedule).toMatchObject({ designSupplyCfm: 1000, designExhaustCfm: 950, designExhaustDp: 'N/A' });
+    expect(e.fields).toMatchObject({ supplyDpActual: 0.33, exhaustInstrument: 'Flow Hood', unitType: 'ERV' });
+    expect(e.tables?.exhaust?.[1]).toMatchObject({ no: 'E-2', ak: 'Not Avail.' });
+  });
+
+  it('hoods: filter rows with VelGrid readings 2-3 and No Filter readings written as N/A; remarks by page position', () => {
+    const h1 = unitOf('hood', 1);
+    expect(h1.tables?.filters?.[0]).toEqual({
+      size: '16" x 20"',
+      init1: 170,
+      init2: 'N/A',
+      init3: 'N/A',
+      final1: 177,
+      final2: 'N/A',
+      final3: 'N/A',
+    });
+    expect(h1.lines).toEqual({
+      technicianNotes: ['Grease filters cleaned before test.'],
+      remarks: ['Hood balanced.', 'Lights out on the left side.'],
+    });
+    const h2 = unitOf('hood', 2);
+    expect(h2.tables?.filters?.[2]).toMatchObject({ size: 'No Filter', final1: 'N/A', init1: 'N/A' });
+    expect(h2.tables?.filters?.[1]).toMatchObject({ final3: 'Not Acc.' });
+  });
+
+  it('traverses: point label in the block, readings in quick-entry order, height N/A for round', () => {
+    const t1 = unitOf('traverse', 1);
+    expect(t1.schedule).toBeUndefined();
+    expect(t1.fields).toMatchObject({ designation: 'T-1', shape: 'Rectangular', width: 24 });
+    expect(t1.sequences?.readings?.slice(0, 3)).toEqual([480, 'N/A', 488]);
+    expect(unitOf('traverse', 2).fields).toMatchObject({ height: 'N/A' });
+    expect(unitOf('traverse', 3).sequences).toBeUndefined(); // initial only: the grid is optional
+    expect(unitOf('traverse', 3).lines).toBeUndefined();
+  });
+});
+
 describe('round trip: app project -> export (rev 05 template) -> import -> app project', () => {
   it('comes back equal', async () => {
     const original = sampleBundle();
