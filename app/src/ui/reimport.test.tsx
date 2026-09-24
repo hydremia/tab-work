@@ -4,7 +4,7 @@ import type { ProjectData, UnitData } from '@a2b/workbook/map';
 import Dexie from 'dexie';
 import { describe, expect, it, vi } from 'vitest';
 import { db, TabDatabase } from '../data/db';
-import { createRecord } from '../data/repo';
+import { createRecord, writeTables } from '../data/repo';
 import { sampleBundle } from '../test/fixtures';
 import { toProjectData, type ProjectBundle } from '../workbook/adapter';
 import { prepareReview, type ParsedImport } from '../workbook/importProject';
@@ -15,17 +15,13 @@ const unit = (pd: ProjectData, type: string, slot: number): UnitData =>
   pd.equipment[type].find((u) => u.slot === slot)!;
 
 async function store(b: ProjectBundle) {
-  await db.transaction(
-    'rw',
-    [db.projects, db.equipment, db.airflowRows, db.issues, db.instruments, db.fieldChanges, db.meta],
-    async () => {
-      await createRecord('projects', b.project);
-      for (const e of b.equipment) await createRecord('equipment', e);
-      for (const r of b.rows) await createRecord('airflowRows', r);
-      for (const i of b.issues) await createRecord('issues', i);
-      for (const i of b.instruments) await createRecord('instruments', i);
-    },
-  );
+  await db.transaction('rw', writeTables(), async () => {
+    await createRecord('projects', b.project);
+    for (const e of b.equipment) await createRecord('equipment', e);
+    for (const r of b.rows) await createRecord('airflowRows', r);
+    for (const i of b.issues) await createRecord('issues', i);
+    for (const i of b.instruments) await createRecord('instruments', i);
+  });
 }
 
 describe('re-import review screen', () => {
@@ -119,7 +115,7 @@ describe('database upgrade', () => {
     v1.close();
     const v2 = new TabDatabase(name);
     await v2.open();
-    expect(v2.verno).toBe(3);
+    expect(v2.verno).toBe(4);
     // v3: photos get a sort order and an upload-queue entry
     expect((await v2.photos.get('ph1'))?.order).toBe(5);
     expect(await v2.photoUploads.get('ph1')).toMatchObject({ status: 'pending', projectId: 'p1' });

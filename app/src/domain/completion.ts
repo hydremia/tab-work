@@ -23,13 +23,23 @@ import {
 } from './specs/types';
 
 export type StatusColor = 'gray' | 'amber' | 'green' | 'red';
+/**
+ * What cards and rollups show: the completion color, or blue = complete and reviewed (signed off). Blue is never
+ * computed by the engine; it is a green unit with a review (`displayColor`). A reviewed unit that is not green any
+ * more (e.g. an issue was opened on it) shows its real color.
+ */
+export type DisplayColor = StatusColor | 'blue';
 
-export const STATUS_LABEL: Record<StatusColor, string> = {
+export const STATUS_LABEL: Record<DisplayColor, string> = {
   gray: 'Not started',
   amber: 'In progress',
   green: 'Complete',
   red: 'Needs attention',
+  blue: 'Reviewed',
 };
+
+export const displayColor = (color: StatusColor, reviewed: boolean): DisplayColor =>
+  color === 'green' && reviewed ? 'blue' : color;
 
 export type ItemState =
   'value' | 'na' | 'auto-na' | 'section-na' | 'equipment-na' | 'scope-na' | 'optional' | 'missing';
@@ -413,15 +423,27 @@ export interface Rollup {
   total: number;
   gray: number;
   amber: number;
+  /** Complete units, reviewed ones included. */
   green: number;
   red: number;
+  /** Complete and reviewed (blue); a subset of `green`. */
+  reviewed: number;
 }
 
-export function rollup(colors: readonly StatusColor[]): Rollup {
-  const r: Rollup = { total: colors.length, gray: 0, amber: 0, green: 0, red: 0 };
-  for (const c of colors) r[c]++;
+export function rollup(colors: readonly DisplayColor[]): Rollup {
+  const r: Rollup = { total: colors.length, gray: 0, amber: 0, green: 0, red: 0, reviewed: 0 };
+  for (const c of colors) {
+    if (c === 'blue') {
+      r.green++;
+      r.reviewed++;
+    } else r[c]++;
+  }
   return r;
 }
 
-/** Fraction complete for progress bars (green only). */
+/** "5/8 complete, 3 reviewed" (the reviewed part only when there is one). */
+export const rollupText = (r: Rollup) =>
+  `${r.green}/${r.total} complete${r.reviewed ? `, ${r.reviewed} reviewed` : ''}`;
+
+/** Fraction complete for progress bars (green incl. reviewed). */
 export const completeFraction = (r: Rollup) => (r.total ? r.green / r.total : 0);

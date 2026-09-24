@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ProjectData, UnitData } from '@a2b/workbook/map';
 import { db } from '../data/db';
-import { addPhoto, createRecord, setField } from '../data/repo';
+import { addPhoto, createRecord, setField, writeTables } from '../data/repo';
 import { sampleBundle } from '../test/fixtures';
 import { pendingChanges } from '../sync/outbox';
 import { toProjectData, type ProjectBundle } from './adapter';
@@ -15,17 +15,13 @@ const unit = (pd: ProjectData, type: string, slot: number): UnitData =>
   pd.equipment[type].find((u) => u.slot === slot)!;
 
 async function store(b: ProjectBundle): Promise<void> {
-  await db.transaction(
-    'rw',
-    [db.projects, db.equipment, db.airflowRows, db.issues, db.instruments, db.fieldChanges, db.meta],
-    async () => {
-      await createRecord('projects', b.project);
-      for (const e of b.equipment) await createRecord('equipment', e);
-      for (const r of b.rows) await createRecord('airflowRows', r);
-      for (const i of b.issues) await createRecord('issues', i);
-      for (const i of b.instruments) await createRecord('instruments', i);
-    },
-  );
+  await db.transaction('rw', writeTables(), async () => {
+    await createRecord('projects', b.project);
+    for (const e of b.equipment) await createRecord('equipment', e);
+    for (const r of b.rows) await createRecord('airflowRows', r);
+    for (const i of b.issues) await createRecord('issues', i);
+    for (const i of b.instruments) await createRecord('instruments', i);
+  });
 }
 
 const parsedOf = (data: ProjectData, marker: ParsedImport['marker']): ParsedImport => ({

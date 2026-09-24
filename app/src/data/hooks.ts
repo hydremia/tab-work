@@ -2,12 +2,30 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo } from 'react';
 import { needsAttention, type AttentionItem } from '../domain/attention';
-import { computeCompletion, rollup, type Completion, type Rollup } from '../domain/completion';
+import {
+  computeCompletion,
+  displayColor,
+  rollup,
+  type Completion,
+  type DisplayColor,
+  type Rollup,
+} from '../domain/completion';
 import { computeProjectCompletion, type ProjectCompletion } from '../domain/projectCompletion';
 import { EQUIPMENT_TYPES, type EquipmentTypeKey } from '../domain/equipmentTypes';
 import { getSpec } from '../domain/specs';
 import { db } from './db';
-import type { AirflowRow, BaseWorkbook, Equipment, Instrument, Issue, Photo, Project, Revision } from './types';
+import { projectHistory } from './history';
+import type {
+  AirflowRow,
+  BaseWorkbook,
+  Equipment,
+  HistoryEntry,
+  Instrument,
+  Issue,
+  Photo,
+  Project,
+  Revision,
+} from './types';
 
 export function useProjects(): Project[] | undefined {
   return useLiveQuery(() => db.projects.orderBy('updatedAt').reverse().toArray(), []);
@@ -69,6 +87,8 @@ export function useInstruments(projectId: string | undefined): Instrument[] | un
 
 export interface ProjectStatus {
   byEquipment: Map<string, Completion>;
+  /** What the cards show: the completion color, or blue for a green unit that was reviewed. */
+  display: Map<string, DisplayColor>;
   byType: Map<EquipmentTypeKey, Rollup>;
   total: Rollup;
 }
@@ -83,6 +103,7 @@ interface StatusInputs {
 
 export function projectStatus({ project, equipment, rows, photos, issues }: StatusInputs): ProjectStatus {
   const byEquipment = new Map<string, Completion>();
+  const display = new Map<string, DisplayColor>();
   for (const e of equipment) {
     byEquipment.set(
       e.id,
@@ -95,13 +116,14 @@ export function projectStatus({ project, equipment, rows, photos, issues }: Stat
         openIssues: issues.filter((i) => i.equipmentId === e.id && i.status === 'Open').length,
       }),
     );
+    display.set(e.id, displayColor(byEquipment.get(e.id)!.color, Boolean(e.review)));
   }
   const byType = new Map<EquipmentTypeKey, Rollup>();
   for (const t of EQUIPMENT_TYPES) {
     const list = equipment.filter((e) => e.type === t.key);
-    if (list.length) byType.set(t.key, rollup(list.map((e) => byEquipment.get(e.id)!.color)));
+    if (list.length) byType.set(t.key, rollup(list.map((e) => display.get(e.id)!)));
   }
-  return { byEquipment, byType, total: rollup([...byEquipment.values()].map((c) => c.color)) };
+  return { byEquipment, display, byType, total: rollup([...display.values()]) };
 }
 
 async function loadStatusInputs(projectIds: string[]) {
@@ -268,4 +290,24 @@ export function usePhotoStats(
 /** One photo (live); undefined while loading, null when missing. */
 export function usePhoto(id: string | null | undefined): Photo | null | undefined {
   return useLiveQuery(async () => (id ? ((await db.photos.get(id)) ?? null) : null), [id]);
+}
+
+/** Change history of a project, newest first (optionally one unit: its fields, rows, photos, linked issues). */
+export function useHistory(projectId: string | undefined, equipmentId?: string): HistoryEntry[] | undefined {
+  return useLiveQuery(async () => {
+    if (!projectId) return [];
+    if (equipmentId) {
+      const list = await db.history.where('equipmentId').equals(equipmentId).toArray();
+      return list.sort((a, b) => b.ts - a.ts);
+    }
+    return projectHistory(projectId);
+  }, [projectId, equipmentId]);
+}
+
+/** The reviewer / issuer name remembered on this device ('' until given). */
+export function useUserName(): string | undefined {
+  return useLiveQuery(async () => {
+    const row = await db.meta.get('userName');
+    return typeof row?.value === 'string' ? row.value : '';
+  }, []);
 }

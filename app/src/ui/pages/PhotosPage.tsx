@@ -45,7 +45,7 @@ function PhotoCard({ photo, label, onOpen }: { photo: Photo; label: string; onOp
 }
 
 export function PhotosPage() {
-  const { project, equipment, issues, status } = useProjectContext();
+  const { project, equipment, issues, status, locked } = useProjectContext();
   const photos = usePhotos(project.id);
   const stats = usePhotoStats(project.id);
   const saver = usePhotoSaver(project.id);
@@ -131,36 +131,39 @@ export function PhotosPage() {
         </section>
       )}
 
-      <section className="card card-pad stack" aria-labelledby="add-h">
-        <h2 id="add-h">Add photos</h2>
-        <p className="small muted" style={{ margin: 0 }}>
-          Unit, tag and OA damper photos are taken on each unit's form; deficiency photos on the issue. Add other photos
-          here.
-        </p>
-        <div className="field">
-          <label className="field-label" htmlFor="ph-attach">
-            Attach to
-          </label>
-          <select id="ph-attach" className="select" value={attachTo} onChange={(e) => setAttachTo(e.target.value)}>
-            <option value="">General (no unit)</option>
-            {sortEquipment(equipment, TYPE_ORDER).map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.designation}
-              </option>
-            ))}
-          </select>
-        </div>
-        <DropZone onFiles={(files) => void saver.save(files, { category: 'other', equipmentId: attachTo || null })}>
-          <PhotoPicker
-            label="Add photos"
-            multiple
-            disabled={Boolean(saver.busy)}
-            chooseText="Choose photos"
-            onFiles={(files) => void saver.save(files, { category: 'other', equipmentId: attachTo || null })}
-          />
-        </DropZone>
-        <SaverStatus busy={saver.busy} error={saver.error} onDismiss={saver.clearError} />
-      </section>
+      <fieldset className="lockable" disabled={locked}>
+        <legend className="visually-hidden">Add photos</legend>
+        <section className="card card-pad stack" aria-labelledby="add-h">
+          <h2 id="add-h">Add photos</h2>
+          <p className="small muted" style={{ margin: 0 }}>
+            Unit, tag and OA damper photos are taken on each unit's form; deficiency photos on the issue. Add other
+            photos here.
+          </p>
+          <div className="field">
+            <label className="field-label" htmlFor="ph-attach">
+              Attach to
+            </label>
+            <select id="ph-attach" className="select" value={attachTo} onChange={(e) => setAttachTo(e.target.value)}>
+              <option value="">General (no unit)</option>
+              {sortEquipment(equipment, TYPE_ORDER).map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.designation}
+                </option>
+              ))}
+            </select>
+          </div>
+          <DropZone onFiles={(files) => void saver.save(files, { category: 'other', equipmentId: attachTo || null })}>
+            <PhotoPicker
+              label="Add photos"
+              multiple
+              disabled={Boolean(saver.busy)}
+              chooseText="Choose photos"
+              onFiles={(files) => void saver.save(files, { category: 'other', equipmentId: attachTo || null })}
+            />
+          </DropZone>
+          <SaverStatus busy={saver.busy} error={saver.error} onDismiss={saver.clearError} />
+        </section>
+      </fieldset>
 
       <div className="filters" role="group" aria-label="Filter by category">
         {FILTERS.map((f) => (

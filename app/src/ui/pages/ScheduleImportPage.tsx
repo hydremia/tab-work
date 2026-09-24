@@ -21,6 +21,7 @@ import {
   type Preview,
 } from '../../domain/scheduleImport';
 import type { ScheduleFile } from '../../workbook/scheduleFile';
+import { LockBanner } from '../components/LockBanner';
 import { Screen } from '../components/Screen';
 
 const fileEngine = () => import('../../workbook/scheduleFile');
@@ -216,6 +217,15 @@ export function ScheduleImportPage() {
   }
 
   const targets = scheduleTargets(type);
+  if (project.lock)
+    return (
+      <Screen title="Import schedule" subtitle={project.name} back={back}>
+        <LockBanner project={project} />
+        <p className="small muted" data-testid="schedule-locked">
+          The report was issued, so no schedule can be imported until the project is unlocked for follow-up.
+        </p>
+      </Screen>
+    );
   return (
     <Screen title="Import schedule" subtitle={project.name} back={back}>
       <section className="card card-pad stack" aria-labelledby="si-src">

@@ -48,8 +48,33 @@ export interface Project {
   blueprints: Blueprint[];
   naState: NaState;
   templateRevision: string;
+  /**
+   * Report lock (Phase 6): set when a report is issued from the Export tab. While set, the repository refuses every
+   * write to the project's records (except this field) and the UI is read-only. Synced like any project field.
+   */
+  lock?: ProjectLock | null;
   createdAt: number;
   updatedAt: number;
+}
+
+/** Who did something and on which device (review sign-off, report lock). */
+export interface Signature {
+  /** Name typed by the user on this device (meta "userName"); '' when not given. */
+  name: string;
+  userId: string;
+  deviceId: string;
+  /** ms since epoch */
+  at: number;
+}
+
+/** A unit's review sign-off. Cleared automatically by the repository when anything of the unit changes. */
+export type Review = Signature;
+
+export interface ProjectLock extends Signature {
+  /** The revision label the report was issued as (Prelim, Rev 1, Final …). */
+  label: string;
+  /** The export revision (local to the issuing device). */
+  revisionId: string | null;
 }
 
 export interface Equipment {
@@ -63,6 +88,8 @@ export interface Equipment {
   /** Field values keyed by the template map's field keys (schedule and block fields share one namespace). */
   data: Record<string, FieldValue>;
   naState: NaState;
+  /** Review sign-off ("Reviewed", shown blue while the unit is green). */
+  review?: Review | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -172,6 +199,11 @@ export interface FieldChange {
   /** Dotted path inside the record for op 'set' (e.g. "data.serial", "naState.fields.serial"); '' otherwise. */
   field: string;
   value: unknown;
+  /**
+   * op 'set': the value before the edit (schema v4+; undefined on older entries). When consecutive unsynced edits are
+   * coalesced, this stays the value before the first of them. The full step-by-step history is the `history` table.
+   */
+  previous?: unknown;
   userId: string;
   deviceId: string;
   /** Client timestamp (ms since epoch). Later edit wins on conflict. */
@@ -208,7 +240,41 @@ export interface Revision {
   fromRevisionId?: string | null;
   /** Import: what was applied. */
   applied?: { accepted: number; declined: number; collisions: number };
+  /** Export: issued with "Issue report" (the project was locked at this revision). */
+  issued?: boolean;
   userId: string;
+}
+
+export type HistoryKind =
+  'edit' | 'create' | 'delete' | 'review' | 'review-cleared' | 'lock' | 'unlock' | 'import' | 'revision';
+
+/**
+ * Change history (audit), schema v4: an append-only local table. The outbox (fieldChanges) coalesces repeated
+ * unsynced edits of a field into one entry and is shaped for sync, so it can't serve as the history; every write
+ * through the repository also appends one entry here (in the same transaction), incl. the previous value. Remote
+ * changes from other devices are appended when they are applied (source "remote"). Pruned by data/history.ts.
+ */
+export interface HistoryEntry {
+  id: string;
+  projectId: string;
+  ts: number;
+  kind: HistoryKind;
+  table: TableName | null;
+  recordId: string | null;
+  /** The unit the record belongs to (the unit itself, its rows, photos, linked issues), for the per-unit history. */
+  equipmentId: string | null;
+  /** Dotted path for edits ('' for creates / deletes / events). */
+  field: string;
+  /** Value before (undefined: not known, e.g. entries backfilled from the outbox by the v4 upgrade). */
+  previous?: unknown;
+  value?: unknown;
+  /** Short text for creates / deletes / events ("RTU-1", "Exported Prelim", "automatic: RTU-1 changed"). */
+  note?: string;
+  /** Where the write came from, when not a plain edit. */
+  source?: 'import' | 'schedule' | 'remote' | 'auto';
+  userId: string;
+  userName?: string;
+  deviceId: string;
 }
 
 /**

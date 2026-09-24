@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../data/db';
-import { useEquipmentList, useIssues, usePhoto } from '../../data/hooks';
+import { useEquipmentList, useIssues, usePhoto, useProject } from '../../data/hooks';
 import { deleteRecord, movePhoto, reassignPhoto, setField } from '../../data/repo';
 import type { PhotoCategory } from '../../data/types';
 import { allPhotoLabels, CATEGORY_LABEL, groupKeyOf, groupPhotos, issueLabel, sortIssues } from '../../photos/labels';
@@ -20,6 +20,8 @@ export function PhotoViewer({ photoId, onClose }: { photoId: string; onClose: ()
   const photo = usePhoto(photoId);
   const equipment = useEquipmentList(photo?.projectId);
   const issues = useIssues(photo?.projectId);
+  const project = useProject(photo?.projectId);
+  const locked = Boolean(project?.lock);
   const metas = useLiveQuery(
     async () =>
       photo
@@ -81,133 +83,136 @@ export function PhotoViewer({ photoId, onClose }: { photoId: string; onClose: ()
           {photo.capturedAt ? `taken ${when(photo.capturedAt)}` : `added ${when(photo.createdAt)}`}
           {photo.gps ? ` · GPS ${photo.gps.lat.toFixed(5)}, ${photo.gps.lon.toFixed(5)}` : ''}
         </div>
-        <div className="field">
-          <label className="field-label" htmlFor="pv-caption">
-            Caption
-          </label>
-          <TextArea
-            id="pv-caption"
-            value={photo.caption}
-            placeholder="What the photo shows"
-            onCommit={(v) => void setField('photos', photo.id, 'caption', v)}
-          />
-        </div>
-        <div className="viewer-grid">
+        <fieldset className="lockable viewer-edit" disabled={locked}>
+          <legend className="visually-hidden">Edit photo</legend>
           <div className="field">
-            <label className="field-label" htmlFor="pv-cat">
-              Category
+            <label className="field-label" htmlFor="pv-caption">
+              Caption
             </label>
-            <select
-              id="pv-cat"
-              className="select"
-              value={photo.category}
-              onChange={(e) => {
-                const category = e.target.value as PhotoCategory;
-                const firstOpen = issues.find((i) => i.status === 'Open') ?? issues[0];
-                const fromIssue = issues.find((i) => i.id === photo.issueId)?.equipmentId ?? null;
-                const eq = photo.equipmentId ?? fromIssue;
-                void reassignPhoto(photo.id, {
-                  category,
-                  equipmentId: eq ?? (category === 'other' ? null : (eqSorted[0]?.id ?? null)),
-                  issueId: category === 'deficiency' ? (photo.issueId ?? firstOpen?.id ?? null) : null,
-                });
-              }}
-            >
-              {CATEGORIES.map((c) => (
-                <option
-                  key={c}
-                  value={c}
-                  disabled={
-                    (c === 'deficiency' && !issues.length) ||
-                    ((c === 'unit' || c === 'tag' || c === 'oa_damper') && !equipment.length)
+            <TextArea
+              id="pv-caption"
+              value={photo.caption}
+              placeholder="What the photo shows"
+              onCommit={(v) => void setField('photos', photo.id, 'caption', v)}
+            />
+          </div>
+          <div className="viewer-grid">
+            <div className="field">
+              <label className="field-label" htmlFor="pv-cat">
+                Category
+              </label>
+              <select
+                id="pv-cat"
+                className="select"
+                value={photo.category}
+                onChange={(e) => {
+                  const category = e.target.value as PhotoCategory;
+                  const firstOpen = issues.find((i) => i.status === 'Open') ?? issues[0];
+                  const fromIssue = issues.find((i) => i.id === photo.issueId)?.equipmentId ?? null;
+                  const eq = photo.equipmentId ?? fromIssue;
+                  void reassignPhoto(photo.id, {
+                    category,
+                    equipmentId: eq ?? (category === 'other' ? null : (eqSorted[0]?.id ?? null)),
+                    issueId: category === 'deficiency' ? (photo.issueId ?? firstOpen?.id ?? null) : null,
+                  });
+                }}
+              >
+                {CATEGORIES.map((c) => (
+                  <option
+                    key={c}
+                    value={c}
+                    disabled={
+                      (c === 'deficiency' && !issues.length) ||
+                      ((c === 'unit' || c === 'tag' || c === 'oa_damper') && !equipment.length)
+                    }
+                  >
+                    {CATEGORY_LABEL[c]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {photo.category === 'deficiency' ? (
+              <div className="field">
+                <label className="field-label" htmlFor="pv-issue">
+                  Issue
+                </label>
+                <select
+                  id="pv-issue"
+                  className="select"
+                  value={photo.issueId ?? ''}
+                  onChange={(e) =>
+                    void reassignPhoto(photo.id, { category: 'deficiency', issueId: e.target.value || null })
                   }
                 >
-                  {CATEGORY_LABEL[c]}
-                </option>
-              ))}
-            </select>
+                  {!photo.issueId && <option value="">(none)</option>}
+                  {sortIssues(issues).map((i) => (
+                    <option key={i.id} value={i.id}>
+                      Issue {issueLabel(i)} {i.remark ? `· ${i.remark.slice(0, 40)}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : photo.category !== 'cover' ? (
+              <div className="field">
+                <label className="field-label" htmlFor="pv-eq">
+                  Equipment
+                </label>
+                <select
+                  id="pv-eq"
+                  className="select"
+                  value={photo.equipmentId ?? ''}
+                  onChange={(e) =>
+                    void reassignPhoto(photo.id, {
+                      category: !e.target.value && needsEquipment ? 'other' : photo.category,
+                      equipmentId: e.target.value || null,
+                    })
+                  }
+                >
+                  <option value="">General (no unit)</option>
+                  {eqSorted.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.designation}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
           </div>
-          {photo.category === 'deficiency' ? (
-            <div className="field">
-              <label className="field-label" htmlFor="pv-issue">
-                Issue
-              </label>
-              <select
-                id="pv-issue"
-                className="select"
-                value={photo.issueId ?? ''}
-                onChange={(e) =>
-                  void reassignPhoto(photo.id, { category: 'deficiency', issueId: e.target.value || null })
-                }
-              >
-                {!photo.issueId && <option value="">(none)</option>}
-                {sortIssues(issues).map((i) => (
-                  <option key={i.id} value={i.id}>
-                    Issue {issueLabel(i)} {i.remark ? `· ${i.remark.slice(0, 40)}` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : photo.category !== 'cover' ? (
-            <div className="field">
-              <label className="field-label" htmlFor="pv-eq">
-                Equipment
-              </label>
-              <select
-                id="pv-eq"
-                className="select"
-                value={photo.equipmentId ?? ''}
-                onChange={(e) =>
-                  void reassignPhoto(photo.id, {
-                    category: !e.target.value && needsEquipment ? 'other' : photo.category,
-                    equipmentId: e.target.value || null,
-                  })
-                }
-              >
-                <option value="">General (no unit)</option>
-                {eqSorted.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.designation}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-        </div>
-        <div className="row viewer-actions">
-          <button
-            type="button"
-            className="btn"
-            disabled={pos <= 0}
-            onClick={() => void movePhoto(photo.id, -1)}
-            data-testid="photo-move-up"
-          >
-            ← Earlier
-          </button>
-          <button
-            type="button"
-            className="btn"
-            disabled={pos < 0 || pos >= group.length - 1}
-            onClick={() => void movePhoto(photo.id, 1)}
-            data-testid="photo-move-down"
-          >
-            Later →
-          </button>
-          <span className="small muted">
-            {pos + 1} of {group.length}
-          </span>
-          <button
-            type="button"
-            className="btn btn-danger"
-            style={{ marginLeft: 'auto' }}
-            data-testid="photo-delete"
-            onClick={() => {
-              if (window.confirm(`Delete ${label}? This cannot be undone.`)) void deleteRecord('photos', photo.id);
-            }}
-          >
-            Delete
-          </button>
-        </div>
+          <div className="row viewer-actions">
+            <button
+              type="button"
+              className="btn"
+              disabled={pos <= 0}
+              onClick={() => void movePhoto(photo.id, -1)}
+              data-testid="photo-move-up"
+            >
+              ← Earlier
+            </button>
+            <button
+              type="button"
+              className="btn"
+              disabled={pos < 0 || pos >= group.length - 1}
+              onClick={() => void movePhoto(photo.id, 1)}
+              data-testid="photo-move-down"
+            >
+              Later →
+            </button>
+            <span className="small muted">
+              {pos + 1} of {group.length}
+            </span>
+            <button
+              type="button"
+              className="btn btn-danger"
+              style={{ marginLeft: 'auto' }}
+              data-testid="photo-delete"
+              onClick={() => {
+                if (window.confirm(`Delete ${label}? This cannot be undone.`)) void deleteRecord('photos', photo.id);
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        </fieldset>
       </div>
     </div>
   );

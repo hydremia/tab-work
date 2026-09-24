@@ -7,7 +7,8 @@
  * file) is one more file per project. Worst case per project: (5 + 1) x ~4 MB.
  */
 import { db } from '../data/db';
-import { getCurrentUser } from '../data/identity';
+import { appendHistory, currentActor } from '../data/history';
+import { getCurrentUser, nextTimestamp } from '../data/identity';
 import type { BaseWorkbook, Revision } from '../data/types';
 
 export const KEEP_REVISION_FILES = 5;
@@ -28,10 +29,34 @@ export async function listRevisions(projectId: string): Promise<Revision[]> {
   return all.sort((a, b) => b.createdAt - a.createdAt);
 }
 
-/** Store a revision; drop the file of export revisions past the newest KEEP_REVISION_FILES (values are kept). */
+/** The history note of a revision event. */
+export function revisionNote(rev: Pick<Revision, 'kind' | 'label' | 'fileName' | 'applied' | 'issued'>): string {
+  if (rev.kind === 'export') return `${rev.issued ? 'Issued' : 'Exported'} ${rev.label} (${rev.fileName})`;
+  const a = rev.applied;
+  return `${rev.label}: ${rev.fileName}${a ? ` (${a.accepted} accepted, ${a.declined} declined)` : ''}`;
+}
+
+/**
+ * Store a revision; drop the file of export revisions past the newest KEEP_REVISION_FILES (values are kept). The
+ * export / import is also recorded in the change history.
+ */
 export async function saveRevision(rev: Revision): Promise<void> {
-  await db.transaction('rw', db.revisions, async () => {
+  const actor = await currentActor();
+  await db.transaction('rw', db.revisions, db.history, async () => {
     await db.revisions.add(rev);
+    await appendHistory(
+      {
+        projectId: rev.projectId,
+        ts: nextTimestamp(), // monotonic with the edits' timestamps, so the history order is right
+        kind: rev.kind === 'export' ? 'revision' : 'import',
+        table: null,
+        recordId: rev.id,
+        equipmentId: null,
+        field: '',
+        note: revisionNote(rev),
+      },
+      actor,
+    );
     const exportsWithFile = (await db.revisions.where('projectId').equals(rev.projectId).toArray())
       .filter((r) => r.kind === 'export' && r.bytes)
       .sort((a, b) => b.createdAt - a.createdAt);

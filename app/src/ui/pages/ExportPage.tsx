@@ -7,7 +7,8 @@ import { useBaseWorkbook, useRevisions } from '../../data/hooks';
 import type { Revision } from '../../data/types';
 import type { ExportResult } from '../../workbook/exportProject';
 import { KEEP_REVISION_FILES, suggestLabel } from '../../workbook/revisions';
-import { IconDownload, IconUpload } from '../components/Icons';
+import { IconDownload, IconLock, IconUpload } from '../components/Icons';
+import { issuedText, useUnlock } from '../components/LockBanner';
 import { ProgressBar, RollupCounts } from '../components/Status';
 import { useProjectContext } from './ProjectLayout';
 
@@ -17,7 +18,8 @@ const SCOPE_KINDS: Record<IssueScope, IssueKind[]> = { all: ['new', 'existing'],
 const when = (t: number) => new Date(t).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
 export function ExportPage() {
-  const { project, equipment, issues, status } = useProjectContext();
+  const { project, equipment, issues, status, locked } = useProjectContext();
+  const { unlock } = useUnlock(project);
   const revisions = useRevisions(project.id);
   const base = useBaseWorkbook(project.id);
   const [params] = useSearchParams();
@@ -62,14 +64,22 @@ export function ExportPage() {
     }
   }
 
-  async function run() {
+  async function run(issue = false) {
+    const l = label.trim() || suggested;
+    if (
+      issue &&
+      !window.confirm(
+        `Issue the report as ${l}?\n\nThe workbook is exported as revision ${l} and the project is locked: nothing can be edited or imported until someone unlocks it for follow-up.`,
+      )
+    )
+      return;
     setBusy(true);
     setError(null);
     setResult(null);
     try {
       // the workbook engine (JSZip) loads on demand; it is precached, so this also works offline
       const { exportProject, downloadBytes } = await import('../../workbook/exportProject');
-      const r = await exportProject(project.id, { label: label.trim() || suggested });
+      const r = await exportProject(project.id, { label: l, issue });
       downloadBytes(r.bytes, r.fileName);
       setResult(r);
       setTyped(null);
@@ -148,7 +158,15 @@ export function ExportPage() {
         {status && status.total.total > 0 && (
           <>
             <ProgressBar rollup={status.total} />
-            <RollupCounts rollup={status.total} />
+            <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
+              <RollupCounts rollup={status.total} />
+              <span className="small muted" data-testid="review-summary">
+                Reviewed: {status.total.reviewed} of {status.total.total} units
+                {status.total.green > status.total.reviewed
+                  ? ` (${status.total.green - status.total.reviewed} complete, not reviewed)`
+                  : ''}
+              </span>
+            </div>
           </>
         )}
         {status && status.total.total > status.total.green && (
@@ -186,6 +204,35 @@ export function ExportPage() {
         >
           <IconDownload size={20} /> {busy ? 'Exporting…' : `Export ${label.trim() || suggested || 'workbook'} (.xlsm)`}
         </button>
+        {project.lock ? (
+          <div className="callout" data-tone="info" data-testid="issued-state">
+            <IconLock size={18} />
+            <span className="grow">
+              {issuedText(project.lock)}
+              {project.lock.name ? ` by ${project.lock.name}` : ''}. The project is locked; exports still work (e.g. a
+              copy), edits and imports don't.{' '}
+              <button type="button" className="link-btn" data-testid="unlock-export" onClick={() => void unlock()}>
+                Unlock for follow-up
+              </button>
+            </span>
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="btn btn-lg btn-block"
+              onClick={() => void run(true)}
+              disabled={busy}
+              data-testid="issue-report"
+            >
+              <IconLock size={20} /> Issue report as {label.trim() || suggested}
+            </button>
+            <p className="small muted" style={{ margin: 0 }}>
+              <b>Issue report</b> exports this revision and locks the project, so the issued data can't change by
+              accident. Anyone can unlock it for follow-up work; the lock and unlock are recorded in the History.
+            </p>
+          </>
+        )}
         {error && (
           <div className="callout" data-tone="red" role="alert">
             Export failed: {error}
@@ -342,9 +389,15 @@ export function ExportPage() {
           decline each changed value. A value changed both in Excel and in the app since the export is a collision you
           resolve. Photos stay as they are.
         </p>
-        <Link to={`/import?into=${project.id}`} className="btn" data-testid="reimport-link">
-          <IconUpload size={18} /> Re-import workbook
-        </Link>
+        {locked ? (
+          <p className="small muted" style={{ margin: 0 }} data-testid="reimport-locked">
+            Blocked while the report is issued (locked). Unlock it for follow-up first.
+          </p>
+        ) : (
+          <Link to={`/import?into=${project.id}`} className="btn" data-testid="reimport-link">
+            <IconUpload size={18} /> Re-import workbook
+          </Link>
+        )}
       </section>
 
       <section className="card card-pad stack" aria-labelledby="rev-h" data-testid="revisions">
@@ -363,6 +416,11 @@ export function ExportPage() {
                     <span className="chip" data-kind={r.kind}>
                       {r.kind === 'export' ? 'Exported' : 'Imported'}
                     </span>
+                    {r.issued && (
+                      <span className="chip chip-issued" data-testid="revision-issued">
+                        <IconLock size={12} /> Issued
+                      </span>
+                    )}
                     {base && r.id === revisions.find((x) => x.kind === 'import')?.id && (
                       <span className="chip" data-kind="export" title="The next export is written into this file">
                         Base
