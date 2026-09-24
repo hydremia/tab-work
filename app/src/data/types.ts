@@ -154,6 +154,49 @@ export interface FieldChange {
   conflict?: 0 | 1;
 }
 
+/**
+ * Revision history (local to this device; not synced through the outbox). An 'export' revision is a frozen copy of
+ * an issued workbook: label (Prelim, Rev 1 ...), the .xlsm bytes (kept for the last KEEP_REVISION_FILES exports of a
+ * project; older ones keep only their values) and the baseline: the values the workbook holds, read back from the
+ * exported file, which is the "base" of the three-way diff when that workbook is re-imported. An 'import' revision
+ * records a re-import that was applied.
+ */
+export interface Revision {
+  id: string;
+  projectId: string;
+  kind: 'export' | 'import';
+  label: string;
+  createdAt: number;
+  fileName: string;
+  /** Size of the workbook in bytes (also when the bytes are no longer kept). */
+  size: number;
+  /** The .xlsm; null once pruned (only the newest exports keep their file). */
+  bytes: Blob | null;
+  /** Export: the values written (ProjectData read back from the file). Import: null. */
+  baseline: unknown;
+  /** Export: written onto a previously issued workbook instead of the blank template. */
+  onBase?: boolean;
+  /** Import: the export revision the workbook came from (its marker), when known. */
+  fromRevisionId?: string | null;
+  /** Import: what was applied. */
+  applied?: { accepted: number; declined: number; collisions: number };
+  userId: string;
+}
+
+/**
+ * The workbook the next export of a project is written into (decision F1): the last re-imported issued workbook.
+ * Missing: the blank template is used (first export).
+ */
+export interface BaseWorkbook {
+  projectId: string;
+  blob: Blob;
+  fileName: string;
+  size: number;
+  importedAt: number;
+  /** Export revision the workbook came from (its marker), when known. */
+  fromRevisionId: string | null;
+}
+
 export interface Meta {
   key: string;
   value: unknown;

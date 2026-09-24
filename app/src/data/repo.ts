@@ -126,7 +126,17 @@ export async function deleteRecord(table: TableName, recordId: string): Promise<
   await getDeviceId();
   await db.transaction(
     'rw',
-    [db.projects, db.equipment, db.airflowRows, db.issues, db.photos, db.instruments, db.fieldChanges],
+    [
+      db.projects,
+      db.equipment,
+      db.airflowRows,
+      db.issues,
+      db.photos,
+      db.instruments,
+      db.fieldChanges,
+      // only a project delete touches the local revision tables (keeps nested transactions of other deletes valid)
+      ...(table === 'projects' ? [db.revisions, db.baseWorkbooks] : []),
+    ],
     async () => {
       const rec = await tableOf(table).get(recordId);
       if (!rec) return;
@@ -143,6 +153,9 @@ export async function deleteRecord(table: TableName, recordId: string): Promise<
         for (const name of ['airflowRows', 'photos', 'issues', 'instruments', 'equipment'] as const) {
           for (const child of await tableOf(name).where('projectId').equals(recordId).toArray()) await log(name, child);
         }
+        // local revision history and the base workbook go with the project (not synced)
+        await db.revisions.where('projectId').equals(recordId).delete();
+        await db.baseWorkbooks.delete(recordId);
       } else if (table === 'equipment') {
         for (const r of await db.airflowRows.where('equipmentId').equals(recordId).toArray())
           await log('airflowRows', r);

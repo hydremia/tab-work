@@ -129,9 +129,9 @@ Last updated: 2026-09-24
 - [ ] Export all sheets in the template map
 - [ ] Capacity limits enforced in the app (no overflow handling needed)
 - [ ] Import engine (read inputs from an existing workbook into the app)
-- [ ] Re-import of an issued workbook into an existing project with a diff/merge review screen
-- [ ] Issued-report snapshots and revision history (Prelim, Rev 1, Final…)
-- [ ] Keep the re-imported issued workbook as the base for the next export (F1)
+- [x] Re-import of an issued workbook into an existing project with a diff/merge review screen
+- [x] Issued-report snapshots and revision history (Prelim, Rev 1, Final…)
+- [x] Keep the re-imported issued workbook as the base for the next export (F1)
 - [ ] Round-trip test suite (import → export → cell diff)
 - [ ] Validate on a real completed project workbook
 
