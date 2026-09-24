@@ -8,17 +8,48 @@
  */
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
+import { db } from '../../data/db';
 import { useProject, useProjects } from '../../data/hooks';
 import { EQUIPMENT_TYPES } from '../../domain/equipmentTypes';
 import type { ParsedImport, Review } from '../../workbook/importProject';
 import type { Choice } from '../../workbook/reimportDiff';
 import { IconFile } from '../components/Icons';
+import { LockBanner } from '../components/LockBanner';
 import { ReimportReview } from '../components/ReimportReview';
 import { Screen } from '../components/Screen';
 
 const engine = () => import('../../workbook/importProject');
 
-type Step = { step: 'pick' } | { step: 'choose' } | { step: 'review'; review: Review; projectName: string };
+type Step =
+  | { step: 'pick' }
+  | { step: 'choose' }
+  | { step: 'review'; review: Review; projectName: string }
+  /** The target project is locked (issued): unlock it first, then continue to the review. */
+  | { step: 'locked'; projectId: string; twoWay: boolean };
+
+/** A locked target: the lock banner (with Unlock) and, once unlocked, "Continue to the review". */
+function LockedTarget({ projectId, onContinue }: { projectId: string; onContinue: () => void }) {
+  const project = useProject(projectId);
+  if (!project) return null;
+  return (
+    <section className="card card-pad stack" data-testid="import-locked">
+      <h2>{project.name}</h2>
+      {project.lock ? (
+        <>
+          <LockBanner project={project} />
+          <p className="small muted" style={{ margin: 0 }}>
+            The report was issued and the project is locked, so nothing can be re-imported into it. Unlock it for
+            follow-up to review the workbook's changes.
+          </p>
+        </>
+      ) : (
+        <button type="button" className="btn btn-primary" data-testid="import-continue" onClick={onContinue}>
+          Continue to the review
+        </button>
+      )}
+    </section>
+  );
+}
 
 export function ImportPage() {
   const [params] = useSearchParams();
@@ -34,6 +65,11 @@ export function ImportPage() {
 
   async function openReview(p: ParsedImport, projectId: string, twoWay: boolean) {
     const e = await engine();
+    const target = await db.projects.get(projectId);
+    if (target?.lock) {
+      setState({ step: 'locked', projectId, twoWay });
+      return;
+    }
     const review = await e.prepareReview(projectId, p, twoWay);
     setState({ step: 'review', review, projectName: review.bundle.project.name });
     window.scrollTo(0, 0);
@@ -97,6 +133,32 @@ export function ImportPage() {
           onCancel={() => nav(`/p/${state.review.projectId}/export`, { replace: true })}
           onApply={(d) => apply(state.review, d)}
         />
+      </Screen>
+    );
+  }
+  if (into?.lock && state.step !== 'locked') {
+    return (
+      <Screen title="Import workbook" subtitle={`into ${into.name}`} back={back}>
+        <LockBanner project={into} />
+        <p className="small muted" data-testid="import-blocked">
+          The report was issued and the project is locked: re-importing is blocked until it is unlocked for follow-up.
+        </p>
+      </Screen>
+    );
+  }
+  if (state.step === 'locked' && parsed) {
+    const { projectId, twoWay } = state;
+    return (
+      <Screen title="Import workbook" subtitle={parsed.fileName} back={back}>
+        <LockedTarget
+          projectId={projectId}
+          onContinue={() => void openReview(parsed, projectId, twoWay).catch((e: unknown) => setError(String(e)))}
+        />
+        {error && (
+          <div className="callout" data-tone="red" role="alert">
+            {error}
+          </div>
+        )}
       </Screen>
     );
   }

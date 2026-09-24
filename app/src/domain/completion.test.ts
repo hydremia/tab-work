@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { emptyNaState, type NaState } from '../data/types';
 import { sampleBundle } from '../test/fixtures';
-import { computeCompletion, photoNaKey, rollup, tableNaKey, type CompletionInput } from './completion';
+import {
+  computeCompletion,
+  displayColor,
+  photoNaKey,
+  rollup,
+  rollupText,
+  tableNaKey,
+  type CompletionInput,
+} from './completion';
 import { getSpec } from './specs';
 
 const project = { scopeProfile: 'full' as const, customScope: {}, tolerance: 0.1 };
@@ -343,6 +351,17 @@ describe('rollup', () => {
       amber: 1,
       green: 2,
       red: 1,
+      reviewed: 0,
     });
+  });
+
+  it('counts blue (reviewed) as complete and reviewed', () => {
+    const r = rollup(['blue', 'green', 'blue', 'amber']);
+    expect(r).toMatchObject({ total: 4, green: 3, reviewed: 2, amber: 1 });
+    expect(rollupText(r)).toBe('3/4 complete, 2 reviewed');
+    expect(rollupText(rollup(['green', 'amber']))).toBe('1/2 complete');
+    expect(displayColor('green', true)).toBe('blue');
+    expect(displayColor('red', true)).toBe('red');
+    expect(displayColor('green', false)).toBe('green');
   });
 });

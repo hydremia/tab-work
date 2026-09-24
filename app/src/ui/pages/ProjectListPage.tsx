@@ -2,7 +2,7 @@ import { Link } from 'react-router';
 import { useAllProjectRollups, useProjects } from '../../data/hooks';
 import type { Project } from '../../data/types';
 import { rollup, type Rollup } from '../../domain/completion';
-import { IconFolder, IconPlus, IconUpload } from '../components/Icons';
+import { IconFolder, IconLock, IconPlus, IconUpload } from '../components/Icons';
 import { Screen } from '../components/Screen';
 import { ProgressBar, RollupCounts } from '../components/Status';
 
@@ -29,11 +29,22 @@ function ProjectCard({ project, r }: { project: Project; r: Rollup }) {
             {[project.info.address, tab && `TAB ${tab}`].filter(Boolean).join(' · ') || 'No address yet'}
           </div>
         </div>
-        <span className="chip">{SCOPE[project.scopeProfile]}</span>
+        <span className="row" style={{ gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {project.lock && (
+            <span className="chip chip-issued" data-testid="project-issued" title="Locked: the report was issued">
+              <IconLock size={12} /> {project.lock.label}
+            </span>
+          )}
+          <span className="chip">{SCOPE[project.scopeProfile]}</span>
+        </span>
       </div>
       <ProgressBar rollup={r} />
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <span className="small muted">{r.total ? `${r.green} of ${r.total} units complete` : 'No equipment yet'}</span>
+        <span className="small muted">
+          {r.total
+            ? `${r.green} of ${r.total} units complete${r.reviewed ? ` · ${r.reviewed} reviewed` : ''}`
+            : 'No equipment yet'}
+        </span>
         {r.total > 0 && <RollupCounts rollup={r} />}
       </div>
     </Link>

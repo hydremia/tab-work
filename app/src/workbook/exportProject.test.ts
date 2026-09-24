@@ -5,7 +5,7 @@ import JSZip from 'jszip';
 import { importWorkbook, importWorkbookWithReport, listSheets, readText, TEMPLATE_FILE_NAME } from '@a2b/workbook';
 import { describe, expect, it } from 'vitest';
 import { db } from '../data/db';
-import { createRecord, setField } from '../data/repo';
+import { createRecord, setField, unlockProject, writeTables } from '../data/repo';
 import type { Revision } from '../data/types';
 import { sampleBundle } from '../test/fixtures';
 import type { ProjectBundle } from './adapter';
@@ -18,17 +18,13 @@ const template = new Uint8Array(
 );
 
 async function store(b: ProjectBundle): Promise<void> {
-  await db.transaction(
-    'rw',
-    [db.projects, db.equipment, db.airflowRows, db.issues, db.instruments, db.fieldChanges, db.meta],
-    async () => {
-      await createRecord('projects', b.project);
-      for (const e of b.equipment) await createRecord('equipment', e);
-      for (const r of b.rows) await createRecord('airflowRows', r);
-      for (const i of b.issues) await createRecord('issues', i);
-      for (const i of b.instruments) await createRecord('instruments', i);
-    },
-  );
+  await db.transaction('rw', writeTables(), async () => {
+    await createRecord('projects', b.project);
+    for (const e of b.equipment) await createRecord('equipment', e);
+    for (const r of b.rows) await createRecord('airflowRows', r);
+    for (const i of b.issues) await createRecord('issues', i);
+    for (const i of b.instruments) await createRecord('instruments', i);
+  });
 }
 
 async function editSheet(bytes: Uint8Array, sheet: string, edit: (xml: string) => string): Promise<Uint8Array> {
@@ -148,6 +144,28 @@ describe('export revisions', () => {
     expect(u.lines?.remarks).toEqual(['Belt replaced (new A42 belt).', 'Second remark line.']);
     const vba = async (x: Uint8Array) => (await JSZip.loadAsync(x)).file('xl/vbaProject.bin')!.async('uint8array');
     expect(await vba(rev1.bytes)).toEqual(await vba(template));
+  });
+
+  it('Issue report: exports the revision (marked issued) and locks the project at it; re-import is blocked', async () => {
+    const b = sampleBundle();
+    await store(b);
+    const rtu = b.equipment.find((e) => e.type === 'rtu')!;
+    const r = await exportProject(b.project.id, { template, label: 'Prelim', issue: true });
+    expect(r.revision).toMatchObject({ label: 'Prelim', issued: true });
+    const lock = (await db.projects.get(b.project.id))?.lock;
+    expect(lock).toMatchObject({ label: 'Prelim', revisionId: r.revision.id, userId: 'local' });
+    await expect(setField('equipment', rtu.id, 'data.serial', 'X')).rejects.toThrow(/issued as Prelim/);
+    const parsed = await parseWorkbook(r.bytes, 'issued.xlsm');
+    await expect(prepareReview(b.project.id, parsed)).rejects.toMatchObject({ name: 'LockedError' });
+    const kinds = (await db.history.where('projectId').equals(b.project.id).toArray())
+      .sort((x, y) => x.ts - y.ts)
+      .map((h) => h.kind)
+      .slice(-2);
+    expect(kinds).toEqual(['revision', 'lock']);
+    // unlocked for follow-up: the next suggestion is Rev 1 and the re-import review opens again
+    await unlockProject(b.project.id);
+    expect(suggestLabel(await listRevisions(b.project.id))).toBe('Rev 1');
+    expect((await prepareReview(b.project.id, parsed)).diff.items).toEqual([]);
   });
 
   it('a base that is no longer a revision-05 workbook: blank template, with a warning', async () => {

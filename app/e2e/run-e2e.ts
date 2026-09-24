@@ -20,6 +20,7 @@ import { fillNewTypes, readLivePanels, recalcCrossCheck, verifyNewTypes } from '
 import { reimportFlow } from './reimport';
 import { photosFlow } from './photos';
 import { pressuresAndAttention, scheduleFlow } from './features';
+import { workflowFlow } from './workflow';
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SHOTS = join(APP, 'e2e-screenshots');
@@ -597,6 +598,9 @@ async function main() {
 
     // ------------------------------------------------------------------ schedule import, duplicate (own project)
     await scheduleFlow(browser, BASE, file, DOC_SHOTS, check);
+
+    // ------------------------------------------------------------------ review, issue / lock, unlock, history
+    await workflowFlow(browser, BASE, file, OUT, DOC_SHOTS, check);
 
     check('no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   } catch (e) {

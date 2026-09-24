@@ -9,7 +9,7 @@
  */
 import { importWorkbookWithReport, type ProjectData, type RevisionMarker } from '@a2b/workbook';
 import { db } from '../data/db';
-import { createRecord, deleteRecord, setField } from '../data/repo';
+import { createRecord, deleteRecord, LockedError, setField, writeTables } from '../data/repo';
 import type { Revision } from '../data/types';
 import { uuid } from '../data/uuid';
 import { fromProjectData, type ProjectBundle } from './adapter';
@@ -49,19 +49,7 @@ export async function markerProject(parsed: ParsedImport): Promise<{ id: string;
   return p ? { id: p.id, name: p.name } : null;
 }
 
-const ALL_TABLES = () => [
-  db.projects,
-  db.equipment,
-  db.airflowRows,
-  db.issues,
-  db.instruments,
-  db.photos,
-  db.photoUploads,
-  db.fieldChanges,
-  db.meta,
-  db.revisions,
-  db.baseWorkbooks,
-];
+const ALL_TABLES = () => [...writeTables(), db.revisions, db.baseWorkbooks];
 
 async function keepAsBase(projectId: string, parsed: ParsedImport, blob: Blob, fromRevisionId: string | null) {
   await db.baseWorkbooks.put({
@@ -123,6 +111,8 @@ export interface Review {
  */
 export async function prepareReview(projectId: string, parsed: ParsedImport, twoWay = false): Promise<Review> {
   const bundle = await loadBundle(projectId);
+  // an issued (locked) report is frozen: no re-import review until it is unlocked for follow-up
+  if (bundle.project.lock) throw new LockedError(bundle.project.lock);
   const sameProject = parsed.marker?.projectId === projectId;
   const baseline: BaselineChoice = twoWay
     ? { revision: null, how: 'none' }
@@ -154,9 +144,9 @@ export async function applyReimport(
   const fromRevisionId = review.baseline.how === 'marker' ? (review.baseline.revision?.id ?? null) : null;
   await db.transaction('rw', ALL_TABLES(), async () => {
     for (const op of plan.ops) {
-      if (op.op === 'set') await setField(op.table, op.id, op.field, op.value);
-      else if (op.op === 'create') await createRecord(op.table, op.record);
-      else await deleteRecord(op.table, op.id);
+      if (op.op === 'set') await setField(op.table, op.id, op.field, op.value, { source: 'import' });
+      else if (op.op === 'create') await createRecord(op.table, op.record, { source: 'import' });
+      else await deleteRecord(op.table, op.id, { source: 'import' });
     }
     await keepAsBase(review.projectId, parsed, blob, fromRevisionId);
     await saveRevision(

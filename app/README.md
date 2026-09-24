@@ -51,12 +51,14 @@ Synced / N unsynced / Offline. Backend setup: [`supabase/README.md`](../supabase
 
 ```
 src/
-  data/        Dexie schema (db.ts), record types (types.ts), repository (repo.ts: setField + creates/deletes),
-               live-query hooks (hooks.ts), device / user identity, dotted-path helpers
+  data/        Dexie schema (db.ts), record types (types.ts), repository (repo.ts: setField + creates/deletes, report
+               lock, review), change history (history.ts: append / prune), live-query hooks (hooks.ts), device / user
+               identity, dotted-path helpers
   sync/        outbox.ts (pending / markSynced / applyRemoteChanges, last writer wins), engine.ts
                (LocalSyncEngine no-op, SupabaseSyncEngine push/pull), SyncProvider.tsx (status, online/offline)
   auth/        lazy Supabase client + Microsoft sign-in
-  domain/      scheduleImport.ts (schedule paste / file -> preview), duplicate.ts, projectCompletion.ts (project-level
+  domain/      historyView.ts (history labels, old / new text, filters, grouping), projectFields.ts,
+               scheduleImport.ts (schedule paste / file -> preview), duplicate.ts, projectCompletion.ts (project-level
                completion incl. building pressures), attention.ts (needs-attention list), instruments.ts (instrument
                kinds vs. calibration rows),
                equipmentTypes.ts (capacities from the template map), specs/ (field definitions for all 8 types;
@@ -74,7 +76,8 @@ src/
                live-calc panels, photo slots) and pages/
 e2e/run-e2e.ts Playwright walk-through (+ newTypes.ts: MAU, ERV, fan, small fan, hood, traverse; reimport.ts;
                photos.ts: photos, issues with photos, PDF reports, zip; features.ts: schedule import, duplicate,
-               building pressures, needs attention);  scripts/  template copy, icon generation
+               building pressures, needs attention; workflow.ts: review, issue / lock, unlock,
+               history);  scripts/  template copy, icon generation
 ```
 
 ### Data model and saving
@@ -85,8 +88,10 @@ separately for New and Existing), `photos` (Blob + metadata), `instruments`, `fi
 `meta`.
 
 **Every write goes through `setField(table, id, 'data.serial', value)`**, which updates the record and appends a
-FieldChange (record, field, value, user, device, timestamp, `synced = 0`) in one Dexie transaction. Consecutive
-unsynced edits of the same field are coalesced. Inputs keep a local draft and commit after a short pause and on blur.
+FieldChange (record, field, value, previous value, user, device, timestamp, `synced = 0`) and a history entry in one
+Dexie transaction. Consecutive unsynced edits of the same field are coalesced in the outbox (not in the history).
+Inputs keep a local draft and commit after a short pause and on blur. The repository also enforces the report lock
+and clears reviews (next section).
 
 Airflow rows are **their own records**, not an array inside the unit: two people adding or editing different rows
 of the same unit then never touch the same field, which is what the field-level sync merges on.
@@ -139,6 +144,54 @@ even if values were entered before (kept, restored when switching back, exported
 required only with Outlets. MAU (method total), hood (total) and traverse (CFM) are checked against design with the
 project tolerance at unit level; outlet tables row by row. Small fans past slot 30 show the Building Balance
 warning.
+
+## Review, report lock and change history (Phase 6)
+
+**Review / sign-off.** Any user (decision F4) can mark a **green** unit *Reviewed* on its page (unit summary → reviewer
+name, remembered on the device → *Mark reviewed*). `markReviewed()` (repo) re-checks the completion and stores
+`equipment.review = { name, userId, deviceId, at }` **through `setField`**, so it syncs. A reviewed unit shows the
+**blue** state (own icon shape: a filled square with a double check) on its card, badge and the progress bars; rollups
+count it as complete *and* reviewed: "RTUs 5/8 complete, 3 reviewed", "12 of 20 complete · 3 reviewed" on the
+Equipment tab and the project list, "Reviewed: 3 of 20 units" on Export; filters *To review* / *Reviewed*. Blue is a
+display state (`displayColor()`): the completion engine still says green, and a reviewed unit that stops being green
+(e.g. an issue opened on it) shows its real color. **Any change to a reviewed unit** — its fields, N/A marks, New /
+Existing, outlet / filter rows (added, edited, removed), its photos — **clears the review in the same transaction**
+(`review = null`, history entry *Review cleared automatically*). This happens in the repository, so imports and schedule
+imports clear it too. Another device's edit is cleared by that device (the clear syncs). *Clear review* is also a button.
+
+**Report lock.** Export tab → **Issue report as Prelim / Rev 1 …**: after a confirm dialog, the workbook is exported as
+that revision (the normal export: downloaded, kept as a revision, marked *Issued*) and the project is locked:
+`project.lock = { label, revisionId, name, userId, deviceId, at }`, a synced project field. While locked:
+- the repository refuses **every** write to the project's records (`LockedError`: setField, create, delete, reviews,
+  photos, issues, instruments, schedule import, re-import apply); only the `lock` field itself (unlock) and deleting
+  the whole project are allowed. `prepareReview()` refuses a locked project too;
+- every project page shows the banner **"Issued as Rev 1 on Sep 24, 2026 — unlock to edit"** with *Unlock*; forms are
+  read-only (`<fieldset disabled>`: Info, unit pages, Issues, Photos' add / viewer controls); Add equipment, Import
+  schedule and Re-import are hidden / blocked (the import screen offers Unlock, then continues to the review);
+- exports and PDF reports still work (they don't change data); the project list shows an *Issued* chip.
+**Unlock for follow-up** (banner or Export tab): a confirm dialog naming the issued revision and the next label
+(`suggestLabel()`: Prelim → Rev 1 → Rev 2). Who / when is in the history (and in the synced field change).
+
+**Change history.** A separate **append-only** table `history` (Dexie schema **v4**), because the outbox coalesces
+repeated unsynced edits of a field (one sync row, not one per pause) and would lose the intermediate values. Every
+repository write appends an entry in the same transaction: project, time, kind (`edit`, `create`, `delete`, `review`,
+`review-cleared`, `lock`, `unlock`, `import`, `revision`), table / record / field, the unit it belongs to (the unit, its
+rows and photos, linked issues), **previous and new value**, user id, reviewer name, device, and the source
+(re-import, schedule import, synced, automatic). Export / re-import revisions add an event; changes pulled from other
+devices are added when applied (previous = the local value before). New outbox entries also carry `previous` (the value
+before the first coalesced edit). The v4 upgrade backfills the history from the existing outbox / audit log; those
+entries have no previous value and show "—". The history is local (each device builds it from its own edits plus what
+it pulls); it is not pushed.
+- **History tab** (`/p/:id/history`): newest first, grouped by day, then runs of edits by the same person on the same
+  unit within 10 minutes; each line is "Field label: old → new" with readable labels ("Supply outlets S-2: Final VEL",
+  "FLA N/A", "Kitchen vs Dining remarks", "Issue E-3 remark") or an event ("Report issued and locked as Prelim",
+  "Report unlocked for follow-up (was Prelim)", "Marked reviewed by Dana", "Issued Prelim (file.xlsm)"). Filters
+  (collapsible): unit (or project-level only), field text, date range, user / device.
+- **Unit page → History**: the unit's own entries, with a link to the History tab filtered to it.
+- **Storage:** `pruneHistory()` runs at start-up: entries older than **12 months** are dropped, and each project keeps at
+  most the newest **5,000** (~0.2–0.5 kB each, so ≤ ~2.5 MB per project). Deleting a project deletes its history.
+- Server: `supabase/migrations/0002_review_lock.sql` adds the `review` / `lock` columns and their sync-column rows
+  (checked on PostgreSQL 16). The server does not enforce the lock; every device's repository does.
 
 ## Equipment schedule import
 
@@ -226,7 +279,7 @@ static pressures → a manometer.
 ## Code splitting
 
 Every page is its own chunk (`React.lazy` in `App.tsx`; the project list and the project frame load with the app), the
-workbook library (JSZip) and pdf-lib load on first use. Main bundle ~515 kB (under Vite's 600 kB warning, which is left
+workbook library (JSZip) and pdf-lib load on first use. Main bundle ~550 kB (under Vite's 600 kB warning, which is left
 at its default); every chunk is precached by the service worker, so pages still open offline.
 
 ## How export works
@@ -374,10 +427,16 @@ is 51 pages (unit test). The zip is built in memory (the stored JPEGs, not recom
 
 ## Tests
 
-- `npm test`: 248 tests (23 in `packages/workbook`: the schedule readers (EDE section only, sheet grids), export onto an issued workbook (clearing, hand formatting kept,
+- `npm test`: 274 tests (23 in `packages/workbook`: the schedule readers (EDE section only, sheet grids), export onto an issued workbook (clearing, hand formatting kept,
   an Excel-style shared-strings save, formulas typed over inputs), the revision marker, the compatibility check (incl.
   revision 04 rejected), plus list and constants copies vs. the template, a map audit that
-  fills **every** block of every type, round trip, safety; 225 in the app, incl. schedule import (paste / CSV parsing, header mapping, numbers / phase /
+  fills **every** block of every type, round trip, safety; 251 in the app, incl. the Phase 6 workflow (`data/workflow.test.ts`: review only when green,
+  blue rollups, automatic clear on field / row / photo changes but not on issue or remote edits, the lock refusing
+  every kind of write at the repository level with nothing written, unlock, remote lock, lock / unlock / revision
+  events, previous values while the outbox coalesces, schedule-import source, prune, the v3 → v4 upgrade; an issued
+  export locking the project and blocking the re-import review; `domain/historyView.test.ts`: labels, values,
+  grouping, filters; jsdom `ui/workflow.test.tsx`: Mark reviewed → blue, list rollup, lock banner and read-only form,
+  Unlock with confirm, Export / Equipment / Import while locked, History tab and the unit's History), schedule import (paste / CSV parsing, header mapping, numbers / phase /
   V/Ph/Hz, preview with create / update / invalid / duplicate / over-capacity rows, apply through the outbox),
   duplicate (next designation, what is copied, rows without readings), building pressures (export, automatic kitchen
   N/A, import, re-import diff, project-level completion), needs attention and instrument / calibration matching, jsdom
@@ -419,17 +478,25 @@ is 51 pages (unit test). The zip is built in memory (the stored JPEGs, not recom
   pixel) → New / Existing issues with deficiency photos (N-1.1, N-1.2, E-1.1; reorder relabels) → Photos tab
   (groups, filter, missing list, storage) → Photo Report, Issues Report (all / New / Existing), combined report and
   zip downloaded and checked in Node (pdf-lib page counts, `pdftotext` labels, JSZip names); page 1 of the Photo
-  and Issues reports rendered with `pdftoppm`.
+  and Issues reports rendered with `pdftoppm`. **Reporting workflow** (`e2e/workflow.ts`, own context, the export
+  imported): RTU-1 made green → *Mark reviewed* → blue card and "RTUs 1/2 complete, 1 reviewed" → an edit clears the
+  review → reviewed again → *Issue report* "Prelim" (download, banner, *Issued* revision, re-import blocked) → the unit
+  form is read-only and typing changes nothing, no Add / Import → *Unlock* (confirm names Rev 1) → the edit saves, Rev 1
+  suggested → History lists the review, the automatic clear, the issued revision, lock, unlock and the edits old → new;
+  unit filter; the unit's History section.
   Uses `PLAYWRIGHT_BROWSERS_PATH` or `CHROMIUM_PATH` (falls back
   to `/opt/pw-browsers/chromium`) and `soffice` for the recalculation; never downloads a browser. Screenshots go to
   `e2e-screenshots/` (git-ignored); a few are kept in [`docs/screenshots/`](../docs/screenshots) (07–12: the new
   forms; 13: RTU motor and static-profile panels; 14: re-import review; 15: revisions; 16: Photos tab; 17: issue
   with deficiency photos; 18 / 19: page 1 of the Photo and Issues reports; 20: schedule import preview; 21: needs attention; 22: building
-  pressures).
+  pressures; 23: reviewed (blue) units; 24: locked (issued) unit page; 25: History).
 
 ## Not done yet
 
-Supabase sync against a live project (engine written, untested); the photo upload itself (queue in place, Phase 5)
+Supabase sync against a live project (engine written, untested); the report lock is enforced by each device, not by
+the server (an old app version or a device that has not pulled the lock yet can still push edits); the history is
+per device (not synced, so a new device starts with what it pulls); photos can't be opened from a unit page while the
+project is locked (use the Photos tab, whose viewer is read-only then); the photo upload itself (queue in place, Phase 5)
 and server columns for the new photo fields (`order`, `width`, `height`, `capturedAt`, `gps` are ignored by the
 server trigger until a migration adds them); photos tested in Chromium only (no real iPhone camera / HEIC run);
 revisions are not synced between devices; re-import behaviour after a real desktop-Excel save is untested (simulated
