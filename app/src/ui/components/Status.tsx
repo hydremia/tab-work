@@ -1,10 +1,16 @@
-import type { Rollup, StatusColor } from '../../domain/completion';
+import type { DisplayColor, Rollup } from '../../domain/completion';
 import { STATUS_LABEL } from '../../domain/completion';
-import { IconStatusAmber, IconStatusGray, IconStatusGreen, IconStatusRed } from './Icons';
+import { IconStatusAmber, IconStatusBlue, IconStatusGray, IconStatusGreen, IconStatusRed } from './Icons';
 
-const ICONS = { gray: IconStatusGray, amber: IconStatusAmber, green: IconStatusGreen, red: IconStatusRed };
+const ICONS = {
+  gray: IconStatusGray,
+  amber: IconStatusAmber,
+  green: IconStatusGreen,
+  red: IconStatusRed,
+  blue: IconStatusBlue,
+};
 
-export function StatusIcon({ color, size = 20 }: { color: StatusColor; size?: number }) {
+export function StatusIcon({ color, size = 20 }: { color: DisplayColor; size?: number }) {
   const I = ICONS[color];
   return (
     <span className="status-icon" data-color={color} style={{ display: 'inline-flex' }}>
@@ -13,7 +19,7 @@ export function StatusIcon({ color, size = 20 }: { color: StatusColor; size?: nu
   );
 }
 
-export function StatusBadge({ color, label }: { color: StatusColor; label?: string }) {
+export function StatusBadge({ color, label }: { color: DisplayColor; label?: string }) {
   return (
     <span className="status" data-color={color} data-testid="status-badge">
       <StatusIcon color={color} size={16} />
@@ -28,9 +34,10 @@ export function ProgressBar({ rollup }: { rollup: Rollup }) {
     <div
       className="progress"
       role="img"
-      aria-label={`${rollup.green} of ${rollup.total} complete, ${rollup.amber} in progress, ${rollup.red} need attention, ${rollup.gray} not started`}
+      aria-label={`${rollup.green} of ${rollup.total} complete${rollup.reviewed ? ` (${rollup.reviewed} reviewed)` : ''}, ${rollup.amber} in progress, ${rollup.red} need attention, ${rollup.gray} not started`}
     >
-      <span className="seg-green" style={{ width: pct(rollup.green) }} />
+      <span className="seg-blue" style={{ width: pct(rollup.reviewed) }} />
+      <span className="seg-green" style={{ width: pct(rollup.green - rollup.reviewed) }} />
       <span className="seg-red" style={{ width: pct(rollup.red) }} />
       <span className="seg-amber" style={{ width: pct(rollup.amber) }} />
       <span className="seg-gray" style={{ width: pct(rollup.gray) }} />
@@ -39,12 +46,17 @@ export function ProgressBar({ rollup }: { rollup: Rollup }) {
 }
 
 export function RollupCounts({ rollup }: { rollup: Rollup }) {
+  const n = (c: DisplayColor) =>
+    c === 'blue' ? rollup.reviewed : c === 'green' ? rollup.green - rollup.reviewed : rollup[c];
+  const shown: DisplayColor[] = rollup.reviewed
+    ? ['blue', 'green', 'red', 'amber', 'gray']
+    : ['green', 'red', 'amber', 'gray'];
   return (
     <div className="counts">
-      {(['green', 'red', 'amber', 'gray'] as const).map((c) => (
+      {shown.map((c) => (
         <span key={c} title={STATUS_LABEL[c]}>
           <StatusIcon color={c} size={16} />
-          {rollup[c]} <span className="visually-hidden">{STATUS_LABEL[c]}</span>
+          {n(c)} <span className="visually-hidden">{STATUS_LABEL[c]}</span>
         </span>
       ))}
     </div>

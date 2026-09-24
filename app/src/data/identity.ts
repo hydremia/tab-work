@@ -27,6 +27,7 @@ export function getDeviceId(): Promise<string> {
 export function resetIdentityCache(): void {
   deviceIdPromise = null;
   currentUserId = 'local';
+  userName = null;
 }
 
 let lastTs = 0;
@@ -34,4 +35,18 @@ let lastTs = 0;
 export function nextTimestamp(): number {
   lastTs = Math.max(Date.now(), lastTs + 1);
   return lastTs;
+}
+
+let userName: string | null = null;
+/** The name this device signs reviews and report locks with (meta "userName"; '' until given). */
+export async function getUserName(): Promise<string> {
+  if (userName === null) {
+    const row = await db.meta.get('userName');
+    userName = typeof row?.value === 'string' ? row.value : '';
+  }
+  return userName;
+}
+export async function setUserName(name: string): Promise<void> {
+  userName = name.trim();
+  await db.meta.put({ key: 'userName', value: userName });
 }

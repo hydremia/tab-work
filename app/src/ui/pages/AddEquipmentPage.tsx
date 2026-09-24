@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router';
 import { useEquipmentList, useProject } from '../../data/hooks';
 import { addEquipment } from '../../data/repo';
 import { EQUIPMENT_TYPES, suggestDesignation, type EquipmentTypeKey } from '../../domain/equipmentTypes';
+import { LockBanner } from '../components/LockBanner';
 import { Screen } from '../components/Screen';
 
 export function AddEquipmentPage() {
@@ -37,6 +38,13 @@ export function AddEquipmentPage() {
     }
   }
 
+  if (project.lock)
+    return (
+      <Screen title="Add equipment" subtitle={project.name} back={`/p/${project.id}/equipment`}>
+        <LockBanner project={project} />
+        <p className="small muted">Units can be added again after the report is unlocked for follow-up.</p>
+      </Screen>
+    );
   return (
     <Screen title="Add equipment" subtitle={project.name} back={`/p/${project.id}/equipment`}>
       <form className="card card-pad stack" onSubmit={(e) => void submit(e)}>

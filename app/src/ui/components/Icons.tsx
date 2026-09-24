@@ -114,3 +114,28 @@ export const IconStatusRed = (p: P) => (
     <path d="M12 10v4.5M12 17.5v.01" stroke="#fff" strokeWidth={2.4} />
   </svg>
 );
+/* Reviewed (blue): a filled rounded square with a double check, a shape of its own. */
+export const IconStatusBlue = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="3" y="3" width="18" height="18" rx="5" fill="currentColor" stroke="none" />
+    <path d="M6.5 12.5l2.3 2.3 4.7-5M11.8 14.6l.7.7 4.7-5" stroke="#fff" strokeWidth={1.9} />
+  </svg>
+);
+export const IconLock = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="5" y="11" width="14" height="10" rx="2" />
+    <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+  </svg>
+);
+export const IconUnlock = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="5" y="11" width="14" height="10" rx="2" />
+    <path d="M8 11V8a4 4 0 0 1 7.5-2" />
+  </svg>
+);
+export const IconHistory = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+    <path d="M3 3v5h5M12 7v5l3 2" />
+  </svg>
+);

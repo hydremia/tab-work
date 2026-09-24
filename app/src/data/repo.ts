@@ -1,16 +1,25 @@
 /**
  * Repository: the only place that writes to the local database. Every edit goes through `setField()`, which
- * updates the record AND appends a FieldChange to the sync outbox in one Dexie transaction. Creates and
- * deletes are logged the same way (op 'create' / 'delete').
+ * updates the record AND appends a FieldChange to the sync outbox AND a HistoryEntry to the change history in one
+ * Dexie transaction. Creates and deletes are logged the same way (op 'create' / 'delete').
+ *
+ * Phase 6 rules enforced here (not only in the UI):
+ *  - report lock: while a project is locked (issued), every write to its records is refused with LockedError,
+ *    except the lock field itself (unlock) and deleting the whole project;
+ *  - review: any change to a reviewed unit (its fields, N/A marks, rows, photos) clears the review in the same
+ *    transaction, noted in the history as an automatic review clear.
  */
 import { DEFAULT_INSTRUMENTS, TEMPLATE_MAP, TEMPLATE_REVISION, tableRows } from '@a2b/workbook/map';
 import type { Table } from 'dexie';
+import { computeCompletion } from '../domain/completion';
 import { duplicateData, duplicateRow } from '../domain/duplicate';
 import { equipmentType, nextFreeSlot, type EquipmentTypeKey } from '../domain/equipmentTypes';
 import type { PreviewRow } from '../domain/scheduleImport';
+import { getSpec } from '../domain/specs';
 import { db } from './db';
+import { appendHistory, currentActor } from './history';
 import { uuid } from './uuid';
-import { getCurrentUser, getDeviceId, nextTimestamp } from './identity';
+import { getCurrentUser, getDeviceId, getUserName, nextTimestamp, setUserName } from './identity';
 import { deepEqual, getPath, setPath, assertEditablePath } from './paths';
 import { comparePhotos, groupKeyOf, sortKey } from '../photos/labels';
 import {
@@ -18,17 +27,48 @@ import {
   type AirflowRow,
   type Equipment,
   type FieldChange,
+  type HistoryEntry,
+  type HistoryKind,
   type Instrument,
   type Issue,
   type IssueKind,
   type Photo,
   type PhotoCategory,
   type Project,
+  type ProjectLock,
   type ScopeProfile,
+  type Signature,
   type TableName,
 } from './types';
 
 type AnyRecord = { id: string; projectId?: string; updatedAt: number };
+
+/** Every table a repository write can touch (nested transactions must be a subset of their parent's tables). */
+export const writeTables = () => [
+  db.projects,
+  db.equipment,
+  db.airflowRows,
+  db.issues,
+  db.photos,
+  db.instruments,
+  db.fieldChanges,
+  db.history,
+  db.meta,
+  db.photoUploads,
+];
+
+/** Where a write comes from (recorded in the history). */
+export interface WriteOptions {
+  source?: HistoryEntry['source'];
+  note?: string;
+}
+
+export class LockedError extends Error {
+  constructor(lock: ProjectLock) {
+    super(`The report was issued as ${lock.label}; unlock the project to edit.`);
+    this.name = 'LockedError';
+  }
+}
 
 function tableOf(name: TableName): Table<AnyRecord, string> {
   return db.table(name) as Table<AnyRecord, string>;
@@ -36,6 +76,35 @@ function tableOf(name: TableName): Table<AnyRecord, string> {
 
 function projectIdOf(name: TableName, rec: AnyRecord): string {
   return name === 'projects' ? rec.id : (rec.projectId ?? '');
+}
+
+/** The unit a record belongs to: the unit itself, or a row / photo / issue linked to it. */
+export function unitOf(name: TableName, rec: AnyRecord): string | null {
+  if (name === 'equipment') return rec.id;
+  if (name === 'airflowRows' || name === 'photos' || name === 'issues')
+    return (rec as unknown as { equipmentId?: string | null }).equipmentId ?? null;
+  return null;
+}
+
+/** Short description of a record for create / delete history entries. */
+function describe(name: TableName, rec: AnyRecord): string {
+  const r = rec as unknown as Record<string, unknown>;
+  switch (name) {
+    case 'projects':
+      return String(r.name ?? '');
+    case 'equipment':
+      return String(r.designation ?? '');
+    case 'issues':
+      return `Issue ${r.kind === 'existing' ? 'E' : 'N'}-${String(r.number ?? '')}`;
+    case 'airflowRows': {
+      const no = (r.data as Record<string, unknown> | undefined)?.no;
+      return `${String(r.table ?? '')} row${no ? ` ${String(no)}` : ''}`;
+    }
+    case 'photos':
+      return `${String(r.category ?? '')} photo`;
+    case 'instruments':
+      return String(r.type || 'instrument');
+  }
 }
 
 /** Outbox copy of a record: photos are logged without their Blob (the file uploads separately). */
@@ -47,8 +116,15 @@ function loggable(name: TableName, rec: AnyRecord): unknown {
   return rec;
 }
 
+export function historyKind(table: TableName, field: string, value: unknown): HistoryKind {
+  if (table === 'equipment' && field === 'review') return value ? 'review' : 'review-cleared';
+  if (table === 'projects' && field === 'lock') return value ? 'lock' : 'unlock';
+  return 'edit';
+}
+
 async function change(
-  partial: Pick<FieldChange, 'projectId' | 'table' | 'recordId' | 'op' | 'field' | 'value'>,
+  partial: Pick<FieldChange, 'projectId' | 'table' | 'recordId' | 'op' | 'field' | 'value'> &
+    Partial<Pick<FieldChange, 'previous'>>,
   ts: number,
 ): Promise<FieldChange> {
   return {
@@ -61,19 +137,49 @@ async function change(
   };
 }
 
+/** Refuse writes to a locked project (the lock field itself stays writable, so it can be unlocked). */
+async function assertUnlocked(projectId: string, table: TableName, field: string, rec?: AnyRecord): Promise<void> {
+  if (!projectId) return;
+  if (table === 'projects' && field === 'lock') return;
+  const project = table === 'projects' && rec ? (rec as unknown as Project) : await db.projects.get(projectId);
+  if (project?.lock) throw new LockedError(project.lock);
+}
+
+/** A change to a reviewed unit (or its rows / photos) clears the review. */
+async function clearReviewAfter(table: TableName, rec: AnyRecord, field: string, opts: WriteOptions): Promise<void> {
+  if (opts.source === 'remote') return;
+  if (table === 'issues' || (table === 'equipment' && field === 'review')) return;
+  const unitId = unitOf(table, rec);
+  if (!unitId) return;
+  const unit = await db.equipment.get(unitId);
+  if (!unit?.review) return;
+  await setField('equipment', unitId, 'review', null, { source: 'auto', note: 'automatic' });
+}
+
 /**
  * Set one field of one record. `field` is a dotted path inside the record ("data.serial",
  * "naState.fields.serial", "blueprints.0.sheet"). No-op when the value is unchanged.
- * Consecutive unsynced edits of the same field from this device are coalesced into one outbox entry.
+ * Consecutive unsynced edits of the same field from this device are coalesced into one outbox entry (the history
+ * keeps every step, with the value before).
  */
-export async function setField(table: TableName, recordId: string, field: string, value: unknown): Promise<void> {
+export async function setField(
+  table: TableName,
+  recordId: string,
+  field: string,
+  value: unknown,
+  opts: WriteOptions = {},
+): Promise<void> {
   assertEditablePath(field);
-  const deviceId = await getDeviceId();
-  await db.transaction('rw', tableOf(table), db.fieldChanges, async () => {
+  const actor = await currentActor();
+  const deviceId = actor.deviceId;
+  await db.transaction('rw', writeTables(), async () => {
     const t = tableOf(table);
     const rec = await t.get(recordId);
     if (!rec) throw new Error(`${table}/${recordId} not found`);
-    if (deepEqual(getPath(rec, field), value)) return;
+    const before = getPath(rec, field);
+    if (deepEqual(before, value)) return;
+    const projectId = projectIdOf(table, rec);
+    await assertUnlocked(projectId, table, field, rec);
     const ts = nextTimestamp();
     const next = setPath(rec, field, value);
     next.updatedAt = ts;
@@ -85,80 +191,119 @@ export async function setField(table: TableName, recordId: string, field: string
       .toArray();
     const prev = pending.sort((a, b) => b.ts - a.ts)[0];
     if (prev) {
+      // coalesced: the entry keeps the value before its first edit
       await db.fieldChanges.update(prev.id, { value: value ?? null, ts, userId: getCurrentUser() });
     } else {
       await db.fieldChanges.add(
         await change(
-          { projectId: projectIdOf(table, rec), table, recordId, op: 'set', field, value: value ?? null },
+          { projectId, table, recordId, op: 'set', field, value: value ?? null, previous: before ?? null },
           ts,
         ),
       );
     }
+    await appendHistory(
+      {
+        projectId,
+        ts,
+        kind: historyKind(table, field, value),
+        table,
+        recordId,
+        equipmentId: unitOf(table, next),
+        field,
+        previous: before ?? null,
+        value: value ?? null,
+        ...(opts.note ? { note: opts.note } : {}),
+        ...(opts.source ? { source: opts.source } : {}),
+      },
+      actor,
+    );
+    await clearReviewAfter(table, next, field, opts);
   });
 }
 
 /** Set several fields of one record (each is its own field change, one transaction). */
-export async function setFields(table: TableName, recordId: string, values: Record<string, unknown>): Promise<void> {
-  await db.transaction('rw', tableOf(table), db.fieldChanges, db.meta, async () => {
-    for (const [k, v] of Object.entries(values)) await setField(table, recordId, k, v);
+export async function setFields(
+  table: TableName,
+  recordId: string,
+  values: Record<string, unknown>,
+  opts: WriteOptions = {},
+): Promise<void> {
+  await db.transaction('rw', writeTables(), async () => {
+    for (const [k, v] of Object.entries(values)) await setField(table, recordId, k, v, opts);
   });
 }
 
-export async function createRecord<T extends AnyRecord>(table: TableName, rec: T): Promise<T> {
-  await getDeviceId();
-  await db.transaction('rw', tableOf(table), db.fieldChanges, async () => {
+export async function createRecord<T extends AnyRecord>(table: TableName, rec: T, opts: WriteOptions = {}): Promise<T> {
+  const actor = await currentActor();
+  await db.transaction('rw', writeTables(), async () => {
+    const projectId = projectIdOf(table, rec);
+    if (table !== 'projects') await assertUnlocked(projectId, table, '');
+    const ts = nextTimestamp();
     await tableOf(table).add(rec);
     await db.fieldChanges.add(
-      await change(
-        {
-          projectId: projectIdOf(table, rec),
-          table,
-          recordId: rec.id,
-          op: 'create',
-          field: '',
-          value: loggable(table, rec),
-        },
-        nextTimestamp(),
-      ),
+      await change({ projectId, table, recordId: rec.id, op: 'create', field: '', value: loggable(table, rec) }, ts),
     );
+    await appendHistory(
+      {
+        projectId,
+        ts,
+        kind: 'create',
+        table,
+        recordId: rec.id,
+        equipmentId: unitOf(table, rec),
+        field: '',
+        note: describe(table, rec),
+        ...(opts.source ? { source: opts.source } : {}),
+      },
+      actor,
+    );
+    if (table === 'airflowRows' || table === 'photos') await clearReviewAfter(table, rec, '', opts);
   });
   return rec;
 }
 
-export async function deleteRecord(table: TableName, recordId: string): Promise<void> {
-  await getDeviceId();
+export async function deleteRecord(table: TableName, recordId: string, opts: WriteOptions = {}): Promise<void> {
+  const actor = await currentActor();
   await db.transaction(
     'rw',
     [
-      db.projects,
-      db.equipment,
-      db.airflowRows,
-      db.issues,
-      db.photos,
-      db.instruments,
-      db.fieldChanges,
-      db.photoUploads,
+      ...writeTables(),
       // only a project delete touches the local revision tables (keeps nested transactions of other deletes valid)
       ...(table === 'projects' ? [db.revisions, db.baseWorkbooks] : []),
     ],
     async () => {
       const rec = await tableOf(table).get(recordId);
       if (!rec) return;
+      // deleting a whole (locked) project is allowed; anything inside a locked project is not
+      if (table !== 'projects') await assertUnlocked(projectIdOf(table, rec), table, '');
       const log = async (name: TableName, r: AnyRecord) => {
         await tableOf(name).delete(r.id);
         if (name === 'photos') await db.photoUploads.delete(r.id);
+        const ts = nextTimestamp();
+        const projectId = projectIdOf(name, r);
         await db.fieldChanges.add(
-          await change(
-            { projectId: projectIdOf(name, r), table: name, recordId: r.id, op: 'delete', field: '', value: null },
-            nextTimestamp(),
-          ),
+          await change({ projectId, table: name, recordId: r.id, op: 'delete', field: '', value: null }, ts),
+        );
+        await appendHistory(
+          {
+            projectId,
+            ts,
+            kind: 'delete',
+            table: name,
+            recordId: r.id,
+            equipmentId: unitOf(name, r),
+            field: '',
+            note: describe(name, r),
+            ...(opts.source ? { source: opts.source } : {}),
+          },
+          actor,
         );
       };
       if (table === 'projects') {
         for (const name of ['airflowRows', 'photos', 'issues', 'instruments', 'equipment'] as const) {
           for (const child of await tableOf(name).where('projectId').equals(recordId).toArray()) await log(name, child);
         }
-        // local revision history and the base workbook go with the project (not synced)
+        // local revision history, the base workbook and the change history go with the project (not synced)
         await db.revisions.where('projectId').equals(recordId).delete();
         await db.baseWorkbooks.delete(recordId);
       } else if (table === 'equipment') {
@@ -166,15 +311,80 @@ export async function deleteRecord(table: TableName, recordId: string): Promise<
           await log('airflowRows', r);
         for (const p of await db.photos.where('equipmentId').equals(recordId).toArray()) await log('photos', p);
         for (const i of await db.issues.where('equipmentId').equals(recordId).toArray()) {
-          await setField('issues', i.id, 'equipmentId', null); // the issue becomes "General (N/A)"
+          await setField('issues', i.id, 'equipmentId', null, opts); // the issue becomes "General (N/A)"
         }
       } else if (table === 'issues') {
         // an issue's deficiency photos go with it
         for (const p of await db.photos.where('issueId').equals(recordId).toArray()) await log('photos', p);
       }
       await log(table, rec);
+      if (table === 'projects') await db.history.where('projectId').equals(recordId).delete();
+      else if (table === 'airflowRows' || table === 'photos') await clearReviewAfter(table, rec, '', opts);
     },
   );
+}
+
+// ------------------------------------------------------------------------------------------ review, report lock
+async function signature(): Promise<Signature> {
+  const [deviceId, name] = await Promise.all([getDeviceId(), getUserName()]);
+  return { name, userId: getCurrentUser(), deviceId, at: Date.now() };
+}
+
+export class NotCompleteError extends Error {
+  constructor(designation: string) {
+    super(`${designation} is not complete (green) yet, so it can't be marked reviewed.`);
+    this.name = 'NotCompleteError';
+  }
+}
+
+/** Is the unit complete (green) right now? (The same completion the UI shows.) */
+export async function isUnitGreen(equipmentId: string): Promise<boolean> {
+  const unit = await db.equipment.get(equipmentId);
+  if (!unit) return false;
+  const [project, rows, photos, issues] = await Promise.all([
+    db.projects.get(unit.projectId),
+    db.airflowRows.where('equipmentId').equals(equipmentId).toArray(),
+    db.photos.where('equipmentId').equals(equipmentId).toArray(),
+    db.issues.where('equipmentId').equals(equipmentId).toArray(),
+  ]);
+  if (!project) return false;
+  return (
+    computeCompletion({
+      spec: getSpec(unit.type),
+      unit,
+      rows,
+      photos,
+      project,
+      openIssues: issues.filter((i) => i.status === 'Open').length,
+    }).color === 'green'
+  );
+}
+
+/**
+ * Sign a green unit off as reviewed (any user, decision F4). `name` (optional) is remembered on this device as the
+ * reviewer name. The review is a synced field (`review`: name, user, device, time).
+ */
+export async function markReviewed(equipmentId: string, name?: string): Promise<void> {
+  if (name !== undefined && name.trim()) await setUserName(name);
+  const unit = await db.equipment.get(equipmentId);
+  if (!unit) throw new Error('unit not found');
+  if (!(await isUnitGreen(equipmentId))) throw new NotCompleteError(unit.designation);
+  await setField('equipment', equipmentId, 'review', await signature());
+}
+
+export async function clearReview(equipmentId: string): Promise<void> {
+  await setField('equipment', equipmentId, 'review', null);
+}
+
+/** Lock the project at an issued revision (Export tab → Issue report). */
+export async function lockProject(projectId: string, label: string, revisionId: string | null): Promise<void> {
+  const lock: ProjectLock = { ...(await signature()), label, revisionId };
+  await setField('projects', projectId, 'lock', lock);
+}
+
+/** Unlock for follow-up (the history keeps who / when; the next export label is suggested from the revisions). */
+export async function unlockProject(projectId: string): Promise<void> {
+  await setField('projects', projectId, 'lock', null);
 }
 
 // ------------------------------------------------------------------------------------------ projects
@@ -201,7 +411,7 @@ export async function createProject(input: NewProjectInput): Promise<Project> {
     createdAt: now,
     updatedAt: now,
   };
-  await db.transaction('rw', db.projects, db.instruments, db.fieldChanges, db.meta, async () => {
+  await db.transaction('rw', writeTables(), async () => {
     await createRecord('projects', project);
     // the template's 7 pre-loaded a2b instruments (the export replaces the Calibration list)
     let order = 0;
@@ -242,7 +452,7 @@ export async function addEquipment(
   isExisting = false,
 ): Promise<Equipment> {
   const info = equipmentType(type);
-  return db.transaction('rw', db.equipment, db.fieldChanges, db.meta, async () => {
+  return db.transaction('rw', writeTables(), async () => {
     const existing = await db.equipment.where('[projectId+type]').equals([projectId, type]).toArray();
     const slot = nextFreeSlot(
       existing.map((e) => e.slot),
@@ -279,7 +489,7 @@ export async function addAirflowRow(
   table: string,
   data: AirflowRow['data'] = {},
 ): Promise<AirflowRow> {
-  return db.transaction('rw', db.airflowRows, db.fieldChanges, db.meta, async () => {
+  return db.transaction('rw', writeTables(), async () => {
     const rows = (await db.airflowRows.where('equipmentId').equals(equipment.id).toArray()).filter(
       (r) => r.table === table,
     );
@@ -313,7 +523,7 @@ export async function applyScheduleImport(
   rows: readonly Pick<PreviewRow, 'action' | 'designation' | 'values' | 'existingId'>[],
   isExisting = false,
 ): Promise<{ created: Equipment[]; updated: number }> {
-  return db.transaction('rw', db.equipment, db.fieldChanges, db.meta, async () => {
+  return db.transaction('rw', writeTables(), async () => {
     const created: Equipment[] = [];
     let updated = 0;
     for (const r of rows) {
@@ -327,7 +537,7 @@ export async function applyScheduleImport(
       if (!id) continue;
       for (const [k, v] of Object.entries(r.values)) {
         if (v === null || v === '') continue;
-        await setField('equipment', id, `data.${k}`, v);
+        await setField('equipment', id, `data.${k}`, v, { source: 'schedule' });
       }
     }
     return { created, updated };
@@ -343,7 +553,7 @@ export async function duplicateEquipment(
   designation: string,
   opts: { rows?: boolean } = {},
 ): Promise<Equipment> {
-  return db.transaction('rw', db.equipment, db.airflowRows, db.fieldChanges, db.meta, async () => {
+  return db.transaction('rw', writeTables(), async () => {
     const src = await db.equipment.get(sourceId);
     if (!src) throw new Error('unit not found');
     const unit = await addEquipment(src.projectId, src.type, designation, src.isExisting);
@@ -381,7 +591,7 @@ export async function addIssue(
   projectId: string,
   input: Partial<Pick<Issue, 'kind' | 'remark' | 'status' | 'comments' | 'equipmentId'>> = {},
 ): Promise<Issue> {
-  return db.transaction('rw', db.issues, db.fieldChanges, db.meta, async () => {
+  return db.transaction('rw', writeTables(), async () => {
     const kind: IssueKind = input.kind ?? 'new';
     const same = await db.issues.where('[projectId+kind]').equals([projectId, kind]).toArray();
     const now = Date.now();
@@ -420,8 +630,6 @@ export interface PhotoImage {
   fileName?: string;
 }
 
-const photoTables = () => [db.photos, db.photoUploads, db.fieldChanges, db.meta];
-
 /** Next sort key at the end of the photo's group. */
 async function nextPhotoOrder(
   projectId: string,
@@ -443,7 +651,7 @@ export async function addPhoto(
     typeof categoryOrTarget === 'string' ? { category: categoryOrTarget, equipmentId } : categoryOrTarget;
   const img: PhotoImage = file instanceof Blob ? { blob: file, fileName: (file as { name?: string }).name } : file;
   const now = Date.now();
-  return db.transaction('rw', photoTables(), async () => {
+  return db.transaction('rw', writeTables(), async () => {
     const base = {
       category: target.category,
       equipmentId:
@@ -488,24 +696,20 @@ export async function replacePhoto(
   category: PhotoCategory,
   equipmentId: string | null = null,
 ): Promise<Photo> {
-  return db.transaction(
-    'rw',
-    [...photoTables(), db.projects, db.equipment, db.airflowRows, db.issues, db.instruments],
-    async () => {
-      const old = (await db.photos.where('[projectId+category]').equals([projectId, category]).toArray()).filter(
-        (p) => p.equipmentId === equipmentId,
-      );
-      for (const p of old) await deleteRecord('photos', p.id);
-      const photo = await addPhoto(projectId, file, { category, equipmentId });
-      if (old[0]) await setField('photos', photo.id, 'order', sortKey(old[0]));
-      return (await db.photos.get(photo.id))!;
-    },
-  );
+  return db.transaction('rw', writeTables(), async () => {
+    const old = (await db.photos.where('[projectId+category]').equals([projectId, category]).toArray()).filter(
+      (p) => p.equipmentId === equipmentId,
+    );
+    for (const p of old) await deleteRecord('photos', p.id);
+    const photo = await addPhoto(projectId, file, { category, equipmentId });
+    if (old[0]) await setField('photos', photo.id, 'order', sortKey(old[0]));
+    return (await db.photos.get(photo.id))!;
+  });
 }
 
 /** Move a photo one place earlier (-1) or later (+1) within its group (swaps sort keys with the neighbour). */
 export async function movePhoto(photoId: string, dir: -1 | 1): Promise<void> {
-  await db.transaction('rw', photoTables(), async () => {
+  await db.transaction('rw', writeTables(), async () => {
     const photo = await db.photos.get(photoId);
     if (!photo) return;
     const key = groupKeyOf(photo);
@@ -523,7 +727,7 @@ export async function movePhoto(photoId: string, dir: -1 | 1): Promise<void> {
 
 /** Re-attach a photo (category, equipment, issue); it moves to the end of its new group. */
 export async function reassignPhoto(photoId: string, target: PhotoTarget): Promise<void> {
-  await db.transaction('rw', photoTables(), async () => {
+  await db.transaction('rw', writeTables(), async () => {
     const photo = await db.photos.get(photoId);
     if (!photo) return;
     const next = {
@@ -540,7 +744,7 @@ export async function reassignPhoto(photoId: string, target: PhotoTarget): Promi
 
 /** Swap an issue with its neighbour of the same kind (their numbers swap; deficiency photo labels follow). */
 export async function moveIssue(issueId: string, dir: -1 | 1): Promise<void> {
-  await db.transaction('rw', db.issues, db.fieldChanges, db.meta, async () => {
+  await db.transaction('rw', writeTables(), async () => {
     const issue = await db.issues.get(issueId);
     if (!issue) return;
     const same = (await db.issues.where('[projectId+kind]').equals([issue.projectId, issue.kind]).toArray()).sort(
@@ -556,7 +760,7 @@ export async function moveIssue(issueId: string, dir: -1 | 1): Promise<void> {
 
 // ------------------------------------------------------------------------------------------ instruments
 export async function addInstrument(projectId: string): Promise<Instrument> {
-  return db.transaction('rw', db.instruments, db.fieldChanges, db.meta, async () => {
+  return db.transaction('rw', writeTables(), async () => {
     const all = await db.instruments.where('projectId').equals(projectId).toArray();
     const now = Date.now();
     return createRecord<Instrument>('instruments', {
