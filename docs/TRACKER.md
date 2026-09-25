@@ -158,14 +158,14 @@ Last updated: 2026-09-24
 - [~] Offline verification (airplane-mode test). Automated offline run in Chromium passes (app shell, edits, export); a real phone in airplane mode is still to do.
 
 ## Phase 3 — Excel export & import (first usable release)
-- [ ] Export engine (XML patching, shared strings, `fullCalcOnLoad`)
-- [ ] Export all sheets in the template map
-- [ ] Capacity limits enforced in the app (no overflow handling needed)
-- [ ] Import engine (read inputs from an existing workbook into the app)
+- [x] Export engine (XML patching, shared strings, `fullCalcOnLoad`) — `packages/workbook`, proven by the export spike and e2e
+- [x] Export all sheets in the template map (every block of every type audited by `mapAudit.test.ts`)
+- [x] Capacity limits enforced in the app (add equipment, schedule import, duplicate)
+- [x] Import engine (read inputs from an existing workbook into the app), incl. shared strings from Excel/LibreOffice re-saves
 - [x] Re-import of an issued workbook into an existing project with a diff/merge review screen
 - [x] Issued-report snapshots and revision history (Prelim, Rev 1, Final…)
 - [x] Keep the re-imported issued workbook as the base for the next export (F1)
-- [ ] Round-trip test suite (import → export → cell diff)
+- [x] Round-trip test suite (app → export → import → equal, for every equipment type; re-import of Rev 1 shows no changes)
 - [ ] Validate on a real completed project workbook
 
 ## Phase 4 — Photos
@@ -191,7 +191,7 @@ Microsoft app registration ([SYNC_SETUP.md](./SYNC_SETUP.md)).
 - [ ] Two offline devices picking the same workbook slot for a new unit: resolve on pull.
 
 ## Phase 6 — Reporting workflow
-- [ ] Deficiency tracker → Summary remarks
+- [x] Deficiency tracker → Summary remarks (issues export to Summary - New / (E), numbered separately; Issues Report PDF)
 - [~] Instrument/calibration library → Calibration sheet and traverse instrument fields. New projects pre-load the template's 7 a2b instruments; add / edit / remove (8 slots); unit, traverse and hood instrument pickers warn when no calibration row covers the kind; calibration older than 12 months before the TAB date flagged (Info and Needs attention). Still to do: a shared (cross-project) instrument library.
 - [x] Review and sign-off, report lock. Any user marks a green unit *Reviewed* (blue state on cards and rollups, "RTUs 5/8 complete, 3 reviewed", project-level reviewed summary); any later change of the unit clears the review automatically. Export tab → **Issue report** (Prelim / Rev 1 / Final …) exports the revision and locks the project: banner "Issued as Rev 1 on <date> — unlock to edit", read-only forms, writes refused by the repository, imports / re-import blocked; **Unlock for follow-up** (confirm, suggests the next label). Review and lock are synced fields (`supabase/migrations/0002_review_lock.sql`). Screenshots 23–25.
 - [x] Audit history view. Append-only local `history` table (Dexie v4, backfilled from the outbox): every edit with old → new values, creates / deletes, review, automatic review clear, lock / unlock, export / re-import events, changes pulled from other devices. History tab (filters: unit, field, date range, user / device; grouped by day and runs of edits) and a History section on each unit page. Kept 12 months, max 5,000 entries per project.
