@@ -64,6 +64,7 @@ Last updated: 2026-09-25
 
 | Date | Decision |
 |---|---|
+| 2026-09-25 | **Photo storage stays on Supabase Storage.** Estimate ~0.5 MB/photo, ~120 photos per typical project, ~10–15 GB/year at ~150 projects/year: covered by the Pro plan's 100 GB for ~6–10 years (overage ~$0.02/GB-month). R2 / B2 / S3 would save ≈$1–2/month but add a second vendor and a new auth/signed-URL layer. Dropbox (Photo Report + photo zip) stays the permanent archive, since Supabase backups cover the database, not files. Optional later: archive-and-purge of old projects' cloud photos. |
 | 2026-09-22 | Equipment and deficiency photos are exported as a separate Photo Report, not placed in the workbook. The cover photo is placed in the workbook. |
 | 2026-09-22 | Proposed stack: React/TS PWA + Supabase + direct-XML Excel export. *(Pending confirmation after Q2/Q12.)* |
 | 2026-09-22 | The app writes input cells only. Excel formulas stay authoritative. |
