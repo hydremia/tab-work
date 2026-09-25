@@ -14,7 +14,9 @@ import type {
   Review,
 } from '../data/types';
 import { CATEGORY_LABEL } from '../photos/labels';
+import { CERT_LABELS } from './certification';
 import { PRESSURE_FIELDS, PRESSURE_KEYS } from './projectCompletion';
+import { SPARE_OA_LABELS } from './spareOa';
 import { INFO_FIELDS } from './projectFields';
 import { getSpec, tableColumns, type EquipmentSpec } from './specs';
 
@@ -61,6 +63,8 @@ const PRESSURE_LABEL: Record<string, string> = {
 function infoLabel(key: string): string {
   return (
     PRESSURE_LABEL[key] ??
+    CERT_LABELS[key] ??
+    SPARE_OA_LABELS[key] ??
     INFO_FIELDS.find((f) => f.key === key)?.label.replace(/:.*$/, '') ??
     PRESSURE_FIELDS.find((f) => f.key === key)?.label ??
     key
@@ -102,6 +106,7 @@ const RECORD_FIELD: Record<string, string> = {
   isExisting: 'New / Existing',
   review: 'Review',
   slot: 'Workbook slot',
+  slotMove: 'Slot move note',
 };
 
 const issueName = (i: Pick<Issue, 'kind' | 'number'>) => `Issue ${i.kind === 'existing' ? 'E' : 'N'}-${i.number}`;
@@ -199,8 +204,11 @@ export function fieldLabel(e: HistoryEntry, ctx: HistoryContext): string {
         calibrationDate: 'calibration date',
         order: 'order',
       };
+      if (f === 'libraryId') return `Instrument${ins ? ` ${ins.order + 1}` : ''} library link`;
       return `Instrument${ins ? ` ${ins.order + 1}` : ''} ${labels[f] ?? f}`;
     }
+    case 'libraryInstruments':
+      return `Instrument library ${f === 'calibrationDate' ? 'calibration date' : f}`;
     default:
       return f;
   }
@@ -226,6 +234,8 @@ export function valueText(e: HistoryEntry, v: unknown, ctx: HistoryContext): str
   if (e.table === 'projects' && e.field === 'lock' && typeof v === 'object')
     return `Issued as ${(v as ProjectLock).label}`;
   if (e.table === 'projects' && e.field === 'tolerance' && typeof v === 'number') return `±${Math.round(v * 100)} %`;
+  if (e.table === 'equipment' && e.field === 'slotMove' && typeof v === 'object')
+    return `Moved from slot ${(v as { from: number }).from} to ${(v as { to: number }).to}`;
   if (isNaMark(v)) return `${v.notation}${v.reason ? ` (${v.reason})` : ''}`;
   if (v === 'applies') return 'Include (override scope)';
   if (typeof v === 'boolean') return v ? 'Yes' : 'No';

@@ -88,6 +88,11 @@ export function ProjectListPage() {
           <ProjectCard key={p.id} project={p} r={rollups?.get(p.id) ?? rollup([])} ex={exports?.get(p.id)} />
         ))}
       </div>
+      <p className="row" style={{ justifyContent: 'center', marginTop: 16 }}>
+        <Link to="/library" className="btn btn-ghost" data-testid="library-link">
+          Instrument library
+        </Link>
+      </p>
     </Screen>
   );
 }

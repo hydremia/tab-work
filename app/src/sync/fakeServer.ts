@@ -13,7 +13,9 @@
  *    accepted, anything else fails the request with TAB_LOCKED (detail: the refused change id);
  *  - review: a change of a reviewed unit (its fields, rows, photos) by a device that had not seen the review (base_seq
  *    older than the review's server_seq) clears it with a server change (device 'server');
- *  - deleting a project deletes its records (cascade); photo files by path `<projectId>/<photoId>.jpg`.
+ *  - deleting a project deletes its records (cascade); photo files by path `<projectId>/<photoId>.jpg`;
+ *  - (0004) library instruments: organization records whose changes carry their own id as project_id; a link inside
+ *    a value (equipmentId, issueId) must name a record of the same project, libraryId one of the same organization.
  *
  * No browser or Dexie dependency: the e2e server (deploy/serve-dist.ts) runs it in Node.
  */
@@ -43,6 +45,26 @@ type Rec = Record<string, unknown> & { id: string };
 type Tables = Map<string, Map<string, Rec>>;
 
 const CHILD_TABLES = ['equipment', 'airflowRows', 'issues', 'photos', 'instruments'];
+
+/** Fields that link a record to another one, and the table of the target (checked by the server, 0004). */
+const LINK_TABLES: Record<string, string> = {
+  equipmentId: 'equipment',
+  issueId: 'issues',
+  libraryId: 'libraryInstruments',
+};
+
+/** The links a change sets: [field, target id] (a create's value keys, or a set of the link field itself). */
+function linkRefs(row: FieldChangeRow): [string, string][] {
+  const out: [string, string][] = [];
+  if (row.op === 'create' && row.value && typeof row.value === 'object') {
+    for (const k of Object.keys(LINK_TABLES)) {
+      const v = (row.value as Record<string, unknown>)[k];
+      if (typeof v === 'string' && v) out.push([k, v]);
+    }
+  } else if (row.op === 'set' && row.field in LINK_TABLES && typeof row.value === 'string' && row.value)
+    out.push([row.field, row.value]);
+  return out;
+}
 
 export class FakeSyncServer {
   /** Server clock (ms). Tests move it; defaults to the real clock. */
@@ -114,22 +136,41 @@ export class FakeSyncServer {
     if (this.log.some((r) => r.id === row.id)) return null; // idempotent re-push
     if ((row.user_id ?? user.id) !== user.id)
       throw new FakeServerError('TAB_FORBIDDEN: a change must be made as the signed-in user', '42501');
-    const project = this.record('projects', row.project_id);
-    const org =
-      project?.orgId ??
-      (row.table_name === 'projects' && row.op === 'create'
-        ? (this.projectOrg(row.project_id) ?? user.orgId)
-        : this.projectOrg(row.project_id));
+    // a library instrument belongs to no project: its changes are filed under its own id (0004)
+    const isLib = row.table_name === 'libraryInstruments';
+    const project = isLib ? undefined : this.record('projects', row.project_id);
+    const org = isLib
+      ? ((this.record('libraryInstruments', row.record_id)?.orgId as string | undefined) ??
+        this.projectOrg(row.project_id) ??
+        (row.op === 'create' ? user.orgId : null))
+      : (project?.orgId ??
+        (row.table_name === 'projects' && row.op === 'create'
+          ? (this.projectOrg(row.project_id) ?? user.orgId)
+          : this.projectOrg(row.project_id)));
     if (org !== user.orgId)
       throw new FakeServerError('TAB_FORBIDDEN: the project belongs to another organization', '42501');
     // the record must belong to the change's project (the checks above and the lock are about project_id)
-    if (row.table_name === 'projects') {
+    if (row.table_name === 'projects' || isLib) {
       if (row.record_id !== row.project_id)
-        throw new FakeServerError('TAB_FORBIDDEN: a project change must name the project itself', '42501');
+        throw new FakeServerError(
+          `TAB_FORBIDDEN: a ${isLib ? 'library' : 'project'} change must name the ${isLib ? 'instrument' : 'project'} itself`,
+          '42501',
+        );
     } else {
       const target = this.record(row.table_name, row.record_id);
       if (target && target.projectId !== row.project_id)
         throw new FakeServerError('TAB_FORBIDDEN: the record belongs to another project', '42501');
+    }
+    // links inside values (0004): a unit / issue must be in the same project, a library instrument in the same
+    // organization (a record that does not exist (yet) is not checked here)
+    for (const [key, id] of linkRefs(row)) {
+      const target = this.record(LINK_TABLES[key], id);
+      if (!target) continue;
+      if (key === 'libraryId' ? target.orgId !== org : target.projectId !== row.project_id)
+        throw new FakeServerError(
+          `TAB_FORBIDDEN: ${key} names a record of another ${key === 'libraryId' ? 'organization' : 'project'}`,
+          '42501',
+        );
     }
     const lock = project?.lock;
     if (
@@ -180,7 +221,7 @@ export class FakeSyncServer {
         t.set(row.record_id, {
           ...value,
           id: row.record_id,
-          ...(row.table_name === 'projects' ? { orgId: org } : { projectId: row.project_id }),
+          ...(row.table_name === 'projects' || isLib ? { orgId: org } : { projectId: row.project_id }),
         });
       }
     } else {

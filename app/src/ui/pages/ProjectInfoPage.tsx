@@ -1,8 +1,38 @@
-import { useNavigate } from 'react-router';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router';
+import { db } from '../../data/db';
 import { usePhotos, useInstruments, useProjectCompletion } from '../../data/hooks';
-import { addInstrument, deleteRecord, setField } from '../../data/repo';
-import type { FieldValue, NaMark, Photo, Project } from '../../data/types';
+import {
+  addInstrument,
+  addInstrumentFromLibrary,
+  CALIBRATION_SLOTS,
+  deleteRecord,
+  differsFromLibrary,
+  saveInstrumentToLibrary,
+  setField,
+  setFields,
+  updateInstrumentFromLibrary,
+} from '../../data/repo';
+import type { FieldValue, Instrument, LibraryInstrument, NaMark, Photo, Project } from '../../data/types';
+import { formatNumber, formatPercent } from '../../domain/calc';
+import {
+  CERT_FIELDS,
+  CERT_KEYS,
+  certificationExpired,
+  certificationStates,
+  certValue,
+} from '../../domain/certification';
 import { calibrationExpired } from '../../domain/instruments';
+import {
+  SPARE_OA_ROWS,
+  spareOaCell,
+  spareOaKey,
+  spareOaTotals,
+  spareOaUsedCount,
+  SPARE_OA_COLUMNS,
+  type SpareOaColumn,
+} from '../../domain/spareOa';
 import {
   KITCHEN_NA_REASON,
   PRESSURE_FIELDS,
@@ -131,11 +161,265 @@ function BuildingPressures({ project, hasHoods }: { project: Project; hasHoods: 
   );
 }
 
+/** A project field with an N/A menu (building balance extras, certification). */
+function ProjectField({
+  project,
+  field,
+  value,
+  state,
+  label,
+  idPrefix,
+  warning,
+  wide,
+}: {
+  project: Project;
+  field: FieldSpec;
+  value: FieldValue;
+  state?: ReturnType<typeof certificationStates>[string];
+  label?: string;
+  idPrefix: string;
+  warning?: string | null;
+  wide?: boolean;
+}) {
+  return (
+    <SpecField
+      idPrefix={idPrefix}
+      field={field}
+      label={label}
+      value={value}
+      mark={project.naState.fields[field.key]}
+      state={state}
+      wide={wide}
+      warning={warning}
+      onChange={(v) => void setField('projects', project.id, `info.${field.key}`, v)}
+      onNa={(m: NaMark | null) =>
+        void (async () => {
+          if (m) await setField('projects', project.id, `info.${field.key}`, null);
+          await setField('projects', project.id, `naState.fields.${field.key}`, m);
+        })()
+      }
+    />
+  );
+}
+
+const OA_FIELD: Record<SpareOaColumn, (n: number) => FieldSpec> = {
+  Unit: (n) => ({ key: spareOaKey(n, 'Unit'), label: 'Unit / source', input: 'text', required: false }),
+  Design: (n) => ({ key: spareOaKey(n, 'Design'), label: 'Design', input: 'number', unit: 'CFM', required: false }),
+  Actual: (n) => ({ key: spareOaKey(n, 'Actual'), label: 'Actual', input: 'number', unit: 'CFM', required: false }),
+};
+
+/** Building Balance: the 20 spare manual outside-air rows (rows 67-86, part of the OA totals). */
+function OtherOutsideAir({ project }: { project: Project }) {
+  const used = spareOaUsedCount(project);
+  const [added, setAdded] = useState(0);
+  const count = Math.min(SPARE_OA_ROWS, Math.max(used, added));
+  const totals = spareOaTotals(project);
+  async function remove(n: number) {
+    // shift the rows below up by one, in one transaction (each value / mark is its own synced field)
+    const values: Record<string, unknown> = {};
+    for (let i = n; i <= count; i++)
+      for (const c of SPARE_OA_COLUMNS) {
+        const k = spareOaKey(i, c);
+        const next = i < SPARE_OA_ROWS ? spareOaKey(i + 1, c) : null;
+        const v = next ? (project.info[next] ?? null) : null;
+        const m = next ? (project.naState.fields[next] ?? null) : null;
+        if ((project.info[k] ?? null) !== v) values[`info.${k}`] = v;
+        if (JSON.stringify(project.naState.fields[k] ?? null) !== JSON.stringify(m)) values[`naState.fields.${k}`] = m;
+      }
+    await setFields('projects', project.id, values);
+    setAdded(Math.max(0, count - 1));
+  }
+  return (
+    <section className="card card-pad stack" aria-labelledby="oa-h" data-testid="other-oa">
+      <h2 id="oa-h">Other outside air (Building Balance)</h2>
+      <p className="small muted" style={{ margin: 0 }}>
+        Outside air not measured on a unit page (e.g. a transfer or relief opening). Up to {SPARE_OA_ROWS} rows, written
+        to the spare rows under the units and included in the building&apos;s OA totals.
+      </p>
+      {Array.from({ length: count }, (_, i) => i + 1).map((n) => {
+        const d = project.info[spareOaKey(n, 'Design')];
+        const a = project.info[spareOaKey(n, 'Actual')];
+        const pct = typeof d === 'number' && typeof a === 'number' && d ? a / d : null;
+        return (
+          <div key={n} className="oa-row" data-testid={`oa-row-${n}`}>
+            <div className="oa-row-head">
+              <h3>Row {n}</h3>
+              {pct !== null && <span className="small muted">{formatPercent(pct)} of design</span>}
+              <button
+                type="button"
+                className="btn btn-ghost"
+                aria-label={`Remove row ${n}`}
+                onClick={() => void remove(n)}
+              >
+                <IconTrash size={16} />
+              </button>
+            </div>
+            <div className="oa-grid">
+              {SPARE_OA_COLUMNS.map((c) => (
+                <ProjectField
+                  key={c}
+                  idPrefix="oa"
+                  project={project}
+                  field={OA_FIELD[c](n)}
+                  value={project.info[spareOaKey(n, c)] ?? null}
+                  state={{ state: spareOaCell(project, n, c) === null ? 'optional' : 'value' }}
+                  wide={c === 'Unit'}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+      {count < SPARE_OA_ROWS && (
+        <button className="btn btn-ghost" type="button" onClick={() => setAdded(count + 1)} data-testid="add-oa-row">
+          <IconPlus size={18} /> Add OA row
+        </button>
+      )}
+      {count > 0 && (
+        <p className="small" style={{ margin: 0 }} data-testid="oa-total">
+          These rows: design {formatNumber(totals.design)} CFM · actual {formatNumber(totals.actual)} CFM
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** Certification sheet: the certified professional, signature and date (required on the final report). */
+function CertificationCard({ project }: { project: Project }) {
+  const states = certificationStates(project);
+  const expired = certificationExpired(project);
+  const final = project.reportKind === 'final';
+  return (
+    <section className="card card-pad stack" aria-labelledby="cert-h" data-testid="certification">
+      <h2 id="cert-h">Certification</h2>
+      <p className="small muted" style={{ margin: 0 }}>
+        The Certification sheet of the workbook.{' '}
+        {final
+          ? 'Signature and date are required on this final report.'
+          : 'Signature and date are required on the final report; on this preliminary report they are automatically N/A (change the report under Scope and tolerance).'}
+      </p>
+      <div className="form-grid">
+        {CERT_FIELDS.map((f) => (
+          <ProjectField
+            key={f.key}
+            idPrefix="cert"
+            project={project}
+            field={f}
+            value={certValue(project, f.key)}
+            state={states[f.key]}
+            warning={
+              f.key === CERT_KEYS.expiration && expired ? 'The certification expires before the report date' : null
+            }
+          />
+        ))}
+      </div>
+      <p className="small muted" style={{ margin: 0 }}>
+        Stamp / signature image: place it in the stamp box in Excel (the template has no picture there to replace).
+      </p>
+    </section>
+  );
+}
+
+/** Instruments: pick from the shared library, save a row to it, update a row from it. */
+function LibraryActions({ projectId, count }: { projectId: string; count: number }) {
+  const library = useLiveQuery(() => db.libraryInstruments.toArray(), []);
+  const [pick, setPick] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const sorted = [...(library ?? [])].sort((a, b) => a.type.localeCompare(b.type) || a.serial.localeCompare(b.serial));
+  return (
+    <div className="stack" style={{ gap: 8 }} data-testid="library-pick">
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <label className="visually-hidden" htmlFor="lib-pick">
+          Instrument from the library
+        </label>
+        <select
+          id="lib-pick"
+          className="select"
+          style={{ flex: '1 1 14rem', minWidth: 0 }}
+          value={pick}
+          onChange={(e) => setPick(e.target.value)}
+          disabled={!sorted.length || count >= CALIBRATION_SLOTS}
+        >
+          <option value="">{sorted.length ? 'Choose from the library…' : 'The library is empty'}</option>
+          {sorted.map((l) => (
+            <option key={l.id} value={l.id}>
+              {[l.type, l.manufacturer, l.model].filter(Boolean).join(' ')}
+              {l.serial ? ` · SN ${l.serial}` : ''}
+              {l.calibrationDate ? ` · cal. ${l.calibrationDate}` : ''}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="btn"
+          disabled={!pick || count >= CALIBRATION_SLOTS}
+          onClick={() =>
+            void addInstrumentFromLibrary(projectId, pick).then(
+              () => {
+                setPick('');
+                setErr(null);
+              },
+              (e: unknown) => setErr(e instanceof Error ? e.message : String(e)),
+            )
+          }
+        >
+          Add from library
+        </button>
+      </div>
+      <p className="small muted" style={{ margin: 0 }}>
+        The project keeps its own copy, so editing the library never changes an issued report.{' '}
+        <Link to="/library">Manage the instrument library</Link>
+      </p>
+      {err && (
+        <div className="callout" data-tone="red" role="alert">
+          {err}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LibraryLink({ ins, lib }: { ins: Instrument; lib: LibraryInstrument | undefined }) {
+  if (!ins.libraryId)
+    return (
+      <button type="button" className="btn btn-ghost" onClick={() => void saveInstrumentToLibrary(ins.id)}>
+        Save to library
+      </button>
+    );
+  if (!lib) return <span className="small muted">Library instrument deleted (this copy stays)</span>;
+  if (!differsFromLibrary(ins, lib))
+    return (
+      <span className="chip" data-testid="lib-linked">
+        In the library
+      </span>
+    );
+  const what = (['calibrationDate', 'serial', 'model', 'manufacturer', 'type'] as const).filter(
+    (k) => (ins[k] ?? '') !== (lib[k] ?? ''),
+  );
+  return (
+    <span className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+      <span className="small" data-testid="lib-differs">
+        The library has{' '}
+        {what.includes('calibrationDate') ? `calibration ${lib.calibrationDate || '(none)'}` : 'other details'}
+      </span>
+      <button
+        type="button"
+        className="btn"
+        data-testid="lib-update"
+        onClick={() => void updateInstrumentFromLibrary(ins.id)}
+      >
+        Update from library
+      </button>
+    </span>
+  );
+}
+
 const SECTION_LINK: Record<ProjectCompletion['missing'][number]['section'], string> = {
   info: '#pi-h',
   cover: '#cover-h',
   calibration: '#cal-h',
   pressures: '#bb-h',
+  certification: '#cert-h',
 };
 
 function ProjectStatusCard({ c }: { c: ProjectCompletion }) {
@@ -195,6 +479,8 @@ function CoverPhoto({ projectId, cover }: { projectId: string; cover: Photo | un
 export function ProjectInfoPage() {
   const { project, equipment, locked, conflicts } = useProjectContext();
   const instruments = useInstruments(project.id);
+  const library = useLiveQuery(() => db.libraryInstruments.toArray(), []);
+  const libById = new Map((library ?? []).map((l) => [l.id, l]));
   const completion = useProjectCompletion(project);
   const hasHoods = equipment.some((e) => e.type === 'hood');
   const coverMark = project.naState.fields['photo:cover'];
@@ -373,12 +659,15 @@ export function ProjectInfoPage() {
 
         <BuildingPressures project={project} hasHoods={hasHoods} />
 
+        <OtherOutsideAir project={project} />
+
         <section className="card card-pad stack" aria-labelledby="cal-h">
           <h2 id="cal-h">Instruments (Calibration sheet)</h2>
           <p className="small muted" style={{ margin: 0 }}>
             Up to 8 instruments. New projects start with the 7 a2b instruments of the template; edit, remove or add your
-            own.
+            own, or pick them from the shared instrument library.
           </p>
+          <LibraryActions projectId={project.id} count={instruments?.length ?? 0} />
           {instruments?.map((ins) => (
             <div
               key={ins.id}
@@ -414,22 +703,27 @@ export function ProjectInfoPage() {
                   )}
                 </div>
               </div>
-              <button
-                className="btn btn-danger"
-                type="button"
-                style={{ alignSelf: 'flex-start' }}
-                onClick={() => void deleteRecord('instruments', ins.id)}
-              >
-                <IconTrash size={16} /> Remove
-              </button>
+              <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                <LibraryLink ins={ins} lib={ins.libraryId ? libById.get(ins.libraryId) : undefined} />
+                <button
+                  className="btn btn-danger"
+                  type="button"
+                  style={{ marginLeft: 'auto' }}
+                  onClick={() => void deleteRecord('instruments', ins.id)}
+                >
+                  <IconTrash size={16} /> Remove
+                </button>
+              </div>
             </div>
           ))}
-          {(instruments?.length ?? 0) < 8 && (
+          {(instruments?.length ?? 0) < CALIBRATION_SLOTS && (
             <button className="btn btn-ghost" type="button" onClick={() => void addInstrument(project.id)}>
               <IconPlus size={18} /> Add instrument
             </button>
           )}
         </section>
+
+        <CertificationCard project={project} />
       </fieldset>
 
       <section className="card card-pad stack">

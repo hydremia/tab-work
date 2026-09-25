@@ -71,7 +71,22 @@ describe('template map audit (every block)', () => {
     const { bytes, report } = await exportWorkbookWithReport(templateBytes(), p);
     expect(report.cellsWritten).toBeGreaterThan(20_000);
     const back = await importWorkbook(bytes);
-    const { calibration: _c, buildingBalance: _b, equipmentSummary: _s, ...sections } = back.sections;
+    const {
+      calibration: _c,
+      buildingBalance: _b,
+      equipmentSummary: _s,
+      certification: _z,
+      ...sections
+    } = back.sections;
     expect(diff(normalizeProject({ ...back, sections }), normalizeProject(p))).toEqual([]);
   }, 120_000);
+
+  it('every mapped input of every single-sheet section is writable and round-trips', async () => {
+    const p: ProjectData = { templateRevision: TEMPLATE_MAP.revision, sections: {}, equipment: {} };
+    let seed = 0;
+    for (const sec of TEMPLATE_MAP.sections) p.sections[sec.key] = fill(sec, (seed += 1000));
+    const { bytes } = await exportWorkbookWithReport(templateBytes(), p);
+    const back = await importWorkbook(bytes);
+    expect(diff(normalizeProject(back), normalizeProject(p))).toEqual([]);
+  }, 60_000);
 });

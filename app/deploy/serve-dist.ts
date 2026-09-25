@@ -4,7 +4,8 @@
  *
  *   npm run build && npm run serve-dist -w app          http://localhost:4173
  *
- * PORT sets the port. With SERVE_TEST_HOOKS=1, `POST /__test/bump-sw` makes /sw.js byte-different (a comment is
+ * PORT sets the port; it listens on 127.0.0.1 only unless SERVE_HOST says otherwise (SERVE_HOST=0.0.0.0 for a phone on the
+ * same network; the fake sync server has no real authentication, so never expose it). With SERVE_TEST_HOOKS=1, `POST /__test/bump-sw` makes /sw.js byte-different (a comment is
  * appended), so the browser sees "a new version" (e2e test of the update toast).
  *
  * Two-device sync e2e: DIST_DIR=dist-fake (a build with VITE_FAKE_SYNC=1) and SERVE_FAKE_SYNC=1 serve the in-memory
@@ -22,6 +23,8 @@ import type { FieldChangeRow } from '../src/sync/backend';
 
 const DIST = join(dirname(fileURLToPath(import.meta.url)), '..', process.env.DIST_DIR ?? 'dist');
 const PORT = Number(process.env.PORT ?? 4173);
+/** Loopback only by default (a test server, never meant for the network); SERVE_HOST=0.0.0.0 to reach it from a phone. */
+const HOST = process.env.SERVE_HOST ?? '127.0.0.1';
 const HOOKS = process.env.SERVE_TEST_HOOKS === '1';
 const FAKE_SYNC = process.env.SERVE_FAKE_SYNC === '1' ? new FakeSyncServer() : null;
 
@@ -166,8 +169,8 @@ const server = createServer((req, res) => {
   });
 });
 
-server.listen(PORT, () =>
+server.listen(PORT, HOST, () =>
   console.log(
-    `serve-dist: http://localhost:${PORT} (app/${process.env.DIST_DIR ?? 'dist'} with the production headers${FAKE_SYNC ? ', fake sync server' : ''})`,
+    `serve-dist: http://${HOST}:${PORT} (app/${process.env.DIST_DIR ?? 'dist'} with the production headers${FAKE_SYNC ? ', fake sync server' : ''})`,
   ),
 );

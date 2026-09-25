@@ -46,6 +46,22 @@ export function nextFreeSlot(used: readonly number[], capacity: number): number 
   return null;
 }
 
+export interface SlotBlocked {
+  type: EquipmentTypeKey;
+  slot: number;
+  /** The units sharing the slot (keeper first when planned by sync/slots.ts). */
+  ids: string[];
+}
+
+/** Units that share a workbook slot with another unit of their type (two devices added them; sync/slots.ts). */
+export function slotCollisions(units: readonly { id: string; type: EquipmentTypeKey; slot: number }[]): SlotBlocked[] {
+  const groups = new Map<string, { id: string; type: EquipmentTypeKey; slot: number }[]>();
+  for (const u of units) groups.set(`${u.type}:${u.slot}`, [...(groups.get(`${u.type}:${u.slot}`) ?? []), u]);
+  return [...groups.values()]
+    .filter((g) => g.length > 1)
+    .map((g) => ({ type: g[0].type, slot: g[0].slot, ids: g.map((u) => u.id) }));
+}
+
 /** Suggested designation: prefix + the next number not already used (RTU-1, RTU-2 -> RTU-3). */
 export function suggestDesignation(prefix: string, existing: readonly string[]): string {
   const re = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\d+)$`, 'i');

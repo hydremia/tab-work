@@ -203,8 +203,16 @@ export function expectations(p: ProjectData): Expectation[] {
     add('Building Balance', `I${r}`, sf.design, `small fan ${slot} design`);
     add('Building Balance', `K${r}`, sf.final, `small fan ${slot} actual`);
   }
-  const oaDesTot = sum([...rtuNames.map((n) => oaDesign[n]), ...mauTotals.map((m) => m.design)]);
-  const oaActTot = sum([...rtuNames.map((n) => oaFinal[n]), ...mauTotals.map((m) => m.actual)]);
+  // the 20 spare manual OA rows (67-86): typed inputs, part of the OA totals (text such as "Not Acc." is skipped)
+  const spare = p.sections.buildingBalance?.tables?.spareOa ?? [];
+  spare.forEach((r, i) => {
+    add('Building Balance', `B${67 + i}`, (r.unit ?? null) as Expected, `spare OA row ${i + 1} unit`);
+    add('Building Balance', `C${67 + i}`, (r.design ?? null) as Expected, `spare OA row ${i + 1} design`);
+    add('Building Balance', `E${67 + i}`, (r.actual ?? null) as Expected, `spare OA row ${i + 1} actual`);
+  });
+  const spareNum = (k: 'design' | 'actual') => spare.map((r) => (typeof r[k] === 'number' ? (r[k] as number) : null));
+  const oaDesTot = sum([...rtuNames.map((n) => oaDesign[n]), ...mauTotals.map((m) => m.design), ...spareNum('design')]);
+  const oaActTot = sum([...rtuNames.map((n) => oaFinal[n]), ...mauTotals.map((m) => m.actual), ...spareNum('actual')]);
   const exDesTot = sum([...fanTotals.map((x) => x.design), ...Object.values(small).map((x) => x.design)]);
   const exActTot = sum([...fanTotals.map((x) => x.actual), ...Object.values(small).map((x) => x.final)]);
   add('Building Balance', 'C87', oaDesTot, 'OA design total');
@@ -215,6 +223,19 @@ export function expectations(p: ProjectData): Expectation[] {
   add('Building Balance', 'H91', (oaActTot ?? 0) - (exActTot ?? 0), 'actual building balance');
   const bp = p.sections.buildingBalance?.tables?.pressures ?? [];
   bp.forEach((r, i) => add('Building Balance', `H${97 + i}`, (r.dp ?? null) as Expected, `pressure row ${i + 1} dP`));
+
+  // ---- Certification: label + value lines, signature and date (General format: the date is text M/D/YYYY)
+  const cf = p.sections.certification?.fields;
+  if (cf) {
+    const long = (iso: string) =>
+      new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+    add('Certification', 'C30', `NEBB Certified Professional:  ${cf.cpName}`, 'CP name line');
+    add('Certification', 'C32', `Certification Number:  ${cf.certNumber}`, 'certification number line');
+    add('Certification', 'C34', `Expiration Date: ${long(String(cf.expiration))}`, 'expiration line');
+    add('Certification', 'I53', (cf.signature ?? null) as Expected, 'signature line');
+    const [y, m, d] = String(cf.date).split('-').map(Number);
+    add('Certification', 'I56', `${m}/${d}/${y}`, 'date line (text)');
+  }
 
   // ---- Equipment Summary (RTU lines and hood line), tolerance
   const tol = num(p.sections.equipmentSummary?.fields?.tolerance ?? null) ?? 0.1;

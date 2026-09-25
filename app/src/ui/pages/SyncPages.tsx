@@ -9,7 +9,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { db } from '../../data/db';
-import { localOnlyProjects } from '../../sync/outbox';
+import { countPending, localOnlyProjects } from '../../sync/outbox';
 import { localProjects, useSync } from '../../sync/SyncProvider';
 import { Screen } from '../components/Screen';
 
@@ -22,6 +22,23 @@ export function signOutWarning(pending: number): string | null {
     `${pending} change${pending > 1 ? 's have' : ' has'} not synced yet. ` +
     'They stay on this device and sync the next time you sign in here; until then nobody else sees them.'
   );
+}
+
+/** Confirm text for "Sign out and remove data from this device" (what is lost, if anything). */
+export function removeDataWarning(pending: number, deviceOnly: number, email = ''): string {
+  const lines = [
+    `Sign out${email ? ` ${email}` : ''} and remove all projects, photos and settings from this device?`,
+    'Use this on a shared or borrowed device. Everything that has synced stays in the cloud and comes back when you sign in again.',
+  ];
+  if (pending)
+    lines.push(
+      `WARNING: ${pending} change${pending > 1 ? 's have' : ' has'} NOT synced yet and will be lost. Cancel and tap Sync now first (when online).`,
+    );
+  if (deviceOnly)
+    lines.push(
+      `WARNING: ${deviceOnly} project${deviceOnly > 1 ? 's are' : ' is'} kept on this device only and will be lost (export ${deviceOnly > 1 ? 'them' : 'it'} or move ${deviceOnly > 1 ? 'them' : 'it'} to the cloud first).`,
+    );
+  return lines.join('\n\n');
 }
 
 export function AccountPage() {
@@ -44,7 +61,8 @@ export function AccountPage() {
     }
   }
   async function signOut() {
-    const warn = signOutWarning(s.pending);
+    // counted now (the live count may not be loaded yet)
+    const warn = signOutWarning(await countPending(true));
     const ok = window.confirm(
       `Sign out${s.user?.email ? ` ${s.user.email}` : ''}?\n\n` +
         'Your projects stay on this device, but nothing syncs until you sign in again.' +
@@ -52,6 +70,14 @@ export function AccountPage() {
     );
     if (!ok) return;
     await s.signOut();
+  }
+  async function signOutAndRemove() {
+    const pending = await countPending(true);
+    const deviceOnlyCount = (await localOnlyProjects()).size;
+    const ok = window.confirm(removeDataWarning(pending, deviceOnlyCount, s.user?.email ?? ''));
+    if (!ok) return;
+    setBusy(true);
+    await s.signOutAndRemove();
   }
 
   return (
@@ -128,6 +154,22 @@ export function AccountPage() {
                 Sign out
               </button>
             </div>
+          </section>
+          <section className="card card-pad stack" data-testid="shared-device">
+            <h2>Shared device?</h2>
+            <p className="small muted" style={{ margin: 0 }}>
+              Signing out keeps your projects on this device. On a shared or borrowed device, remove them as well: what
+              has synced comes back when you sign in again.
+            </p>
+            <button
+              type="button"
+              className="btn btn-danger"
+              data-testid="sign-out-remove"
+              disabled={busy}
+              onClick={() => void signOutAndRemove()}
+            >
+              Sign out and remove data from this device
+            </button>
           </section>
           {deviceOnly && deviceOnly.length > 0 && (
             <section className="card card-pad stack" data-testid="device-only">

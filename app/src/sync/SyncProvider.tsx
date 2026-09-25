@@ -32,6 +32,8 @@ export interface SyncState {
   syncNow: () => Promise<void>;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
+  /** Sign out, then delete every project, photo and setting on this device (shared devices). */
+  signOutAndRemove: () => Promise<void>;
   /** /auth/callback: finish the sign-in. */
   completeSignIn: (url: string) => Promise<SyncUser | null>;
   /** /cloud-setup: upload these projects; every other local project stays on this device only. */
@@ -187,6 +189,18 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     await cloud?.auth.signOut();
   }, [cloud]);
+  const signOutAndRemove = useCallback(async () => {
+    try {
+      await cloud?.auth.signOut();
+    } catch {
+      /* offline: the local session is removed with the data below */
+    }
+    setEngine(null);
+    setUser(null);
+    const { removeLocalData } = await import('../data/wipe');
+    await removeLocalData();
+    reloadApp();
+  }, [cloud]);
   const completeSignIn = useCallback(
     async (url: string) => {
       const c = cloud ?? (await getCloud());
@@ -243,6 +257,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       syncNow,
       signIn,
       signOut,
+      signOutAndRemove,
       completeSignIn,
       finishOnboarding,
       uploadProject,
@@ -259,12 +274,21 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       syncNow,
       signIn,
       signOut,
+      signOutAndRemove,
       completeSignIn,
       finishOnboarding,
       uploadProject,
     ],
   );
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
+}
+
+/** Start the app fresh after its data was removed (a test replaces it). */
+export let reloadApp = (): void => {
+  window.location.replace('/');
+};
+export function setReloadAppForTests(fn: () => void): void {
+  reloadApp = fn;
 }
 
 export function useSync(): SyncState {

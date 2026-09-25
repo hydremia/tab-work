@@ -52,6 +52,60 @@ export async function pressuresAndAttention(page: Page, projectUrl: string, docS
   await page.waitForTimeout(200);
   await page.screenshot({ path: join(docShots, '22-building-pressures.png') });
 
+  // ------------------------------------------------ other outside air (Building Balance spare rows 67-86)
+  const oa = page.getByTestId('other-oa');
+  await oa.getByTestId('add-oa-row').click();
+  const oaPut = async (n: number, col: string, v: string) => {
+    const el = oa.locator(`[data-field="bbOa${n}${col}"] input`).first();
+    await el.fill(v);
+    await el.blur();
+  };
+  await oaPut(1, 'Unit', 'Transfer grille TG-1');
+  await oaPut(1, 'Design', '400');
+  await oaPut(1, 'Actual', '385');
+  await oa.getByTestId('add-oa-row').click();
+  await oaPut(2, 'Unit', 'Relief opening');
+  await oaPut(2, 'Design', '150');
+  await oa.locator('[data-field="bbOa2Actual"] select.na-select').selectOption('Not Acc.');
+  await page.waitForTimeout(500);
+  check(
+    'other OA: two rows on Info, % of design and the rows total shown',
+    /96 % of design/.test(await oa.getByTestId('oa-row-1').innerText()) &&
+      /design 550 CFM · actual 385 CFM/.test(await oa.getByTestId('oa-total').innerText()),
+    (await oa.innerText()).replace(/\s+/g, ' ').slice(0, 200),
+  );
+
+  // ------------------------------------------------ certification (Certification sheet)
+  const cert = page.getByTestId('certification');
+  const cp = await cert.locator('[data-field="certCpName"] input').inputValue();
+  const autoNa = await cert.locator('[data-field="certSignature"]').getAttribute('data-state');
+  await page.locator('#kind').selectOption('final');
+  await cert.locator('[data-field="certSignature"] input').waitFor();
+  const missingFinal = await page.getByTestId('project-completion').innerText();
+  check(
+    'certification: template CP prefilled; signature auto N/A on prelim, required on final',
+    cp === 'Isaac Rochester' && autoNa === 'auto-na' && /Certification signature/.test(missingFinal),
+    `${cp} / ${autoNa} / ${missingFinal.replace(/\s+/g, ' ').slice(0, 160)}`,
+  );
+  await cert.locator('[data-field="certSignature"] input').fill('Isaac Rochester');
+  await cert.locator('[data-field="certSignature"] input').blur();
+  await cert.locator('[data-field="certDate"] input').fill('2026-09-25');
+  await cert.locator('[data-field="certDate"] input').blur();
+  await page.waitForTimeout(500);
+  check(
+    'certification: signed and dated, no longer missing',
+    !/Certification/.test(await page.getByTestId('project-completion').innerText()),
+  );
+  await page.evaluate(() => {
+    const el = document.querySelector('[data-testid="certification"]');
+    if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 110);
+  });
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: join(docShots, '30-certification.png') });
+  // back to a preliminary report: the entered signature and date stay (a value beats the automatic N/A)
+  await page.locator('#kind').selectOption('prelim');
+  await page.waitForTimeout(300);
+
   // ------------------------------------------------ needs attention
   await page.goto(`${projectUrl}/equipment`);
   const count = Number((await page.getByTestId('attention-count').innerText()).trim());
@@ -250,6 +304,93 @@ export async function scheduleFlow(
       wbSummaries.map((s) => s.replace(/\s+/g, ' ')).join(' | '),
     );
     check('schedule walk: no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
+  } finally {
+    await context.close();
+  }
+}
+
+/**
+ * Shared calibration library (own browser context and project): seed the library with the template's instruments,
+ * change a calibration date, pick an instrument into a project (linked copy), change the library again -> the project
+ * keeps its copy and offers "Update from library". Screenshot 31.
+ */
+export async function libraryFlow(browser: Browser, base: string, docShots: string, check: Check) {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+    colorScheme: 'light',
+  });
+  const page = await context.newPage();
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('dialog', (d) => void d.accept());
+  try {
+    await page.goto(`${base}/new`);
+    await page.getByLabel('Project name').fill('Library job');
+    await page.getByRole('button', { name: /Create/ }).click();
+    await page.waitForURL(/\/p\/[^/]+\//);
+    const projectUrl = new URL(page.url()).pathname.replace(/\/(info|equipment)$/, '');
+    await page.goto(base);
+    await page.getByTestId('library-link').click();
+    await page.waitForURL(/\/library$/);
+    await page.getByRole('button', { name: /Add the template.s 7 a2b instruments/ }).click();
+    await page.getByTestId('lib-item').nth(6).waitFor();
+    // the balometer (2024) is more than 12 months old: recalibrated
+    const balometer = page.getByTestId('lib-item').filter({ hasText: 'Balometer' });
+    check(
+      'library: 7 template instruments, the 2024 balometer flagged',
+      (await balometer.getByTestId('lib-expired').count()) === 1,
+    );
+    await balometer.locator('summary').click();
+    await balometer.locator('input[type="date"]').fill('2026-09-10');
+    await page.locator('#lib-h').click(); // blur: saved
+    await page.waitForTimeout(400);
+    // a project row from the library
+    await page.goto(`${base}${projectUrl}/info`);
+    const pick = page.getByTestId('library-pick');
+    await pick.locator('select').waitFor();
+    // make room: the project starts with the template's 7 instruments; remove the old balometer row
+    const calCard = page.locator('section[aria-labelledby="cal-h"]');
+    await calCard.locator('input[value="Balometer"]').first().waitFor();
+    await calCard
+      .locator('div.stack', { has: page.locator('input[value="Balometer"]') })
+      .last()
+      .getByRole('button', { name: 'Remove' })
+      .click();
+    await page.waitForTimeout(300);
+    const optValue = await pick
+      .locator('option', { hasText: /Balometer.*cal\. 2026-09-10/ })
+      .first()
+      .getAttribute('value');
+    await pick.locator('select').selectOption(optValue ?? '');
+    await pick.getByRole('button', { name: 'Add from library' }).click();
+    await page.getByTestId('lib-linked').waitFor();
+    const linked = await calCard.locator('input[value="2026-09-10"]').count();
+    // the library changes again: the project copy stays, "Update from library" is offered
+    await page.goto(`${base}/library`);
+    const bal = page.getByTestId('lib-item').filter({ hasText: 'Balometer' });
+    await bal.locator('summary').click();
+    await bal.locator('input[type="date"]').fill('2026-09-20');
+    await page.locator('#lib-h').click();
+    await page.waitForTimeout(400);
+    const outdated = await page.getByTestId('lib-outdated').innerText();
+    await bal.locator('summary').click(); // collapsed again: the screenshot shows the list
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: join(docShots, '31-calibration-library.png') });
+    await page.goto(`${base}${projectUrl}/info`);
+    await page.getByTestId('lib-differs').waitFor();
+    const kept = await calCard.locator('input[value="2026-09-10"]').count();
+    await page.getByTestId('lib-update').click();
+    await page.getByTestId('lib-linked').waitFor();
+    const updated = await calCard.locator('input[value="2026-09-20"]').count();
+    check(
+      'library: picked into the project (linked copy); a later library edit is offered, not applied; update copies it',
+      linked === 1 && /1 project copy differs/.test(outdated) && kept === 1 && updated === 1,
+      `linked ${linked}, "${outdated}", kept ${kept}, updated ${updated}`,
+    );
+    check('library e2e: no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   } finally {
     await context.close();
   }

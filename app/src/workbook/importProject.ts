@@ -7,7 +7,7 @@
  *    repository (setField / createRecord / deleteRecord: field changes in the sync outbox) in one transaction, keeps
  *    the file as the base workbook of the next export (F1) and records an "imported" revision.
  */
-import { importWorkbookWithReport, type ProjectData, type RevisionMarker } from '@a2b/workbook';
+import { assertFileSize, importWorkbookWithReport, type ProjectData, type RevisionMarker } from '@a2b/workbook';
 import { db } from '../data/db';
 import { createRecord, deleteRecord, LockedError, setField, writeTables } from '../data/repo';
 import type { Revision } from '../data/types';
@@ -27,6 +27,15 @@ export interface ParsedImport {
   warnings: string[];
   fileName: string;
   bytes: Uint8Array;
+}
+
+/**
+ * The bytes of a picked workbook, after the size check (over 50 MB is refused before it is read; the zip's declared
+ * uncompressed sizes are checked before anything is inflated: @a2b/workbook zipLimits).
+ */
+export async function readWorkbookFile(file: Blob): Promise<Uint8Array> {
+  assertFileSize(file.size);
+  return new Uint8Array(await file.arrayBuffer());
 }
 
 export async function parseWorkbook(bytes: Uint8Array, fileName: string): Promise<ParsedImport> {

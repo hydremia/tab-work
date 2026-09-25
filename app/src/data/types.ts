@@ -90,8 +90,21 @@ export interface Equipment {
   naState: NaState;
   /** Review sign-off ("Reviewed", shown blue while the unit is green). */
   review?: Review | null;
+  /**
+   * Set when sync moved the unit to another workbook slot because another device had given the same slot to a unit
+   * (sync/slots.ts). Shown on the unit page until dismissed. Deterministic (no time / device), so two devices that
+   * resolve the same collision write the same value.
+   */
+  slotMove?: SlotMove | null;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface SlotMove {
+  from: number;
+  to: number;
+  /** The unit that kept the slot. */
+  otherId: string;
 }
 
 /**
@@ -189,11 +202,36 @@ export interface Instrument {
   model: string;
   serial: string;
   calibrationDate: string;
+  /**
+   * The library instrument this row was copied from (or saved to). The project keeps its OWN copy of the details, so
+   * editing the library never changes an issued report; the Info tab offers "Update from library" when they differ.
+   */
+  libraryId?: string | null;
   createdAt: number;
   updatedAt: number;
 }
 
-export type TableName = 'projects' | 'equipment' | 'airflowRows' | 'issues' | 'photos' | 'instruments';
+/**
+ * The shared calibration library (Dexie v6 `libraryInstruments`): instruments stored once for the organization (synced
+ * when signed in; per device in local mode) and picked into a project's 8 calibration slots. Its sync changes carry
+ * the instrument's own id as their projectId (it belongs to no project), like a project's own changes.
+ */
+export interface LibraryInstrument {
+  id: string;
+  type: string;
+  manufacturer: string;
+  model: string;
+  serial: string;
+  calibrationDate: string;
+  notes: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export const INSTRUMENT_DETAIL_KEYS = ['type', 'manufacturer', 'model', 'serial', 'calibrationDate'] as const;
+
+export type TableName =
+  'projects' | 'equipment' | 'airflowRows' | 'issues' | 'photos' | 'instruments' | 'libraryInstruments';
 
 /** The sync outbox and audit log: one row per field edit (or record create / delete). */
 export interface FieldChange {

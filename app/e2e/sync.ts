@@ -7,7 +7,9 @@
  *   Both go offline and change RTU-1's serial (A first, then B) -> A reconnects, then B, then A syncs again ->
  *   the later value (B's) is on both; both show the conflict: badge on the unit card, the flagged field, the
  *   Attention tab's Conflicts group with both values -> A restores its value ("Use …") -> B gets it, B's conflict
- *   is settled. Sign-out on B warns about nothing (all synced) and keeps the project.
+ *   is settled. Both add an RTU offline (same workbook slot) -> after syncing, the later one is in the next slot on
+ *   both devices with a note. Sign-out on B warns about nothing (all synced) and keeps the project; A signs out and
+ *   removes the data from the device (project list empty).
  * Screenshot: docs/screenshots/29-conflict.png (A's Attention tab).
  */
 import { join } from 'node:path';
@@ -184,6 +186,46 @@ export async function syncFlow(
       `B serial ${restored}`,
     );
 
+    // ------------------------------------------------ both offline add a unit: the same workbook slot, resolved on pull
+    for (const d of [A, B]) {
+      await d.page.goto(`${base}${projectPath}/add`);
+      await d.page.locator('#eq-designation').waitFor();
+    }
+    await A.context.setOffline(true);
+    await B.context.setOffline(true);
+    const addUnit = async (d: typeof A, name: string) => {
+      await d.page.locator('#eq-designation').fill(name);
+      await d.page.getByRole('button', { name: `Add ${name}` }).click();
+      await d.page.waitForURL(/\/e\//);
+      return d.page.url();
+    };
+    await addUnit(A, 'RTU-A');
+    const bUnitUrl = await addUnit(B, 'RTU-B');
+    await A.context.setOffline(false);
+    await synced(A.page);
+    await B.context.setOffline(false);
+    await synced(B.page);
+    await synced(A.page, true);
+    await B.page.goto(bUnitUrl);
+    const noteB = await B.page.getByTestId('slot-move-note').innerText({ timeout: 10_000 });
+    await A.page.goto(bUnitUrl);
+    const noteA = await A.page.getByTestId('slot-move-note').innerText({ timeout: 10_000 });
+    await A.page.goto(`${base}${projectPath}/attention`);
+    await A.page.getByTestId('tab-count-attention').waitFor();
+    const collisionListed = await A.page
+      .locator('[data-testid="attention-item"]', { hasText: 'both use slot' })
+      .count();
+    check(
+      'slot collision: both devices added RTU in slot 3 offline -> the later push moved to slot 4 on both, with a note',
+      /Moved from workbook slot 3 to slot 4 because another device used slot 3 for RTU-A/.test(noteB) &&
+        noteA === noteB &&
+        collisionListed === 0,
+      `${noteB} / ${noteA} / listed ${collisionListed}`,
+    );
+    await B.page.goto(bUnitUrl);
+    await B.page.getByTestId('slot-move-note').scrollIntoViewIfNeeded();
+    await B.page.screenshot({ path: join(shots, 'sync-slot-move.png') });
+
     // ------------------------------------------------ sign-out keeps the data
     await B.page.goto(`${base}/account`);
     await B.page.getByTestId('account-signed-in').waitFor();
@@ -196,6 +238,20 @@ export async function syncFlow(
       B.dialogs.some((d) => /Sign out/.test(d) && !/not synced yet/.test(d)) &&
         (await B.page.getByTestId('project-card').count()) === 1 &&
         /Not signed in/.test(await B.page.getByTestId('sync-status').innerText()),
+    );
+    // ------------------------------------------------ A: sign out and remove the data (shared device)
+    await A.page.goto(`${base}/account`);
+    await A.page.getByTestId('account-signed-in').waitFor();
+    await A.page.getByTestId('sign-out-remove').click();
+    await A.page.waitForURL((u) => u.pathname === '/', { timeout: 15_000 });
+    await A.page.getByText('No projects yet').waitFor({ timeout: 15_000 });
+    const dbs = await A.page.evaluate(async () => (await indexedDB.databases()).map((d) => d.name));
+    check(
+      'sign out and remove data: warned, signed out, no projects left, then the app works (fresh database)',
+      A.dialogs.some((d) => /remove all projects, photos and settings/.test(d)) &&
+        (await A.page.getByTestId('project-card').count()) === 0 &&
+        /Not signed in/.test(await A.page.getByTestId('sync-status').innerText()),
+      `${A.dialogs.at(-1)?.slice(0, 120)} / dbs ${dbs.join(',')}`,
     );
     check(
       'sync e2e: no page errors',

@@ -34,6 +34,7 @@ import {
   type RemoteChange,
 } from './outbox';
 import { processPhotoQueue, type PhotoSyncResult } from './photoSync';
+import { resolveSlotCollisions } from './slots';
 
 export interface PushResult {
   pushed: number;
@@ -43,6 +44,8 @@ export interface PushResult {
 export interface PullResult {
   applied: number;
   conflicts: number;
+  /** Units moved to a free workbook slot because another device had used their slot (sync/slots.ts). */
+  slotMoves?: number;
 }
 export interface SyncResult extends PushResult, PullResult {
   released: number;
@@ -58,7 +61,7 @@ export interface SyncEngine {
   subscribe?(onChange: () => void): () => void;
 }
 
-const NOTHING: SyncResult = { pushed: 0, held: 0, applied: 0, conflicts: 0, released: 0, photos: null };
+const NOTHING: SyncResult = { pushed: 0, held: 0, applied: 0, conflicts: 0, slotMoves: 0, released: 0, photos: null };
 
 export class LocalSyncEngine implements SyncEngine {
   readonly mode = 'local' as const;
@@ -135,6 +138,8 @@ export class CloudSyncEngine implements SyncEngine {
     }
     const pulled = await this.pull();
     const released = await releaseHeld();
+    // collisions the pull could not resolve yet (e.g. in a project that was locked then): cheap when there are none
+    const slotMoves = (await resolveSlotCollisions()).moved;
     const pushed = await this.push();
     let late: PullResult = { applied: 0, conflicts: 0 };
     // after a push: the server's own changes in answer to it (a review it cleared) and, when a change was refused by
@@ -145,6 +150,7 @@ export class CloudSyncEngine implements SyncEngine {
       ...pushed,
       applied: pulled.applied + late.applied,
       conflicts: pulled.conflicts + late.conflicts,
+      slotMoves: (pulled.slotMoves ?? 0) + slotMoves + (late.slotMoves ?? 0),
       released,
       photos,
     };
@@ -208,6 +214,7 @@ export class CloudSyncEngine implements SyncEngine {
     let after = restart;
     let settled = true;
     const res: PullResult = { applied: 0, conflicts: 0 };
+    const unitProjects = new Set<string>();
     const settleBefore = deviceNow() + this.clockOffset - this.settleMs;
     for (;;) {
       const rows = await this.backend.pull(after, this.pageSize);
@@ -228,6 +235,8 @@ export class CloudSyncEngine implements SyncEngine {
         ...(r.applied === false ? { applied: false, note: r.note ?? null } : {}),
       }));
       const out = await applyRemoteChanges(changes);
+      for (const c of changes)
+        if (c.table === 'equipment' && (c.op === 'create' || c.field === 'slot')) unitProjects.add(c.projectId);
       res.applied += out.applied;
       res.conflicts += out.conflicts;
       for (const r of rows) {
@@ -248,6 +257,8 @@ export class CloudSyncEngine implements SyncEngine {
         key: 'syncCursor',
         value: { userId: this.userId, seq: seen, restart } satisfies StoredCursor,
       });
+    // two devices may have given the same workbook slot to new units: move the later one (pushed with this sync)
+    if (unitProjects.size) res.slotMoves = (await resolveSlotCollisions(unitProjects)).moved;
     return res;
   }
 }

@@ -28,7 +28,7 @@ Scripts (run in `app/`, or from the root with `-w app`):
 | `lint` / `typecheck` / `test` / `format` | ESLint, `tsc`, Vitest (jsdom + fake-indexeddb), Prettier                                                 |
 | `e2e`                                    | Browser walk-through of the vertical slice with Playwright's Chromium (see below)                        |
 | `copy-template`                          | Copies the rev 05 template from the repository root to `public/templates/` (runs before `dev` / `build`) |
-| `serve-dist`                             | Serve `dist/` with the production headers (CSP, caching) and SPA fallback, http://localhost:4173         |
+| `serve-dist`                             | Serve `dist/` with the production headers (CSP, caching) and SPA fallback, http://127.0.0.1:4173 (loopback only; `SERVE_HOST=0.0.0.0` to reach it from a phone) |
 | `hosting-config`                         | Regenerate `vercel.json`, `netlify.toml`, `public/_headers`, `public/_redirects` from `deploy/hosting.ts` |
 | `pwa-check`                              | Check a build: manifest, icons, iOS meta tags, service-worker precache, headers files (no browser)        |
 | `icons`                                  | Redraw the icon set (`scripts/make-icons.mjs`) and its preview `docs/screenshots/28-icons.png`           |
@@ -84,7 +84,10 @@ and projects kept on this device only. Sign-in is the Supabase Azure provider wi
 `/auth/callback`, which exchanges the code for the session (errors from Microsoft, e.g. "not assigned to the app", are
 shown there with *Try again*). The session is kept in localStorage and refreshed automatically, so the app opens signed
 in. **Sign out** asks first and, when changes have not synced, says how many and that they stay on the device; local
-data is kept and syncing stops until someone signs in again. **First sign-in on a device with local projects**:
+data is kept and syncing stops until someone signs in again. **Sign out and remove data from this device** (shared
+devices; `data/wipe.ts`) signs out and deletes the app's IndexedDB database and the origin's local / session storage
+(the service worker's app-shell cache holds no user data and stays), then restarts the app; its confirm warns, with
+counts, about changes that have not synced and projects kept on this device only (both would be lost). **First sign-in on a device with local projects**:
 syncing waits (pill *Choose projects*, banner) until the user picks on **Move projects to the cloud** (`/cloud-setup`)
 which projects to upload (all ticked); they go up through the normal push, the others stay on this device only
 (`meta.localOnlyProjects`, never pushed; *Move to the cloud* later from Sync & account).
@@ -126,9 +129,22 @@ tab (counted in its badge): both values, which device, when. **Keep current** cl
 value through `setField` (a normal edit: it syncs, wins everywhere and settles the conflict on the other device;
 refused while locked). A later deliberate edit of the field also settles it.
 
-**Server rules** (0003, also in the fake server): lock refusals, review clearing when a change reaches the server for
-a unit whose review the device had not seen, idempotent retries, project deletes; see
-[`supabase/README.md`](../supabase/README.md#0003-server-side-sync-rules).
+**Workbook slot collisions** (`src/sync/slots.ts`). Two devices that add a unit of the same type without seeing each
+other's can pick the same workbook block (`equipment.slot` is deliberately not unique on the server). After every pull
+(and once per sync for all projects, e.g. after an unlock) the device resolves it deterministically: per project and
+type, the unit whose **create** has the lowest server-log position keeps the slot (a create not on the server yet counts
+as last; ties by id); every other unit of that slot moves to the lowest free slot of its type, as normal synced edits
+of `slot` and `slotMove = { from, to, otherId }` (source *auto*, review kept) with the history note *Moved from slot 3
+to slot 4: another device used slot 3 (RTU-7)*. The unit page shows the note until *OK* clears it. Two devices that
+resolve the same collision write equal values (no timestamps in the note), so no conflict is flagged. No free slot
+(type at capacity): nothing moves; the Attention tab lists it (*… both use slot 10: the workbook has no free MAU
+slot*), the unit page shows a red callout and the export writes the earlier unit only (warning). A locked project
+waits until it is unlocked. The server does not take part.
+
+**Server rules** (0003 + 0004, also in the fake server): lock refusals, review clearing when a change reaches the server
+for a unit whose review the device had not seen, idempotent retries, project deletes, the calibration library, and link
+checks (an `equipmentId` / `issueId` inside a value must name a record of the same project, `libraryId` one of the same
+organization); see [`supabase/README.md`](../supabase/README.md#0003-server-side-sync-rules).
 
 ## Structure
 
@@ -141,13 +157,15 @@ src/
                (LocalSyncEngine no-op, CloudSyncEngine), backend.ts (SyncBackend interface, row mapping, errors),
                supabaseBackend.ts, fakeServer.ts + fakeBackend.ts (in-memory server with the 0003 rules; tests),
                fakeHttp.ts (the fake over HTTP, VITE_FAKE_SYNC builds only), conflicts.ts (detection, resolve,
-               discard held), photoSync.ts (upload / delete / download queue), cloud.ts (auth + backend, lazy),
-               SyncProvider.tsx (status, online/offline, onboarding, sign-in / out)
+               discard held), slots.ts (workbook slot collisions resolved on pull), photoSync.ts (upload / delete /
+               download queue), cloud.ts (auth + backend, lazy), SyncProvider.tsx (status, online/offline,
+               onboarding, sign-in / out, sign out and remove data)
   auth/        supabase.ts: lazy Supabase client, Microsoft sign-in (PKCE), callback, sign-out
   domain/      historyView.ts (history labels, old / new text, filters, grouping), projectFields.ts,
                scheduleImport.ts (schedule paste / file -> preview), duplicate.ts, projectCompletion.ts (project-level
-               completion incl. building pressures), attention.ts (needs-attention list), instruments.ts (instrument
-               kinds vs. calibration rows),
+               completion incl. building pressures and certification), certification.ts, spareOa.ts (Building
+               Balance other OA rows), attention.ts (needs-attention list), instruments.ts (instrument kinds vs.
+               calibration rows),
                equipmentTypes.ts (capacities from the template map), specs/ (field definitions for all 8 types;
                unitSections.ts = the data block RTUs / MAUs / ERVs / Fans share), completion.ts (gray/amber/green/red
                engine), calc.ts (outlet CFM / %), equipmentCalcs.ts (MAU PSP / filter grid / profile pressure, ERV,
@@ -347,6 +365,35 @@ reset when exporting onto a base workbook. The re-import review compares every p
 Project Information fields (REQUIRED_FIELDS.md), narrative, cover photo (can now be marked N/A), calibration (at least
 one instrument, every started row complete) and the building pressures. Each missing item links to its card.
 
+## Other outside air and Certification
+
+**Other outside air** (Info card, `domain/spareOa.ts`): the Building Balance sheet's 20 spare manual OA rows (rows
+67–86: B unit / source, C:D design CFM, E:F actual CFM; G has no formula there), included in the OA totals of row 87.
+Stored as project fields `info.bbOa<n>Unit / Design / Actual` (n = 1…20, N/A marks in `naState.fields`), so they sync,
+diff and re-import like the pressure table. All optional. Rows keep their positions in the export (a gap stays
+blank); removing a row in the app shifts the rows below up in one transaction. The app's Building Balance totals
+(`buildingBalance(units, rows, spareOaTotals(project))`) include them, checked against the LibreOffice recalculation.
+
+**Certification** (Info card, `domain/certification.ts`), the Certification sheet's input cells (checked in the
+template: C30, C32, C34 are label + value texts in merged C:L cells, I53 / I56 the signature and date lines; the stamp
+box C51:G56 is an empty merged cell with **no picture**, so no image is exported):
+
+| App field (`info.…`) | Cell | Written as |
+|---|---|---|
+| `certCpName` | C30 | `NEBB Certified Professional:  <name>` |
+| `certNumber` | C32 | `Certification Number:  <number>` |
+| `certExpiration` | C34 | `Expiration Date: December 31, 2026` |
+| `certSignature` | I53 | the name on the signature line |
+| `certDate` | I56 | `M/D/YYYY` text (the cell has the General format) |
+
+The template map has a `prefix` option for such label + value cells (export: prefix + value, a blank value leaves the
+label alone; import: the prefix is stripped, a replaced label keeps the whole text; dates as *Month d, yyyy*). New
+projects start with the template's CP, number and expiration (`DEFAULT_CERTIFICATION`, checked against the template);
+a project that never had them exports the defaults. Signature and date are **required on a final report** and
+automatically N/A on a prelim (exported as `N/A`, read back as automatic; a value entered on a prelim is exported). An
+expiration before the report date (else the TAB date) is flagged on the card. The firm lines C36 / C37 stay template
+text. The re-import review compares every line (group *Certification*) and the OA rows (group *Other outside air*).
+
 ## Needs attention
 
 Project tab **Attention** (count badge on the tab and a card on the Equipment tab), `domain/attention.ts`. One list,
@@ -355,12 +402,25 @@ out of tolerance (outlet rows, MAU method / hood / traverse totals), open issues
 design CFM vs. outlet design sum; unit ESP actual vs. design outside ± tolerance), motor checks (amps above corrected
 FLA × SF, estimated BHP above the nameplate HP), missing required photos (started units only), calibration
 (instruments used without a calibration row, or whose calibration date is more than 12 months before the TAB date or
-missing), capacity (a type at its workbook capacity; small fans past slot 30).
+missing), capacity (a type at its workbook capacity; small fans past slot 30; two units sharing a workbook slot).
 
 ## Instruments and calibration
 
 New projects start with the template's 7 a2b instruments (`DEFAULT_INSTRUMENTS`); Info → Instruments edits, removes
-and adds them (8 slots, the Calibration sheet's capacity). A calibration date more than 12 months before the TAB date is
+and adds them (8 slots, the Calibration sheet's capacity).
+
+**Shared calibration library** (`/library`, `ui/pages/LibraryPage.tsx`; repo: `addLibraryInstrument`,
+`addInstrumentFromLibrary`, `saveInstrumentToLibrary`, `updateInstrumentFromLibrary`, `deleteLibraryInstrument`).
+Instruments are stored once in the Dexie v6 table `libraryInstruments` (type, manufacturer, model, serial, calibration
+date, notes) and synced like every record; a library instrument belongs to no project, so its field changes carry its
+own id as `projectId` (as a project's own changes do) and the server files them under the organization (0004). A
+project's calibration rows stay **copies** (`instruments.libraryId` remembers the source): editing the library never
+changes a project, least of all an issued (locked) one. Info → Instruments offers *Add from library* (next slot,
+capacity 8), *Save to library* on a row typed by hand, *In the library* when the copy matches, and *The library has
+calibration … / Update from library* when it differs (each detail is a normal `setField`). The library page shows how
+many projects use an instrument, how many copies differ, and flags calibrations older than 12 months; deleting a
+library instrument unlinks the copies of unlocked projects (details kept). An empty library can be seeded with the
+template's 7 instruments. A calibration date more than 12 months before the TAB date is
 flagged there. Unit, traverse and hood pages pick an instrument *kind* from the workbook's lists; the picker shows a
 warning when no calibration row covers that kind (`domain/instruments.ts`: Flow Hood → a balometer / flow hood;
 Velocity Grid, Pitot Traverse, the Manometer/… traverse kinds and the Evergreen VelGrid / Airfoil hood kinds → a
@@ -371,7 +431,7 @@ static pressures → a manometer.
 ## Code splitting
 
 Every page is its own chunk (`React.lazy` in `App.tsx`; the project list and the project frame load with the app), the
-workbook library (JSZip) and pdf-lib load on first use. Main bundle ~550 kB (under Vite's 600 kB warning, which is left
+workbook library (JSZip) and pdf-lib load on first use. Main bundle ~577 kB (under Vite's 600 kB warning, which is left
 at its default); every chunk is precached by the service worker, so pages still open offline.
 
 ## How export works
@@ -394,7 +454,11 @@ hood filter readings go to the off-print P–U cells only (never the J/L average
 quick entry only; hood and traverse remarks use the page's shared remark box (hoods: lines 1–3 / 4–5, traverses:
 one line each).
 
-Import runs `importWorkbook()` on a picked file and `fromProjectData()`. Photos are not in the workbook, so they
+Import runs `importWorkbook()` on a picked file and `fromProjectData()`. **Size limits** (`@a2b/workbook`
+`zipLimits.ts`, every user-supplied workbook: import, re-import, schedule import, the base workbook check): a file over
+**50 MB** is refused before it is read; then the zip's central directory is read without inflating anything and a
+workbook whose parts declare more than **200 MB** uncompressed in total (100 MB for one part, 5,000 parts, ZIP64) is
+refused with a clear message. JSZip fails on a part whose real size differs from the declared one. Photos are not in the workbook, so they
 don't round-trip: a new project's units stay amber until photos are added; a re-import into the same project keeps
 its photos.
 
@@ -519,7 +583,15 @@ is 51 pages (unit test). The zip is built in memory (the stored JPEGs, not recom
 
 ## Tests
 
-- `npm test`: 348 tests (23 in `packages/workbook`: the schedule readers (EDE section only, sheet grids), export onto an issued workbook (clearing, hand formatting kept,
+- `npm test`: 384 tests (30 in `packages/workbook`, incl. the workbook size limits, the Certification label + value
+  cells and the spare OA rows round trip and an audit of every single-sheet section; 354 in the app, incl.
+  `sync/slots.test.ts` (slot collisions with two / three simulated devices: the later create moves and syncs, both
+  devices resolving the same collision agree without a conflict, capacity reached, locked project, the pure planner),
+  `data/library.test.ts` (library copies, update from library, capacity, locked project, delete, two-device sync),
+  `workbook/certification.test.ts` (certification and other OA: export, import, re-import diff, completion, totals,
+  real-template round trip), the fake server's 0004 rules (`sync/fakeServer.test.ts`), the build-time CSP pin
+  (`deploy/hosting.test.ts`), sign out and remove data (`ui/sync.test.tsx`) and the new Info cards / library page / slot
+  note (`ui/forms.test.tsx`). Before this round: 348 tests (23 in `packages/workbook`: the schedule readers (EDE section only, sheet grids), export onto an issued workbook (clearing, hand formatting kept,
   an Excel-style shared-strings save, formulas typed over inputs), the revision marker, the compatibility check (incl.
   revision 04 rejected), plus list and constants copies vs. the template, a map audit that
   fills **every** block of every type, round trip, safety; 325 in the app, incl. **sync** (54 tests, two or three
@@ -581,6 +653,11 @@ is 51 pages (unit test). The zip is built in memory (the stored JPEGs, not recom
   shows it as an incoming *Building vs Outdoors ΔP*. **Schedule import** (own project): 9 MAUs pasted without a header,
   then 4 RTUs with headers (one invalid CFM skipped, one column mapped by hand, phase / V/Ph/Hz normalised) and 2 MAUs
   (MAU-11 over capacity), duplicate RTU-3 → RTU-4 (slot 4), and the TAB workbook source (EDE only) of the main export.
+  **Other OA, certification, library** (`e2e/features.ts`): two other-OA rows (one *Not Acc.*) and the certification
+  (report switched to Final: signature / date required, signed, back to Prelim) on the main project, checked in the
+  export and after the LibreOffice recalculation (Building Balance B67:E68, Certification C30 … I56, OA totals =
+  app incl. the rows; 0 error cells; screenshot 30); the library in its own context (7 template instruments, a
+  recalibration, *Add from library*, a later library edit offered, not applied, *Update from library*; screenshot 31).
   **Photos** (`e2e/photos.ts`): RTU-1's tag / OA damper N/A cleared (amber) → an EXIF-rotated JPEG (orientation 6,
   capture time, GPS) and a second photo attached (green again; the stored tag photo is checked upright pixel by
   pixel) → New / Existing issues with deficiency photos (N-1.1, N-1.2, E-1.1; reorder relabels) → Photos tab
@@ -601,7 +678,9 @@ is 51 pages (unit test). The zip is built in memory (the stored JPEGs, not recom
   A imports a project while signed out, signs in (redirect to `/auth/callback`), *Move projects to the cloud* lists it,
   upload → *Synced*; B signs in and gets it; both go offline and change RTU-1's serial → the later value on both, both
   flag the field, list it on the unit page, badge the unit card and show the Attention tab's Conflicts group (screenshot
-  29) → A restores its value → B gets it and B's conflict is settled → B signs out, the project stays
+  29) → A restores its value → B gets it and B's conflict is settled → both add an RTU offline (slot 3 on both) → after
+syncing, B's is in slot 4 on both devices with the note, nothing in Attention → B signs out, the project stays → A
+signs out and removes the data (warned, project list empty)
   (`E2E_SKIP_SYNC=1` skips this walk). Every page of every context is checked for
   **CSP violations** (none) and the production headers are checked on `/`.
   Uses `PLAYWRIGHT_BROWSERS_PATH` or `CHROMIUM_PATH` (falls back
@@ -610,17 +689,18 @@ is 51 pages (unit test). The zip is built in memory (the stored JPEGs, not recom
   forms; 13: RTU motor and static-profile panels; 14: re-import review; 15: revisions; 16: Photos tab; 17: issue
   with deficiency photos; 18 / 19: page 1 of the Photo and Issues reports; 20: schedule import preview; 21: needs attention; 22: building
   pressures; 23: reviewed (blue) units; 24: locked (issued) unit page; 25: History; 26: install card; 27: export with
-  Share…; 28: the icon set, rendered by `npm run icons`; 29: a sync conflict in the Attention tab).
+  Share…; 28: the icon set, rendered by `npm run icons`; 29: a sync conflict in the Attention tab; 30: the Certification
+card; 31: the instrument library).
 
 ## Not done yet
 
 Sign-in and sync against a live Supabase project and Microsoft tenant (built and tested against the fake server and a
-mocked auth client; steps in [`docs/SYNC_SETUP.md`](../docs/SYNC_SETUP.md)); two offline devices can give two units the
-same workbook slot (not resolved on pull yet); a record deleted on one device while edited on another is not flagged as
+mocked auth client; steps in [`docs/SYNC_SETUP.md`](../docs/SYNC_SETUP.md)); a record deleted on one device while edited on another is not flagged as
 a conflict (the history shows both); the history is per device (not synced, so a new device starts with what it pulls);
 photos can't be opened from a unit page while the project is locked (use the Photos tab, whose viewer is read-only
 then); server columns for the newer photo fields (`order`, `width`, `height`, `capturedAt`, `gps` sync through the log
 but are not in the server's `photos` table); photos tested in Chromium only (no real iPhone camera / HEIC run);
 revisions are not synced between devices; re-import behaviour after a real desktop-Excel save is untested (simulated
-with XML edits); Certification; the Building Balance spare OA rows; the hood schedule's "KEF interlock" column (EDE G,
+with XML edits); the certification stamp / signature image (the template has no picture in the stamp box: placed in
+Excel); the Certification sheet's firm lines (fixed template text); the hood schedule's "KEF interlock" column (EDE G,
 info only, not linked) is not written (the hood page's own "Associated exhaust fan" is).

@@ -220,6 +220,21 @@ export function isoToUs(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
   return `${m}/${d}/${y}`;
 }
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
+  'November', 'December'];
+/** "2026-12-31" -> "December 31, 2026" (the Certification sheet's expiration line). */
+export function isoToLong(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${MONTHS[m - 1]} ${d}, ${y}`;
+}
+/** "December 31, 2026" / "Dec 31 2026" -> "2026-12-31" (null when not such a date). */
+export function longToIso(s: string): string | null {
+  const m = /^([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})$/.exec(s.trim());
+  if (!m) return null;
+  const mi = MONTHS.findIndex((x) => x.toLowerCase().startsWith(m[1].toLowerCase()) && m[1].length >= 3);
+  if (mi < 0) return null;
+  return `${m[3]}-${String(mi + 1).padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+}
 export function usToIso(s: string): string | null {
   const m = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/.exec(s.trim());
   if (!m) return null;
