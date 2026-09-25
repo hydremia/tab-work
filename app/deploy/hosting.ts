@@ -14,9 +14,11 @@
  * - script-src 'self': Vite emits module scripts only (no inline script); the service worker and workbox are files.
  * - style-src 'self': one stylesheet; React sets `style` props through the CSSOM, which CSP does not restrict.
  * - img-src 'self' blob: data:: photo thumbnails / viewer are blob: URLs; data: for small inline images.
- * - connect-src 'self' + Supabase (REST / auth / storage over https, realtime over wss). The committed files allow
- *   any *.supabase.co project; `VITE_SUPABASE_URL=https://<ref>.supabase.co npm run hosting-config -w app` narrows
- *   it to one project. blob: / data: are for reading photos and generated files back (fetch of an object URL).
+ * - connect-src 'self' + Supabase (REST / auth / storage over https, realtime over wss). A build with
+ *   VITE_SUPABASE_URL set pins it to that one project (cspMetaTag below: a <meta> policy in index.html and a pinned
+ *   dist/_headers); the committed files allow any *.supabase.co project only as the fallback when no project is
+ *   configured (`VITE_SUPABASE_URL=https://<ref>.supabase.co npm run hosting-config -w app` pins them too).
+ *   blob: / data: are for reading photos and generated files back (fetch of an object URL).
  * - worker-src 'self' (service worker); manifest-src 'self'; font-src 'self' (no web fonts are used).
  * - object-src 'none', base-uri 'self', form-action 'self', frame-ancestors 'none' (no framing: clickjacking).
  * Downloads use <a download> with blob: URLs, which CSP does not restrict. Sign in with Microsoft is a top-level
@@ -25,12 +27,31 @@
 
 export const XLSM_MIME = 'application/vnd.ms-excel.sheet.macroEnabled.12';
 
+/**
+ * connect-src sources for Supabase: the one project of `url` (its REST / auth / storage origin and its Realtime
+ * websocket), or, when no project is configured, any *.supabase.co project.
+ */
 export function supabaseOrigins(url = process.env.VITE_SUPABASE_URL): string[] {
-  if (url) {
-    const u = new URL(url);
-    return [u.origin, `wss://${u.host}`];
+  const u = url?.trim();
+  if (u) {
+    const parsed = new URL(u);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:')
+      throw new Error(`VITE_SUPABASE_URL must be an http(s) URL, got ${parsed.protocol}`);
+    return [parsed.origin, `${parsed.protocol === 'https:' ? 'wss' : 'ws'}://${parsed.host}`];
   }
   return ['https://*.supabase.co', 'wss://*.supabase.co'];
+}
+
+/**
+ * Build-time pin (vite.config.ts, plugin "a2b-pin-csp"): when VITE_SUPABASE_URL is set for `vite build`, index.html
+ * gets this second policy as a <meta> and dist/_headers is written with the project's origins. Browsers enforce every
+ * policy they are given, so the page may only connect to that one project even on a host whose headers still allow
+ * any *.supabase.co (vercel.json is static). Only connect-src: frame-ancestors and the other directives come from the
+ * headers (frame-ancestors is ignored in a <meta>).
+ */
+export function cspMetaTag(supabase: string[]): string {
+  const connect = ["'self'", 'blob:', 'data:', ...supabase].join(' ');
+  return `<meta http-equiv="Content-Security-Policy" content="connect-src ${connect}" />`;
 }
 
 export function contentSecurityPolicy(supabase = supabaseOrigins()): string {

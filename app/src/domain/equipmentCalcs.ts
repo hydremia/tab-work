@@ -370,15 +370,16 @@ export interface BuildingBalance {
 
 /**
  * Building Balance totals (rows 7-87, 89, 91) from the units the app manages: RTU OA rows, MAU totals, ERV supply
- * on the OA side; fans, ERV exhaust and small fans 1-30 on the exhaust side. (The sheet's 20 spare manual OA rows
- * are not managed by the app.)
+ * on the OA side; fans, ERV exhaust and small fans 1-30 on the exhaust side; plus the sheet's 20 spare manual OA
+ * rows (`spareOa`: their numeric sums, domain/spareOa.ts spareOaTotals).
  */
 export function buildingBalance(
   units: readonly BalanceUnit[],
   rows: readonly (Row & { equipmentId: string })[],
+  spareOa: { design: number; actual: number } = { design: 0, actual: 0 },
 ): BuildingBalance {
-  let oaD = 0,
-    oaA = 0,
+  let oaD = spareOa.design,
+    oaA = spareOa.actual,
     exD = 0,
     exA = 0;
   for (const u of units) {

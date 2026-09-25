@@ -56,11 +56,24 @@
         "pressures": [
           { "testSpace": "Building", "referenceSpace": "Outdoors", "dp": 0.02, "remarks": "Positive, all doors closed" },
           { "testSpace": "Kitchen", "referenceSpace": "Dining", "dp": -0.01, "remarks": "Kitchen negative to dining" }
+        ],
+        "spareOa": [
+          { "unit": "Transfer grille TG-1", "design": 400, "actual": 385 },
+          { "unit": "Relief opening", "design": 150, "actual": "Not Acc." }
         ]
       },
       "lines": { "notes": ["Pressures measured at 2 pm with all units in occupied mode."] }
     },
-    "equipmentSummary": { "fields": { "tolerance": 0.1 } }
+    "equipmentSummary": { "fields": { "tolerance": 0.1 } },
+    "certification": {
+      "fields": {
+        "cpName": "Isaac Rochester",
+        "certNumber": "24053",
+        "expiration": "2026-12-31",
+        "signature": "Isaac Rochester",
+        "date": "2026-09-25"
+      }
+    }
   },
   "equipment": {
     "rtu": [

@@ -14,7 +14,7 @@
 import type { AirflowRow, Equipment, Instrument, Issue, Photo, Project } from '../data/types';
 import { formatNumber, formatPercent } from './calc';
 import { computeCompletion, type Completion } from './completion';
-import { EQUIPMENT_TYPES } from './equipmentTypes';
+import { EQUIPMENT_TYPES, equipmentType, slotCollisions } from './equipmentTypes';
 import {
   calibrationExpired,
   impliedNeeds,
@@ -201,6 +201,28 @@ export function needsAttention(input: AttentionInput): AttentionItem[] {
     }
   }
 
+  // workbook slot collisions (two devices gave new units the same slot; sync moves the later one when it can)
+  for (const c of slotCollisions(input.equipment)) {
+    const t = equipmentType(c.type);
+    const list = c.ids
+      .map((id) => input.equipment.find((e) => e.id === id)!)
+      .sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1));
+    const names = list.map((e) => e.designation);
+    const full = !hasFreeSlot(input.equipment, c.type, t.capacity);
+    items.push({
+      id: `capacity:slot:${c.type}:${c.slot}`,
+      group: 'capacity',
+      subject: t.plural,
+      text: `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} both use slot ${c.slot}: ${
+        full
+          ? `the workbook has no free ${t.plural.replace(/s$/, '')} slot. Delete one (or another ${t.plural.replace(/s$/, '')}); only ${names[0]} is exported`
+          : 'the next sync moves the later one to a free slot'
+      }`,
+      to: `e/${list[list.length - 1].id}`,
+      equipmentId: list[list.length - 1].id,
+    });
+  }
+
   // calibration
   const tabDate = project.info.tabDate;
   for (const { need, units, to } of used.values()) {
@@ -232,6 +254,11 @@ export function needsAttention(input: AttentionInput): AttentionItem[] {
     });
   }
   return items;
+}
+
+function hasFreeSlot(units: readonly Equipment[], type: string, capacity: number): boolean {
+  const used = new Set(units.filter((e) => e.type === type).map((e) => e.slot));
+  return used.size < capacity;
 }
 
 /** Items per group in display order (empty groups left out). */

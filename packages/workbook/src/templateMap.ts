@@ -9,7 +9,8 @@
  *  - outlet tables, remark lines, reading grids and column tables are generic shapes.
  *
  * Source: docs/WORKBOOK_ANALYSIS.md (rev 04 layout, same in rev 05) + checks against the rev 05 XML.
- * Still to add: the 20 spare OA rows on Building Balance and Certification (more entries, not more code).
+ * Certification (C30 / C32 / C34 label + value lines, I53 signature, I56 date) and the 20 spare OA rows on Building
+ * Balance (rows 67-86) are mapped too.
  */
 
 export const TEMPLATE_REVISION = '05';
@@ -38,6 +39,12 @@ export interface FieldDef {
   slotPreset?: string;
   /** Values the importer treats as blank (e.g. the "SF" header text used as a placeholder). */
   blankValues?: readonly string[];
+  /**
+   * The cell holds a label and the value as ONE text ("Certification Number:  24053"): the export writes
+   * prefix + value (a blank value leaves the label alone), the import strips the prefix. A date is written as
+   * "December 31, 2026". Only for text / date fields.
+   */
+  prefix?: string;
   label?: string;
 }
 
@@ -314,10 +321,30 @@ export const TEMPLATE_MAP: TemplateMap = {
         key: 'pressures',
         segments: [{ row: 97, count: 3 }],
         columns: [c('testSpace', 'B', 'text'), c('referenceSpace', 'E', 'text'), c('dp', 'H', 'number'), c('remarks', 'K', 'text')],
+      }, {
+        // 20 spare manual outside-air rows under the units (B unit / source, C:D design CFM, E:F actual CFM; G has no
+        // formula on these rows). Included in the OA totals (C87 / E87 = SUM of rows 7-86).
+        key: 'spareOa',
+        segments: [{ row: 67, count: 20 }],
+        columns: [c('unit', 'B', 'text'), c('design', 'C', 'number'), c('actual', 'E', 'number')],
       }],
       lines: [{ key: 'notes', cells: [{ col: 'B', row: 102 }, { col: 'B', row: 103 }, { col: 'B', row: 104 }] }],
     },
     { key: 'equipmentSummary', sheet: 'Equipment Summary', fields: [f('tolerance', 'E', 5, 'number')] },
+    {
+      // label + value lines of the certified professional (merged C:L); the firm lines C36 / C37 stay template text.
+      // The stamp box C51:G56 has no picture in the template (the stamp is placed in Excel).
+      key: 'certification',
+      sheet: 'Certification',
+      fields: [
+        f('cpName', 'C', 30, 'text', { prefix: 'NEBB Certified Professional:  ' }),
+        f('certNumber', 'C', 32, 'text', { prefix: 'Certification Number:  ' }),
+        f('expiration', 'C', 34, 'date', { prefix: 'Expiration Date: ' }),
+        f('signature', 'I', 53, 'text'),
+        // General format in the template: written as text M/D/YYYY
+        f('date', 'I', 56, 'date'),
+      ],
+    },
   ],
 
   equipment: [

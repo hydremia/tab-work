@@ -253,7 +253,9 @@ describe('export onto a previously issued workbook', () => {
       (await exportWorkbookWithReport(templateBytes(), full(), { marker: { projectId: 'p', revisionId: 'r' } })).bytes,
     );
     expect(
-      diff(await values(issued), normalizeProject(full())).filter((d) => !/calibration|buildingBalance/.test(d)),
+      diff(await values(issued), normalizeProject(full())).filter(
+        (d) => !/calibration|buildingBalance|certification/.test(d),
+      ),
     ).toEqual([]);
     const next = full();
     next.equipment.rtu[0].fields!.driveType = 'Direct'; // a list value: checked against the {Dropdowns} (shared strings)

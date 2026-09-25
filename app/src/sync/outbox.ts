@@ -271,7 +271,7 @@ export async function applyRemoteChanges(changes: readonly RemoteChange[]): Prom
           const value = {
             ...(c.value as Record<string, unknown>),
             id: c.recordId,
-            ...(c.table === 'projects' ? {} : { projectId: c.projectId }),
+            ...(c.table === 'projects' || c.table === 'libraryInstruments' ? {} : { projectId: c.projectId }),
           };
           // a photo arrives without its file (downloaded by sync/photoSync.ts)
           await t.put(c.table === 'photos' ? { blob: null, thumb: null, ...value, uploaded: 1 } : value);

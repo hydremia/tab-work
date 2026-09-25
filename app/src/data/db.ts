@@ -7,6 +7,7 @@ import type {
   HistoryEntry,
   Instrument,
   Issue,
+  LibraryInstrument,
   Meta,
   Photo,
   PhotoUpload,
@@ -29,6 +30,7 @@ export class TabDatabase extends Dexie {
   photoUploads!: EntityTable<PhotoUpload, 'photoId'>;
   history!: EntityTable<HistoryEntry, 'id'>;
   conflicts!: EntityTable<SyncConflict, 'id'>;
+  libraryInstruments!: EntityTable<LibraryInstrument, 'id'>;
 
   constructor(name = 'a2b-tab') {
     super(name);
@@ -121,6 +123,8 @@ export class TabDatabase extends Dexie {
       });
     // v5 (Phase 5, sync): conflicts found on pull (and changes held back by a report lock). New table only.
     this.version(5).stores({ conflicts: 'id, projectId, recordId, status, [projectId+status]' });
+    // v6: the shared calibration library (instruments stored once, picked into projects). New table only.
+    this.version(6).stores({ libraryInstruments: 'id, updatedAt' });
   }
 }
 

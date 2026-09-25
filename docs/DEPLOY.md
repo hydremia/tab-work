@@ -37,8 +37,14 @@ commit. A unit test fails when they are out of date.
 - **Template**: `/templates/tab-template-rev05.xlsm` is served as
   `application/vnd.ms-excel.sheet.macroEnabled.12`.
 
-To allow only your own Supabase project instead of any `*.supabase.co`, run
-`VITE_SUPABASE_URL=https://<ref>.supabase.co npm run hosting-config -w app` and commit the result (optional).
+**Pinned to your Supabase project at build time.** A build with `VITE_SUPABASE_URL` set (the hosting provider's
+environment variable, see below) pins `connect-src` to that one project: `index.html` gets a second policy as a
+`<meta http-equiv="Content-Security-Policy">` with `connect-src 'self' blob: data: https://<ref>.supabase.co
+wss://<ref>.supabase.co`, and `dist/_headers` (Netlify / Cloudflare Pages) is written with the same origins (vite
+plugin `a2b-pin-csp`, `app/deploy/hosting.ts` `cspMetaTag`). Browsers enforce every policy they get, so the page can
+only talk to that project even on Vercel, whose `vercel.json` headers are static. The `*.supabase.co` wildcard in the
+committed files is only the fallback for builds without a configured project (local mode). To pin the committed files
+as well: `VITE_SUPABASE_URL=https://<ref>.supabase.co npm run hosting-config -w app` and commit the result (optional).
 
 ### How the workbook template gets into the build
 
@@ -157,7 +163,7 @@ Every CI run (pull request or push) uploads the built app as an artifact: **GitH
 ```
 npm ci
 rm -rf app/dist && mkdir -p app/dist && unzip app-dist-<commit>.zip -d app/dist
-npm run serve-dist -w app            # http://localhost:4173 with the production headers
+npm run serve-dist -w app            # http://127.0.0.1:4173 with the production headers (loopback only; SERVE_HOST=0.0.0.0 to open it to the network)
 ```
 
 `npm run serve-dist -w app` serves any local `npm run build` the same way; the e2e run uses it too.

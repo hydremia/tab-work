@@ -628,6 +628,37 @@ export function EquipmentPage() {
               {espText(esp)} Outside ±{Math.round(project.tolerance * 100)} % (static pressure profile).
             </div>
           )}
+          {equipment.slotMove && (
+            <div className="callout" data-tone="amber" role="status" data-testid="slot-move-note">
+              <span style={{ flex: 1 }}>
+                Moved from workbook slot {equipment.slotMove.from} to slot {equipment.slotMove.to} because another
+                device used slot {equipment.slotMove.from} for{' '}
+                {all?.find((u) => u.id === equipment.slotMove!.otherId)?.designation ?? 'another unit'}.
+              </span>
+              {!locked && (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() =>
+                    void setField('equipment', equipment.id, 'slotMove', null, { keepReview: true, source: 'auto' })
+                  }
+                >
+                  OK
+                </button>
+              )}
+            </div>
+          )}
+          {all && all.some((u) => u.id !== equipment.id && u.type === equipment.type && u.slot === equipment.slot) && (
+            <div className="callout" data-tone="red" role="status" data-testid="slot-collision">
+              Workbook slot {equipment.slot} is also used by{' '}
+              {all
+                .filter((u) => u.id !== equipment.id && u.type === equipment.type && u.slot === equipment.slot)
+                .map((u) => u.designation)
+                .join(', ')}{' '}
+              (added on another device). The next sync moves the later unit when the workbook has a free slot; see the
+              Attention tab.
+            </div>
+          )}
           {info.warnAbove && equipment.slot > info.warnAbove && (
             <div className="callout" data-tone="amber" role="status">
               {equipment.designation} is {info.plural.toLowerCase()} slot {equipment.slot}: Building Balance lists{' '}

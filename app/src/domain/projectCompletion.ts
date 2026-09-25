@@ -1,6 +1,6 @@
 /**
  * Project-level completion (docs/REQUIRED_FIELDS.md "Project level"): Project Information, narrative, cover photo,
- * calibration and the Building Balance pressure table. Pure.
+ * calibration, the Building Balance pressure table and the certification (domain/certification.ts). Pure.
  *
  * Building pressures (Building Balance rows 97–99 and the notes B102–B104) are stored on the project as
  * `info.bb*` values (field N/A marks in `naState.fields`), so they sync, diff and re-import like the other
@@ -11,6 +11,7 @@
  *   notes   up to 3 lines, optional
  */
 import type { FieldValue, Instrument, NaMark, Notation, Project } from '../data/types';
+import { CERT_FIELDS, CERT_LABELS, certificationStates } from './certification';
 import type { ItemResult } from './completion';
 import { isBlank } from './conditions';
 import type { FieldSpec } from './specs';
@@ -86,7 +87,7 @@ export const INFO_REQUIRED = [
 ] as const;
 
 export interface ProjectCompletionInput {
-  project: Pick<Project, 'name' | 'info' | 'naState'>;
+  project: Pick<Project, 'name' | 'info' | 'naState'> & Partial<Pick<Project, 'reportKind'>>;
   hasHoods: boolean;
   hasCover: boolean;
   instruments: readonly Pick<Instrument, 'type' | 'manufacturer' | 'model' | 'serial' | 'calibrationDate'>[];
@@ -95,7 +96,7 @@ export interface ProjectCompletionInput {
 export interface ProjectCompletion {
   required: number;
   satisfied: number;
-  missing: { key: string; label: string; section: 'info' | 'cover' | 'calibration' | 'pressures' }[];
+  missing: { key: string; label: string; section: 'info' | 'cover' | 'calibration' | 'pressures' | 'certification' }[];
   fields: Record<string, ItemResult>;
 }
 
@@ -181,5 +182,8 @@ export function computeProjectCompletion(input: ProjectCompletionInput): Project
   );
   const ps = pressureStates(project, input.hasHoods);
   for (const f of PRESSURE_FIELDS) count(f.key, PRESSURE_LABELS[f.key], 'pressures', ps[f.key]);
+  // certification: signature and date required on a final report (automatic N/A on a prelim)
+  const cs = certificationStates({ ...project, reportKind: project.reportKind ?? 'prelim' });
+  for (const f of CERT_FIELDS) count(f.key, CERT_LABELS[f.key], 'certification', cs[f.key]);
   return res;
 }

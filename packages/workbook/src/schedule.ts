@@ -4,7 +4,7 @@
  *    blocks, no project sections), keyed by the template map's EDE field keys;
  *  - readSheetRows(): the cell values of every worksheet of any .xlsx / .xlsm (an engineer's schedule), as a grid.
  */
-import JSZip from 'jszip';
+import { loadWorkbookZip } from './zipLimits.js';
 import {
   cellValue,
   colToNum,
@@ -27,7 +27,7 @@ export interface ScheduleRow {
 
 /** Whether the file is a TAB workbook (it has the {Equipment Data Entry} sheet). */
 export async function hasScheduleSection(bytes: Uint8Array, map: TemplateMap = TEMPLATE_MAP): Promise<boolean> {
-  const zip = await JSZip.loadAsync(bytes);
+  const zip = await loadWorkbookZip(bytes);
   const sheet = map.equipment.find((d) => d.ede)?.ede?.sheet;
   return (await listSheets(zip)).some((s) => s.name === sheet);
 }
@@ -40,7 +40,7 @@ export async function readScheduleSection(
   bytes: Uint8Array,
   map: TemplateMap = TEMPLATE_MAP,
 ): Promise<Record<string, ScheduleRow[]>> {
-  const zip = await JSZip.loadAsync(bytes);
+  const zip = await loadWorkbookZip(bytes);
   const sheets = await listSheets(zip);
   const sst = await loadSharedStrings(zip);
   const out: Record<string, ScheduleRow[]> = {};
@@ -82,7 +82,7 @@ export interface SheetRows {
 
 /** Cell values of every worksheet of a workbook (for pasting-like import of an engineer's schedule). */
 export async function readSheetRows(bytes: Uint8Array): Promise<SheetRows[]> {
-  const zip = await JSZip.loadAsync(bytes);
+  const zip = await loadWorkbookZip(bytes);
   const sst = await loadSharedStrings(zip);
   const out: SheetRows[] = [];
   const styles = zip.file('xl/styles.xml') ? await readText(zip, 'xl/styles.xml') : '';
