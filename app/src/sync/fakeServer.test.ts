@@ -48,6 +48,102 @@ const refused = (f: () => unknown) => {
   throw new Error('not refused');
 };
 
+describe('fake server rules (as 0004: library, links)', () => {
+  const L = 'eeeeeeee-0000-4000-8000-000000000001';
+  const P2 = 'aaaaaaaa-0000-4000-8000-000000000002';
+  const U2 = 'bbbbbbbb-0000-4000-8000-000000000002';
+  const lib = (over: Partial<FieldChangeRow>) =>
+    row({ table_name: 'libraryInstruments', project_id: L, record_id: L, ...over });
+
+  it('library instruments: organization records filed under their own id; other organizations are refused', () => {
+    const { s, a, b, x } = setup();
+    s.push(a.id, [lib({ op: 'create', field: '', value: { type: 'Balometer', calibrationDate: '2024-03-14' } })]);
+    expect(s.record('libraryInstruments', L)).toMatchObject({ type: 'Balometer', orgId: 'a2b' });
+    expect(s.log.at(-1)?.org_id).toBe('a2b');
+    s.push(b.id, [lib({ field: 'calibrationDate', value: '2026-09-01', device_id: 'devB' })]);
+    expect(s.valueOf('libraryInstruments', L, 'calibrationDate')).toBe('2026-09-01');
+    expect(s.pull(b.id, 0, 100).filter((r) => r.table_name === 'libraryInstruments')).toHaveLength(2);
+    expect(s.pull(x.id, 0, 100)).toHaveLength(0);
+    expect(refused(() => s.push(x.id, [lib({ field: 'model', value: 'x', device_id: 'devX' })])).message).toMatch(
+      /TAB_FORBIDDEN/,
+    );
+    expect(refused(() => s.push(a.id, [lib({ project_id: P, field: 'notes', value: 'x' })])).message).toMatch(
+      /library change must name the instrument itself/,
+    );
+    // deleted, then a create of the same id is logged but not applied
+    s.push(a.id, [lib({ op: 'delete', field: '', value: null })]);
+    s.push(b.id, [lib({ op: 'create', field: '', value: { type: 'again' }, device_id: 'devB' })]);
+    expect(s.record('libraryInstruments', L)).toBeUndefined();
+  });
+
+  it('links inside values must stay in the project (units, issues) / organization (library)', () => {
+    const { s, a, x } = setup();
+    s.push(a.id, [
+      row({ table_name: 'projects', project_id: P2, record_id: P2, op: 'create', field: '', value: { name: 'P2' } }),
+      row({
+        project_id: P2,
+        record_id: U2,
+        op: 'create',
+        field: '',
+        value: { type: 'rtu', slot: 1, designation: 'RTU-9' },
+      }),
+    ]);
+    const I = 'dddddddd-0000-4000-8000-000000000001';
+    const bad = refused(() =>
+      s.push(a.id, [
+        row({ table_name: 'issues', record_id: I, op: 'create', field: '', value: { number: 1, equipmentId: U2 } }),
+      ]),
+    );
+    expect(bad.message).toMatch(/TAB_FORBIDDEN: equipmentId names a record of another project/);
+    s.push(a.id, [
+      row({ table_name: 'issues', record_id: I, op: 'create', field: '', value: { number: 1, equipmentId: U } }),
+    ]);
+    expect(
+      refused(() => s.push(a.id, [row({ table_name: 'issues', record_id: I, field: 'equipmentId', value: U2 })]))
+        .message,
+    ).toMatch(/another project/);
+    expect(
+      refused(() =>
+        s.push(a.id, [
+          row({
+            table_name: 'photos',
+            record_id: 'f0000000-0000-4000-8000-000000000001',
+            op: 'create',
+            field: '',
+            value: { category: 'deficiency', issueId: 'dddddddd-0000-4000-8000-000000000009' },
+          }),
+          row({
+            table_name: 'airflowRows',
+            record_id: 'c0000000-0000-4000-8000-000000000001',
+            op: 'create',
+            field: '',
+            value: { equipmentId: U2, table: 'supply' },
+          }),
+        ]),
+      ).message,
+    ).toMatch(/equipmentId names a record of another project/);
+    // another organization's library instrument
+    const XL = 'eeeeeeee-0000-4000-8000-000000000009';
+    s.push(x.id, [
+      lib({ project_id: XL, record_id: XL, op: 'create', field: '', value: { type: 'theirs' }, device_id: 'devX' }),
+    ]);
+    const INS = 'ffffffff-0000-4000-8000-000000000001';
+    expect(
+      refused(() =>
+        s.push(a.id, [
+          row({
+            table_name: 'instruments',
+            record_id: INS,
+            op: 'create',
+            field: '',
+            value: { order: 0, libraryId: XL },
+          }),
+        ]),
+      ).message,
+    ).toMatch(/libraryId names a record of another organization/);
+  });
+});
+
 describe('fake server rules (as 0003)', () => {
   it('idempotent re-push, last writer wins, create never overwrites', () => {
     const { s, a, b } = setup();

@@ -1,7 +1,7 @@
 # Supabase backend (not deployed yet)
 
-`migrations/0001_init.sql`, `0002_review_lock.sql` and `0003_sync_rules.sql` create everything the TAB App needs on
-Supabase. **Nothing has been applied to a Supabase project yet**: the app runs in local-only mode until
+`migrations/0001_init.sql`, `0002_review_lock.sql`, `0003_sync_rules.sql` and `0004_library_links.sql` create everything
+the TAB App needs on Supabase. **Nothing has been applied to a Supabase project yet**: the app runs in local-only mode until
 `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are set (see [`app/README.md`](../app/README.md)). Account setup:
 [`docs/SETUP_ACCOUNTS.md`](../docs/SETUP_ACCOUNTS.md); switching sign-in and sync on, step by step (migrations, bucket,
 Azure provider, Vercel, first sign-in, two-device check, rollback): **[`docs/SYNC_SETUP.md`](../docs/SYNC_SETUP.md)**.
@@ -39,6 +39,21 @@ fixes three problems found by testing the sync engine against a fake server and 
 | Storage | Photo files of a deleted project stay readable / removable by its organization (the deleting device removes them). |
 
 Rollback: `rollback/0003_sync_rules_down.sql` restores the 0001 / 0002 rules and keeps the data (docs/SYNC_SETUP.md §10).
+
+### 0004: calibration library, link checks, slot-move note
+
+`0004_library_links.sql` replaces the apply trigger again (every 0003 rule kept verbatim) and adds:
+
+| Rule / object | Detail |
+|---|---|
+| **`instrument_library`** | The organization's shared calibration library (type, manufacturer, model, serial, calibration date, notes; `org_id`). Members read it (RLS by organization); nobody writes it directly: changes come through `field_changes`, table `libraryInstruments`, and are applied by the trigger like every record. A library instrument belongs to no project, so its changes carry the **instrument's own id as `project_id`** (like a project's own changes); the organization comes from the instrument, else from its earlier changes (deleted), else the user's (new). `TAB_FORBIDDEN` when a library change names another record than itself or another organization's instrument. A create of a deleted library instrument is logged, not applied (as for every record). |
+| `instruments.library_id` | The library instrument a project's calibration row was copied from (no foreign key: a library delete on one device must not make another device's push fail forever). The project row keeps its own details. |
+| **Link checks** | A change that sets `equipmentId` / `issueId` (a create's value, or a set of that field) must name a unit / issue of the **same project**, and `libraryId` a library instrument of the **same organization** (`TAB_FORBIDDEN: … names a record of another project`); the trigger runs as the owner, so without this a change could hang a row, photo or issue under another project's (or organization's) record. A target that doesn't exist (yet / any more) is left to the foreign keys, as before. Helper `change_links()` (not callable over the API). |
+| `equipment.slot_move` | The note a device writes when sync moved a unit to a free workbook slot because another device had used its slot (`app/src/sync/slots.ts`; resolved on the devices, not on the server). `equipment.slot` stays non-unique on purpose. |
+| `field_changes` table check | accepts `libraryInstruments`; `sync_table()` maps it to `instrument_library`; `sync_columns` rows for the library, `instruments.libraryId`, `equipment.slotMove`. |
+
+Rollback: `rollback/0004_library_links_down.sql` restores the 0003 trigger and keeps the data (checked: after the
+rollback `sync_rules_test.sql` passes on the 0003 rules, and 0004 re-applies).
 
 Who can sign in at all is controlled in Microsoft Entra ID (single-tenant app registration, optionally
 "assignment required" + a "TAB App Users" group), so "member of the organization" = "has a company M365 account".
@@ -86,10 +101,22 @@ The app calls `supabase.auth.signInWithOAuth({ provider: 'azure', options: { sco
 ```
 psql -d <empty db> -v ON_ERROR_STOP=1 -f supabase/tests/supabase_stub.sql \
      -f supabase/migrations/0001_init.sql -f supabase/migrations/0002_review_lock.sql \
-     -f supabase/migrations/0003_sync_rules.sql -f supabase/tests/grants_for_stub.sql
+     -f supabase/migrations/0003_sync_rules.sql -f supabase/migrations/0004_library_links.sql \
+     -f supabase/tests/grants_for_stub.sql
 psql -d <empty db> -f supabase/tests/sync_rules_test.sql    # ends with "ALL SYNC RULE TESTS PASSED"
+psql -d <other empty db, same setup> -f supabase/tests/library_links_test.sql   # "ALL 0004 TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/smoke_test.sql
 ```
+
+(Each test file needs its own freshly set-up database.) **Last run (PostgreSQL 16.13, 2026-09-25, migrations
+0001–0004):** `sync_rules_test.sql` 48 PASS, *ALL SYNC RULE TESTS PASSED*; `library_links_test.sql` 26 PASS, *ALL 0004
+TESTS PASSED* (library created in the member's organization and carrying it, re-pushed create skipped, another member
+edits it and pulls its changes, a library change must name the instrument itself, no direct writes, a project copy
+keeps its own details and the link, another organization neither sees, edits nor re-creates it and has its own,
+`libraryId` of another organization refused, issue / outlet row / deficiency photo linking a unit or issue of another
+project refused on create and on set (nothing applied or logged), same-project links accepted, slot + slot-move note
+stored, library delete keeps the project copy and is not undone by a create, the 0003 lock still refuses edits, `anon`
+reads nothing, the link helper not callable); `smoke_test.sql` as before.
 
 `sync_rules_test.sql` asserts every rule and stops at the first failure (`PASS <name>` per check). **Last run
 (PostgreSQL 16.13, 2026-09-24): 48 PASS, "ALL SYNC RULE TESTS PASSED"**: creates / sets, changes carry the organization,
@@ -109,15 +136,15 @@ migrations' revokes are tested as on Supabase). `smoke_test.sql` (the 0001 check
 were first reproduced on 0001 + 0002 (a retried create reverted a rename; a project delete failed RLS). The rollback
 script was checked the same way (smoke test as on 0001, 0003 re-applies).
 
-The same rules run in the app's in-memory fake server (`app/src/sync/fakeServer.ts`, unit tests in
-`fakeServer.test.ts` mirroring the SQL test) that the sync engine is tested against.
+The same rules (0003 and 0004) run in the app's in-memory fake server (`app/src/sync/fakeServer.ts`, unit tests in
+`fakeServer.test.ts` mirroring the SQL tests) that the sync engine is tested against.
 
 ## Not done yet
 
 - Nothing has run against a real Supabase project: the sync engine, photo transfers, sign-in and the Realtime hint are
   tested against the fake server (same rules) and a mocked Supabase auth client; the SQL on local PostgreSQL 16.
-- Two offline devices can give two units the same workbook slot; resolving that on pull is still to do
-  (`equipment.slot` is deliberately not unique).
+- Two offline devices can give two units the same workbook slot: the devices resolve it on pull
+  (`app/src/sync/slots.ts`); the server keeps `equipment.slot` non-unique on purpose and does not take part.
 - The server does not check "review only when green" (it cannot compute completion); the devices do.
 - The newer photo fields (`order`, `width`, `height`, `capturedAt`, `gps`) have no server columns: they sync through
   `field_changes` (kept with `applied = false, note = 'unknown field'`, and applied by the devices) but are not in the

@@ -156,7 +156,8 @@ contractor, TAB date, technician(s), project manager, report date, and **Narrati
 Optional: architect, electrical engineer, general contractor.
 
 The status card at the top of **Info** lists everything still missing at the project level (project info,
-narrative, cover photo, calibration, building pressures). Tap an item to jump to it.
+narrative, cover photo, calibration, building pressures, and on a final report the certification signature and date).
+Tap an item to jump to it.
 
 ### Blueprints used
 
@@ -189,6 +190,25 @@ TAB date*, and the item appears on the **Attention** tab. Update the date or swa
 On unit, hood and traverse pages you pick the *kind* of instrument (Flow Hood, Velocity Grid, Pitot Traverse…). If no
 calibration row covers that kind, you get an amber note.
 
+### The instrument library
+
+Your meters, entered once and reused on every project. Open it from the bottom of the **Projects** screen
+(**Instrument library**).
+
+![Instrument library](../screenshots/31-calibration-library.png)
+
+- **Add instrument**, or on an empty library **Add the template's 7 a2b instruments**. Tap an instrument to open it and
+  edit its type, manufacturer, model, serial, calibration date and notes. A calibration more than 12 months old shows
+  **Calibration over 12 months old**.
+- In a project: **Info → Instruments → Choose from the library… → Add from library** puts a copy into the next of the
+  8 calibration slots. A project row you typed yourself can go the other way with **Save to library**.
+- **The project keeps its own copy.** When a meter is recalibrated, change its date in the library once. Projects are
+  **not** changed by that (an issued report must stay as it was issued). Instead, each project that has the meter
+  shows *The library has calibration …* with **Update from library**; tap it on the projects that should get the new
+  date. The library says how many project copies differ.
+- Removing a meter from the library doesn't remove it from any project.
+- When you're signed in, the library is shared with the whole team. In Local mode it's on this device.
+
 ### Building pressures
 
 **Info → Building pressures (Building Balance)**:
@@ -199,6 +219,29 @@ calibration row covers that kind, you get an amber note.
 - Notes (up to 3 lines).
 
 ![Building pressures](../screenshots/22-building-pressures.png)
+
+### Other outside air
+
+**Info → Other outside air (Building Balance)**: outside air you didn't measure on a unit page, such as a transfer
+grille or a relief opening. Tap **Add OA row** for each (up to 20). Each row has **Unit / source**, **Design** and
+**Actual** CFM (either can be marked N/A, Not Avail. or Not Acc.). The app shows the % of design and the rows' total.
+They go into the spare outside-air rows on the workbook's Building Balance sheet, so they count in the building's OA
+totals. The trash button removes a row (the rows below move up).
+
+### Certification
+
+**Info → Certification** fills the workbook's Certification sheet:
+
+- **NEBB certified professional**, **Certification number** and **Expiration date**: new projects start with the
+  template's (Isaac Rochester, 24053, December 31, 2026). Change them if someone else certifies the report. An
+  expiration date before the report date gets an amber note.
+- **Signature (signed by)** and **Date**: required on a **final** report. On a preliminary report they're N/A for you
+  (the workbook shows *N/A* on those lines) unless you fill them in. Change the report type under **Scope and
+  tolerance → Report**.
+- The **stamp** (and a signature image, if you use one) is placed in Excel: the template's stamp box has no picture
+  the app could fill.
+
+![Certification](../screenshots/30-certification.png)
 
 ### Delete a project
 
@@ -767,6 +810,26 @@ project. Changes made on another phone aren't in it (each device has its own his
 > **Later: Microsoft sign-in and cloud sync.** You'll sign in with your company Microsoft account. Projects and
 > photos will then sync between devices and teammates, and the **Local mode** banner will go away. Until then, data
 > stays on each device, so keep exporting.
+
+---
+
+### Signing out on a shared device (with cloud sync)
+
+**Sync & account** (tap the status pill) → **Sign out** keeps your projects on the device; nothing syncs until someone
+signs in again. On a shared or borrowed phone or laptop, use **Sign out and remove data from this device** instead: it
+signs out and deletes every project, photo and setting from that device. What has synced stays in the cloud and comes
+back when you sign in again. The app warns you first when something would be lost for good: changes that haven't synced
+yet (cancel, tap **Sync now** while online, then try again) and projects kept on this device only (export them or move
+them to the cloud first).
+
+### Two phones adding a unit at the same time (with cloud sync)
+
+If you and a teammate each add, say, an RTU while you can't see each other's changes (offline, or just before the next
+sync), both phones can give the new units the same workbook block. The app fixes this by itself when they sync: the
+unit that reached the cloud first keeps the block, the other moves to the next free one, on every device. Its page
+shows *Moved from workbook slot 3 to slot 4 because another device used slot 3 for RTU-7* (tap **OK** to hide it), and
+the History says so. If the workbook has no free block of that type left, nothing moves: the **Attention** tab lists
+the two units, and only the first is exported until you delete one.
 
 ---
 

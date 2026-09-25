@@ -34,7 +34,7 @@ describe('workbook library round trip (Node)', () => {
     expect(report.changedParts.every((p) => p.startsWith('xl/worksheets/'))).toBe(true);
     const back = await importWorkbook(bytes);
     // the template's pre-loaded calibration instruments and building pressures come back too; compare what we wrote
-    const { calibration: _c, buildingBalance: _b, ...sections } = back.sections;
+    const { calibration: _c, buildingBalance: _b, certification: _z, ...sections } = back.sections;
     expect(diff(normalizeProject({ ...back, sections }), normalizeProject(project))).toEqual([]);
   });
 
@@ -62,5 +62,58 @@ describe('workbook library round trip (Node)', () => {
   it('rejects list values that are not in the template list', async () => {
     const bad: ProjectData = { ...project, equipment: { rtu: [{ slot: 1, fields: { driveType: 'Chain' } }] } };
     await expect(exportWorkbookWithReport(templateBytes(), bad)).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('certification lines keep their labels; spare OA rows round-trip', async () => {
+    const p: ProjectData = {
+      ...project,
+      sections: {
+        ...project.sections,
+        certification: {
+          fields: {
+            cpName: 'Dana Smith',
+            certNumber: '31337',
+            expiration: '2027-06-30',
+            signature: 'Dana Smith',
+            date: '2026-10-02',
+          },
+        },
+        buildingBalance: {
+          tables: {
+            spareOa: [
+              { unit: 'Kitchen transfer', design: 400, actual: 380 },
+              {},
+              { unit: 'Relief', design: 'N/A', actual: 'Not Acc.' },
+            ],
+          },
+        },
+      },
+    };
+    const { bytes } = await exportWorkbookWithReport(templateBytes(), p);
+    const JSZip = (await import('jszip')).default;
+    const zip = await JSZip.loadAsync(bytes);
+    const cert = await zip.file('xl/worksheets/sheet20.xml')!.async('string');
+    expect(cert).toContain('NEBB Certified Professional:  Dana Smith');
+    expect(cert).toContain('Certification Number:  31337');
+    expect(cert).toContain('Expiration Date: June 30, 2027');
+    expect(cert).toContain('10/2/2026');
+    const back = await importWorkbook(bytes);
+    expect(back.sections.certification?.fields).toEqual(p.sections.certification!.fields);
+    expect(back.sections.buildingBalance?.tables?.spareOa).toEqual([
+      { unit: 'Kitchen transfer', design: 400, actual: 380 },
+      {},
+      { unit: 'Relief', design: 'N/A', actual: 'Not Acc.' },
+    ]);
+    // a blank value keeps the label alone and reads back as blank
+    const blank = await exportWorkbookWithReport(templateBytes(), {
+      ...project,
+      sections: { ...project.sections, certification: { fields: { cpName: null, certNumber: '' } } },
+    });
+    const z2 = await JSZip.loadAsync(blank.bytes);
+    expect(await z2.file('xl/worksheets/sheet20.xml')!.async('string')).toContain(
+      '<t>NEBB Certified Professional:</t>',
+    );
+    const back2 = await importWorkbook(blank.bytes);
+    expect(back2.sections.certification?.fields).toEqual({ expiration: '2026-12-31' });
   });
 });

@@ -27,7 +27,7 @@ Do every step on **tab-app-dev** first, check it with a preview deploy (step 8),
 | Sign in with Microsoft | Microsoft Entra ID + Supabase "Azure" provider | Only accounts of your company's Microsoft 365 can sign in |
 | Two settings | Vercel | Tell the app where the Supabase project is |
 
-## 2. Apply the database migrations (0001, 0002, 0003)
+## 2. Apply the database migrations (0001, 0002, 0003, 0004)
 
 Three files, **in this order**. Each can be run again safely only where noted, so run each one once.
 
@@ -36,13 +36,14 @@ Three files, **in this order**. Each can be run again safely only where noted, s
 | `supabase/migrations/0001_init.sql` | tables, the change log (`field_changes`) and its apply trigger, row-level security, the `photos` bucket |
 | `supabase/migrations/0002_review_lock.sql` | the unit review and report-lock columns |
 | `supabase/migrations/0003_sync_rules.sql` | server-side rules: report lock, review clearing, safe retries, project deletes, the server clock (re-runnable) |
+| `supabase/migrations/0004_library_links.sql` | shared calibration library, link checks (units / issues of the same project), slot-move note (re-runnable) |
 
 **Option A — in the browser (simplest):**
 
 1. Supabase → your project → **SQL Editor** → **New query**.
 2. Open `supabase/migrations/0001_init.sql` on GitHub (Raw), copy everything, paste, **Run**. It should end with
    "Success. No rows returned".
-3. New query → the same with `0002_review_lock.sql`, then with `0003_sync_rules.sql`.
+3. New query → the same with `0002_review_lock.sql`, then with `0003_sync_rules.sql`, then `0004_library_links.sql`.
 
 **Option B — command line** (from a checkout of the repository, Node installed):
 
@@ -50,7 +51,7 @@ Three files, **in this order**. Each can be run again safely only where noted, s
 npx supabase login
 npx supabase init                          # only if it says this is not a Supabase project; answer "n" to the questions
 npx supabase link --project-ref <project-ref>
-npx supabase db push                       # applies 0001, 0002, 0003 in order; shows them and asks first
+npx supabase db push                       # applies 0001 … 0004 in order; shows them and asks first
 ```
 
 The project ref is the `xxxx` in `https://xxxx.supabase.co` (Settings → General). Never run `supabase test db` against
@@ -188,7 +189,9 @@ sync is off wait on the device (the outbox) until it is on again.
 2. **Undo migration 0003 only** (if its rules cause trouble): SQL Editor → run
    `supabase/rollback/0003_sync_rules_down.sql`. It restores the 0001 / 0002 rules and keeps all data; 0003 can be
    applied again later. (Checked on PostgreSQL 16: after the rollback the 0001 smoke test behaves as before, and 0003
-   re-applies cleanly.)
+   re-applies cleanly.) Undo **0004** first if it is applied: `supabase/rollback/0004_library_links_down.sql`
+   restores the 0003 trigger and keeps all data (library changes pushed meanwhile are refused and wait on the devices
+   until 0004 is applied again).
 3. **Before changing production:** take a backup — Supabase → Database → Backups (Pro plan: daily backups, restore to a
    point in time), or `npx supabase db dump -f backup.sql --linked`.
 4. **Nothing is only in the cloud:** any project can still be exported to the TAB workbook from any device that has it.

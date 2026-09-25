@@ -3,7 +3,16 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { hostingFiles } from './files';
-import { contentSecurityPolicy, headersFor, IMMUTABLE, NO_CACHE, XLSM_MIME } from './hosting';
+import {
+  contentSecurityPolicy,
+  cspMetaTag,
+  headersFile,
+  headersFor,
+  IMMUTABLE,
+  NO_CACHE,
+  supabaseOrigins,
+  XLSM_MIME,
+} from './hosting';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -43,5 +52,23 @@ describe('hosting config', () => {
     expect(h['Permissions-Policy']).toContain('camera=(self)');
     expect(h['X-Content-Type-Options']).toBe('nosniff');
     expect(h['Referrer-Policy']).toBe('strict-origin-when-cross-origin');
+  });
+
+  it('build-time pin: a configured project narrows connect-src (meta policy + _headers); unset falls back', () => {
+    expect(supabaseOrigins('https://abcd1234.supabase.co/')).toEqual([
+      'https://abcd1234.supabase.co',
+      'wss://abcd1234.supabase.co',
+    ]);
+    expect(supabaseOrigins('http://127.0.0.1:54321')).toEqual(['http://127.0.0.1:54321', 'ws://127.0.0.1:54321']);
+    expect(supabaseOrigins('')).toEqual(['https://*.supabase.co', 'wss://*.supabase.co']);
+    expect(() => supabaseOrigins('javascript:alert(1)')).toThrow(/http\(s\) URL/);
+    const meta = cspMetaTag(supabaseOrigins('https://abcd1234.supabase.co'));
+    expect(meta).toBe(
+      '<meta http-equiv="Content-Security-Policy" content="connect-src \'self\' blob: data: https://abcd1234.supabase.co wss://abcd1234.supabase.co" />',
+    );
+    expect(meta).not.toContain('*');
+    const pinned = headersFile(supabaseOrigins('https://abcd1234.supabase.co'));
+    expect(pinned).toContain('https://abcd1234.supabase.co wss://abcd1234.supabase.co');
+    expect(pinned).not.toContain('*.supabase.co');
   });
 });

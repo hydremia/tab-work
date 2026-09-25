@@ -21,7 +21,7 @@ import { importWorkbook } from '@a2b/workbook';
 import { fillNewTypes, readLivePanels, recalcCrossCheck, verifyNewTypes } from './newTypes';
 import { reimportFlow } from './reimport';
 import { photosFlow } from './photos';
-import { pressuresAndAttention, scheduleFlow } from './features';
+import { libraryFlow, pressuresAndAttention, scheduleFlow } from './features';
 import { workflowFlow } from './workflow';
 import { deployFlow } from './deploy';
 import { syncFlow } from './sync';
@@ -535,6 +535,23 @@ async function main() {
         ]) && bb?.lines?.notes?.[0] === 'Measured at 2 pm, wind calm.',
       JSON.stringify(bb),
     );
+    check(
+      'workbook: Building Balance other OA rows (67-68) and the Certification lines',
+      JSON.stringify(bb?.tables?.spareOa) ===
+        JSON.stringify([
+          { unit: 'Transfer grille TG-1', design: 400, actual: 385 },
+          { unit: 'Relief opening', design: 150, actual: 'Not Acc.' },
+        ]) &&
+        JSON.stringify(wb.sections.certification?.fields) ===
+          JSON.stringify({
+            cpName: 'Isaac Rochester',
+            certNumber: '24053',
+            expiration: '2026-12-31',
+            signature: 'Isaac Rochester',
+            date: '2026-09-25',
+          }),
+      JSON.stringify([bb?.tables?.spareOa, wb.sections.certification]),
+    );
     const wbNew = await verifyNewTypes(bytes, check);
     await recalcCrossCheck(file, wbNew, { ...ui, ...rtuUi }, check);
     check('workbook: RTU-2 in slot 2', u2?.schedule?.designation === 'RTU-2', JSON.stringify(u2));
@@ -690,6 +707,7 @@ async function main() {
 
     // ------------------------------------------------------------------ schedule import, duplicate (own project)
     await scheduleFlow(browser, BASE, file, DOC_SHOTS, check);
+    await libraryFlow(browser, BASE, DOC_SHOTS, check);
 
     // ------------------------------------------------------------------ review, issue / lock, unlock, history
     await workflowFlow(browser, BASE, file, OUT, DOC_SHOTS, check);

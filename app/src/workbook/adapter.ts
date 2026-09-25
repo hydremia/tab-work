@@ -23,7 +23,9 @@ import {
 import { computeCompletion, isNaState, seqNaKey, tableNaKey, type Completion } from '../domain/completion';
 import { isBlank } from '../domain/conditions';
 import { equipmentType, type EquipmentTypeKey } from '../domain/equipmentTypes';
+import { CERT_KEYS, CERT_PRELIM_REASON, certValue } from '../domain/certification';
 import { PRESSURE_KEYS, PRESSURE_ROWS } from '../domain/projectCompletion';
+import { SPARE_OA_ROWS, spareOaKey, type SpareOaColumn } from '../domain/spareOa';
 import { getSpec, seqKey, tableColumns, type EquipmentSpec, type RowTableSpec } from '../domain/specs';
 import {
   emptyNaState,
@@ -68,6 +70,7 @@ export const APP_SECTIONS = [
   'calibration',
   'buildingBalance',
   'equipmentSummary',
+  'certification',
 ] as const;
 
 const isNotation = (v: unknown): v is Notation =>
@@ -151,10 +154,45 @@ export function toProjectData(b: ProjectBundle): { data: ProjectData; warnings: 
     if (typeof r.dp === 'string' && !isNotation(r.dp))
       r.dp = coerce({ type: 'number' }, r.dp, 'Building pressures ΔP', warnings) ?? null;
   const notes = project.info[PRESSURE_KEYS.notes];
+  // spare manual OA rows 67-86 (kept at their positions; a row with nothing is left as the template has it)
+  const spareOa: Record<string, Cell>[] = [];
+  const SPARE_COLS: [SpareOaColumn, string, 'text' | 'number'][] = [
+    ['Unit', 'unit', 'text'],
+    ['Design', 'design', 'number'],
+    ['Actual', 'actual', 'number'],
+  ];
+  for (let n = 1; n <= SPARE_OA_ROWS; n++) {
+    const row: Record<string, Cell> = {};
+    for (const [col, key, type] of SPARE_COLS) {
+      const raw = pv(spareOaKey(n, col));
+      const v = raw === undefined ? undefined : coerce({ type }, raw, `Other OA row ${n}`, warnings);
+      if (v !== undefined) row[key] = v;
+    }
+    spareOa.push(row);
+  }
+  while (spareOa.length && !Object.keys(spareOa[spareOa.length - 1]).length) spareOa.pop();
   pd.sections.buildingBalance = {
-    tables: { pressures },
+    tables: { pressures, ...(spareOa.length ? { spareOa } : {}) },
     ...(typeof notes === 'string' && notes.trim() ? { lines: { notes: splitLines(notes, 3) } } : {}),
   };
+
+  // ---- Certification: the certified professional's lines (template defaults when never set), signature and date
+  // (required on a final report, automatic N/A on a prelim: exported "N/A", read back as automatic)
+  const cert: Record<string, Cell> = {};
+  const final = project.reportKind === 'final';
+  const certOut = (k: string, signed = false): Cell => {
+    const v = out(
+      certValue(project, k),
+      pn[k] ?? (signed && !final ? { notation: 'N/A', reason: CERT_PRELIM_REASON } : null),
+    );
+    return v === undefined ? null : v;
+  };
+  cert.cpName = certOut(CERT_KEYS.cpName);
+  cert.certNumber = certOut(CERT_KEYS.number);
+  cert.expiration = certOut(CERT_KEYS.expiration);
+  cert.signature = certOut(CERT_KEYS.signature, true);
+  cert.date = certOut(CERT_KEYS.date, true);
+  pd.sections.certification = { fields: cert };
 
   // ---- Calibration
   const instruments = [...b.instruments]
@@ -187,8 +225,19 @@ export function toProjectData(b: ProjectBundle): { data: ProjectData; warnings: 
     pd.sections[kind === 'new' ? 'issuesNew' : 'issuesExisting'] = { tables: { issues: rows } };
   }
 
-  // ---- equipment
+  // ---- equipment (two units in one slot, which sync resolves when the type has a free slot: the earlier one is
+  // exported, the later one left out with a warning; the Attention tab lists it)
+  const slotOwner = new Map<string, Equipment>();
+  for (const e of [...b.equipment].sort((x, y) => x.createdAt - y.createdAt || (x.id < y.id ? -1 : 1))) {
+    const k = `${e.type}:${e.slot}`;
+    if (!slotOwner.has(k)) slotOwner.set(k, e);
+  }
   for (const e of b.equipment) {
+    const owner = slotOwner.get(`${e.type}:${e.slot}`);
+    if (owner && owner.id !== e.id) {
+      warnings.push(`${e.designation} is not exported: slot ${e.slot} is also used by ${owner.designation}`);
+      continue;
+    }
     const def = TEMPLATE_MAP.equipment.find((d) => d.key === e.type);
     if (!def) continue;
     const spec = getSpec(e.type);
@@ -378,6 +427,24 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
   take(PRESSURE_KEYS.spareRef, pr[2]?.referenceSpace, info, naState.fields);
   take(PRESSURE_KEYS.spareDp, pr[2]?.dp, info, naState.fields);
   take(PRESSURE_KEYS.spareRemarks, pr[2]?.remarks, info, naState.fields);
+  (bb?.tables?.spareOa ?? []).forEach((r, i) => {
+    take(spareOaKey(i + 1, 'Unit'), r.unit, info, naState.fields);
+    take(spareOaKey(i + 1, 'Design'), r.design, info, naState.fields);
+    take(spareOaKey(i + 1, 'Actual'), r.actual, info, naState.fields);
+  });
+  // Certification: a plain "N/A" on the signature / date line is the automatic prelim N/A, not a mark
+  const cf = pd.sections.certification?.fields ?? {};
+  take(CERT_KEYS.cpName, cf.cpName, info, naState.fields);
+  take(CERT_KEYS.number, cf.certNumber, info, naState.fields);
+  take(CERT_KEYS.expiration, cf.expiration, info, naState.fields);
+  for (const [k, v] of [
+    [CERT_KEYS.signature, cf.signature],
+    [CERT_KEYS.date, cf.date],
+  ] as const)
+    if (v !== 'N/A') take(k, v, info, naState.fields);
+  // the certified professional's lines are always there in a workbook: blank means cleared, not "template default"
+  for (const k of [CERT_KEYS.cpName, CERT_KEYS.number, CERT_KEYS.expiration])
+    if (!(k in info) && !naState.fields[k]) info[k] = null;
   const noteLines = bb?.lines?.notes ?? [];
   if (noteLines.some((l) => l !== null && String(l).trim() !== ''))
     info[PRESSURE_KEYS.notes] = noteLines

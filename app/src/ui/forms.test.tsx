@@ -4,7 +4,15 @@ import { createMemoryRouter, RouterProvider } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { routes } from '../App';
 import { db } from '../data/db';
-import { addAirflowRow, addEquipment, addIssue, createProject, setField, setFields } from '../data/repo';
+import {
+  addAirflowRow,
+  addEquipment,
+  addIssue,
+  addLibraryInstrument,
+  createProject,
+  setField,
+  setFields,
+} from '../data/repo';
 import { SyncProvider } from '../sync/SyncProvider';
 
 function renderAt(path: string) {
@@ -35,7 +43,8 @@ describe('MAU form (jsdom): supply airflow method switching', () => {
     });
     renderAt(`/p/${p.id}/e/${mau.id}`);
     expect(
-      await screen.findByRole('heading', { level: 2, name: 'PSP (perforated supply plenum)' }),
+      // the first render loads the lazy unit page chunk: slow when the whole suite runs in parallel
+      await screen.findByRole('heading', { level: 2, name: 'PSP (perforated supply plenum)' }, { timeout: 5000 }),
     ).toBeInTheDocument();
     expect(sectionHeading('Filter grid')).toBeNull();
     expect(sectionHeading('Burner profile pressure')).toBeNull();
@@ -58,7 +67,8 @@ describe('MAU form (jsdom): supply airflow method switching', () => {
 
     await user.selectOptions(picker('method'), 'PSP');
     expect(
-      await screen.findByRole('heading', { level: 2, name: 'PSP (perforated supply plenum)' }),
+      // the first render loads the lazy unit page chunk: slow when the whole suite runs in parallel
+      await screen.findByRole('heading', { level: 2, name: 'PSP (perforated supply plenum)' }, { timeout: 5000 }),
     ).toBeInTheDocument();
     await waitFor(() => expect(within(fieldEl('pspLength')!).getByRole('textbox')).toHaveValue('48'));
     expect(sectionHeading('Filter grid')).toBeNull();
@@ -162,6 +172,110 @@ describe('Duplicate, needs attention, building pressures (jsdom)', () => {
       expect(card.querySelector('[data-field="bbKitchenDp"]')).toHaveAttribute('data-state', 'missing'),
     );
     expect(screen.getByTestId('project-completion')).toHaveTextContent('Kitchen vs Dining ΔP');
+  });
+});
+
+describe('Certification, other OA, instrument library (jsdom)', () => {
+  it('certification: template CP prefilled, signature / date auto N/A on prelim, required on final', async () => {
+    const user = userEvent.setup();
+    const p = await createProject({ name: 'Job' });
+    renderAt(`/p/${p.id}/info`);
+    const card = await screen.findByTestId('certification');
+    expect(within(card).getByLabelText('NEBB certified professional')).toHaveValue('Isaac Rochester');
+    expect(card.querySelector('[data-field="certSignature"]')).toHaveAttribute('data-state', 'auto-na');
+    await user.selectOptions(screen.getByLabelText('Report'), 'final');
+    await waitFor(() =>
+      expect(card.querySelector('[data-field="certSignature"]')).toHaveAttribute('data-state', 'missing'),
+    );
+    expect(screen.getByTestId('project-completion')).toHaveTextContent('Certification signature');
+    await user.type(
+      within(card.querySelector('[data-field="certSignature"]') as HTMLElement).getByRole('textbox'),
+      'Dana Smith',
+    );
+    await user.tab();
+    await waitFor(async () => expect((await db.projects.get(p.id))?.info.certSignature).toBe('Dana Smith'));
+    // an expiration before the report date is flagged
+    await setFields('projects', p.id, { 'info.certExpiration': '2026-01-31', 'info.reportDate': '2026-09-24' });
+    expect(await within(card).findByTestId('warning-certExpiration')).toHaveTextContent(/expires before/);
+  });
+
+  it('other outside air: add rows, % of design, total; removing a row shifts the rows below up', async () => {
+    const user = userEvent.setup();
+    const p = await createProject({ name: 'Job' });
+    renderAt(`/p/${p.id}/info`);
+    const card = await screen.findByTestId('other-oa');
+    await user.click(within(card).getByTestId('add-oa-row'));
+    const row1 = await within(card).findByTestId('oa-row-1');
+    await user.type(within(row1).getByLabelText('Unit / source'), 'Transfer grille');
+    await user.type(within(row1).getByLabelText('Design'), '400');
+    await user.type(within(row1).getByLabelText('Actual'), '380');
+    await user.tab();
+    await waitFor(async () => expect((await db.projects.get(p.id))?.info.bbOa1Actual).toBe(380));
+    await waitFor(() => expect(row1).toHaveTextContent('95 % of design'));
+    await setFields('projects', p.id, { 'info.bbOa2Unit': 'Relief', 'info.bbOa2Design': 100 });
+    await waitFor(() =>
+      expect(within(card).getByTestId('oa-total')).toHaveTextContent('design 500 CFM · actual 380 CFM'),
+    );
+    await user.click(within(row1).getByRole('button', { name: 'Remove row 1' }));
+    await waitFor(async () => {
+      const info = (await db.projects.get(p.id))!.info;
+      expect([info.bbOa1Unit, info.bbOa1Design, info.bbOa1Actual, info.bbOa2Unit, info.bbOa2Design]).toEqual([
+        'Relief',
+        100,
+        null,
+        null,
+        null,
+      ]);
+    });
+  });
+
+  it('instrument library: pick into the project, the copy is linked; a library edit offers "Update from library"', async () => {
+    const user = userEvent.setup();
+    const p = await createProject({ name: 'Job' });
+    await db.instruments.where('projectId').equals(p.id).delete();
+    const lib = await addLibraryInstrument({
+      type: 'Digital Micromanometer',
+      manufacturer: 'Evergreen Telemetry',
+      model: 'S-PVF-1',
+      serial: '1700164',
+      calibrationDate: '2025-11-21',
+    });
+    renderAt(`/p/${p.id}/info`);
+    const pick = await screen.findByTestId('library-pick');
+    await within(pick).findByRole('option', { name: /Micromanometer/ });
+    await user.selectOptions(within(pick).getByLabelText('Instrument from the library'), lib.id);
+    await user.click(within(pick).getByRole('button', { name: 'Add from library' }));
+    expect(await screen.findByTestId('lib-linked')).toHaveTextContent('In the library');
+    await setField('libraryInstruments', lib.id, 'calibrationDate', '2026-09-20');
+    expect(await screen.findByTestId('lib-differs')).toHaveTextContent('The library has calibration 2026-09-20');
+    await user.click(screen.getByTestId('lib-update'));
+    await waitFor(async () =>
+      expect((await db.instruments.where('projectId').equals(p.id).first())?.calibrationDate).toBe('2026-09-20'),
+    );
+  });
+
+  it('library page: add, edit, usage count; the unit page shows a slot move note until dismissed', async () => {
+    const user = userEvent.setup();
+    const p = await createProject({ name: 'Job' });
+    renderAt('/library');
+    await user.click(await screen.findByRole('button', { name: /Add the template.s 7 a2b instruments/ }));
+    await waitFor(async () => expect(await db.libraryInstruments.count()).toBe(7));
+    expect(await screen.findAllByTestId('lib-item')).toHaveLength(7);
+    expect(screen.getAllByTestId('lib-expired').length).toBeGreaterThan(0); // the 2024 balometer
+    const a = await addEquipment(p.id, 'rtu', 'RTU-1');
+    const b = await addEquipment(p.id, 'rtu', 'RTU-2');
+    await setFields('equipment', b.id, { slot: 3, slotMove: { from: 2, to: 3, otherId: a.id } });
+    render(<></>);
+    const router = createMemoryRouter(routes, { initialEntries: [`/p/${p.id}/e/${b.id}`] });
+    render(
+      <SyncProvider>
+        <RouterProvider router={router} />
+      </SyncProvider>,
+    );
+    const note = await screen.findByTestId('slot-move-note');
+    expect(note).toHaveTextContent('Moved from workbook slot 2 to slot 3 because another device used slot 2 for RTU-1');
+    await user.click(within(note).getByRole('button', { name: 'OK' }));
+    await waitFor(async () => expect((await db.equipment.get(b.id))?.slotMove).toBeNull());
   });
 });
 

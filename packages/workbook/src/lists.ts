@@ -82,6 +82,13 @@ export const UNIT_TYPE_INLETS: Record<string, string> = {
 };
 
 /** The 7 a2b instruments pre-loaded on the template's Calibration sheet (pre-loaded into new projects). */
+/** The certified professional on the template's Certification sheet (C30 / C32 / C34): new projects start with it. */
+export const DEFAULT_CERTIFICATION = {
+  cpName: 'Isaac Rochester',
+  certNumber: '24053',
+  expiration: '2026-12-31',
+} as const;
+
 export const DEFAULT_INSTRUMENTS = [
   {
     type: 'Balometer',
