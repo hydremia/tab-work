@@ -4,7 +4,13 @@
  *  - .xlsx / .xlsm / .xls-as-xlsx: every sheet as a grid; when the file is a TAB workbook, also its
  *    {Equipment Data Entry} rows (only that section is read).
  */
-import { hasScheduleSection, readScheduleSection, readSheetRows, type ScheduleRow } from '@a2b/workbook';
+import {
+  assertFileSize,
+  hasScheduleSection,
+  readScheduleSection,
+  readSheetRows,
+  type ScheduleRow,
+} from '@a2b/workbook';
 import { parseDelimited, type Grid } from '../domain/scheduleImport';
 
 export interface ScheduleFile {
@@ -15,6 +21,7 @@ export interface ScheduleFile {
 }
 
 export async function readScheduleFile(file: File): Promise<ScheduleFile> {
+  assertFileSize(file.size); // workbooks are also checked before inflating (@a2b/workbook zipLimits)
   if (/\.(csv|tsv|txt)$/i.test(file.name) || file.type.startsWith('text/')) {
     return {
       fileName: file.name,
@@ -30,6 +37,7 @@ export async function readScheduleFile(file: File): Promise<ScheduleFile> {
 
 /** Only the {Equipment Data Entry} section of a TAB workbook. */
 export async function readWorkbookSchedule(file: File): Promise<Record<string, ScheduleRow[]>> {
+  assertFileSize(file.size);
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (!(await hasScheduleSection(bytes)))
     throw new Error('this is not a TAB workbook (no {Equipment Data Entry} sheet)');

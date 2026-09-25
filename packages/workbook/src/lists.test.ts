@@ -11,6 +11,7 @@ import {
   workbookPart,
 } from './ooxml.js';
 import {
+  DEFAULT_CERTIFICATION,
   DEFAULT_INSTRUMENTS,
   FILTER_CONSTANTS,
   filterSizesFor,
@@ -100,5 +101,10 @@ describe('template lists', () => {
   it('DEFAULT_INSTRUMENTS are the Calibration sheet pre-loads', async () => {
     const p = await importWorkbook(templateBytes());
     expect(p.sections.calibration?.tables?.instruments).toEqual(DEFAULT_INSTRUMENTS);
+  });
+
+  it('DEFAULT_CERTIFICATION is the certified professional on the Certification sheet', async () => {
+    const p = await importWorkbook(templateBytes());
+    expect(p.sections.certification?.fields).toEqual(DEFAULT_CERTIFICATION);
   });
 });

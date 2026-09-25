@@ -2398,3 +2398,92 @@ fieldset.viewer-edit {
   color: var(--text-3);
   font-size: 0.75rem;
 }
+
+/* ---------------------------------------------------------------- other outside air (Building Balance spare rows) */
+.oa-row {
+  display: grid;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.oa-row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.oa-row-head h3 {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+.oa-row-head .btn {
+  margin-left: auto;
+  min-height: 36px;
+  padding: 0 10px;
+}
+.oa-grid {
+  display: grid;
+  gap: 10px 12px;
+  grid-template-columns: minmax(0, 1fr);
+}
+/* design / actual side by side only where a number, its unit and the N/A menu fit */
+@media (min-width: 640px) {
+  .oa-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .oa-grid .span-2 {
+    grid-column: span 2;
+  }
+}
+@media (min-width: 1000px) {
+  .oa-grid {
+    grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
+  }
+  .oa-grid .span-2 {
+    grid-column: auto;
+  }
+}
+
+/* ---------------------------------------------------------------- instrument library */
+.lib-item {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+.lib-item:last-of-type {
+  border-bottom: 0;
+}
+.lib-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  min-height: 44px;
+}
+.lib-summary::-webkit-details-marker {
+  display: none;
+}
+.lib-summary::before {
+  content: '▸';
+  color: var(--text-2);
+  line-height: 1.5;
+}
+.lib-item[open] > .lib-summary::before {
+  content: '▾';
+}
+.lib-summary-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.lib-summary-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin-top: 2px;
+}
+.chip-warn {
+  background: var(--amber-bg, #fff4d6);
+  color: var(--amber, #8a5a00);
+}

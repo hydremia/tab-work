@@ -28,6 +28,7 @@ import { buildingBalance, ervTotals, hoodTotals, mauTotals, traverseTotals } fro
 import { motorCalc, motorInputs } from '../src/domain/motorCalcs';
 import { getSpec } from '../src/domain/specs';
 import { staticInputs, staticProfile } from '../src/domain/staticProfile';
+import { spareOaTotals } from '../src/domain/spareOa';
 
 type Check = (name: string, ok: boolean, detail?: string) => void;
 
@@ -541,7 +542,7 @@ export async function recalcCrossCheck(file: string, wb: ProjectData, ui: Record
     );
   }
 
-  const bb = buildingBalance(bundle.equipment, bundle.rows);
+  const bb = buildingBalance(bundle.equipment, bundle.rows, spareOaTotals(bundle.project));
   await cmp('Building Balance OA design total', 'Building Balance', 'C87', bb.oaDesign);
   await cmp('Building Balance OA actual total', 'Building Balance', 'E87', bb.oaActual);
   await cmp('Building Balance exhaust design total', 'Building Balance', 'I87', bb.exhaustDesign);
@@ -556,6 +557,20 @@ export async function recalcCrossCheck(file: string, wb: ProjectData, ui: Record
       shown.push(String((await val('Building Balance', `${col}${97 + i}`)) ?? ''));
   }
   const want = pr.flatMap((r) => [r.testSpace, r.referenceSpace, r.dp, r.remarks].map((x) => String(x ?? '')));
+  // spare OA rows and the Certification lines are inputs too
+  const oaShown: string[] = [];
+  for (let i = 0; i < 2; i++)
+    for (const col of ['B', 'C', 'E']) oaShown.push(String((await val('Building Balance', `${col}${67 + i}`)) ?? ''));
+  const certShown: string[] = [];
+  for (const ref of ['C30', 'C32', 'C34', 'I53', 'I56'])
+    certShown.push(String((await val('Certification', ref)) ?? ''));
+  check(
+    'recalc: Building Balance other OA rows (B67:E68) and Certification lines (C30 … I56) as exported',
+    oaShown.join('|') === 'Transfer grille TG-1|400|385|Relief opening|150|Not Acc.' &&
+      certShown.join('|') ===
+        'NEBB Certified Professional:  Isaac Rochester|Certification Number:  24053|Expiration Date: December 31, 2026|Isaac Rochester|9/25/2026',
+    `${oaShown.join(' | ')} // ${certShown.join(' | ')}`,
+  );
   check(
     'recalc: Building Balance pressure table (B97:K99) as exported',
     pr.length === 3 && want.every((w, k) => w === shown[k]),

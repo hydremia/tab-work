@@ -2,9 +2,9 @@
  * importWorkbook: read the template map's input cells back out of a workbook -> ProjectData.
  * Handles inline strings (our export), shared strings (Excel / LibreOffice re-saves), numbers and dates.
  */
-import JSZip from 'jszip';
-import { cellValue, listSheets, loadSharedStrings, parseCells, RawCell, readText, serialToIso, usToIso } from './ooxml.js';
-import { anchorRow, blockLayout, fieldPreset, FieldType, Layout, sequenceCells, tableRows, TEMPLATE_MAP, TemplateMap } from './templateMap.js';
+import { loadWorkbookZip } from './zipLimits.js';
+import { cellValue, listSheets, loadSharedStrings, longToIso, parseCells, RawCell, readText, serialToIso, usToIso } from './ooxml.js';
+import { anchorRow, blockLayout, FieldDef, fieldPreset, FieldType, Layout, sequenceCells, tableRows, TEMPLATE_MAP, TemplateMap } from './templateMap.js';
 import type { Cell, LayoutData, ProjectData, UnitData, Value } from './types.js';
 import { readRevisionMarker, type RevisionMarker } from './docProps.js';
 
@@ -18,7 +18,7 @@ export async function importWorkbook(bytes: Uint8Array, opts: ImportOptions = {}
 export async function importWorkbookWithReport(bytes: Uint8Array, opts: ImportOptions = {}):
   Promise<{ project: ProjectData; report: ImportReport; marker: RevisionMarker | null }> {
   const map = opts.map ?? TEMPLATE_MAP;
-  const zip = await JSZip.loadAsync(bytes);
+  const zip = await loadWorkbookZip(bytes);
   const sheets = await listSheets(zip);
   const sst = await loadSharedStrings(zip);
   const report: ImportReport = { warnings: [] };
@@ -47,10 +47,30 @@ export async function importWorkbookWithReport(bytes: Uint8Array, opts: ImportOp
     return raw;
   };
 
+  /** A label + value cell: the value after the label (the whole text when someone replaced the label). */
+  const readPrefixed = (cells: Map<string, RawCell>, ref: string, fd: FieldDef): Value | undefined => {
+    const raw = cellValue(cells.get(ref), sst);
+    if (raw === null || typeof raw === 'boolean') return undefined;
+    if (typeof raw === 'number') return fd.type === 'date' ? serialToIso(raw) : String(raw);
+    const norm = (x: string) => x.replace(/\s+/g, ' ').trim().toLowerCase();
+    const text = raw.replace(/\s+/g, ' ').trim();
+    const label = norm(fd.prefix ?? '');
+    let rest = norm(text).startsWith(label) ? text.slice(label.length).trim() : text;
+    if (label.endsWith(':') && rest.startsWith(':')) rest = rest.slice(1).trim();
+    if (rest === '') return undefined;
+    if (fd.type === 'date') return longToIso(rest) ?? usToIso(rest) ?? rest;
+    return rest;
+  };
+
   const readLayout = async (layout: Layout, sheet: string, base: number, where: string): Promise<LayoutData> => {
     const cells = await cellsOf(sheet);
     const out: LayoutData = {};
     for (const fd of layout.fields ?? []) {
+      if (fd.prefix !== undefined) {
+        const v = readPrefixed(cells, `${fd.col}${base + fd.row}`, fd);
+        if (v !== undefined) (out.fields ??= {})[fd.key] = v;
+        continue;
+      }
       const ignore = [...(fd.placeholder !== undefined ? [fd.placeholder] : []), ...(fd.blankValues ?? [])];
       const v = read(cells, `${fd.col}${base + fd.row}`, fd.type, `${where}.${fd.key}`, ignore);
       if (v !== undefined) (out.fields ??= {})[fd.key] = v;

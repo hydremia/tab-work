@@ -11,15 +11,17 @@ import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { routes } from '../App';
 import { supabaseCloud } from '../auth/supabase';
-import { db } from '../data/db';
+import Dexie from 'dexie';
+import { db, DEFAULT_DB_NAME } from '../data/db';
 import { getDeviceId } from '../data/identity';
 import { addEquipment, createProject, LockedError, setField } from '../data/repo';
 import type { SyncConflict } from '../data/types';
 import { setCloudForTests, type Cloud } from '../sync/cloud';
 import { FakeBackend } from '../sync/fakeBackend';
 import { FakeSyncServer } from '../sync/fakeServer';
-import { localOnlyProjects } from '../sync/outbox';
-import { SyncProvider } from '../sync/SyncProvider';
+import { localOnlyProjects, setLocalOnlyProjects } from '../sync/outbox';
+import { setReloadAppForTests, SyncProvider } from '../sync/SyncProvider';
+import { removeDataWarning } from './pages/SyncPages';
 
 const USER = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -190,6 +192,7 @@ describe('sign-out', () => {
     await waitFor(() => expect(screen.getByTestId('sync-status')).toHaveTextContent(/unsynced|Sync error/));
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     await user.click(screen.getByTestId('sign-out'));
+    await waitFor(() => expect(confirm).toHaveBeenCalled());
     expect(confirm.mock.calls[0][0]).toMatch(/changes have not synced yet\. They stay on this device/);
     expect(auth.signOut).toHaveBeenCalledWith({ scope: 'local' });
     expect(await screen.findByTestId('account-signin')).toBeInTheDocument();
@@ -204,9 +207,50 @@ describe('sign-out', () => {
     await db.meta.put({ key: 'cloudUser', value: USER.id });
     renderAt('/account');
     await screen.findByTestId('account-signed-in');
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     await user.click(screen.getByTestId('sign-out'));
+    await waitFor(() => expect(confirm).toHaveBeenCalled());
     expect(auth.signOut).not.toHaveBeenCalled();
+  });
+
+  it('sign out and remove data from this device: warns what would be lost, then deletes everything local', async () => {
+    const user = userEvent.setup();
+    const auth = useCloud(true);
+    const reload = vi.fn();
+    setReloadAppForTests(reload);
+    await db.meta.put({ key: 'cloudUser', value: USER.id });
+    renderAt('/account');
+    await screen.findByTestId('account-signed-in');
+    await waitFor(() => expect(backend).not.toBeNull());
+    backend!.offline = true;
+    const p = await createProject({ name: 'Offline job' });
+    const kept = await createProject({ name: 'Device only' });
+    await setLocalOnlyProjects([kept.id]);
+    localStorage.setItem('a2b.test', '1');
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    await user.click(screen.getByTestId('sign-out-remove'));
+    await waitFor(() => expect(confirm).toHaveBeenCalled());
+    const text = String(confirm.mock.calls[0][0]);
+    expect(text).toMatch(/remove all projects, photos and settings from this device/);
+    expect(text).toMatch(/WARNING: \d+ changes have NOT synced yet and will be lost/);
+    expect(text).toMatch(/WARNING: 1 project is kept on this device only and will be lost/);
+    expect(auth.signOut).not.toHaveBeenCalled();
+    expect(await db.projects.get(p.id)).toBeDefined(); // cancelled: nothing removed
+    confirm.mockReturnValue(true);
+    await user.click(screen.getByTestId('sign-out-remove'));
+    await waitFor(() => expect(reload).toHaveBeenCalled());
+    expect(auth.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(localStorage.getItem('a2b.test')).toBeNull();
+    expect((await Dexie.getDatabaseNames()).includes(DEFAULT_DB_NAME)).toBe(false);
+    setReloadAppForTests(() => undefined);
+    await db.open(); // for the next test's setup
+  });
+
+  it('remove-data warning text: nothing to lose, or both warnings', () => {
+    expect(removeDataWarning(0, 0, 'a@b.c')).not.toMatch(/WARNING/);
+    expect(removeDataWarning(1, 2)).toMatch(
+      /1 change has NOT synced yet[\s\S]*2 projects are kept on this device only/,
+    );
   });
 });
 

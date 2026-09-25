@@ -11,6 +11,7 @@
  */
 import { DEFAULT_INSTRUMENTS, TEMPLATE_MAP, TEMPLATE_REVISION, tableRows } from '@a2b/workbook/map';
 import type { Table } from 'dexie';
+import { CERT_DEFAULTS } from '../domain/certification';
 import { computeCompletion } from '../domain/completion';
 import { duplicateData, duplicateRow } from '../domain/duplicate';
 import { equipmentType, nextFreeSlot, type EquipmentTypeKey } from '../domain/equipmentTypes';
@@ -24,6 +25,7 @@ import { deepEqual, getPath, setPath, assertEditablePath } from './paths';
 import { comparePhotos, groupKeyOf, sortKey } from '../photos/labels';
 import {
   emptyNaState,
+  INSTRUMENT_DETAIL_KEYS,
   type AirflowRow,
   type Equipment,
   type FieldChange,
@@ -32,6 +34,7 @@ import {
   type Instrument,
   type Issue,
   type IssueKind,
+  type LibraryInstrument,
   type Photo,
   type PhotoCategory,
   type Project,
@@ -56,12 +59,15 @@ export const writeTables = () => [
   db.meta,
   db.photoUploads,
   db.conflicts,
+  db.libraryInstruments,
 ];
 
 /** Where a write comes from (recorded in the history). */
 export interface WriteOptions {
   source?: HistoryEntry['source'];
   note?: string;
+  /** Don't clear a review (bookkeeping such as an automatic slot move, which changes nothing the reviewer saw). */
+  keepReview?: boolean;
 }
 
 export class LockedError extends Error {
@@ -75,8 +81,9 @@ function tableOf(name: TableName): Table<AnyRecord, string> {
   return db.table(name) as Table<AnyRecord, string>;
 }
 
+/** The project a record's changes are filed under (a library instrument, which has none: its own id). */
 function projectIdOf(name: TableName, rec: AnyRecord): string {
-  return name === 'projects' ? rec.id : (rec.projectId ?? '');
+  return name === 'projects' || name === 'libraryInstruments' ? rec.id : (rec.projectId ?? '');
 }
 
 /** The unit a record belongs to: the unit itself, or a row / photo / issue linked to it. */
@@ -105,6 +112,8 @@ function describe(name: TableName, rec: AnyRecord): string {
       return `${String(r.category ?? '')} photo`;
     case 'instruments':
       return String(r.type || 'instrument');
+    case 'libraryInstruments':
+      return `Library: ${String(r.type || 'instrument')}`;
   }
 }
 
@@ -194,7 +203,7 @@ async function assertUnlocked(projectId: string, table: TableName, field: string
 
 /** A change to a reviewed unit (or its rows / photos) clears the review. */
 async function clearReviewAfter(table: TableName, rec: AnyRecord, field: string, opts: WriteOptions): Promise<void> {
-  if (opts.source === 'remote') return;
+  if (opts.source === 'remote' || opts.keepReview) return;
   if (table === 'issues' || (table === 'equipment' && field === 'review')) return;
   const unitId = unitOf(table, rec);
   if (!unitId) return;
@@ -467,7 +476,8 @@ export async function createProject(input: NewProjectInput): Promise<Project> {
     customScope: {},
     tolerance: 0.1,
     reportKind: 'prelim',
-    info: { address: input.address?.trim() || null, tabDate: input.tabDate || null },
+    // the template's certified professional (Certification sheet); signature and date are filled on the final report
+    info: { address: input.address?.trim() || null, tabDate: input.tabDate || null, ...CERT_DEFAULTS },
     blueprints: [],
     naState: emptyNaState(),
     templateRevision: TEMPLATE_REVISION,
@@ -838,5 +848,90 @@ export async function addInstrument(projectId: string): Promise<Instrument> {
       createdAt: now,
       updatedAt: now,
     });
+  });
+}
+
+// ------------------------------------------------------------------------------------------ calibration library
+/** Room on the Calibration sheet. */
+export const CALIBRATION_SLOTS = 8;
+
+type InstrumentDetails = Pick<LibraryInstrument, (typeof INSTRUMENT_DETAIL_KEYS)[number]>;
+
+const detailsOf = (x: InstrumentDetails): InstrumentDetails =>
+  Object.fromEntries(INSTRUMENT_DETAIL_KEYS.map((k) => [k, x[k] ?? ''])) as InstrumentDetails;
+
+/** The project row's details differ from its library instrument's (the library was edited since, or the row). */
+export function differsFromLibrary(ins: Instrument, lib: LibraryInstrument | undefined): boolean {
+  return Boolean(lib) && INSTRUMENT_DETAIL_KEYS.some((k) => (ins[k] ?? '') !== (lib![k] ?? ''));
+}
+
+/** A new library instrument (synced like any record; its changes are filed under its own id). */
+export async function addLibraryInstrument(details: Partial<InstrumentDetails & { notes: string }> = {}) {
+  const now = Date.now();
+  return createRecord<LibraryInstrument>('libraryInstruments', {
+    id: uuid(),
+    type: details.type ?? '',
+    manufacturer: details.manufacturer ?? '',
+    model: details.model ?? '',
+    serial: details.serial ?? '',
+    calibrationDate: details.calibrationDate ?? '',
+    notes: details.notes ?? '',
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+/** Deleting a library instrument unlinks the project rows copied from it (their own details stay as they are). */
+export async function deleteLibraryInstrument(libId: string): Promise<void> {
+  await db.transaction('rw', writeTables(), async () => {
+    for (const ins of await db.instruments.toArray()) {
+      if (ins.libraryId !== libId) continue;
+      const project = await db.projects.get(ins.projectId);
+      if (project?.lock) continue; // an issued report is frozen; the dangling link is harmless
+      await setField('instruments', ins.id, 'libraryId', null);
+    }
+    await deleteRecord('libraryInstruments', libId);
+  });
+}
+
+/** Copy a library instrument into one of the project's calibration slots (the project keeps its own copy). */
+export async function addInstrumentFromLibrary(projectId: string, libId: string): Promise<Instrument> {
+  return db.transaction('rw', writeTables(), async () => {
+    const lib = await db.libraryInstruments.get(libId);
+    if (!lib) throw new Error('library instrument not found');
+    const all = await db.instruments.where('projectId').equals(projectId).toArray();
+    if (all.length >= CALIBRATION_SLOTS)
+      throw new CapacityError(`The Calibration sheet has room for ${CALIBRATION_SLOTS} instruments.`);
+    const now = Date.now();
+    return createRecord<Instrument>('instruments', {
+      id: uuid(),
+      projectId,
+      order: all.reduce((m, i) => Math.max(m, i.order), -1) + 1,
+      ...detailsOf(lib),
+      libraryId: lib.id,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+}
+
+/** Save a project instrument to the library (a new library instrument, linked to the row). */
+export async function saveInstrumentToLibrary(instrumentId: string): Promise<LibraryInstrument> {
+  return db.transaction('rw', writeTables(), async () => {
+    const ins = await db.instruments.get(instrumentId);
+    if (!ins) throw new Error('instrument not found');
+    const lib = await addLibraryInstrument(detailsOf(ins));
+    await setField('instruments', ins.id, 'libraryId', lib.id);
+    return lib;
+  });
+}
+
+/** Take the library's current details into the project row ("Update from library"; each detail is a field change). */
+export async function updateInstrumentFromLibrary(instrumentId: string): Promise<void> {
+  await db.transaction('rw', writeTables(), async () => {
+    const ins = await db.instruments.get(instrumentId);
+    const lib = ins?.libraryId ? await db.libraryInstruments.get(ins.libraryId) : undefined;
+    if (!ins || !lib) throw new Error('library instrument not found');
+    for (const k of INSTRUMENT_DETAIL_KEYS) await setField('instruments', ins.id, k, lib[k] ?? '');
   });
 }

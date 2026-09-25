@@ -82,7 +82,7 @@ export function ImportPage() {
     setState({ step: 'pick' });
     try {
       const e = await engine();
-      const p = await e.parseWorkbook(new Uint8Array(await file.arrayBuffer()), file.name);
+      const p = await e.parseWorkbook(await e.readWorkbookFile(file), file.name);
       setParsed(p);
       const own = await e.markerProject(p);
       if (intoId) {

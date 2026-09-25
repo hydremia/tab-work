@@ -30,7 +30,9 @@ import {
 import { equipmentType, EQUIPMENT_TYPES, type EquipmentTypeKey } from '../domain/equipmentTypes';
 import { getSpec, ROW_COLUMNS, type EquipmentSpec } from '../domain/specs';
 import type { AirflowRow, FieldValue, NaMark } from '../data/types';
+import { CERT_INFO_KEYS, CERT_LABELS } from '../domain/certification';
 import { PRESSURE_INFO_KEYS, PRESSURE_LABELS } from '../domain/projectCompletion';
+import { SPARE_OA_INFO_KEYS, SPARE_OA_LABELS } from '../domain/spareOa';
 import { fromProjectData, PROJECT_INFO_KEYS, toProjectData, type ProjectBundle } from './adapter';
 
 export type Val = string | number | null;
@@ -245,7 +247,7 @@ export function flatten(b: ProjectBundle, modes: Map<string, RowMode>): Map<stri
   const add = (r: FlatRec) => out.set(r.key, r);
   const p = b.project;
   const pc: Record<string, Val> = { name: p.name.trim() === '' ? null : p.name, tolerance: p.tolerance };
-  for (const k of [...PROJECT_INFO_KEYS, 'narrative', ...PRESSURE_INFO_KEYS])
+  for (const k of [...PROJECT_INFO_KEYS, 'narrative', ...PRESSURE_INFO_KEYS, ...SPARE_OA_INFO_KEYS, ...CERT_INFO_KEYS])
     pc[`info.${k}`] = valueOrMark(p.info[k], p.naState.fields[k]);
   add({ key: 'project', ref: { kind: 'project' }, cells: pc });
   p.blueprints
@@ -365,7 +367,23 @@ const PROJECT_LABELS: Record<string, string> = {
   'info.reportDate': 'Report date',
   'info.narrative': 'Narrative: system set-up description',
   ...Object.fromEntries(Object.entries(PRESSURE_LABELS).map(([k, v]) => [`info.${k}`, v])),
+  ...Object.fromEntries(Object.entries(SPARE_OA_LABELS).map(([k, v]) => [`info.${k}`, v])),
+  ...Object.fromEntries(Object.entries(CERT_LABELS).map(([k, v]) => [`info.${k}`, v])),
 };
+/** Review group of a project cell (narrative, building pressures, other OA rows, certification). */
+function projectGroup(
+  cell: string,
+): { group: string; groupTitle: string; groupOrder: number; section?: string } | null {
+  const k = cell.replace(/^info\./, '');
+  if (cell === 'info.narrative') return { group: 'narrative', groupTitle: 'Narrative', groupOrder: 1 };
+  if (PRESSURE_INFO_KEYS.includes(k))
+    return { group: 'pressures', groupTitle: 'Building pressures', groupOrder: 1, section: 'Building Balance' };
+  if (SPARE_OA_INFO_KEYS.includes(k))
+    return { group: 'spareOa', groupTitle: 'Other outside air', groupOrder: 1, section: 'Building Balance' };
+  if (CERT_INFO_KEYS.includes(k))
+    return { group: 'certification', groupTitle: 'Certification', groupOrder: 1, section: 'Certification' };
+  return null;
+}
 const INSTRUMENT_LABELS: Record<string, string> = {
   type: 'Type',
   manufacturer: 'Manufacturer',
@@ -624,16 +642,10 @@ export function reimportDiff(input: DiffInput): FullDiff {
         change: 'field',
         cell,
         ...place(ref),
-        ...(ref.kind === 'project' && cell === 'info.narrative'
-          ? { group: 'narrative', groupTitle: 'Narrative', groupOrder: 1 }
+        ...(ref.kind === 'project' && projectGroup(cell)
+          ? (({ group, groupTitle, groupOrder }) => ({ group, groupTitle, groupOrder }))(projectGroup(cell)!)
           : {}),
-        ...(ref.kind === 'project' && PRESSURE_INFO_KEYS.includes(cell.replace(/^info\./, ''))
-          ? { group: 'pressures', groupTitle: 'Building pressures', groupOrder: 1 }
-          : {}),
-        section:
-          ref.kind === 'project' && PRESSURE_INFO_KEYS.includes(cell.replace(/^info\./, ''))
-            ? 'Building Balance'
-            : info.section,
+        section: (ref.kind === 'project' ? projectGroup(cell)?.section : undefined) ?? info.section,
         label: info.label,
         base: bv,
         app: av,

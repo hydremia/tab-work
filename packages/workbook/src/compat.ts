@@ -8,6 +8,7 @@
  *  - the formulas are revision 05's N/A-safe versions (ISTEXT guards), not an older revision's.
  * Hand formatting (styles, widths, heights, text in non-input cells, print setup) does not matter.
  */
+import { loadWorkbookZip, WorkbookTooLargeError } from './zipLimits.js';
 import JSZip from 'jszip';
 import { listSheets, parseCells, parseDefinedNames, readText, workbookPart } from './ooxml.js';
 import { TEMPLATE_MAP, TemplateMap } from './templateMap.js';
@@ -51,9 +52,9 @@ export async function checkTemplateCompatibility(
   const problems: string[] = [];
   let bz: JSZip;
   try {
-    bz = await JSZip.loadAsync(workbook);
-  } catch {
-    return { ok: false, problems: ['not a workbook (zip) file'] };
+    bz = await loadWorkbookZip(workbook);
+  } catch (e) {
+    return { ok: false, problems: [e instanceof WorkbookTooLargeError ? e.message : 'not a workbook (zip) file'] };
   }
   const tz = await JSZip.loadAsync(template);
   let bSheets: Awaited<ReturnType<typeof listSheets>>;

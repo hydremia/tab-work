@@ -5,7 +5,7 @@
  */
 import JSZip from 'jszip';
 import {
-  attr, cellValue, colToNum, dateStyleIds, isoToSerial, isoToUs, listSheets, loadSharedStrings, parseCells, parseCellTag,
+  attr, cellValue, colToNum, dateStyleIds, isoToLong, isoToSerial, isoToUs, listSheets, loadSharedStrings, parseCells, parseCellTag,
   parseDefinedNames, parseRels, RawCell, readText, relsPathFor, resolveTarget, sheetDataRange, splitRef, workbookPart, xmlEscape,
 } from './ooxml.js';
 import {
@@ -247,6 +247,22 @@ class SheetPatcher {
   }
 }
 
+/** A label + value cell ("Certification Number:  24053"): the label stays when the value is blank. */
+function prefixedWrite(def: FieldDef, value: Cell, path: string): CellWrite {
+  const prefix = def.prefix ?? '';
+  if (value === null || value === '') return { kind: 'text', text: prefix.trimEnd() };
+  const isNotation = typeof value === 'string' && (NOTATIONS as readonly string[]).includes(value);
+  if (def.type === 'date' && !isNotation) {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new ValidationError(`${path}: expected an ISO date YYYY-MM-DD, got "${value}"`);
+    isoToSerial(value); // validates
+    return { kind: 'text', text: prefix + isoToLong(value) };
+  }
+  if (def.type !== 'text' && def.type !== 'date') throw new MapError(`${path}: a prefix is only supported on text / date fields`);
+  const text = prefix + String(value);
+  if (text.length > 32767) throw new ValidationError(`${path}: text longer than Excel's 32,767 character cell limit`);
+  return { kind: 'text', text };
+}
+
 function numberText(n: number): string {
   if (!Number.isFinite(n)) throw new ValidationError(`not a finite number: ${n}`);
   return String(n);
@@ -358,6 +374,10 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
       if (!def) throw new MapError(`${path}.fields.${k}: not in the template map`);
       if (v === undefined) continue;
       const ref = `${def.col}${base + def.row}`;
+      if (def.prefix !== undefined) {
+        sh.set(ref, prefixedWrite(def, v, `${path}.${k}`), `${path}.${k}`);
+        continue;
+      }
       sh.set(ref, await toWrite(def, v, sh, ref, `${path}.${k}`), `${path}.${k}`);
     }
     for (const [k, rows] of Object.entries(data.tables ?? {})) {
