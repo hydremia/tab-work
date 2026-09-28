@@ -10,7 +10,7 @@ import { appendHistory } from '../data/history';
 import { getDeviceId } from '../data/identity';
 import { deleteProjectLocally, forgetPhotoFile, historyKind, unitOf, writeTables } from '../data/repo';
 import { assertEditablePath, deepEqual, getPath, setPath } from '../data/paths';
-import type { DeletedInfo, FieldChange, ProjectLock, TableName } from '../data/types';
+import { ORG_TABLES, type DeletedInfo, type FieldChange, type ProjectLock, type TableName } from '../data/types';
 import { uuid } from '../data/uuid';
 import { isConcurrent, laterWins, recordFieldConflict } from './conflicts';
 import {
@@ -297,7 +297,7 @@ export async function applyRemoteChanges(changes: readonly RemoteChange[]): Prom
             ...fields,
             ...(gone ? { [gone.key]: null } : {}),
             id: c.recordId,
-            ...(c.table === 'projects' || c.table === 'libraryInstruments' ? {} : { projectId: c.projectId }),
+            ...(c.table === 'projects' || ORG_TABLES.includes(c.table) ? {} : { projectId: c.projectId }),
           };
           // a record restored on another device: the same delete flagged here is settled
           if (typeof restoredFrom === 'string') await settleRestored(restoredFrom);

@@ -15,7 +15,7 @@
  *    older than the review's server_seq) clears it with a server change (device 'server'); (0005) a review is refused
  *    (applied = false, answered by a server clear) when another device changed the unit after the reviewer's base_seq;
  *  - deleting a project deletes its records (cascade); photo files by path `<projectId>/<photoId>.jpg`;
- *  - (0004) library instruments: organization records whose changes carry their own id as project_id; a link inside
+ *  - (0004, 0006) library instruments and the certification profile: organization records whose changes carry their own id as project_id; a link inside
  *    a value (equipmentId, issueId) must name a record of the same project, libraryId one of the same organization.
  *
  * No browser or Dexie dependency: the e2e server (deploy/serve-dist.ts) runs it in Node.
@@ -138,10 +138,11 @@ export class FakeSyncServer {
     if ((row.user_id ?? user.id) !== user.id)
       throw new FakeServerError('TAB_FORBIDDEN: a change must be made as the signed-in user', '42501');
     // a library instrument belongs to no project: its changes are filed under its own id (0004)
-    const isLib = row.table_name === 'libraryInstruments';
+    // (0006) the certification profile likewise
+    const isLib = row.table_name === 'libraryInstruments' || row.table_name === 'certProfiles';
     const project = isLib ? undefined : this.record('projects', row.project_id);
     const org = isLib
-      ? ((this.record('libraryInstruments', row.record_id)?.orgId as string | undefined) ??
+      ? ((this.record(row.table_name, row.record_id)?.orgId as string | undefined) ??
         this.projectOrg(row.project_id) ??
         (row.op === 'create' ? user.orgId : null))
       : (project?.orgId ??
@@ -154,7 +155,9 @@ export class FakeSyncServer {
     if (row.table_name === 'projects' || isLib) {
       if (row.record_id !== row.project_id)
         throw new FakeServerError(
-          `TAB_FORBIDDEN: a ${isLib ? 'library' : 'project'} change must name the ${isLib ? 'instrument' : 'project'} itself`,
+          row.table_name === 'certProfiles'
+            ? 'TAB_FORBIDDEN: a certification profile change must name the profile itself'
+            : `TAB_FORBIDDEN: a ${isLib ? 'library' : 'project'} change must name the ${isLib ? 'instrument' : 'project'} itself`,
           '42501',
         );
     } else {

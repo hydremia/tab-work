@@ -230,8 +230,45 @@ export interface LibraryInstrument {
 
 export const INSTRUMENT_DETAIL_KEYS = ['type', 'manufacturer', 'model', 'serial', 'calibrationDate'] as const;
 
+/** An encoded picture kept in a synced record (stamp, signature): small, so it travels in the change log. */
+export interface StoredImage {
+  /** data:image/png;base64,… or data:image/jpeg;base64,… */
+  dataUrl: string;
+  width: number;
+  height: number;
+  type: 'png' | 'jpeg';
+}
+
+/**
+ * The certification profile (Dexie v7 `certProfiles`): the certified professional's details and the stamp and
+ * signature images, stored once for the organization (synced like the calibration library, changes filed under the
+ * profile's own id). Every export places the images on the Certification sheet; new projects take the CP details
+ * from it. One per organization: when two devices each created one before syncing, the oldest is used.
+ */
+export interface CertProfile {
+  id: string;
+  cpName: string;
+  certNumber: string;
+  /** ISO date or '' */
+  expiration: string;
+  stamp: StoredImage | null;
+  signature: StoredImage | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type TableName =
-  'projects' | 'equipment' | 'airflowRows' | 'issues' | 'photos' | 'instruments' | 'libraryInstruments';
+  | 'projects'
+  | 'equipment'
+  | 'airflowRows'
+  | 'issues'
+  | 'photos'
+  | 'instruments'
+  | 'libraryInstruments'
+  | 'certProfiles';
+
+/** Records of the organization that belong to no project: their changes carry the record's own id as projectId. */
+export const ORG_TABLES: readonly TableName[] = ['libraryInstruments', 'certProfiles'];
 
 /** The sync outbox and audit log: one row per field edit (or record create / delete). */
 export interface FieldChange {
