@@ -1,5 +1,11 @@
 import { Link } from 'react-router';
-import { useAllExportStatus, useAllProjectRollups, useLibraryConflicts, useProjects } from '../../data/hooks';
+import {
+  useAllExportStatus,
+  useAllProjectRollups,
+  useCertProfileConflicts,
+  useLibraryConflicts,
+  useProjects,
+} from '../../data/hooks';
 import type { ExportStatus } from '../../data/exportStatus';
 import type { Project } from '../../data/types';
 import { rollup, type Rollup } from '../../domain/completion';
@@ -60,6 +66,7 @@ export function ProjectListPage() {
   const rollups = useAllProjectRollups();
   const exports = useAllExportStatus();
   const libraryConflicts = useLibraryConflicts();
+  const certConflicts = useCertProfileConflicts();
   return (
     <Screen title="a2b TAB">
       <div className="page-head">
@@ -89,12 +96,20 @@ export function ProjectListPage() {
           <ProjectCard key={p.id} project={p} r={rollups?.get(p.id) ?? rollup([])} ex={exports?.get(p.id)} />
         ))}
       </div>
-      <p className="row" style={{ justifyContent: 'center', marginTop: 16 }}>
+      <p className="row" style={{ justifyContent: 'center', marginTop: 16, gap: 8, flexWrap: 'wrap' }}>
         <Link to="/library" className="btn btn-ghost" data-testid="library-link">
           Instrument library
           {libraryConflicts && libraryConflicts.length > 0 && (
             <span className="tab-count" data-tone="attention" data-testid="library-conflict-count">
               {libraryConflicts.length}
+            </span>
+          )}
+        </Link>
+        <Link to="/certification" className="btn btn-ghost" data-testid="certification-link">
+          Certification (stamp &amp; signature)
+          {certConflicts && certConflicts.length > 0 && (
+            <span className="tab-count" data-tone="attention">
+              {certConflicts.length}
             </span>
           )}
         </Link>

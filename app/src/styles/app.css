@@ -2487,3 +2487,26 @@ fieldset.viewer-edit {
   background: var(--amber-bg, #fff4d6);
   color: var(--amber, #8a5a00);
 }
+
+/* certification profile: stamp / signature previews and the signature pad */
+.cert-image-preview {
+  align-self: flex-start;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+.cert-image-preview img {
+  display: block;
+  max-width: min(100%, 320px);
+  max-height: 160px;
+}
+.signature-canvas {
+  width: 100%;
+  max-width: 600px;
+  aspect-ratio: 3 / 1;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: #fff;
+  touch-action: none;
+}
