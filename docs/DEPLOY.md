@@ -66,7 +66,7 @@ the host.
    - **Framework Preset:** *Other* (the settings come from `vercel.json`).
    - **Root Directory:** leave it at the repository root `./`. Don't pick `app`: the build needs the npm workspace
      and the template at the root.
-   - **Build / Output / Install:** leave empty; `vercel.json` sets `npm run build`, `app/dist` and `npm ci`.
+   - **Build / Output / Install:** leave empty; `vercel.json` sets `npm run build`, `app/dist` and `npm ci --include=dev`.
 4. **Environment Variables** (optional today, needed for sign-in and sync later):
 
    | Name | Value | Environments |
