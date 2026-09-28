@@ -22,7 +22,7 @@ Do every step on **tab-app-dev** first, check it with a preview deploy (step 8),
 
 | Piece | Where | What it does |
 |---|---|---|
-| Database tables and rules | Supabase (3 SQL files) | Projects, units, readings, issues, photos, the change log; who may read and write; the report lock and review rules |
+| Database tables and rules | Supabase (6 SQL files) | Projects, units, readings, issues, photos, the change log; who may read and write; the report lock and review rules |
 | Photo storage | Supabase Storage, bucket `photos` | The photo files (private: only signed-in company users) |
 | Sign in with Microsoft | Microsoft Entra ID + Supabase "Azure" provider | Only accounts of your company's Microsoft 365 can sign in |
 | Two settings | Vercel | Tell the app where the Supabase project is |
@@ -63,7 +63,7 @@ the project: the files in `supabase/tests/` are for a throw-away local PostgreSQ
 **Check** (SQL Editor, new query):
 
 ```sql
-select count(*) as mapped_fields from public.sync_columns;                       -- 41
+select count(*) as mapped_fields from public.sync_columns;                       -- 54 (0001 … 0006)
 select public.server_time_ms() > 0 as server_clock;                            -- true
 select id, public, file_size_limit from storage.buckets where id = 'photos';   -- photos | false | 26214400
 select name from public.organizations;                                          -- a2b
