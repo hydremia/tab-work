@@ -31,6 +31,7 @@ const AccountPage = page(() => import('./ui/pages/SyncPages'), 'AccountPage');
 const AuthCallbackPage = page(() => import('./ui/pages/SyncPages'), 'AuthCallbackPage');
 const CloudSetupPage = page(() => import('./ui/pages/SyncPages'), 'CloudSetupPage');
 const LibraryPage = page(() => import('./ui/pages/LibraryPage'), 'LibraryPage');
+const CertificationPage = page(() => import('./ui/pages/CertificationPage'), 'CertificationPage');
 
 function Root() {
   return (
@@ -66,6 +67,7 @@ export const routes = [
       { path: 'auth/callback', element: AuthCallbackPage },
       { path: 'cloud-setup', element: CloudSetupPage },
       { path: 'library', element: LibraryPage },
+      { path: 'certification', element: CertificationPage },
       {
         path: 'p/:projectId',
         element: <ProjectLayout />,

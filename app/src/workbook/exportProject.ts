@@ -4,7 +4,8 @@
  * The workbook written into is the project's base workbook (the last re-imported issued report, decision F1) when
  * there is one and it is still a revision-05 workbook; otherwise the bundled blank template. Onto a base, the app's
  * input cells are first reset to the template's values (so values removed in the app are cleared), then written;
- * everything else in the issued workbook (hand formatting, widths, heights, notes in other cells) stays.
+ * everything else in the issued workbook (hand formatting, widths, heights, notes in other cells) stays. The
+ * certification profile's stamp and signature are placed on the Certification sheet every time.
  */
 import {
   checkTemplateCompatibility,
@@ -15,7 +16,8 @@ import {
 } from '@a2b/workbook';
 import { cropCoverPhotoBrowser } from '@a2b/workbook/browser';
 import { db } from '../data/db';
-import { lockProject } from '../data/repo';
+import { getCertProfile, lockProject } from '../data/repo';
+import { certImagesOf } from '../certification/images';
 import type { Revision } from '../data/types';
 import { uuid } from '../data/uuid';
 import { APP_SECTIONS, toProjectData } from './adapter';
@@ -76,7 +78,9 @@ export async function exportProject(projectId: string, opts: ExportOptions = {})
   const label = opts.label?.trim() || suggestLabel(await listRevisions(projectId));
   const revisionId = uuid();
   const marker: RevisionMarker = { projectId, revisionId, label, exportedAt: new Date().toISOString() };
-  const common = { coverPhoto, cropCoverPhoto: cropCoverPhotoBrowser, marker };
+  // the certification profile's stamp and signature, on every export
+  const certImages = certImagesOf(await getCertProfile());
+  const common = { coverPhoto, cropCoverPhoto: cropCoverPhotoBrowser, marker, certImages };
 
   let out: { bytes: Uint8Array; report: ExportReport } | undefined;
   let baseFileName: string | undefined;

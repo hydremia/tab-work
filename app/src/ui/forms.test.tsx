@@ -1,7 +1,7 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { routes } from '../App';
 import { db } from '../data/db';
 import {
@@ -10,6 +10,8 @@ import {
   addIssue,
   addLibraryInstrument,
   createProject,
+  getCertProfile,
+  setCertImage,
   setField,
   setFields,
 } from '../data/repo';
@@ -197,6 +199,39 @@ describe('Certification, other OA, instrument library (jsdom)', () => {
     // an expiration before the report date is flagged
     await setFields('projects', p.id, { 'info.certExpiration': '2026-01-31', 'info.reportDate': '2026-09-24' });
     expect(await within(card).findByTestId('warning-certExpiration')).toHaveTextContent(/expires before/);
+  });
+
+  it('certification profile: CP lines for new projects, stamp / signature previews, Info card says what exports get', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderAt('/certification');
+    const cp = await screen.findByTestId('cert-profile');
+    const name = await within(cp).findByLabelText('NEBB certified professional');
+    expect(name).toHaveValue('Isaac Rochester'); // template default until edited
+    expect(await db.certProfiles.count()).toBe(0); // nothing stored just by looking
+    await user.clear(name);
+    await user.type(name, 'Dana Kim');
+    await user.tab();
+    await waitFor(async () => expect((await getCertProfile())?.cpName).toBe('Dana Kim'));
+    expect(screen.getByTestId('cert-stamp-none')).toBeInTheDocument();
+    const img = { dataUrl: 'data:image/png;base64,iVBORw0KGgo=', width: 10, height: 10, type: 'png' as const };
+    await setCertImage('stamp', img);
+    expect(await screen.findByTestId('cert-stamp-img')).toHaveAttribute('src', img.dataUrl);
+    await user.click(screen.getByRole('button', { name: 'Draw signature' }));
+    expect(screen.getByTestId('signature-pad')).toBeInTheDocument();
+    expect(screen.getByTestId('signature-pad-save')).toBeDisabled(); // nothing drawn yet
+    await user.click(screen.getByTestId('cert-stamp-remove'));
+    await waitFor(async () => expect((await getCertProfile())?.stamp).toBeNull());
+    // a new project starts with the profile's CP; its Info card says where the images come from
+    await setCertImage('signature', img);
+    const p = await createProject({ name: 'Job' });
+    cleanup();
+    renderAt(`/p/${p.id}/info`);
+    const card = await screen.findByTestId('certification');
+    expect(within(card).getByLabelText('NEBB certified professional')).toHaveValue('Dana Kim');
+    await waitFor(() =>
+      expect(within(card).getByTestId('cert-images-line')).toHaveTextContent('Stamp: none · Signature image: yes'),
+    );
   });
 
   it('other outside air: add rows, % of design, total; removing a row shifts the rows below up', async () => {

@@ -19,6 +19,7 @@ import { projectHistory } from './history';
 import type {
   AirflowRow,
   BaseWorkbook,
+  CertProfile,
   Equipment,
   HistoryEntry,
   Instrument,
@@ -348,6 +349,24 @@ export function useLibraryConflicts(libIds?: readonly string[]): SyncConflict[] 
       .toArray();
     return list.sort((a, b) => b.detectedAt - a.detectedAt);
   }, [key]);
+}
+
+/** The organization's certification profile (undefined while loading, null when there is none yet). */
+export function useCertProfile(): CertProfile | null | undefined {
+  return useLiveQuery(async () => (await db.certProfiles.orderBy('createdAt').first()) ?? null, []);
+}
+
+/** Open sync conflicts of the certification profile(s). */
+export function useCertProfileConflicts(): SyncConflict[] | undefined {
+  return useLiveQuery(
+    () =>
+      db.conflicts
+        .where('status')
+        .equals('open')
+        .filter((c) => c.table === 'certProfiles')
+        .toArray(),
+    [],
+  );
 }
 
 /** The library instruments a project's calibration rows came from. */

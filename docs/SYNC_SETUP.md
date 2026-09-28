@@ -27,9 +27,9 @@ Do every step on **tab-app-dev** first, check it with a preview deploy (step 8),
 | Sign in with Microsoft | Microsoft Entra ID + Supabase "Azure" provider | Only accounts of your company's Microsoft 365 can sign in |
 | Two settings | Vercel | Tell the app where the Supabase project is |
 
-## 2. Apply the database migrations (0001 … 0005)
+## 2. Apply the database migrations (0001 … 0006)
 
-Five files, **in this order**. Each can be run again safely only where noted, so run each one once.
+Six files, **in this order**. Each can be run again safely only where noted, so run each one once.
 
 | File | What it adds |
 |---|---|
@@ -38,6 +38,7 @@ Five files, **in this order**. Each can be run again safely only where noted, so
 | `supabase/migrations/0003_sync_rules.sql` | server-side rules: report lock, review clearing, safe retries, project deletes, the server clock (re-runnable) |
 | `supabase/migrations/0004_library_links.sql` | shared calibration library, link checks (units / issues of the same project), slot-move note (re-runnable) |
 | `supabase/migrations/0005_review_deletes.sql` | a review signs off only the data the reviewer saw; a record added offline to a unit / issue deleted meanwhile no longer fails the push (re-runnable) |
+| `supabase/migrations/0006_cert_profile.sql` | the shared certification profile (CP details, stamp and signature images) (re-runnable) |
 
 **Option A — in the browser (simplest):**
 
@@ -45,7 +46,7 @@ Five files, **in this order**. Each can be run again safely only where noted, so
 2. Open `supabase/migrations/0001_init.sql` on GitHub (Raw), copy everything, paste, **Run**. It should end with
    "Success. No rows returned".
 3. New query → the same with `0002_review_lock.sql`, then with `0003_sync_rules.sql`, then `0004_library_links.sql`, then
-   `0005_review_deletes.sql`.
+   `0005_review_deletes.sql`, then `0006_cert_profile.sql`.
 
 **Option B — command line** (from a checkout of the repository, Node installed):
 
@@ -53,7 +54,7 @@ Five files, **in this order**. Each can be run again safely only where noted, so
 npx supabase login
 npx supabase init                          # only if it says this is not a Supabase project; answer "n" to the questions
 npx supabase link --project-ref <project-ref>
-npx supabase db push                       # applies 0001 … 0005 in order; shows them and asks first
+npx supabase db push                       # applies 0001 … 0006 in order; shows them and asks first
 ```
 
 The project ref is the `xxxx` in `https://xxxx.supabase.co` (Settings → General). Never run `supabase test db` against
@@ -68,6 +69,7 @@ select id, public, file_size_limit from storage.buckets where id = 'photos';   -
 select name from public.organizations;                                          -- a2b
 select count(*) from information_schema.columns
  where table_name = 'field_changes' and column_name = 'units';                -- 1 (0005 applied)
+select count(*) from public.cert_profiles;                                      -- 0 (0006 applied)
 ```
 
 ## 3. Photo storage
@@ -193,7 +195,8 @@ sync is off wait on the device (the outbox) until it is on again.
 2. **Undo migration 0003 only** (if its rules cause trouble): SQL Editor → run
    `supabase/rollback/0003_sync_rules_down.sql`. It restores the 0001 / 0002 rules and keeps all data; 0003 can be
    applied again later. (Checked on PostgreSQL 16: after the rollback the 0001 smoke test behaves as before, and 0003
-   re-applies cleanly.) Undo **0005** first if it is applied (`supabase/rollback/0005_review_deletes_down.sql`: back
+   re-applies cleanly.) Undo later ones first, newest first: **0006** (`supabase/rollback/0006_cert_profile_down.sql`:
+   back to the 0005 rules, the profile table kept), **0005** (`supabase/rollback/0005_review_deletes_down.sql`: back
    to the 0004 rules, data kept), then **0004**: `supabase/rollback/0004_library_links_down.sql`
    restores the 0003 trigger and keeps all data (library changes pushed meanwhile are refused and wait on the devices
    until 0004 is applied again).
