@@ -14,6 +14,7 @@ import {
 import { inputCells } from './inputCells.js';
 import { type RevisionMarker, writeRevisionMarker } from './docProps.js';
 import { anchorSizeEmu, type CoverPhotoCropper, drawingPictures } from './coverPhoto.js';
+import { placeCertImages, type CertImages, type CertImagesReport } from './certImages.js';
 import type { Cell, LayoutData, ProjectData } from './types.js';
 
 export class FormulaCellError extends Error {
@@ -32,6 +33,11 @@ export interface ExportOptions {
   cropCoverPhoto?: CoverPhotoCropper;
   coverPhotoMaxWidth?: number;
   jpegQuality?: number;
+  /**
+   * Stamp / signature images for the Certification sheet. Given (even with both null): pictures from an earlier
+   * export are replaced or removed. Omitted: the sheet's pictures are left as they are.
+   */
+  certImages?: CertImages;
   /** Alternative map (tests). */
   map?: TemplateMap;
   /** Revision marker written as custom document properties (docProps/custom.xml). Omitted: nothing is added. */
@@ -61,6 +67,7 @@ export interface ExportReport {
     part: string; replacedPart: string; relId: string; boxAspect: number; boxDetail: string;
     width: number; height: number; srcWidth: number; srcHeight: number; bytes: number;
   };
+  certImages?: CertImagesReport;
 }
 
 type CellWrite = { kind: 'text'; text: string } | { kind: 'number'; n: number } | { kind: 'clear' };
@@ -557,6 +564,8 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
 
   // ---- cover photo
   if (opts.coverPhoto) report.coverPhoto = await replaceCoverPhoto(zip, sheets, map, opts);
+  // ---- stamp / signature
+  if (opts.certImages && map.certImages) report.certImages = await placeCertImages(zip, sheets, map.certImages, opts.certImages);
 
   // ---- report changed / added / removed parts
   for (const name of Object.keys(zip.files)) {
