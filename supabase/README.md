@@ -1,6 +1,7 @@
 # Supabase backend (not deployed yet)
 
-`migrations/0001_init.sql`, `0002_review_lock.sql`, `0003_sync_rules.sql` and `0004_library_links.sql` create everything
+`migrations/0001_init.sql`, `0002_review_lock.sql`, `0003_sync_rules.sql`, `0004_library_links.sql` and
+`0005_review_deletes.sql` create everything
 the TAB App needs on Supabase. **Nothing has been applied to a Supabase project yet**: the app runs in local-only mode until
 `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are set (see [`app/README.md`](../app/README.md)). Account setup:
 [`docs/SETUP_ACCOUNTS.md`](../docs/SETUP_ACCOUNTS.md); switching sign-in and sync on, step by step (migrations, bucket,
@@ -55,6 +56,20 @@ Rollback: `rollback/0003_sync_rules_down.sql` restores the 0001 / 0002 rules and
 Rollback: `rollback/0004_library_links_down.sql` restores the 0003 trigger and keeps the data (checked: after the
 rollback `sync_rules_test.sql` passes on the 0003 rules, and 0004 re-applies).
 
+### 0005: reviews of what the reviewer saw, links to deleted records
+
+`0005_review_deletes.sql` replaces the apply trigger again (every 0003 / 0004 rule kept verbatim) and adds:
+
+| Rule / object | Detail |
+|---|---|
+| `field_changes.units` | The unit(s) each change touched (`change_units()`, as the 0003 review rule), stored with the change (GIN index). Changes logged before 0005 have none. |
+| **Review of what the reviewer saw** | Completion ("green") is computed on the devices from the equipment specs, and a device only signs off a green unit. What it can't know is data it hasn't pulled. So a review (`equipment.review` set to an object) is **refused** when an applied change by *another* device touched the unit after the reviewer's pull cursor (`base_seq`): the row is kept with `applied = false` and note *review refused: …*, and the server adds a change clearing the review (device `server`) so the reviewing device drops it too. With the 0003 rule (a change made without knowing a review clears it) a review always refers to data the reviewer saw as green. The full completion rules are not re-run in SQL. |
+| **Links to deleted records** | A change linking a unit / issue that another device deleted (an outlet row, photo or issue added to it offline, or a photo moved to it) used to fail the whole push on the foreign key, again at every sync. Now an outlet row and a set of the link are logged with `applied = false` (*links a deleted record (…)*); an issue / photo is created **without** the link (*created without …: it was deleted*). The devices clean up and flag their own records when they pull the delete (`app/src/sync/deletes.ts`). A link to a record that never existed still fails on the foreign key. |
+| Server notes kept | The server's own changes keep their note (*automatic: …*): before 0005 the apply step overwrote it with null, so the devices' history could not say why a review was cleared. |
+
+Rollback: `rollback/0005_review_deletes_down.sql` restores the 0004 trigger and keeps the data (checked: after the
+rollback `sync_rules_test.sql` passes, and 0005 re-applies with its test passing).
+
 Who can sign in at all is controlled in Microsoft Entra ID (single-tenant app registration, optionally
 "assignment required" + a "TAB App Users" group), so "member of the organization" = "has a company M365 account".
 
@@ -102,15 +117,23 @@ The app calls `supabase.auth.signInWithOAuth({ provider: 'azure', options: { sco
 psql -d <empty db> -v ON_ERROR_STOP=1 -f supabase/tests/supabase_stub.sql \
      -f supabase/migrations/0001_init.sql -f supabase/migrations/0002_review_lock.sql \
      -f supabase/migrations/0003_sync_rules.sql -f supabase/migrations/0004_library_links.sql \
+     -f supabase/migrations/0005_review_deletes.sql \
      -f supabase/tests/grants_for_stub.sql
 psql -d <empty db> -f supabase/tests/sync_rules_test.sql    # ends with "ALL SYNC RULE TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/library_links_test.sql   # "ALL 0004 TESTS PASSED"
+psql -d <other empty db, same setup> -f supabase/tests/review_deletes_test.sql  # "ALL 0005 TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/smoke_test.sql
 ```
 
-(Each test file needs its own freshly set-up database.) **Last run (PostgreSQL 16.13, 2026-09-25, migrations
-0001–0004):** `sync_rules_test.sql` 48 PASS, *ALL SYNC RULE TESTS PASSED*; `library_links_test.sql` 26 PASS, *ALL 0004
-TESTS PASSED* (library created in the member's organization and carrying it, re-pushed create skipped, another member
+(Each test file needs its own freshly set-up database.) **Last run (PostgreSQL 16, 2026-09-28, migrations
+0001–0005):** `sync_rules_test.sql` 48 PASS, *ALL SYNC RULE TESTS PASSED*; `library_links_test.sql` 26 PASS, *ALL 0004
+TESTS PASSED*; `review_deletes_test.sql` 18 PASS, *ALL 0005 TESTS PASSED* (changes record their unit, a review of the
+data the reviewer saw is applied, a stale review is logged unapplied and answered by a server clear that wins, other
+units' changes and the reviewer's own edits don't refuse it, a review after pulling is accepted, no pull position is
+refused; outlet row of a deleted unit logged unapplied, photo / issue created unlinked, moving a photo to a deleted
+unit unapplied, a never-existing unit still fails on the foreign key; the 0003 clear still happens and says why,
+members' changes carry no note, lock kept, no direct writes); smoke test output unchanged from 0004. Earlier details of
+the 0004 run (library created in the member's organization and carrying it, re-pushed create skipped, another member
 edits it and pulls its changes, a library change must name the instrument itself, no direct writes, a project copy
 keeps its own details and the link, another organization neither sees, edits nor re-creates it and has its own,
 `libraryId` of another organization refused, issue / outlet row / deficiency photo linking a unit or issue of another
@@ -136,7 +159,7 @@ migrations' revokes are tested as on Supabase). `smoke_test.sql` (the 0001 check
 were first reproduced on 0001 + 0002 (a retried create reverted a rename; a project delete failed RLS). The rollback
 script was checked the same way (smoke test as on 0001, 0003 re-applies).
 
-The same rules (0003 and 0004) run in the app's in-memory fake server (`app/src/sync/fakeServer.ts`, unit tests in
+The same rules (0003 – 0005) run in the app's in-memory fake server (`app/src/sync/fakeServer.ts`, unit tests in
 `fakeServer.test.ts` mirroring the SQL tests) that the sync engine is tested against.
 
 ## Not done yet
