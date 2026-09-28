@@ -46,7 +46,10 @@ function png(w: number, h: number, rgba = [200, 30, 30, 255]): CertImage {
   ];
   const bytes = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
   let o = 0;
-  for (const p of parts) (bytes.set(p, o), (o += p.length));
+  for (const p of parts) {
+    bytes.set(p, o);
+    o += p.length;
+  }
   return { bytes, type: 'png', width: w, height: h };
 }
 
