@@ -115,8 +115,11 @@ The app calls `supabase.auth.signInWithOAuth({ provider: 'azure', options: { sco
 small JSON pictures `{ dataUrl, width, height, type }`), an organization record like the calibration library: its
 changes carry the profile's own id as `project_id`, members read it (RLS by organization), nobody writes it directly.
 The apply trigger is replaced once more to treat `certProfiles` like `libraryInstruments` (every earlier rule kept).
-Every export places the images on the Certification sheet (`packages/workbook/src/certImages.ts`). Rollback:
-`rollback/0006_cert_profile_down.sql` (0005 trigger; table and data kept). `cert_profile_test.sql` 11 PASS; the 0003 –
+Every export places the images on the Certification sheet (`packages/workbook/src/certImages.ts`). Also (review
+fixes): the device id `server` is reserved for the trigger's own changes (a member's change with it is refused, so no
+one can post a fake *automatic: …* note), and an issue change counts for the 0005 review check (`issue_units()`; an
+open issue added on another device refuses a review) while issues still never clear a review. Rollback:
+`rollback/0006_cert_profile_down.sql` (0005 trigger; table and data kept). `cert_profile_test.sql` 15 PASS; the 0003 –
 0005 suites pass on 0001 – 0006, and the 0005 suite after the rollback.
 
 ## Checking the migrations locally (no Supabase needed)

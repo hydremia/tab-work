@@ -719,6 +719,10 @@ async function main() {
       if (el) window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 70);
     });
     await shot(wp, '11-rtu-airflow-desktop');
+    // wide screens start in grid entry (docs screenshot 35)
+    const gridShown = await wp.getByTestId('grid-supply').isVisible();
+    check('grid entry: on by default on a wide screen (outlet rows as a spreadsheet)', gridShown);
+    await wp.screenshot({ path: join(DOC_SHOTS, '35-grid-entry.png') });
     await wide.close();
 
     // ------------------------------------------------------------------ re-import of an issued workbook, revisions

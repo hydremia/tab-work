@@ -21,11 +21,13 @@
  * are known). A separate "seen" position (the highest seq applied) is what new edits record as their baseSeq.
  */
 import { db } from '../data/db';
+import { mergeCertProfiles } from '../data/repo';
 import { deviceNow, getSyncCursor, type SyncCursor } from '../data/identity';
 import type { FieldChange } from '../data/types';
 import { receivedMs, SyncError, toRow, type SyncBackend } from './backend';
 import {
   applyRemoteChanges,
+  finishPull,
   holdChanges,
   markSynced,
   passesLock,
@@ -34,6 +36,7 @@ import {
   type RemoteChange,
 } from './outbox';
 import { processPhotoQueue, type PhotoSyncResult } from './photoSync';
+import { newPullContext } from './deletes';
 import { resolveSlotCollisions } from './slots';
 
 export interface PushResult {
@@ -138,6 +141,8 @@ export class CloudSyncEngine implements SyncEngine {
     }
     const pulled = await this.pull();
     const released = await releaseHeld();
+    // two certification profiles (created on two devices before either synced): merged into the oldest
+    await mergeCertProfiles();
     // collisions the pull could not resolve yet (e.g. in a project that was locked then): cheap when there are none
     const slotMoves = (await resolveSlotCollisions()).moved;
     const pushed = await this.push();
@@ -215,6 +220,8 @@ export class CloudSyncEngine implements SyncEngine {
     let settled = true;
     const res: PullResult = { applied: 0, conflicts: 0 };
     const unitProjects = new Set<string>();
+    // deletes whose cascade spans two pages (sync/deletes.ts PullContext)
+    const pullCtx = newPullContext();
     const settleBefore = deviceNow() + this.clockOffset - this.settleMs;
     for (;;) {
       const rows = await this.backend.pull(after, this.pageSize);
@@ -236,7 +243,7 @@ export class CloudSyncEngine implements SyncEngine {
         // the server's own changes say why (e.g. a review it cleared): shown in the history
         ...(r.applied !== false && r.device_id === 'server' && r.note ? { note: r.note } : {}),
       }));
-      const out = await applyRemoteChanges(changes);
+      const out = await applyRemoteChanges(changes, pullCtx);
       for (const c of changes)
         if (c.table === 'equipment' && (c.op === 'create' || c.field === 'slot')) unitProjects.add(c.projectId);
       res.applied += out.applied;
@@ -259,6 +266,7 @@ export class CloudSyncEngine implements SyncEngine {
         key: 'syncCursor',
         value: { userId: this.userId, seq: seen, restart } satisfies StoredCursor,
       });
+    res.conflicts += await finishPull(pullCtx);
     // two devices may have given the same workbook slot to new units: move the later one (pushed with this sync)
     if (unitProjects.size) res.slotMoves = (await resolveSlotCollisions(unitProjects)).moved;
     return res;

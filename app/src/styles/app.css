@@ -2607,3 +2607,85 @@ fieldset.viewer-edit {
     letter-spacing: 0.03em;
   }
 }
+
+/* grid (spreadsheet) entry of outlet / filter rows: tablets and keyboards */
+.btn-sm {
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+}
+.grid-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin: 8px 0;
+}
+.entry-grid {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9rem;
+}
+.entry-grid th,
+.entry-grid td {
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  padding: 2px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.entry-grid thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-2);
+  padding: 6px 6px;
+  text-align: left;
+}
+.entry-grid .input,
+.entry-grid .select {
+  min-height: 36px;
+  min-width: 64px;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 4px 6px;
+  background: transparent;
+}
+.entry-grid .input:focus,
+.entry-grid .select:focus {
+  border-color: var(--focus);
+  background: var(--surface);
+}
+.entry-grid td.grid-wide .input {
+  min-width: 140px;
+}
+.entry-grid .grid-n {
+  text-align: right;
+  color: var(--text-3);
+  font-weight: 500;
+  padding: 0 6px;
+}
+.grid-missing {
+  color: var(--amber-solid);
+  margin-left: 2px;
+}
+.entry-grid .grid-na {
+  color: var(--text-3);
+  text-align: center;
+  font-size: 0.8rem;
+}
+.entry-grid .grid-calc {
+  color: var(--text-2);
+  font-size: 0.8rem;
+  padding: 0 6px;
+}
+.entry-grid tr[data-out='true'] .grid-n {
+  color: var(--red);
+  box-shadow: inset 3px 0 0 var(--red-solid);
+}
+.entry-grid .row-menu {
+  min-width: 44px;
+}

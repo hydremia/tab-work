@@ -384,6 +384,16 @@ Amber items are **warnings**. They don't block anything or change a unit's color
 
 ---
 
+### Grid entry on a tablet or laptop
+
+Outlet, inlet and filter rows can be entered as a **spreadsheet grid**: one line per row, one column per reading, with
+the CFM (initial / final) and % of design at the end. Tap **Grid** on a table's heading to switch (**Cards** switches
+back); the app remembers the choice on that device, and wide screens start in the grid. In the grid, **Enter** or
+**↓** moves to the same column one row down (**Shift+Enter** / **↑** one row up), so a column of velocities goes in
+without touching the screen between readings. N/A marks and **Delete / Duplicate row** are in each row's **⋯** menu.
+
+![Grid entry](../screenshots/35-grid-entry.png)
+
 ## 4. Filling in each unit type
 
 ### How every unit page works

@@ -13,7 +13,8 @@
  *    accepted, anything else fails the request with TAB_LOCKED (detail: the refused change id);
  *  - review: a change of a reviewed unit (its fields, rows, photos) by a device that had not seen the review (base_seq
  *    older than the review's server_seq) clears it with a server change (device 'server'); (0005) a review is refused
- *    (applied = false, answered by a server clear) when another device changed the unit after the reviewer's base_seq;
+ *    (applied = false, answered by a server clear) when another device changed the unit (its fields, rows, photos,
+ *    (0006) issues) after the reviewer's base_seq; (0006) members may not push as device 'server';
  *  - deleting a project deletes its records (cascade); photo files by path `<projectId>/<photoId>.jpg`;
  *  - (0004, 0006) library instruments and the certification profile: organization records whose changes carry their own id as project_id; a link inside
  *    a value (equipmentId, issueId) must name a record of the same project, libraryId one of the same organization.
@@ -121,6 +122,9 @@ export class FakeSyncServer {
     const out: PushedRow[] = [];
     try {
       for (const row of rows) {
+        // (0006) 'server' is the server's own changes only
+        if (row.device_id === 'server')
+          throw new FakeServerError('TAB_FORBIDDEN: the device id "server" is reserved', '42501');
         const r = this.insert(user, { ...row });
         if (r) out.push({ id: r.id, server_seq: r.server_seq! });
       }
@@ -206,7 +210,8 @@ export class FakeSyncServer {
       base_seq: row.base_seq ?? null,
     };
     const units = this.changeUnits(row);
-    stored.units = units;
+    // (0006) an issue's unit counts for the review check (not for clearing a review)
+    stored.units = [...units, ...this.issueUnits(row)];
     const t = this.table(row.table_name);
     if (dead.length) {
       // (0005) an outlet row / a set of the link: logged, not applied; an issue / photo: created without the link
@@ -324,6 +329,19 @@ export class FakeSyncServer {
       }
     }
     return stored;
+  }
+
+  /** The unit(s) an issue change touches (0006, for the review check). */
+  private issueUnits(row: FieldChangeRow): string[] {
+    if (row.table_name !== 'issues') return [];
+    const e =
+      row.op === 'create'
+        ? (row.value as { equipmentId?: string | null } | null)?.equipmentId
+        : (this.record('issues', row.record_id)?.equipmentId as string | null | undefined);
+    const out = e ? [e] : [];
+    if (row.op === 'set' && row.field === 'equipmentId' && typeof row.value === 'string' && row.value)
+      out.push(row.value);
+    return out;
   }
 
   /** The unit(s) a change touches, for the review rule (read before the change applies). */
