@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { addAirflowRow, airflowTableCapacity, CapacityError, deleteRecord, setField, setFields } from '../../data/repo';
 import { NOTATIONS, type AirflowRow, type Equipment, type NaMark, type Notation } from '../../data/types';
 import { formatNumber, formatPercent, rowCfm, tableTotals, withinTolerance } from '../../domain/calc';
@@ -46,8 +47,30 @@ function optionsFor(col: RowColumnSpec, unitData: Equipment['data']): readonly (
 }
 
 /** Live CFM line of a row, by the table's calc. */
-function RowCalcLine({ spec, row, unitData }: { spec: RowTableSpec; row: AirflowRow; unitData: Equipment['data'] }) {
+function RowCalcLine({
+  spec,
+  row,
+  unitData,
+  compact = false,
+}: {
+  spec: RowTableSpec;
+  row: AirflowRow;
+  unitData: Equipment['data'];
+  /** Grid cell: just "initial / final" CFM. */
+  compact?: boolean;
+}) {
   const calc = spec.calc ?? 'outlet';
+  if (compact && calc !== 'filterGrid') {
+    const [a, b] =
+      calc === 'hoodFilter'
+        ? [hoodRow(unitData.filterType, row.data).initialCfm, hoodRow(unitData.filterType, row.data).finalCfm]
+        : [rowCfm(row, 'initial'), rowCfm(row, 'final')];
+    return (
+      <span className="calc">
+        {formatNumber(a)} / {formatNumber(b)}
+      </span>
+    );
+  }
   if (calc === 'hoodFilter') {
     const h = hoodRow(unitData.filterType, row.data);
     return (
@@ -216,6 +239,200 @@ function OutletRow({
   );
 }
 
+/** Grid (spreadsheet) entry is remembered per device; by default on for wide screens (tablets, laptops). */
+const GRID_KEY = 'tab.gridEntry';
+function initialGrid(): boolean {
+  try {
+    const v = localStorage.getItem(GRID_KEY);
+    if (v === '1' || v === '0') return v === '1';
+  } catch {
+    /* storage blocked: fall back to the screen width */
+  }
+  return typeof window !== 'undefined' && window.matchMedia?.('(min-width: 900px)').matches === true;
+}
+function rememberGrid(on: boolean) {
+  try {
+    localStorage.setItem(GRID_KEY, on ? '1' : '0');
+  } catch {
+    /* not remembered */
+  }
+}
+
+/**
+ * Spreadsheet-style keys in the grid: Enter / ↓ go to the same column one row down, ↑ one row up (↑ ↓ are left to
+ * the list in a select); the cell ids are `g-<table>-<row>-<col>`.
+ */
+function gridKeys(e: React.KeyboardEvent<HTMLTableElement>) {
+  const el = e.target as HTMLElement;
+  const m = /^g-(.+)-(\d+)-(\d+)$/.exec(el.id);
+  if (!m || e.altKey || e.ctrlKey || e.metaKey) return;
+  const isSelect = el.tagName === 'SELECT';
+  const dir = e.key === 'Enter' || (e.key === 'ArrowDown' && !isSelect) ? 1 : e.key === 'ArrowUp' && !isSelect ? -1 : 0;
+  if (!dir) return;
+  const next = document.getElementById(
+    `g-${m[1]}-${Number(m[2]) + (e.shiftKey && e.key === 'Enter' ? -1 : dir)}-${m[3]}`,
+  );
+  if (!next) return;
+  e.preventDefault();
+  (el as HTMLInputElement).blur?.(); // commits the draft
+  next.focus();
+  if (next instanceof HTMLInputElement) next.select();
+}
+
+function GridTable({
+  spec,
+  rows,
+  unitData,
+  result,
+  tolerance,
+  onDuplicate,
+}: {
+  spec: RowTableSpec;
+  rows: AirflowRow[];
+  unitData: Equipment['data'];
+  result: TableResult | undefined;
+  tolerance: number;
+  onDuplicate?: (r: AirflowRow) => void;
+}) {
+  const cols = tableColumns(spec);
+  const noun = spec.noun ?? 'row';
+  return (
+    <div className="grid-wrap">
+      <table className="entry-grid" onKeyDown={gridKeys} data-testid={`grid-${spec.key}`}>
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            {cols.map((c) => (
+              <th key={c.key} scope="col">
+                {c.label}
+              </th>
+            ))}
+            <th scope="col">{spec.calc === 'filterGrid' ? 'CFM' : 'CFM init / final'}</th>
+            {spec.tolerance && <th scope="col">%</th>}
+            <th scope="col">
+              <span className="visually-hidden">Row actions</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => {
+            const res = result?.rows[row.id];
+            const auto = res?.auto ?? {};
+            const label = `${spec.label} ${noun} ${i + 1}`;
+            const computedDesign = spec.firstRowDesignComputed && i === 0;
+            const naCols = cols.filter((c) => c.naMenu && !(c.key in auto));
+            return (
+              <tr key={row.id} data-out={res?.outOfTolerance ?? false} data-testid={`grid-row-${spec.key}-${i}`}>
+                <th scope="row" className="grid-n">
+                  {i + 1}
+                  {res && res.missing.length > 0 && (
+                    <span className="grid-missing" title={`${res.missing.length} missing`}>
+                      •
+                    </span>
+                  )}
+                </th>
+                {cols.map((col, ci) => {
+                  const id = `g-${spec.key}-${i}-${ci}`;
+                  const aria = `${label} ${col.label}`;
+                  if (col.key in auto)
+                    return (
+                      <td key={col.key} className="grid-na" title={`Auto N/A: ${auto[col.key]}`}>
+                        N/A
+                      </td>
+                    );
+                  if (computedDesign && col.key === 'designCfm')
+                    return (
+                      <td key={col.key} className="grid-calc" title="Total design − OA design (workbook formula)">
+                        {formatNumber(res?.design ?? null)}
+                      </td>
+                    );
+                  const mark = row.na[col.key];
+                  const v = row.data[col.key];
+                  const commit = (x: unknown) => void setField('airflowRows', row.id, `data.${col.key}`, x);
+                  if (mark && (v === null || v === undefined || v === ''))
+                    return (
+                      <td key={col.key} className="grid-na">
+                        {mark.notation}
+                      </td>
+                    );
+                  return (
+                    <td key={col.key} className={col.wide ? 'grid-wide' : undefined}>
+                      {col.input === 'number' ? (
+                        <NumberInput
+                          id={id}
+                          aria-label={aria}
+                          value={typeof v === 'number' ? v : null}
+                          onCommit={commit}
+                        />
+                      ) : col.input === 'select' ? (
+                        <SelectInput
+                          id={id}
+                          aria-label={aria}
+                          value={v ?? null}
+                          options={optionsFor(col, unitData)}
+                          onCommit={commit}
+                        />
+                      ) : (
+                        <TextInput
+                          id={id}
+                          aria-label={aria}
+                          value={v === null || v === undefined ? '' : String(v)}
+                          onCommit={commit}
+                        />
+                      )}
+                    </td>
+                  );
+                })}
+                <td className="grid-calc">
+                  <RowCalcLine spec={spec} row={row} unitData={unitData} compact />
+                </td>
+                {spec.tolerance && (
+                  <td>
+                    <Pct ratio={res?.ratio ?? null} tolerance={tolerance} />
+                  </td>
+                )}
+                <td>
+                  <select
+                    className="row-menu"
+                    aria-label={`${label} actions`}
+                    value=""
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === 'delete') {
+                        if (window.confirm(`Delete ${label}?`)) void deleteRecord('airflowRows', row.id);
+                      } else if (v === 'duplicate') onDuplicate?.(row);
+                      else if (v === 'clear') void setField('airflowRows', row.id, 'na', {});
+                      else if (v.includes('|')) {
+                        const [c, notation] = v.split('|');
+                        void setFields('airflowRows', row.id, {
+                          [`data.${c}`]: null,
+                          [`na.${c}`]: { notation: notation as Notation } satisfies NaMark,
+                        });
+                      }
+                    }}
+                  >
+                    <option value="">⋯</option>
+                    {naCols.flatMap((c) =>
+                      NOTATIONS.map((n) => (
+                        <option key={`${c.key}|${n}`} value={`${c.key}|${n}`}>
+                          {c.label}: {n}
+                        </option>
+                      )),
+                    )}
+                    {Object.values(row.na).some(Boolean) && <option value="clear">Clear N/A marks</option>}
+                    {onDuplicate && <option value="duplicate">Duplicate row</option>}
+                    <option value="delete">Delete row</option>
+                  </select>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function AirflowTable({
   equipment,
   spec,
@@ -236,6 +453,7 @@ export function AirflowTable({
   const totals = tableTotals(rows);
   const noun = spec.noun ?? (spec.key === 'return' ? 'inlet' : spec.key === 'oa' ? 'OA row' : 'outlet');
   const firstCol = tableColumns(spec)[0].key;
+  const [grid, setGrid] = useState(initialGrid);
 
   async function add(copyOf?: AirflowRow) {
     const last = copyOf ?? rows[rows.length - 1];
@@ -261,6 +479,21 @@ export function AirflowTable({
         </span>
         {st === 'optional' && <span className="chip">Optional</span>}
         <span className="spacer" />
+        {rows.length > 0 && (
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            aria-pressed={grid}
+            data-testid={`grid-toggle-${spec.key}`}
+            title={grid ? 'Show one card per row' : 'Show a spreadsheet grid (tablets, keyboards)'}
+            onClick={() => {
+              setGrid(!grid);
+              rememberGrid(!grid);
+            }}
+          >
+            {grid ? 'Cards' : 'Grid'}
+          </button>
+        )}
         <NaSelect
           label={spec.label}
           mark={mark}
@@ -276,18 +509,29 @@ export function AirflowTable({
           </span>
         </div>
       )}
-      {rows.map((r, i) => (
-        <OutletRow
-          key={r.id}
-          row={r}
-          index={i}
+      {grid && rows.length > 0 ? (
+        <GridTable
           spec={spec}
+          rows={rows}
           unitData={equipment.data}
-          result={result?.rows[r.id]}
+          result={result}
           tolerance={tolerance}
-          onDuplicate={rows.length < cap ? () => void add(r) : undefined}
+          onDuplicate={rows.length < cap ? (r) => void add(r) : undefined}
         />
-      ))}
+      ) : null}
+      {!grid &&
+        rows.map((r, i) => (
+          <OutletRow
+            key={r.id}
+            row={r}
+            index={i}
+            spec={spec}
+            unitData={equipment.data}
+            result={result?.rows[r.id]}
+            tolerance={tolerance}
+            onDuplicate={rows.length < cap ? () => void add(r) : undefined}
+          />
+        ))}
       {outlet && rows.length > 1 && (
         <div className="totals" aria-label={`${spec.label} totals`}>
           <span>

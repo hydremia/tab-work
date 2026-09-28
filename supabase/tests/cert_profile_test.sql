@@ -87,6 +87,36 @@ select t.push(gen_random_uuid(), 'certProfiles', 'cccccccc-0000-4000-8000-000000
 select t.push(gen_random_uuid(), 'certProfiles', 'cccccccc-0000-4000-8000-00000000c001', 'create', '', '{"cpName":"again"}',
   'devA', 5001, 'cccccccc-0000-4000-8000-00000000c001');
 select t.ok('a deleted profile is not brought back by a create', (select count(*) from public.cert_profiles) = 0);
+-- ------------------------------------------------------------------------------------ review fixes (0006)
+select t.fails('a member cannot push a change as the reserved device "server"',
+  $$select t.push(gen_random_uuid(), 'projects', 'aaaaaaaa-0000-4000-8000-000000000001', 'set', 'name', '"P1b"', 'server', 6000,
+    'aaaaaaaa-0000-4000-8000-000000000001')$$, 'reserved');
+select t.push(gen_random_uuid(), 'equipment', 'bbbbbbbb-0000-4000-8000-000000000001', 'create', '',
+  '{"type":"rtu","slot":1,"designation":"RTU-1"}', 'devA', 6001, 'aaaaaaaa-0000-4000-8000-000000000001');
+reset role;
+create table t.pos as select max(server_seq) as seq from public.field_changes;
+grant select on t.pos to authenticated;
+set role authenticated;
+-- B adds an open issue on RTU-1 that A has not pulled; A's review is refused (and cleared by the server as 'server')
+set request.jwt.claim.sub = '22222222-2222-4222-8222-222222222222';
+select t.push(gen_random_uuid(), 'issues', 'dddddddd-0000-4000-8000-000000000001', 'create', '',
+  '{"kind":"new","number":1,"status":"Open","equipmentId":"bbbbbbbb-0000-4000-8000-000000000001"}', 'devB', 6100,
+  'aaaaaaaa-0000-4000-8000-000000000001', (select seq from t.pos));
+set request.jwt.claim.sub = '11111111-1111-4111-8111-111111111111';
+select t.push('00000000-0000-4000-8000-00000000f001', 'equipment', 'bbbbbbbb-0000-4000-8000-000000000001', 'set', 'review',
+  '{"name":"Ann"}', 'devA', 6200, 'aaaaaaaa-0000-4000-8000-000000000001', (select seq from t.pos));
+select t.ok('an issue added on another device refuses the review; the server''s own clear still goes in',
+  not (select applied from public.field_changes where id = '00000000-0000-4000-8000-00000000f001')
+  and (select count(*) from public.field_changes where device_id = 'server' and field = 'review') = 1);
+-- issues still never clear a review (0003)
+select t.push(gen_random_uuid(), 'equipment', 'bbbbbbbb-0000-4000-8000-000000000001', 'set', 'review', '{"name":"Ann"}', 'devA', 6300,
+  'aaaaaaaa-0000-4000-8000-000000000001', (select max(server_seq) from public.field_changes));
+set request.jwt.claim.sub = '22222222-2222-4222-8222-222222222222';
+select t.push(gen_random_uuid(), 'issues', 'dddddddd-0000-4000-8000-000000000001', 'set', 'remark', '"stuck"', 'devB', 6400,
+  'aaaaaaaa-0000-4000-8000-000000000001', 1);
+select t.ok('an issue edit still does not clear a review', (select jsonb_typeof(review) from public.equipment) = 'object');
+select t.ok('issue changes record their unit', (select units from public.field_changes where table_name = 'issues' order by server_seq desc limit 1)
+  = array['bbbbbbbb-0000-4000-8000-000000000001']::uuid[]);
 reset role;
 set role anon;
 select t.ok('anon reads nothing of the profile', not has_table_privilege('anon', 'public.cert_profiles', 'select'));

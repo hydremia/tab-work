@@ -10,18 +10,23 @@ import { appendHistory } from '../data/history';
 import { getDeviceId } from '../data/identity';
 import { deleteProjectLocally, forgetPhotoFile, historyKind, unitOf, writeTables } from '../data/repo';
 import { assertEditablePath, deepEqual, getPath, setPath } from '../data/paths';
-import { ORG_TABLES, type DeletedInfo, type FieldChange, type ProjectLock, type TableName } from '../data/types';
+import { ORG_TABLES, type FieldChange, type ProjectLock, type TableName } from '../data/types';
 import { uuid } from '../data/uuid';
 import { isConcurrent, laterWins, recordFieldConflict } from './conflicts';
 import {
+  countUnseenEdits,
   dropLinked,
   dropWaiting,
   flagLocalDelete,
+  flagPendingChild,
   flagRemoteDelete,
   goneParent,
   linkedRecords,
+  newPullContext,
   parentOf,
   settleRestored,
+  takeChildren,
+  type PullContext,
 } from './deletes';
 
 /** A field path this app edits (not id / projectId / timestamps, no prototype keys). */
@@ -198,16 +203,13 @@ export interface ApplyResult {
  * server) but kept in the local log as synced (audit, conflict detection). This device's own changes coming back only
  * record their server_seq.
  */
-export async function applyRemoteChanges(changes: readonly RemoteChange[]): Promise<ApplyResult> {
+export async function applyRemoteChanges(changes: readonly RemoteChange[], pull?: PullContext): Promise<ApplyResult> {
   const deviceId = await getDeviceId();
+  // one call = one page of a pull (engine.ts passes the pull's context); called on its own it is a whole pull
+  const ctx = pull ?? newPullContext();
   const res: ApplyResult = { applied: 0, skipped: 0, conflicts: 0 };
   const order = (c: RemoteChange) => c.serverSeq ?? Number.MAX_SAFE_INTEGER;
   const sorted = [...changes].sort((a, b) => order(a) - order(b) || a.ts - b.ts);
-  // records other devices delete in this pull: an outlet row / photo deleted with its unit (or issue) is flagged with it
-  const deletedHere = new Set(
-    sorted.filter((x) => x.op === 'delete' && x.deviceId !== deviceId).map((x) => x.recordId),
-  );
-  const goesWith = new Map<string, DeletedInfo['records']>();
   await db.transaction('rw', [...writeTables(), db.revisions, db.baseWorkbooks], async () => {
     for (const c of sorted) {
       if (c.deviceId === deviceId) {
@@ -308,12 +310,7 @@ export async function applyRemoteChanges(changes: readonly RemoteChange[]): Prom
             { ...base, kind: 'create', equipmentId: unitOf(c.table, c.value as never), field: '' },
             who,
           );
-        } else {
-          res.skipped++;
-          // an outlet row another device added to a unit this device deleted (refused by the server)
-          if (c.applied === false && /^links a deleted record/.test(c.note ?? ''))
-            res.conflicts += await flagLocalDelete(c, deviceId);
-        }
+        } else res.skipped++;
       } else if (c.table === 'projects') {
         // another device deleted the whole project: cascade like the server
         if (await db.projects.get(c.recordId)) {
@@ -323,24 +320,22 @@ export async function applyRemoteChanges(changes: readonly RemoteChange[]): Prom
       } else {
         const rec = await t.get(c.recordId);
         if (rec) {
-          const parent = parentOf(c.table as TableName, rec);
-          if (parent && deletedHere.has(parent))
-            goesWith.set(parent, [...(goesWith.get(parent) ?? []), { table: c.table as TableName, rec }]);
-          else {
+          const table = c.table as TableName;
+          const parent = parentOf(table, rec);
+          if (parent) {
+            // an outlet row / photo: flagged with its unit's (issue's) delete when that comes in this pull, else
+            // on its own at the end of the pull (finishPull)
+            const edits = await countUnseenEdits(c, table, rec.id, deviceId);
+            ctx.pending.set(rec.id, { c, snap: { table, rec }, edits, parent });
+          } else {
             // edits made here that the deleting device had not seen; records added here to a deleted unit / issue
-            const linked = await linkedRecords(c.table as TableName, c.recordId);
-            res.conflicts += await flagRemoteDelete(
-              c,
-              c.table as TableName,
-              rec,
-              [...(goesWith.get(c.recordId) ?? []), ...linked],
-              deviceId,
-            );
-            if (linked.length || c.table === 'equipment') await dropLinked(c.table as TableName, c.recordId, linked);
-            // this device's waiting edits of it (and of what went with it) are moot: kept in the conflict's copy
-            await dropWaiting(c.table as TableName, c.recordId);
-            for (const x of goesWith.get(c.recordId) ?? []) await dropWaiting(x.table, x.rec.id);
+            const children = takeChildren(ctx, c.recordId);
+            const linked = await linkedRecords(table, c.recordId);
+            res.conflicts += await flagRemoteDelete(c, table, rec, children, linked, deviceId);
+            if (linked.length || table === 'equipment') await dropLinked(table, c.recordId, linked);
           }
+          // this device's waiting edits of it are moot (kept in the conflict's copy when they mattered)
+          await dropWaiting(table, c.recordId);
         }
         await t.delete(c.recordId);
         if (c.table === 'photos') await forgetPhotoFile(c.recordId, true);
@@ -356,5 +351,21 @@ export async function applyRemoteChanges(changes: readonly RemoteChange[]): Prom
       }
     }
   });
+  if (!pull) res.conflicts += await finishPull(ctx);
   return res;
+}
+
+/**
+ * End of a pull: outlet rows / photos another device deleted whose unit (issue) was not deleted in the same pull are
+ * flagged on their own (when this device had unseen edits of them). Returns the conflicts recorded.
+ */
+export async function finishPull(ctx: PullContext): Promise<number> {
+  if (!ctx.pending.size) return 0;
+  const left = [...ctx.pending.values()];
+  ctx.pending.clear();
+  return db.transaction('rw', writeTables(), async () => {
+    let n = 0;
+    for (const p of left) n += await flagPendingChild(p);
+    return n;
+  });
 }

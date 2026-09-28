@@ -954,7 +954,61 @@ export async function updateInstrumentFromLibrary(instrumentId: string): Promise
 // ------------------------------------------------------------------------------------------ certification profile
 /** The organization's certification profile: the oldest one (two devices may each have created one before syncing). */
 export async function getCertProfile(): Promise<CertProfile | undefined> {
-  return db.certProfiles.orderBy('createdAt').first();
+  return (await certProfilesOldestFirst())[0];
+}
+
+/** Oldest first (ties by id, the same on every device). */
+async function certProfilesOldestFirst(): Promise<CertProfile[]> {
+  return (await db.certProfiles.toArray()).sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1));
+}
+
+const CERT_PROFILE_FIELDS = ['cpName', 'certNumber', 'expiration', 'stamp', 'signature'] as const;
+const emptyValue = (v: unknown) => v === null || v === undefined || v === '';
+
+/**
+ * Two devices each created a profile before syncing (the oldest one is used): what the newer ones have and the oldest
+ * lacks moves into the oldest; a different value becomes a sync conflict on the oldest (Keep current / Use the other,
+ * on the certification page); then the newer ones are deleted. Run after each pull. Returns how many were merged.
+ */
+export async function mergeCertProfiles(): Promise<number> {
+  const [keep, ...rest] = await certProfilesOldestFirst();
+  if (!keep || !rest.length) return 0;
+  await db.transaction('rw', writeTables(), async () => {
+    for (const dup of rest) {
+      for (const k of CERT_PROFILE_FIELDS) {
+        const mine = (await db.certProfiles.get(keep.id))?.[k];
+        const theirs = dup[k];
+        if (emptyValue(theirs) || deepEqual(mine, theirs)) continue;
+        if (emptyValue(mine)) {
+          await setField('certProfiles', keep.id, k, theirs);
+          continue;
+        }
+        const side = (value: unknown, ts: number) => ({
+          value,
+          ts,
+          userId: '',
+          deviceId: '',
+          local: false,
+          changeId: '',
+        });
+        await db.conflicts.add({
+          id: uuid(),
+          projectId: keep.id,
+          kind: 'field',
+          table: 'certProfiles',
+          recordId: keep.id,
+          equipmentId: null,
+          field: k,
+          current: side(mine, keep.updatedAt),
+          other: side(theirs, dup.updatedAt),
+          status: 'open',
+          detectedAt: Date.now(),
+        });
+      }
+      await deleteRecord('certProfiles', dup.id);
+    }
+  });
+  return rest.length;
 }
 
 /** The certification profile, created from the template's CP when there is none yet. */

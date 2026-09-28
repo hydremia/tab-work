@@ -162,6 +162,36 @@ describe('deleted on another device while edited here', () => {
   });
 });
 
+describe('a delete read over several pages', () => {
+  it("a unit's cascade split across pull pages is still one conflict with its rows, and restores", async () => {
+    A = makeDevice(server, 'A-paged', alice, { pageSize: 1 });
+    const { p, rtu } = await A.run(async () => {
+      const p = await createProject({ name: 'Paged' });
+      const rtu = await addEquipment(p.id, 'rtu', 'RTU-1');
+      await addAirflowRow(rtu, 'supply', { no: 'S-1' });
+      await addAirflowRow(rtu, 'supply', { no: 'S-2' });
+      return { p, rtu };
+    });
+    await A.sync();
+    await B.sync();
+    await A.run(async () => {
+      for (const r of await db.airflowRows.where('equipmentId').equals(rtu.id).toArray())
+        await setField('airflowRows', r.id, 'data.final', 400);
+    });
+    await B.run(() => deleteRecord('equipment', rtu.id));
+    await B.sync();
+    await A.sync();
+    const open = await openConflicts(A);
+    expect(open).toHaveLength(1);
+    expect(open[0]).toMatchObject({ table: 'equipment', recordId: rtu.id });
+    expect(open[0].deleted).toMatchObject({ edits: 2 });
+    expect(open[0].deleted!.records.map((r) => r.table)).toEqual(['equipment', 'airflowRows', 'airflowRows']);
+    const out = await A.run(() => restoreDeleted(open[0].id));
+    expect(out.restored).toBe(3);
+    expect(await A.run(() => db.airflowRows.where('projectId').equals(p.id).count())).toBe(2);
+  });
+});
+
 describe('deleted here while another device edited it', () => {
   it("the other device's synced edit is flagged here and there; restore uses the latest values", async () => {
     const { rtu } = await shared();

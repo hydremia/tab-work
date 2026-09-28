@@ -354,7 +354,11 @@ export function useLibraryConflicts(libIds?: readonly string[]): SyncConflict[] 
 
 /** The organization's certification profile (undefined while loading, null when there is none yet). */
 export function useCertProfile(): CertProfile | null | undefined {
-  return useLiveQuery(async () => (await db.certProfiles.orderBy('createdAt').first()) ?? null, []);
+  return useLiveQuery(
+    async () =>
+      (await db.certProfiles.toArray()).sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : 1))[0] ?? null,
+    [],
+  );
 }
 
 /** Open sync conflicts of the certification profile(s). */
