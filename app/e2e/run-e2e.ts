@@ -24,6 +24,7 @@ import { photosFlow } from './photos';
 import { certificationFlow, libraryFlow, pressuresAndAttention, scheduleFlow } from './features';
 import { workflowFlow } from './workflow';
 import { deployFlow } from './deploy';
+import { tagsFlow } from './tags';
 import { syncFlow } from './sync';
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -119,14 +120,14 @@ function stopServer(proc: ChildProcess): void {
   }
 }
 
-async function launch(): Promise<Browser> {
+export async function launch(args: string[] = []): Promise<Browser> {
   // 1. CHROMIUM_PATH, 2. playwright-core's own lookup (PLAYWRIGHT_BROWSERS_PATH), 3. the preinstalled binary
   const attempts: (string | undefined)[] = process.env.CHROMIUM_PATH ? [process.env.CHROMIUM_PATH] : [];
   attempts.push(undefined, '/opt/pw-browsers/chromium');
   let last: unknown;
   for (const executablePath of attempts) {
     try {
-      return await chromium.launch({ executablePath });
+      return await chromium.launch({ executablePath, args });
     } catch (e) {
       last = e;
     }
@@ -732,6 +733,7 @@ async function main() {
     await scheduleFlow(browser, BASE, file, DOC_SHOTS, check);
     await libraryFlow(browser, BASE, DOC_SHOTS, check);
     await certificationFlow(browser, BASE, DOC_SHOTS, OUT, check);
+    await tagsFlow(BASE, file, DOC_SHOTS, OUT, check, launch);
 
     // ------------------------------------------------------------------ review, issue / lock, unlock, history
     await workflowFlow(browser, BASE, file, OUT, DOC_SHOTS, check);

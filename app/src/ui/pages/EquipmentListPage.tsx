@@ -83,16 +83,23 @@ export function EquipmentListPage() {
               : 'Add the units you will test and balance.'}
           </p>
         </div>
-        {!locked && (
-          <div className="row" style={{ gap: 8, justifyContent: 'flex-end' }}>
-            <Link to={`/p/${project.id}/schedule`} className="btn" data-testid="import-schedule">
-              Import schedule
+        <div className="row" style={{ gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          {equipment.length > 0 && (
+            <Link to={`/p/${project.id}/tags`} className="btn" data-testid="qr-tags">
+              QR tags
             </Link>
-            <Link to={`/p/${project.id}/add`} className="btn btn-primary" data-testid="add-equipment">
-              <IconPlus size={18} /> Add equipment
-            </Link>
-          </div>
-        )}
+          )}
+          {!locked && (
+            <>
+              <Link to={`/p/${project.id}/schedule`} className="btn" data-testid="import-schedule">
+                Import schedule
+              </Link>
+              <Link to={`/p/${project.id}/add`} className="btn btn-primary" data-testid="add-equipment">
+                <IconPlus size={18} /> Add equipment
+              </Link>
+            </>
+          )}
+        </div>
       </div>
       {attention && attention.length > 0 && (
         <Link to={`/p/${project.id}/attention`} className="card card-link attention-link" data-testid="attention-card">
