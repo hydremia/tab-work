@@ -12,6 +12,7 @@
  * Certification (C30 / C32 / C34 label + value lines, I53 signature, I56 date) and the 20 spare OA rows on Building
  * Balance (rows 67-86) are mapped too.
  */
+import type { CertImagesDef } from './certImages.js';
 
 export const TEMPLATE_REVISION = '05';
 
@@ -168,6 +169,8 @@ export interface TemplateMap {
   equipment: readonly EquipmentDef[];
   /** Cover photo picture: sheet, and the drawing picture's name (xdr:cNvPr/@name). */
   coverPhoto: { sheet: string; pictureName: string };
+  /** Stamp / signature pictures on the Certification sheet (added by the exporter; the template has none). */
+  certImages: CertImagesDef;
 }
 
 // ------------------------------------------------------------------------------------------ helpers
@@ -254,6 +257,8 @@ const Q = 52; // continuation page offset (Q = P + 52)
 export const TEMPLATE_MAP: TemplateMap = {
   revision: TEMPLATE_REVISION,
   coverPhoto: { sheet: 'Cover Page', pictureName: 'Project Photo' },
+  // stamp box C51:G56 (bordered, empty); signature right of the "Signature:" label (I52), on the line I53:L53
+  certImages: { sheet: 'Certification', stamp: 'C51:G56', signature: 'J51:L53', placeholder: 'C50' },
 
   sections: [
     {
@@ -333,7 +338,7 @@ export const TEMPLATE_MAP: TemplateMap = {
     { key: 'equipmentSummary', sheet: 'Equipment Summary', fields: [f('tolerance', 'E', 5, 'number')] },
     {
       // label + value lines of the certified professional (merged C:L); the firm lines C36 / C37 stay template text.
-      // The stamp box C51:G56 has no picture in the template (the stamp is placed in Excel).
+      // The stamp box C51:G56 has no picture in the template; the exporter adds the stamp / signature (certImages).
       key: 'certification',
       sheet: 'Certification',
       fields: [

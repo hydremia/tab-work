@@ -8,8 +8,9 @@
  *   certSignature   I53  signature line (the signer's name)         required on a FINAL report; automatic N/A on a
  *   certDate        I56  date line                                  prelim (exported as "N/A", read back as automatic)
  *
- * The stamp box (C51:G56) has no picture placeholder in the template, so the stamp / signature image is placed in
- * Excel (no image in the app). The firm lines (C36, C37) are fixed template text.
+ * The stamp and signature images come from the organization's certification profile (data/types.ts CertProfile) and
+ * are placed by every export (stamp box C51:G56, signature line I53); new projects take the CP lines from it. The firm
+ * lines (C36, C37) are fixed template text.
  */
 import { DEFAULT_CERTIFICATION } from '@a2b/workbook/map';
 import type { FieldValue, Project } from '../data/types';
@@ -50,7 +51,7 @@ export const CERT_FIELDS: readonly FieldSpec[] = [
     key: CERT_KEYS.signature,
     label: 'Signature (signed by)',
     input: 'text',
-    hint: 'The name on the signature line. A stamp or signature image is placed in Excel.',
+    hint: 'The name on the signature line. The stamp and signature images come from the certification profile.',
   },
   { key: CERT_KEYS.date, label: 'Date', input: 'date' },
 ];

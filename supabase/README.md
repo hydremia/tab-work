@@ -1,7 +1,7 @@
 # Supabase backend (not deployed yet)
 
-`migrations/0001_init.sql`, `0002_review_lock.sql`, `0003_sync_rules.sql`, `0004_library_links.sql` and
-`0005_review_deletes.sql` create everything
+`migrations/0001_init.sql`, `0002_review_lock.sql`, `0003_sync_rules.sql`, `0004_library_links.sql`,
+`0005_review_deletes.sql` and `0006_cert_profile.sql` create everything
 the TAB App needs on Supabase. **Nothing has been applied to a Supabase project yet**: the app runs in local-only mode until
 `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are set (see [`app/README.md`](../app/README.md)). Account setup:
 [`docs/SETUP_ACCOUNTS.md`](../docs/SETUP_ACCOUNTS.md); switching sign-in and sync on, step by step (migrations, bucket,
@@ -109,6 +109,16 @@ The app calls `supabase.auth.signInWithOAuth({ provider: 'azure', options: { sco
 (PKCE); `/auth/callback` exchanges the code for the session. Add `https://<app>/auth/callback` (and
 `http://localhost:5173/auth/callback`) to **Redirect URLs**.
 
+### 0006: certification profile (stamp and signature)
+
+`0006_cert_profile.sql` adds `cert_profiles` (CP name, certification number, expiration, `stamp` / `signature` as
+small JSON pictures `{ dataUrl, width, height, type }`), an organization record like the calibration library: its
+changes carry the profile's own id as `project_id`, members read it (RLS by organization), nobody writes it directly.
+The apply trigger is replaced once more to treat `certProfiles` like `libraryInstruments` (every earlier rule kept).
+Every export places the images on the Certification sheet (`packages/workbook/src/certImages.ts`). Rollback:
+`rollback/0006_cert_profile_down.sql` (0005 trigger; table and data kept). `cert_profile_test.sql` 11 PASS; the 0003 –
+0005 suites pass on 0001 – 0006, and the 0005 suite after the rollback.
+
 ## Checking the migrations locally (no Supabase needed)
 
 `tests/` holds a stand-in for Supabase's `auth` / `storage` schemas and two tests. On an empty PostgreSQL 15+ database:
@@ -117,11 +127,12 @@ The app calls `supabase.auth.signInWithOAuth({ provider: 'azure', options: { sco
 psql -d <empty db> -v ON_ERROR_STOP=1 -f supabase/tests/supabase_stub.sql \
      -f supabase/migrations/0001_init.sql -f supabase/migrations/0002_review_lock.sql \
      -f supabase/migrations/0003_sync_rules.sql -f supabase/migrations/0004_library_links.sql \
-     -f supabase/migrations/0005_review_deletes.sql \
+     -f supabase/migrations/0005_review_deletes.sql -f supabase/migrations/0006_cert_profile.sql \
      -f supabase/tests/grants_for_stub.sql
 psql -d <empty db> -f supabase/tests/sync_rules_test.sql    # ends with "ALL SYNC RULE TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/library_links_test.sql   # "ALL 0004 TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/review_deletes_test.sql  # "ALL 0005 TESTS PASSED"
+psql -d <other empty db, same setup> -f supabase/tests/cert_profile_test.sql    # "ALL 0006 TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/smoke_test.sql
 ```
 
