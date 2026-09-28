@@ -261,6 +261,7 @@ export async function applyRemoteChanges(changes: readonly RemoteChange[]): Prom
               field: c.field,
               previous: getPath(rec, c.field) ?? null,
               value: c.value ?? null,
+              ...(c.deviceId === 'server' && c.note ? { note: c.note } : {}),
             },
             who,
           );

@@ -379,4 +379,24 @@ describe('review clearing (server rule)', () => {
     await A.run(async () => expect((await db.equipment.get(rtu.id))?.review).toBeNull());
     await B.run(async () => expect((await db.equipment.get(rtu.id))?.review).toBeFalsy());
   });
+
+  it('a review of data the reviewer had not pulled is refused by the server and dropped on the reviewing device', async () => {
+    const { rtu } = await shared();
+    // B blanks a reading and syncs; A (not synced since) signs the unit off on what it has
+    await B.run(() => setField('equipment', rtu.id, 'data.model', null));
+    await B.sync();
+    await A.run(() => setField('equipment', rtu.id, 'review', { name: 'Kim', userId: alice.id, deviceId: 'A', at: 1 }));
+    const res = await A.sync();
+    expect(res.pushed).toBeGreaterThan(0);
+    expect(server.valueOf('equipment', rtu.id, 'review')).toBeNull();
+    expect(server.log.find((r) => r.field === 'review' && r.device_id !== 'server')).toMatchObject({ applied: false });
+    await A.run(async () => {
+      expect((await db.equipment.get(rtu.id))?.review).toBeNull();
+      const h = (await db.history.toArray()).filter((e) => e.recordId === rtu.id);
+      expect(h.find((e) => e.kind === 'review-cleared' && e.source === 'remote')?.note).toMatch(/another device/);
+      expect(await db.conflicts.count()).toBe(0);
+    });
+    await B.sync();
+    await B.run(async () => expect((await db.equipment.get(rtu.id))?.review).toBeFalsy());
+  });
 });

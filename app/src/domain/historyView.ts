@@ -297,7 +297,12 @@ export function describeEntry(e: HistoryEntry, ctx: HistoryContext): HistoryLine
     case 'review-cleared':
       return {
         type: 'event',
-        text: e.source === 'auto' ? 'Review cleared automatically (the unit changed)' : 'Review cleared',
+        text:
+          e.source === 'auto'
+            ? 'Review cleared automatically (the unit changed)'
+            : e.note
+              ? `Review cleared automatically (${e.note.replace(/^automatic: /i, '')})`
+              : 'Review cleared',
       };
     case 'revision':
       return { type: 'event', text: e.note ?? 'Exported' };
