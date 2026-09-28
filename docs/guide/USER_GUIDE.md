@@ -394,6 +394,21 @@ without touching the screen between readings. N/A marks and **Delete / Duplicate
 
 ![Grid entry](../screenshots/35-grid-entry.png)
 
+### QR tags on the units
+
+**Equipment tab → QR tags** makes a PDF of 2 in. labels, one per unit (untick the ones you don't need): a QR code, the
+designation, the unit type and the project. Print at 100% on plain paper and cut them out, or on 2 in. square label
+sheets (12 per Letter page), and stick each on its unit.
+
+Scanning a tag opens that unit's page:
+- **In the app:** Projects → **Scan tag** and point the camera at the tag (works on iPhone and Android).
+- **With the phone's Camera app:** point it at the tag and tap the link; it opens in the browser.
+
+The project has to be on that device (signed in: synced; local mode: the device the project was made or imported on);
+otherwise the page says so.
+
+![QR tags](../screenshots/36-qr-tags.png)
+
 ## 4. Filling in each unit type
 
 ### How every unit page works

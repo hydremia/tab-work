@@ -31,6 +31,9 @@ const AccountPage = page(() => import('./ui/pages/SyncPages'), 'AccountPage');
 const AuthCallbackPage = page(() => import('./ui/pages/SyncPages'), 'AuthCallbackPage');
 const CloudSetupPage = page(() => import('./ui/pages/SyncPages'), 'CloudSetupPage');
 const LibraryPage = page(() => import('./ui/pages/LibraryPage'), 'LibraryPage');
+const TagsPage = page(() => import('./ui/pages/TagPages'), 'TagsPage');
+const TagPage = page(() => import('./ui/pages/TagPages'), 'TagPage');
+const ScanPage = page(() => import('./ui/pages/TagPages'), 'ScanPage');
 const DashboardPage = page(() => import('./ui/pages/DashboardPage'), 'DashboardPage');
 const CertificationPage = page(() => import('./ui/pages/CertificationPage'), 'CertificationPage');
 
@@ -70,6 +73,8 @@ export const routes = [
       { path: 'library', element: LibraryPage },
       { path: 'certification', element: CertificationPage },
       { path: 'dashboard', element: DashboardPage },
+      { path: 'scan', element: ScanPage },
+      { path: 't/:projectId/:unitId', element: TagPage },
       {
         path: 'p/:projectId',
         element: <ProjectLayout />,
@@ -86,6 +91,7 @@ export const routes = [
       },
       { path: 'p/:projectId/add', element: AddEquipmentPage },
       { path: 'p/:projectId/schedule', element: ScheduleImportPage },
+      { path: 'p/:projectId/tags', element: TagsPage },
       { path: 'p/:projectId/e/:equipmentId', element: EquipmentPage },
       { path: '*', element: <NotFound /> },
     ],
