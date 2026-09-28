@@ -169,7 +169,9 @@ export function vercelJson(supabase = supabaseOrigins()): string {
   const config = {
     $schema: 'https://openapi.vercel.sh/vercel.json',
     framework: null,
-    installCommand: 'npm ci',
+    // --include=dev: the build tools (TypeScript, Vite) are dev dependencies; a host environment set to production
+    // (NODE_ENV) would otherwise skip them ("tsc: command not found")
+    installCommand: 'npm ci --include=dev',
     buildCommand: 'npm run build',
     outputDirectory: 'app/dist',
     cleanUrls: false,
