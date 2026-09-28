@@ -132,6 +132,21 @@ describe('stamp and signature on the Certification sheet', () => {
     expect((await certParts(cleared.bytes)).pictures).toHaveLength(0);
   });
 
+  it('leaves a box that already holds a picture (a stamp inserted in Excel) alone, and skips an unusable image', async () => {
+    const first = await exportWorkbookWithReport(templateBytes(), project, { certImages: { stamp: png(40, 40) } });
+    // someone replaced our stamp by hand in Excel: the same box, another name
+    const zip = await JSZip.loadAsync(first.bytes);
+    const c = await certParts(first.bytes);
+    await zip.file(c.drawingPart!, c.drawingXml!.replace(`name="${CERT_PICTURE_NAMES.stamp}"`, 'name="Picture 3"'));
+    const edited = await zip.generateAsync({ type: 'uint8array' });
+    const { bytes, report } = await exportWorkbookWithReport(edited, project, {
+      certImages: { stamp: png(40, 40), signature: { ...png(10, 10), width: 0 } },
+    });
+    expect(report.certImages?.placed).toEqual([]);
+    expect(report.certImages?.skipped.map((x) => x.kind).sort()).toEqual(['signature', 'stamp']);
+    expect((await certParts(bytes)).pictures.map((p) => p.name)).toEqual(['Picture 3']);
+  });
+
   it('fits keeping the aspect ratio: a wide signature is limited by the width, a tall stamp by the height', async () => {
     const zip = await JSZip.loadAsync(templateBytes());
     const sheet = (await listSheets(zip)).find((s) => s.name === 'Certification')!;

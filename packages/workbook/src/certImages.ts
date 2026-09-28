@@ -41,6 +41,8 @@ export const CERT_PICTURE_NAMES = { stamp: 'TAB App Stamp', signature: 'TAB App 
 
 export interface CertImagesReport {
   placed: ('stamp' | 'signature')[];
+  /** Images not placed, and why (a picture already in the box, e.g. a stamp inserted in Excel; unusable size). */
+  skipped: { kind: 'stamp' | 'signature'; reason: string }[];
   removed: number;
   drawingPart: string | null;
   createdDrawing: boolean;
@@ -149,11 +151,19 @@ async function referenced(zip: JSZip, part: string): Promise<boolean> {
 export async function placeCertImages(
   zip: JSZip, sheets: { name: string; part: string }[], def: CertImagesDef, images: CertImages,
 ): Promise<CertImagesReport> {
-  const report: CertImagesReport = { placed: [], removed: 0, drawingPart: null, createdDrawing: false };
+  const report: CertImagesReport = { placed: [], skipped: [], removed: 0, drawingPart: null, createdDrawing: false };
   const sheet = sheets.find((s) => s.name === def.sheet);
   if (!sheet) throw new Error(`no sheet ${def.sheet}`);
   let sheetXml = await readText(zip, sheet.part);
-  const want = (['stamp', 'signature'] as const).filter((k) => images[k]);
+  const want = (['stamp', 'signature'] as const).filter((k) => {
+    const img = images[k];
+    if (!img) return false;
+    if (!(img.width > 0 && img.height > 0 && img.bytes.length > 0)) {
+      report.skipped.push({ kind: k, reason: 'the image has no usable size' });
+      return false;
+    }
+    return true;
+  });
   const sheetRelsPart = relsPathFor(sheet.part);
   let sheetRels = zip.file(sheetRelsPart) ? await readText(zip, sheetRelsPart) : EMPTY_RELS;
 
@@ -199,6 +209,21 @@ export async function placeCertImages(
       drawingRels = drawingRels.replace(rel.tag, '');
       oldMedia.push(resolveTarget(drawingPart, rel.target));
     }
+  }
+
+  // a picture of someone else's in the box (a stamp inserted by hand in Excel): leave the box to it
+  const others = drawingPictures(drawingXml).filter((p) => !ours.has(p.name) && p.anchor);
+  const overlaps = (range: string) => {
+    const b = rangeBox(range);
+    return others.some(
+      (p) =>
+        p.anchor!.fromCol < b.toCol && p.anchor!.toCol >= b.fromCol && p.anchor!.fromRow < b.toRow && p.anchor!.toRow >= b.fromRow,
+    );
+  };
+  for (const k of [...want]) {
+    if (!overlaps(k === 'stamp' ? def.stamp : def.signature)) continue;
+    want.splice(want.indexOf(k), 1);
+    report.skipped.push({ kind: k, reason: `the ${k} area already holds a picture (placed in Excel)` });
   }
 
   // add the images

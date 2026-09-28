@@ -10,7 +10,12 @@
 --     organization), nobody writes it directly. The images are small encoded pictures stored in the change log as
 --     JSON ({ dataUrl, width, height, type }; the app keeps each under 400 KB), so no storage bucket is involved.
 --  2. The apply trigger treats 'certProfiles' like 'libraryInstruments' (organization, "the change names the record
---     itself", create). Every 0003 / 0004 / 0005 rule is unchanged (the whole function is replaced).
+--     itself", create).
+--  3. Fixes from review: the device id 'server' is reserved for the trigger's own changes (a member could otherwise
+--     push a change with a made-up "automatic: …" note that every device shows in its history); an issue change
+--     counts for the 0005 review check (an open issue added on another device keeps the unit from being complete),
+--     while issues still never clear a review.
+--  Every other 0003 / 0004 / 0005 rule is unchanged (the whole function is replaced).
 --
 -- Rollback: rollback/0006_cert_profile_down.sql (back to the 0005 trigger; the table and its data stay).
 -- =====================================================================================================================
@@ -55,6 +60,27 @@ language sql immutable as $$
     when 'certProfiles' then 'cert_profiles' else app_table end
 $$;
 
+
+-- The unit(s) an issue change touches (its unit, and the unit a set of equipmentId moves it to), for the review check.
+create or replace function public.issue_units(t text, op text, rec uuid, fld text, val jsonb) returns uuid[]
+language plpgsql stable security definer set search_path = public as $$
+declare
+  u uuid[] := '{}';
+  x uuid;
+begin
+  if t <> 'issues' then return u; end if;
+  if op = 'create' then
+    x := nullif(val ->> 'equipmentId', '')::uuid;
+  else
+    select equipment_id into x from public.issues where id = rec;
+  end if;
+  if x is not null then u := array[x]; end if;
+  if op = 'set' and fld = 'equipmentId' and jsonb_typeof(val) = 'string' and (val #>> '{}') <> '' then
+    u := u || (val #>> '{}')::uuid;
+  end if;
+  return u;
+end $$;
+
 -- ------------------------------------------------------------------------------------------ the apply trigger
 -- 0005's function with 'certProfiles' handled as an organization record (like 'libraryInstruments').
 create or replace function public.apply_field_change() returns trigger
@@ -81,6 +107,11 @@ begin
   -- 1. idempotent re-push: a change already in the log is neither inserted nor applied again
   if exists (select 1 from public.field_changes f where f.id = new.id) then
     return null;
+  end if;
+  -- (0006) the device id 'server' is the server's own changes (review clears, with a note every device shows): a
+  -- member's change may not use it; this trigger marks its own inserts with a transaction-local setting
+  if new.device_id = 'server' and coalesce(current_setting('tab.server_change', true), '') <> '1' then
+    raise exception using errcode = '42501', message = 'TAB_FORBIDDEN: the device id "server" is reserved';
   end if;
 
   -- 2. who and which organization
@@ -168,7 +199,9 @@ begin
   end if;
 
   v_units := public.change_units(new.table_name, new.op, new.record_id, new.field, new.value);
-  new.units := v_units;
+  -- (0006) an issue's unit counts for the review check 3b (an open issue keeps a unit from being complete); issues
+  -- still never clear a review (rule 5 uses v_units)
+  new.units := v_units || public.issue_units(new.table_name, new.op, new.record_id, new.field, new.value);
 
   -- 3b. a review signs off what the reviewer saw (0005): refused when another device changed the unit (its fields,
   --     rows, photos) after the reviewer's last pull, i.e. the reviewer checked "green" on data that is no longer the
@@ -182,12 +215,14 @@ begin
      ) then
     new.applied := false;
     new.note := 'review refused: the unit changed on another device before this review reached the server';
+    perform set_config('tab.server_change', '1', true);
     insert into public.field_changes
       (id, project_id, table_name, record_id, op, field, value, user_id, device_id, client_ts, base_seq, note)
     values
       (gen_random_uuid(), new.project_id, 'equipment', new.record_id, 'set', 'review', 'null'::jsonb, new.user_id,
        'server', new.client_ts + 1, new.server_seq,
        'automatic: the unit changed on another device before the review reached the server; review it again');
+    perform set_config('tab.server_change', '', true);
     return new;
   end if;
 
@@ -274,12 +309,14 @@ begin
         where f.record_id = v_unit and f.field = 'review' and f.op = 'set' and f.applied
         order by f.server_seq desc limit 1;
         if new.base_seq is null or v_review_seq is null or new.base_seq < v_review_seq then
+          perform set_config('tab.server_change', '1', true);
           insert into public.field_changes
             (id, project_id, table_name, record_id, op, field, value, user_id, device_id, client_ts, base_seq, note)
           values
             (gen_random_uuid(), new.project_id, 'equipment', v_unit, 'set', 'review', 'null'::jsonb, new.user_id,
              'server', greatest(new.client_ts, coalesce(v_review_ts, 0) + 1), new.server_seq,
              'automatic: the unit changed after it was reviewed');
+          perform set_config('tab.server_change', '', true);
         end if;
       end if;
     end loop;
@@ -290,3 +327,4 @@ end $$;
 -- privileges (as 0003: internals not callable over the API)
 revoke execute on function public.apply_field_change() from public, anon, authenticated;
 revoke execute on function public.sync_table(text) from public, anon, authenticated;
+revoke execute on function public.issue_units(text, text, uuid, text, jsonb) from public, anon, authenticated;

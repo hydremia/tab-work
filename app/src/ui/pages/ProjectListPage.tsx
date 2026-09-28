@@ -97,6 +97,9 @@ export function ProjectListPage() {
         ))}
       </div>
       <p className="row" style={{ justifyContent: 'center', marginTop: 16, gap: 8, flexWrap: 'wrap' }}>
+        <Link to="/dashboard" className="btn btn-ghost" data-testid="dashboard-link">
+          Dashboard
+        </Link>
         <Link to="/library" className="btn btn-ghost" data-testid="library-link">
           Instrument library
           {libraryConflicts && libraryConflicts.length > 0 && (
