@@ -321,6 +321,36 @@ describe('fake server rules (as 0005: review of what the reviewer saw)', () => {
   });
 });
 
+describe('fake server rules (as 0006)', () => {
+  it("'server' is reserved; an issue added on another device refuses a review but never clears one", () => {
+    const { s, a, b } = setup();
+    expect(refused(() => s.push(a.id, [row({ device_id: 'server' })])).message).toMatch(/reserved/);
+    const seen = s.log.at(-1)!.server_seq!;
+    const I = 'dddddddd-0000-4000-8000-000000000009';
+    s.push(b.id, [
+      row({
+        table_name: 'issues',
+        record_id: I,
+        op: 'create',
+        field: '',
+        value: { equipmentId: U },
+        device_id: 'devB',
+        base_seq: seen,
+      }),
+    ]);
+    expect(s.log.at(-1)!.units).toEqual([U]);
+    s.push(a.id, [row({ field: 'review', value: { name: 'Kim' }, base_seq: seen })]);
+    expect(s.valueOf('equipment', U, 'review')).toBeNull();
+    s.push(a.id, [
+      row({ field: 'review', value: { name: 'Kim' }, base_seq: s.log.at(-1)!.server_seq!, client_ts: 99_999 }),
+    ]);
+    s.push(b.id, [
+      row({ table_name: 'issues', record_id: I, field: 'remark', value: 'x', device_id: 'devB', base_seq: 1 }),
+    ]);
+    expect(s.valueOf('equipment', U, 'review')).toEqual({ name: 'Kim' });
+  });
+});
+
 describe('error mapping', () => {
   it('TAB_LOCKED -> locked with the refused change; RLS / forbidden; network; other', () => {
     const e = toSyncError(

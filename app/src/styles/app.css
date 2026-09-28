@@ -2510,3 +2510,182 @@ fieldset.viewer-edit {
   background: #fff;
   touch-action: none;
 }
+
+/* PM dashboard: a table on wide screens, one card per row on a phone */
+.dash-controls {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+@media (min-width: 700px) {
+  .dash-controls {
+    grid-template-columns: 2fr 1fr 1fr;
+  }
+}
+.dash-table-wrap {
+  padding: 0;
+  overflow: hidden;
+}
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.dash-table th {
+  text-align: left;
+  font-size: 0.8rem;
+  color: var(--text-2);
+  font-weight: 600;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.dash-table td {
+  vertical-align: top;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.dash-table tr:last-child td {
+  border-bottom: none;
+}
+.dash-sub {
+  display: block;
+  margin-top: 2px;
+}
+.dash-sub[data-tone='amber'] {
+  color: var(--amber);
+}
+.dash-name {
+  font-weight: 600;
+}
+.dash-count {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+.dash-table .progress {
+  min-width: 120px;
+}
+.dash-stage[data-stage='ready'] {
+  background: var(--green-bg);
+  color: var(--green);
+}
+.dash-stage[data-stage='issued'] {
+  background: var(--blue-bg);
+  color: var(--blue);
+}
+.dash-stage[data-stage='in-progress'] {
+  background: var(--amber-bg);
+  color: var(--amber);
+}
+@media (max-width: 759px) {
+  .dash-table thead {
+    display: none;
+  }
+  .dash-table,
+  .dash-table tbody,
+  .dash-table tr,
+  .dash-table td {
+    display: block;
+    width: 100%;
+  }
+  .dash-table tr {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .dash-table tr:last-child {
+    border-bottom: none;
+  }
+  .dash-table td {
+    padding: 4px 0;
+    border: none;
+  }
+  .dash-table td:not(:first-child)::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+}
+
+/* grid (spreadsheet) entry of outlet / filter rows: tablets and keyboards */
+.btn-sm {
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+}
+.grid-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin: 8px 0;
+}
+.entry-grid {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9rem;
+}
+.entry-grid th,
+.entry-grid td {
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  padding: 2px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.entry-grid thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-2);
+  padding: 6px 6px;
+  text-align: left;
+}
+.entry-grid .input,
+.entry-grid .select {
+  min-height: 36px;
+  min-width: 64px;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 4px 6px;
+  background: transparent;
+}
+.entry-grid .input:focus,
+.entry-grid .select:focus {
+  border-color: var(--focus);
+  background: var(--surface);
+}
+.entry-grid td.grid-wide .input {
+  min-width: 140px;
+}
+.entry-grid .grid-n {
+  text-align: right;
+  color: var(--text-3);
+  font-weight: 500;
+  padding: 0 6px;
+}
+.grid-missing {
+  color: var(--amber-solid);
+  margin-left: 2px;
+}
+.entry-grid .grid-na {
+  color: var(--text-3);
+  text-align: center;
+  font-size: 0.8rem;
+}
+.entry-grid .grid-calc {
+  color: var(--text-2);
+  font-size: 0.8rem;
+  padding: 0 6px;
+}
+.entry-grid tr[data-out='true'] .grid-n {
+  color: var(--red);
+  box-shadow: inset 3px 0 0 var(--red-solid);
+}
+.entry-grid .row-menu {
+  min-width: 44px;
+}

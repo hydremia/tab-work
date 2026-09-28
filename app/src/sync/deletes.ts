@@ -130,24 +130,69 @@ async function addConflict(
   });
 }
 
+/** This device's edits of a record that the device deleting it had not seen. */
+export async function countUnseenEdits(c: Change, table: TableName, id: string, deviceId: string): Promise<number> {
+  let n = 0;
+  for (const m of await logOf(table, id)) if (m.deviceId === deviceId && m.op !== 'delete' && isConcurrent(m, c)) n++;
+  return n;
+}
+
+/** An outlet row / photo another device deleted, waiting (for the rest of the pull) for its unit's / issue's delete. */
+export interface PendingChild {
+  c: Change;
+  snap: Snap;
+  /** This device's unseen edits of it, counted before its waiting changes were dropped. */
+  edits: number;
+  parent: string;
+}
+
 /**
- * Another device's delete of `rec` arrives (inside the pull's transaction, before the record is deleted). `children`:
- * what goes with it (rows / photos deleted with it in the same pull, and records this device linked to it). Records a
- * conflict when this device had edits the deleting device had not seen. Returns 1 when one was recorded.
+ * What one pull carries across its pages (the log is read in pages; a unit's cascade can span two): outlet rows and
+ * photos deleted by another device wait here for their unit's (issue's) delete and are flagged with it; the ones
+ * whose parent was not deleted are flagged on their own when the pull ends (finishPull in sync/outbox.ts).
+ */
+export interface PullContext {
+  pending: Map<string, PendingChild>;
+}
+export const newPullContext = (): PullContext => ({ pending: new Map() });
+
+/** The waiting children of a deleted unit / issue (taken out of the context). */
+export function takeChildren(ctx: PullContext, parent: string): PendingChild[] {
+  const out = [...ctx.pending.values()].filter((p) => p.parent === parent);
+  for (const p of out) ctx.pending.delete(p.snap.rec.id);
+  return out;
+}
+
+/**
+ * Another device's delete of `rec` arrives (inside the pull's transaction, before the record is deleted).
+ * `children`: rows / photos deleted with it (their edits already counted); `linked`: records this device linked to
+ * it that the deleting device could not know about. Records a conflict when this device had edits the deleting
+ * device had not seen. Returns 1 when one was recorded.
  */
 export async function flagRemoteDelete(
   c: Change,
   table: TableName,
   rec: Rec,
-  children: Snap[],
+  children: readonly { snap: Snap; edits: number }[],
+  linked: readonly Snap[],
   deviceId: string,
 ): Promise<number> {
-  let edits = 0;
-  for (const { table: t, rec: r } of [{ table, rec }, ...children])
-    for (const m of await logOf(t, r.id))
-      if (m.deviceId === deviceId && m.op !== 'delete' && isConcurrent(m, c)) edits++;
+  let edits = await countUnseenEdits(c, table, rec.id, deviceId);
+  for (const x of children) edits += x.edits;
+  for (const l of linked) edits += await countUnseenEdits(c, l.table, l.rec.id, deviceId);
   if (!edits) return 0;
-  await addConflict(c, table, rec, { by: 'other', edits, ts: c.ts }, [{ table, rec }, ...children]);
+  await addConflict(c, table, rec, { by: 'other', edits, ts: c.ts }, [
+    { table, rec },
+    ...children.map((x) => x.snap),
+    ...linked,
+  ]);
+  return 1;
+}
+
+/** A child whose unit / issue was not deleted in the same pull: flagged on its own when it had unseen edits. */
+export async function flagPendingChild(p: PendingChild): Promise<number> {
+  if (!p.edits) return 0;
+  await addConflict(p.c, p.snap.table, p.snap.rec, { by: 'other', edits: p.edits, ts: p.c.ts }, [p.snap]);
   return 1;
 }
 

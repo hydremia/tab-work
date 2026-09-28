@@ -9,6 +9,7 @@ import { createRecord, setCertImage, setField, unlockProject, writeTables } from
 import type { Revision } from '../data/types';
 import { sampleBundle } from '../test/fixtures';
 import type { ProjectBundle } from './adapter';
+import { toCertImage } from '../certification/images';
 import { exportFileName, exportProject } from './exportProject';
 import { applyReimport, parseWorkbook, prepareReview } from './importProject';
 import { KEEP_REVISION_FILES, listRevisions, saveRevision, suggestLabel } from './revisions';
@@ -178,6 +179,20 @@ describe('export revisions', () => {
     await setCertImage('stamp', null);
     const rev2 = await exportProject(b.project.id, { template });
     expect(await pictures(rev2.bytes)).toEqual(['TAB App Signature']);
+  });
+
+  it('a damaged image from another device is ignored instead of breaking the export', async () => {
+    const ok = { dataUrl: 'data:image/png;base64,iVBORw0KGgo=', width: 10, height: 10, type: 'png' as const };
+    expect(toCertImage(ok)?.bytes.length).toBeGreaterThan(0);
+    expect(toCertImage({ ...ok, dataUrl: 'data:image/png;base64,***' })).toBeNull();
+    expect(toCertImage({ ...ok, width: 0 })).toBeNull();
+    expect(toCertImage({ ...ok, type: 'gif' as never })).toBeNull();
+    expect(toCertImage(null)).toBeNull();
+    const b = sampleBundle();
+    await store(b);
+    await setCertImage('stamp', { ...ok, dataUrl: 'not a data url' });
+    const r = await exportProject(b.project.id, { template });
+    expect(r.bytes.length).toBeGreaterThan(0);
   });
 
   it('Issue report: exports the revision (marked issued) and locks the project at it; re-import is blocked', async () => {

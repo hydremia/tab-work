@@ -49,16 +49,34 @@ describe('certification profile sync', () => {
     expect(server.valueOf('certProfiles', onB!.id, 'cpName')).toBe('Dana Kim');
   });
 
-  it('two devices each creating a profile offline both use the oldest after syncing', async () => {
+  it('two profiles created offline merge into the oldest: missing images move over, a different value is a conflict', async () => {
     const a = await A.run(() => ensureCertProfile());
-    const b = await B.run(() => ensureCertProfile());
+    await new Promise((r) => setTimeout(r, 5)); // A's is the older one
+    const b = await B.run(async () => {
+      const p = await ensureCertProfile();
+      await setCertImage('stamp', stamp); // only B has a stamp
+      await setField('certProfiles', p.id, 'cpName', 'Dana Kim'); // A keeps the template's name
+      return p;
+    });
     await A.sync();
     await B.sync();
     await A.sync();
-    const oldest = a.createdAt <= b.createdAt ? a.id : b.id;
-    expect((await A.run(() => getCertProfile()))?.id).toBe(oldest);
-    expect((await B.run(() => getCertProfile()))?.id).toBe(oldest);
-    expect(await B.run(() => db.certProfiles.count())).toBe(2);
+    await B.sync();
+    const [keep, gone] = [a, b];
+    expect(a.createdAt).toBeLessThan(b.createdAt);
+    for (const d of [A, B]) {
+      const p = await d.run(() => getCertProfile());
+      expect(p?.id).toBe(keep.id);
+      expect(p?.stamp).toEqual(stamp); // B's stamp is not lost
+      expect(await d.run(() => db.certProfiles.get(gone.id))).toBeUndefined();
+    }
+    // the names differ: a conflict on the kept profile (the older name stays until someone picks)
+    const conflicts = await B.run(() => db.conflicts.where('recordId').equals(keep.id).toArray());
+    expect(conflicts.find((c) => c.field === 'cpName' && c.status === 'open')).toMatchObject({
+      current: { value: 'Isaac Rochester' },
+      other: { value: 'Dana Kim' },
+    });
+    expect((await A.run(() => getCertProfile()))?.cpName).toBe('Isaac Rochester');
   });
 
   it('another organization neither sees nor edits it', async () => {

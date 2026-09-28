@@ -108,6 +108,8 @@ export async function exportProject(projectId: string, opts: ExportOptions = {})
     }
   }
   out ??= await exportWorkbookWithReport(template, data, common);
+  for (const sk of out.report.certImages?.skipped ?? [])
+    warnings.push(`The ${sk.kind} from the certification profile was not placed: ${sk.reason}.`);
 
   // baseline: the values as the workbook holds them (read back from the file), the "base" of a later re-import
   const baseline = await importWorkbook(out.bytes);

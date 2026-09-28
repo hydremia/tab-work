@@ -19,9 +19,20 @@ export function dataUrlBytes(dataUrl: string): Uint8Array {
   return out;
 }
 
+/**
+ * A stored image as the exporter takes it; null when it is missing or not usable (it arrives from other devices
+ * through sync, so a damaged one must not break every export).
+ */
 export function toCertImage(img: StoredImage | null | undefined): CertImage | null {
-  if (!img?.dataUrl) return null;
-  return { bytes: dataUrlBytes(img.dataUrl), type: img.type, width: img.width, height: img.height };
+  if (!img || typeof img.dataUrl !== 'string') return null;
+  if (img.type !== 'png' && img.type !== 'jpeg') return null;
+  if (!(Number.isFinite(img.width) && img.width > 0 && Number.isFinite(img.height) && img.height > 0)) return null;
+  if (!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/]+=*$/.test(img.dataUrl)) return null;
+  try {
+    return { bytes: dataUrlBytes(img.dataUrl), type: img.type, width: img.width, height: img.height };
+  } catch {
+    return null;
+  }
 }
 
 /** What every export places: the profile's images (none: pictures of an earlier export are removed). */
