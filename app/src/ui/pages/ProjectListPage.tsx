@@ -97,6 +97,9 @@ export function ProjectListPage() {
         ))}
       </div>
       <p className="row" style={{ justifyContent: 'center', marginTop: 16, gap: 8, flexWrap: 'wrap' }}>
+        <Link to="/scan" className="btn btn-ghost" data-testid="scan-link">
+          Scan tag
+        </Link>
         <Link to="/dashboard" className="btn btn-ghost" data-testid="dashboard-link">
           Dashboard
         </Link>
