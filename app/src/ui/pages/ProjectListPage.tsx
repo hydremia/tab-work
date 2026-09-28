@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { useAllExportStatus, useAllProjectRollups, useProjects } from '../../data/hooks';
+import { useAllExportStatus, useAllProjectRollups, useLibraryConflicts, useProjects } from '../../data/hooks';
 import type { ExportStatus } from '../../data/exportStatus';
 import type { Project } from '../../data/types';
 import { rollup, type Rollup } from '../../domain/completion';
@@ -59,6 +59,7 @@ export function ProjectListPage() {
   const projects = useProjects();
   const rollups = useAllProjectRollups();
   const exports = useAllExportStatus();
+  const libraryConflicts = useLibraryConflicts();
   return (
     <Screen title="a2b TAB">
       <div className="page-head">
@@ -91,6 +92,11 @@ export function ProjectListPage() {
       <p className="row" style={{ justifyContent: 'center', marginTop: 16 }}>
         <Link to="/library" className="btn btn-ghost" data-testid="library-link">
           Instrument library
+          {libraryConflicts && libraryConflicts.length > 0 && (
+            <span className="tab-count" data-tone="attention" data-testid="library-conflict-count">
+              {libraryConflicts.length}
+            </span>
+          )}
         </Link>
       </p>
     </Screen>

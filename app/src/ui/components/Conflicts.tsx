@@ -1,15 +1,28 @@
 /**
  * Sync conflicts in the UI (sync/conflicts.ts): a card per conflict with both values and the resolve actions, used by
- * the Attention tab (all of a project's conflicts) and the unit page (that unit's). Field conflicts: *Keep current*
- * or *Use "<other value>"* (a normal edit through setField). Held changes (refused by a report lock): *Discard*.
+ * the Attention tab (all of a project's conflicts, and those of the library instruments its rows came from), the unit
+ * page (that unit's) and the instrument library. Field conflicts: *Keep current* or *Use "<other value>"* (a normal
+ * edit through setField). Held changes (refused by a report lock): *Discard*. Deletes that met unseen edits
+ * (sync/deletes.ts): *Keep deleted* or *Restore*.
  */
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { db } from '../../data/db';
-import type { AirflowRow, ConflictSide, Equipment, HistoryEntry, Issue, Project, SyncConflict } from '../../data/types';
+import type {
+  AirflowRow,
+  ConflictSide,
+  Equipment,
+  HistoryEntry,
+  Issue,
+  LibraryInstrument,
+  Project,
+  SyncConflict,
+  TableName,
+} from '../../data/types';
 import { fieldLabel, makeContext, subjectText, valueText, type HistoryContext } from '../../domain/historyView';
 import { discardHeld, resolveConflict } from '../../sync/conflicts';
+import { restoreDeleted } from '../../sync/deletes';
 import { IconConflict } from './Icons';
 
 const when = (t: number) =>
@@ -39,7 +52,7 @@ function FieldConflict({
 }: {
   c: SyncConflict;
   ctx: HistoryContext;
-  projectId: string;
+  projectId: string | null;
   linkUnit: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +79,7 @@ function FieldConflict({
       <header>
         <IconConflict size={18} />
         <span className="grow">
-          {linkUnit && c.equipmentId ? (
+          {linkUnit && projectId && c.equipmentId ? (
             <Link to={`/p/${projectId}/e/${c.equipmentId}`}>{subject}</Link>
           ) : (
             <b>{subject}</b>
@@ -159,37 +172,148 @@ function HeldConflict({ c }: { c: SyncConflict }) {
   );
 }
 
-/** Conflict cards for a list of open conflicts (their rows / instruments are looked up for labels). */
+const TABLE_NOUN: Record<TableName, [one: string, many: string]> = {
+  projects: ['project', 'projects'],
+  equipment: ['unit', 'units'],
+  airflowRows: ['outlet row', 'outlet rows'],
+  issues: ['issue', 'issues'],
+  photos: ['photo', 'photos'],
+  instruments: ['instrument', 'instruments'],
+  libraryInstruments: ['library instrument', 'library instruments'],
+};
+
+/** "2 outlet rows and 1 photo" */
+function countText(records: readonly { table: TableName }[]): string {
+  const n = new Map<TableName, number>();
+  for (const r of records) n.set(r.table, (n.get(r.table) ?? 0) + 1);
+  const parts = [...n].map(([t, k]) => `${k} ${TABLE_NOUN[t][k === 1 ? 0 : 1]}`);
+  return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : (parts[0] ?? '');
+}
+
+function DeletedConflict({ c }: { c: SyncConflict }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const d = c.deleted!;
+  const [main, ...withIt] = d.records;
+  const photosWithoutFile = withIt.filter((r) => r.table === 'photos' && !r.rec.blob).length;
+  const edits = `${d.edits} edit${d.edits === 1 ? '' : 's'}`;
+  const act = async (action: 'keep' | 'restore') => {
+    setBusy(true);
+    setError(null);
+    try {
+      if (action === 'keep') await resolveConflict(c.id, 'keep');
+      else await restoreDeleted(c.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <article className="conflict-card" data-testid="conflict-deleted" data-by={d.by}>
+      <header>
+        <IconConflict size={18} />
+        <span className="grow">
+          <b>{d.label}</b>
+          <span> · deleted</span>
+        </span>
+      </header>
+      <p className="small">
+        {d.by === 'other'
+          ? `Deleted on another device ${when(d.ts)}, before ${edits} made on this device had reached it.`
+          : `Deleted on this device ${when(d.ts)} while another device was still editing it (${edits} not applied).`}{' '}
+        The delete is kept unless you restore it.
+      </p>
+      {withIt.length > 0 && (
+        <p className="small muted" data-testid="conflict-deleted-with">
+          With it: {countText(withIt)}
+          {photosWithoutFile
+            ? ` (${photosWithoutFile} photo${photosWithoutFile > 1 ? 's' : ''} can't come back: the file is not on this device)`
+            : ''}
+          .
+        </p>
+      )}
+      <p className="small muted">
+        Restore creates it again as a new {TABLE_NOUN[main.table][0]}
+        {main.table === 'equipment' ? ' (next free workbook slot when its slot is taken)' : ''}, with the latest values
+        this device has.
+      </p>
+      <div className="row-actions">
+        <button
+          type="button"
+          className="btn"
+          disabled={busy}
+          onClick={() => void act('keep')}
+          data-testid="deleted-keep"
+        >
+          Keep deleted
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={busy}
+          onClick={() => void act('restore')}
+          data-testid="deleted-restore"
+        >
+          Restore
+        </button>
+      </div>
+      {error && (
+        <div className="callout" data-tone="red" role="alert">
+          {error}
+        </div>
+      )}
+    </article>
+  );
+}
+
+/**
+ * Conflict cards for a list of open conflicts (their rows / instruments are looked up for labels). `project`: the
+ * project page they are shown on (unit links); none on the instrument library page.
+ */
 export function ConflictList({
   conflicts,
   project,
-  equipment,
-  issues,
+  equipment = [],
+  issues = [],
   linkUnit = true,
 }: {
   conflicts: readonly SyncConflict[];
-  project: Project;
-  equipment: readonly Equipment[];
-  issues: readonly Issue[];
+  project?: Project;
+  equipment?: readonly Equipment[];
+  issues?: readonly Issue[];
   linkUnit?: boolean;
 }) {
   const extra = useLiveQuery(async () => {
-    const rowIds = conflicts.filter((c) => c.table === 'airflowRows' && c.recordId).map((c) => c.recordId!);
-    const insIds = conflicts.filter((c) => c.table === 'instruments' && c.recordId).map((c) => c.recordId!);
-    const [rows, instruments] = await Promise.all([db.airflowRows.bulkGet(rowIds), db.instruments.bulkGet(insIds)]);
+    const ids = (t: TableName) => conflicts.filter((c) => c.table === t && c.recordId).map((c) => c.recordId!);
+    const [rows, instruments, library] = await Promise.all([
+      db.airflowRows.bulkGet(ids('airflowRows')),
+      db.instruments.bulkGet(ids('instruments')),
+      db.libraryInstruments.bulkGet(ids('libraryInstruments')),
+    ]);
     return {
       rows: rows.filter((r): r is AirflowRow => Boolean(r)),
       instruments: instruments.filter((r) => r !== undefined),
+      library: library.filter((r): r is LibraryInstrument => Boolean(r)),
     };
   }, [conflicts]);
-  const ctx = makeContext({ equipment, issues, rows: extra?.rows, instruments: extra?.instruments });
+  const ctx = makeContext({
+    equipment,
+    issues,
+    rows: extra?.rows,
+    instruments: extra?.instruments,
+    library: extra?.library,
+  });
+  const projectId = project?.id ?? null;
   return (
     <div className="stack">
       {conflicts.map((c) =>
         c.kind === 'held' ? (
           <HeldConflict key={c.id} c={c} />
+        ) : c.kind === 'deleted' ? (
+          <DeletedConflict key={c.id} c={c} />
         ) : (
-          <FieldConflict key={c.id} c={c} ctx={ctx} projectId={project.id} linkUnit={linkUnit} />
+          <FieldConflict key={c.id} c={c} ctx={ctx} projectId={projectId} linkUnit={linkUnit} />
         ),
       )}
     </div>

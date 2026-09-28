@@ -233,6 +233,8 @@ export class CloudSyncEngine implements SyncEngine {
         serverSeq: Number(r.server_seq),
         ...(r.base_seq != null ? { baseSeq: Number(r.base_seq) } : {}),
         ...(r.applied === false ? { applied: false, note: r.note ?? null } : {}),
+        // the server's own changes say why (e.g. a review it cleared): shown in the history
+        ...(r.applied !== false && r.device_id === 'server' && r.note ? { note: r.note } : {}),
       }));
       const out = await applyRemoteChanges(changes);
       for (const c of changes)

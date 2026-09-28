@@ -26,6 +26,8 @@ export interface FieldChangeRow {
   applied?: boolean;
   note?: string | null;
   org_id?: string | null;
+  /** The unit(s) the change touched (server, 0005: a review is refused when another device changed the unit since). */
+  units?: string[] | null;
 }
 
 export interface PushedRow {
