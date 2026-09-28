@@ -2,6 +2,7 @@ import Dexie, { type EntityTable } from 'dexie';
 import type {
   AirflowRow,
   BaseWorkbook,
+  CertProfile,
   Equipment,
   FieldChange,
   HistoryEntry,
@@ -31,6 +32,7 @@ export class TabDatabase extends Dexie {
   history!: EntityTable<HistoryEntry, 'id'>;
   conflicts!: EntityTable<SyncConflict, 'id'>;
   libraryInstruments!: EntityTable<LibraryInstrument, 'id'>;
+  certProfiles!: EntityTable<CertProfile, 'id'>;
 
   constructor(name = 'a2b-tab') {
     super(name);
@@ -125,6 +127,8 @@ export class TabDatabase extends Dexie {
     this.version(5).stores({ conflicts: 'id, projectId, recordId, status, [projectId+status]' });
     // v6: the shared calibration library (instruments stored once, picked into projects). New table only.
     this.version(6).stores({ libraryInstruments: 'id, updatedAt' });
+    // v7: the certification profile (CP details, stamp and signature images). New table only.
+    this.version(7).stores({ certProfiles: 'id, createdAt' });
   }
 }
 

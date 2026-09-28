@@ -30,7 +30,14 @@ import {
   unitOf,
   writeTables,
 } from '../data/repo';
-import type { DeletedInfo, Equipment, FieldChange, Photo, TableName } from '../data/types';
+import {
+  ORG_TABLES,
+  type DeletedInfo,
+  type Equipment,
+  type FieldChange,
+  type Photo,
+  type TableName,
+} from '../data/types';
 import { uuid } from '../data/uuid';
 import { equipmentType, nextFreeSlot } from '../domain/equipmentTypes';
 import { isConcurrent, laterWins } from './conflicts';
@@ -331,7 +338,7 @@ export async function restoreDeleted(conflictId: string): Promise<RestoreResult>
   const now = Date.now();
   const [main, ...children] = d.records;
   return db.transaction('rw', writeTables(), async () => {
-    const isLib = main.table === 'libraryInstruments';
+    const isLib = ORG_TABLES.includes(main.table);
     if (!isLib && !(await db.projects.get(c.projectId))) throw new RestoreError('The project was deleted.');
     const ids = new Map<string, string>();
     const fresh = (rec: Rec): Rec => {
