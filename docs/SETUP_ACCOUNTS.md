@@ -1,7 +1,7 @@
 # Accounts & Admin Setup Checklist
 
 Everything the company needs to set up or approve. None of it is needed until **Phase 1**. Total recurring cost
-is roughly **$25–45/month**; confirm current prices at signup.
+is roughly **$25–45/month** (less if you already have Supabase Pro); confirm current prices at signup.
 
 Tip: create the accounts with a **shared company admin mailbox** (e.g. `admin@…`), not a personal email, so
 ownership doesn't leave with an employee.
@@ -24,8 +24,9 @@ their M365 account is disabled, they automatically lose access to the app.
    **Grant admin consent**.
 4. *(Optional)* Under **Enterprise applications → TAB App → Properties**, require assignment and assign a group
    such as "TAB App Users" so only that group can sign in.
-5. Send me (privately, not in chat or the repo) the **Application (client) ID**, **Directory (tenant) ID** and
-   the **client secret**. These get entered into Supabase, not the code.
+5. Send me the **Application (client) ID** and **Directory (tenant) ID**. These are not secrets. **Do not send the
+   client secret.** Paste it yourself into Supabase → Authentication → Providers → Azure. It never goes in chat,
+   the repo or the app.
 
 **Cost:** free, included with M365.
 
@@ -34,10 +35,11 @@ domain. No admin is needed, and we can switch to Microsoft sign-in later.
 
 ## 2. Supabase (database, photo storage, live sync)
 
-- Create an account at supabase.com with the admin mailbox, then create an organization named `a2b`.
-- Create two projects: `tab-app-dev` (free) and `tab-app-prod` (**Pro plan, about $25/mo**, which adds daily backups
-  and about 100 GB of storage).
-- Add me as a developer, or share the project URL and keys through a secure channel when we get there.
+- An existing **Pro** organization works; you don't need a new org or account. Add a project `tab-app-test` to it,
+  and later `tab-app-prod`. Each extra project adds about $10/mo of compute. Pro includes daily backups and 100 GB of
+  storage, so photos are effectively free at our volume.
+- Send the **project URL** and the **anon (public) key**. Row-level security protects the data, so these two are safe
+  to put in the app. **Never send or use the `service_role` key**, which stays in the Supabase dashboard.
 - **Photos are stored here**, in cloud storage managed by Supabase. Nothing is self-hosted and nothing goes in Dropbox.
 - Once the projects exist, **[SYNC_SETUP.md](./SYNC_SETUP.md)** walks through the rest: applying the database
   migrations, the photo bucket, Microsoft sign-in, the two Vercel settings, the first sign-in, a two-device check and
