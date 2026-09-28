@@ -163,6 +163,10 @@ export async function workflowFlow(
     );
     await page.goto(`${projectUrl}/export`);
     await page.getByTestId('issue-report').waitFor();
+    // the suggested label is filled in once the revisions are read
+    await page.waitForFunction(() =>
+      Boolean((document.querySelector('[data-testid="revision-label"]') as HTMLInputElement)?.value),
+    );
     check(
       'workflow: next export suggested as Rev 1',
       (await page.getByTestId('revision-label').inputValue()) === 'Rev 1',

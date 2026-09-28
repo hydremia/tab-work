@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
@@ -385,5 +385,31 @@ describe('Grid entry (jsdom)', () => {
     await user.click(screen.getByTestId('grid-toggle-supply'));
     expect(screen.queryByTestId('grid-supply')).toBeNull();
     expect(localStorage.getItem('tab.gridEntry')).toBe('0');
+  });
+});
+
+describe('QR tags (jsdom)', () => {
+  it('tags page: units listed and chosen, PDF downloaded; a scanned tag opens its unit or says why not', async () => {
+    const user = userEvent.setup();
+    const p = await createProject({ name: 'Riverside' });
+    const rtu = await addEquipment(p.id, 'rtu', 'RTU-1');
+    await addEquipment(p.id, 'fan', 'EF-1');
+    const created: Blob[] = [];
+    const origCreate = URL.createObjectURL;
+    URL.createObjectURL = (b: Blob) => (created.push(b), 'blob:x');
+    const router = renderAt(`/p/${p.id}/tags`);
+    await waitFor(() => expect(screen.getAllByTestId('tag-preview')).toHaveLength(2));
+    await user.click(screen.getByRole('checkbox', { name: /EF-1/ }));
+    expect(screen.getByTestId('tags-download')).toHaveTextContent('Download PDF (1 label)');
+    await user.click(screen.getByTestId('tags-download'));
+    await waitFor(() => expect(created).toHaveLength(1));
+    expect(created[0].type).toBe('application/pdf');
+    URL.createObjectURL = origCreate;
+    // scanning opens the unit
+    await act(() => router.navigate(`/t/${p.id}/${rtu.id}`));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/p/${p.id}/e/${rtu.id}`));
+    // a tag of a project that is not on this device
+    await act(() => router.navigate('/t/aaaaaaaa-0000-4000-8000-000000000009/bbbbbbbb-0000-4000-8000-000000000009'));
+    expect(await screen.findByTestId('tag-missing')).toHaveTextContent('This project is not on this device');
   });
 });
