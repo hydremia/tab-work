@@ -141,10 +141,18 @@ resolve the same collision write equal values (no timestamps in the note), so no
 slot*), the unit page shows a red callout and the export writes the earlier unit only (warning). A locked project
 waits until it is unlocked. The server does not take part.
 
-**Server rules** (0003 + 0004, also in the fake server): lock refusals, review clearing when a change reaches the server
-for a unit whose review the device had not seen, idempotent retries, project deletes, the calibration library, and link
-checks (an `equipmentId` / `issueId` inside a value must name a record of the same project, `libraryId` one of the same
-organization); see [`supabase/README.md`](../supabase/README.md#0003-server-side-sync-rules).
+**Deletes meeting unseen edits** (`sync/deletes.ts`): a record deleted on one device while another edits it (or adds
+outlet rows / photos / issues to it) is flagged on the Attention tab as *deleted* with a copy; records added to the
+deleted unit / issue are removed or unlinked and leave the outbox, so a push never names a deleted record. *Restore*
+re-creates it with new ids (next free slot / number); the other device's matching flag settles when it arrives.
+Library conflicts (filed under the instrument's own id) show on the Attention tab of projects whose rows came from that
+instrument, on the library page and as a badge on the home page.
+
+**Server rules** (0003 – 0005, also in the fake server): lock refusals, review clearing when a change reaches the server
+for a unit whose review the device had not seen, a review refused when another device changed the unit after the
+reviewer's last pull (0005), links to deleted units / issues logged unapplied or dropped instead of failing the push
+(0005), idempotent retries, project deletes, the calibration library, and link checks (an `equipmentId` / `issueId`
+inside a value must name a record of the same project, `libraryId` one of the same organization); see [`supabase/README.md`](../supabase/README.md#0003-server-side-sync-rules).
 
 ## Structure
 

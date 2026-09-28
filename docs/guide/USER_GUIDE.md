@@ -831,6 +831,24 @@ shows *Moved from workbook slot 3 to slot 4 because another device used slot 3 f
 the History says so. If the workbook has no free block of that type left, nothing moves: the **Attention** tab lists
 the two units, and only the first is exported until you delete one.
 
+### Two people changing the same thing (with cloud sync)
+
+Different fields merge by themselves. When two phones change the **same** field before either has synced, the later
+change is kept everywhere and the **Attention** tab lists a **Conflict** with both values: tap **Keep current** or
+**Use "…"** for the other value. The field shows a small flag until then.
+
+- **Something was deleted while you were editing it.** If a teammate deletes a unit (or an outlet row, issue or
+  instrument) while your phone still had changes to it, the delete wins, and your Attention tab shows *RTU-3 ·
+  deleted* with what went with it. **Keep deleted** closes it; **Restore** brings it back as a new record with your
+  latest values (a unit takes the next free workbook block if its own is taken; photos only when the file is on your
+  phone). The phone that deleted it sees a similar card; once one of you restores it, the other card closes.
+- **Instrument library.** A conflict on a library instrument shows on the Attention tab of every project that uses it,
+  on the **Instrument library** page, and as a number on the *Instrument library* button on the Projects page.
+  Resolving it once resolves it everywhere.
+- **Reviews.** A review signs off what you saw. If a teammate changed the unit before your review reached the cloud,
+  the review is cleared (History: *Review cleared automatically (the unit changed on another device …)*). Check the
+  unit again and mark it reviewed once it's still green.
+
 ---
 
 ## 12. Troubleshooting and FAQ

@@ -8,6 +8,7 @@ import type {
   HistoryEntry,
   Instrument,
   Issue,
+  LibraryInstrument,
   NaMark,
   PhotoCategory,
   ProjectLock,
@@ -26,6 +27,8 @@ export interface HistoryContext {
   rows: ReadonlyMap<string, AirflowRow>;
   issues: ReadonlyMap<string, Issue>;
   instruments: ReadonlyMap<string, Instrument>;
+  /** The shared calibration library (conflicts on it are shown with the instrument's name). */
+  library?: ReadonlyMap<string, LibraryInstrument>;
 }
 
 export const emptyContext = (): HistoryContext => ({
@@ -40,6 +43,7 @@ export function makeContext(input: {
   rows?: readonly AirflowRow[];
   issues?: readonly Issue[];
   instruments?: readonly Instrument[];
+  library?: readonly LibraryInstrument[];
 }): HistoryContext {
   const byId = <T extends { id: string }>(xs: readonly T[] | undefined) => new Map((xs ?? []).map((x) => [x.id, x]));
   return {
@@ -47,6 +51,7 @@ export function makeContext(input: {
     rows: byId(input.rows),
     issues: byId(input.issues),
     instruments: byId(input.instruments),
+    library: byId(input.library),
   };
 }
 
@@ -208,7 +213,16 @@ export function fieldLabel(e: HistoryEntry, ctx: HistoryContext): string {
       return `Instrument${ins ? ` ${ins.order + 1}` : ''} ${labels[f] ?? f}`;
     }
     case 'libraryInstruments':
-      return `Instrument library ${f === 'calibrationDate' ? 'calibration date' : f}`;
+      return (
+        {
+          type: 'Instrument',
+          calibrationDate: 'Calibration date',
+          manufacturer: 'Manufacturer',
+          model: 'Model',
+          serial: 'Serial',
+          notes: 'Notes',
+        }[f] ?? f
+      );
     default:
       return f;
   }
@@ -264,6 +278,11 @@ export function subjectText(e: HistoryEntry, ctx: HistoryContext): string {
       return 'Photos';
     case 'instruments':
       return 'Instruments';
+    case 'libraryInstruments': {
+      const lib = e.recordId ? ctx.library?.get(e.recordId) : undefined;
+      const name = lib ? [lib.type, lib.serial && `SN ${lib.serial}`].filter(Boolean).join(' ') : '';
+      return name ? `Instrument library: ${name}` : 'Instrument library';
+    }
     default:
       return 'Project';
   }

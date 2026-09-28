@@ -6,11 +6,12 @@ import { useProjectContext } from './ProjectLayout';
 
 /** Project-wide "needs attention" list: grouped, every item linked to its unit / section or page. */
 export function AttentionPage() {
-  const { project, attention, conflicts, equipment, issues } = useProjectContext();
+  const { project, attention, conflicts, libraryConflicts, equipment, issues } = useProjectContext();
   if (!attention) return <p className="muted">Loading…</p>;
   const groups = groupAttention(attention);
   const nConflicts = conflicts?.length ?? 0;
-  const total = attention.length + nConflicts;
+  const nLibrary = libraryConflicts?.length ?? 0;
+  const total = attention.length + nConflicts + nLibrary;
   return (
     <>
       <div className="page-head">
@@ -29,6 +30,23 @@ export function AttentionPage() {
             Conflicts <span className="tab-count">{nConflicts}</span>
           </h2>
           <ConflictList conflicts={conflicts!} project={project} equipment={equipment} issues={issues} />
+        </section>
+      )}
+      {nLibrary > 0 && (
+        <section
+          className="card attention-group"
+          aria-labelledby="att-library-conflicts"
+          data-testid="attention-library-conflicts"
+        >
+          <h2 id="att-library-conflicts">
+            Instrument library conflicts <span className="tab-count">{nLibrary}</span>
+          </h2>
+          <p className="small muted">
+            The library is shared by every project: resolving here resolves it everywhere. This project keeps its own
+            copy of the instrument details until you use <b>Update from library</b> on the Info tab.{' '}
+            <Link to="/library">Open the library</Link>
+          </p>
+          <ConflictList conflicts={libraryConflicts!} />
         </section>
       )}
       {!total && (

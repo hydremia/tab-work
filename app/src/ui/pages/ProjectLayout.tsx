@@ -5,7 +5,9 @@ import {
   useConflicts,
   useEquipmentList,
   useIssues,
+  useLibraryConflicts,
   useProject,
+  useProjectLibraryIds,
   useProjectStatus,
   type ProjectStatus,
 } from '../../data/hooks';
@@ -23,6 +25,8 @@ export interface ProjectContext {
   attention: AttentionItem[] | undefined;
   /** Open sync conflicts (Attention tab, unit badges). */
   conflicts: SyncConflict[] | undefined;
+  /** Open sync conflicts of the library instruments the project's calibration rows came from (Attention tab). */
+  libraryConflicts: SyncConflict[] | undefined;
   /** The report was issued (project locked): pages are read-only. */
   locked: boolean;
 }
@@ -39,6 +43,7 @@ export function ProjectLayout() {
   const status = useProjectStatus(projectId);
   const attention = useAttention(projectId, status);
   const conflicts = useConflicts(projectId);
+  const libraryConflicts = useLibraryConflicts(useProjectLibraryIds(projectId) ?? []);
   const tabsRef = useRef<HTMLDivElement>(null);
   const { pathname } = useLocation();
   // the tab bar scrolls sideways on a phone: keep the active tab in view
@@ -67,7 +72,7 @@ export function ProjectLayout() {
     {
       to: 'attention',
       label: 'Attention',
-      count: (attention?.length ?? 0) + (conflicts?.length ?? 0) || undefined,
+      count: (attention?.length ?? 0) + (conflicts?.length ?? 0) + (libraryConflicts?.length ?? 0) || undefined,
       tone: 'attention',
     },
     { to: 'photos', label: 'Photos' },
@@ -108,6 +113,7 @@ export function ProjectLayout() {
                 status,
                 attention,
                 conflicts,
+                libraryConflicts,
                 locked: Boolean(project.lock),
               } satisfies ProjectContext
             }
