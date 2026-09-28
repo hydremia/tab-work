@@ -11,6 +11,7 @@ import {
   type Rollup,
 } from '../domain/completion';
 import { computeProjectCompletion, type ProjectCompletion } from '../domain/projectCompletion';
+import { dashboardRow, type DashboardRow } from '../domain/dashboard';
 import { EQUIPMENT_TYPES, type EquipmentTypeKey } from '../domain/equipmentTypes';
 import { getSpec } from '../domain/specs';
 import { db } from './db';
@@ -384,4 +385,65 @@ export function useConflicts(projectId: string | undefined): SyncConflict[] | un
     const list = await db.conflicts.where('[projectId+status]').equals([projectId, 'open']).toArray();
     return list.sort((a, b) => b.detectedAt - a.detectedAt);
   }, [projectId]);
+}
+
+/** PM dashboard: one row per project on this device (domain/dashboard.ts), live. */
+export function useDashboard(): DashboardRow[] | undefined {
+  const data = useLiveQuery(async () => {
+    const ids = (await db.projects.toCollection().primaryKeys()) as string[];
+    const [inputs, instruments, conflicts, pending] = await Promise.all([
+      loadStatusInputs(ids),
+      db.instruments.where('projectId').anyOf(ids).toArray(),
+      db.conflicts.where('status').equals('open').toArray(),
+      db.fieldChanges.where('synced').anyOf(0, 2).toArray(),
+    ]);
+    const exports = new Map<string, ExportStatus>();
+    const activity = new Map<string, number | null>();
+    for (const id of ids) {
+      exports.set(id, await exportStatus(id));
+      const last = await db.history.where('[projectId+ts]').between([id, -Infinity], [id, Infinity]).last();
+      activity.set(id, last?.ts ?? null);
+    }
+    return { ...inputs, instruments, conflicts, pending, exports, activity };
+  }, []);
+  return useMemo(() => {
+    if (!data) return undefined;
+    const out: DashboardRow[] = [];
+    for (const project of data.projects) {
+      if (!project) continue;
+      const pick = <T extends { projectId: string }>(xs: T[]) => xs.filter((x) => x.projectId === project.id);
+      const inputs = {
+        project,
+        equipment: pick(data.equipment),
+        rows: pick(data.rows),
+        photos: pick(data.photos),
+        issues: pick(data.issues),
+      };
+      const status = projectStatus(inputs);
+      const open = inputs.issues.filter((i) => i.status === 'Open');
+      const ex = data.exports.get(project.id)!;
+      out.push(
+        dashboardRow({
+          project,
+          total: status.total,
+          byType: status.byType,
+          openIssues: {
+            new: open.filter((i) => i.kind !== 'existing').length,
+            existing: open.filter((i) => i.kind === 'existing').length,
+            onUnits: open.filter((i) => i.equipmentId).length,
+          },
+          attention: needsAttention({
+            ...inputs,
+            instruments: pick(data.instruments),
+            completions: status.byEquipment,
+          }).length,
+          conflicts: data.conflicts.filter((c) => c.projectId === project.id).length,
+          lastExport: { label: ex.lastLabel, at: ex.lastExportAt, changesSince: ex.changesSince },
+          lastActivity: data.activity.get(project.id) ?? null,
+          unsynced: data.pending.filter((c) => c.projectId === project.id).length,
+        }),
+      );
+    }
+    return out;
+  }, [data]);
 }

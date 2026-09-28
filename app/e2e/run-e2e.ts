@@ -660,6 +660,20 @@ async function main() {
     );
     await context.setOffline(false);
 
+    // ------------------------------------------------------------------ PM dashboard (phone)
+    await page.goto(`${BASE}/`);
+    await page.getByTestId('dashboard-link').click();
+    await page.waitForURL(/\/dashboard$/);
+    const dashRow = page.getByTestId('dash-row').first();
+    await dashRow.waitFor();
+    const dashText = (await dashRow.innerText()).replace(/\s+/g, ' ');
+    check(
+      'dashboard: the walk project with its stage, units, checks and last export',
+      /Riverside/.test(dashText) && /complete/.test(dashText) && /\d+ changes since|up to date/.test(dashText),
+      dashText.slice(0, 200),
+    );
+    await page.screenshot({ path: join(DOC_SHOTS, '33-dashboard.png') });
+
     // ------------------------------------------------------------------ dark mode + desktop screenshots
     const dark = await browser.newContext({
       viewport: { width: 390, height: 844 },
@@ -692,6 +706,11 @@ async function main() {
     await wp.goto(`${BASE}/import`);
     await wp.locator('input[aria-label="Workbook file"]').setInputFiles(file);
     await wp.getByTestId('import-create').click();
+    await wp.getByTestId('equip-RTU-1').waitFor();
+    await wp.goto(`${BASE}/dashboard`);
+    await wp.getByTestId('dash-row').first().waitFor();
+    await wp.screenshot({ path: join(DOC_SHOTS, '34-dashboard-desktop.png') });
+    await wp.goBack();
     await wp.getByTestId('equip-RTU-1').click();
     await wp.waitForURL(/\/e\//);
     await wp.locator('#sec-airflow').waitFor();
