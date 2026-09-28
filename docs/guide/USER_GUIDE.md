@@ -190,6 +190,18 @@ TAB date*, and the item appears on the **Attention** tab. Update the date or swa
 On unit, hood and traverse pages you pick the *kind* of instrument (Flow Hood, Velocity Grid, Pitot Traverse…). If no
 calibration row covers that kind, you get an amber note.
 
+### The dashboard (for PMs)
+
+**Projects → Dashboard** lists every project on the device (all the team's projects when signed in) in one table: its
+stage (*No units yet*, *In progress*, *Ready to issue*: every unit complete and reviewed with no open unit issue or
+conflict, *Issued*), units complete and reviewed with a count per type, how many items the Attention tab lists, open
+issues, the last export and how many changes came after it, and the last activity (plus changes not synced yet, when
+signed in). Search by name or address, show *Not issued* / *Ready to issue* / … and sort by last activity, name, TAB
+date, least complete or most to check; the app remembers your choice. Tap a project to open it, or its *To check*
+number to go straight to its Attention tab. On a phone each project is a card.
+
+![Dashboard](../screenshots/34-dashboard-desktop.png)
+
 ### The instrument library
 
 Your meters, entered once and reused on every project. Open it from the bottom of the **Projects** screen

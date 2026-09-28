@@ -337,3 +337,30 @@ describe('Schedule import page (jsdom)', () => {
     ]);
   });
 });
+
+describe('PM dashboard (jsdom)', () => {
+  it('lists every project with stage, units, issues; filter and search', async () => {
+    const user = userEvent.setup();
+    const a = await createProject({ name: 'Riverside Medical', address: '12 River Rd' });
+    await addEquipment(a.id, 'rtu', 'RTU-1');
+    await addEquipment(a.id, 'rtu', 'RTU-2');
+    await addIssue(a.id, { remark: 'Damper stuck' });
+    await createProject({ name: 'Airport Annex' });
+    renderAt('/dashboard');
+    await waitFor(() => expect(screen.getAllByTestId('dash-row')).toHaveLength(2));
+    const river = screen.getAllByTestId('dash-row').find((r) => r.textContent?.includes('Riverside'))!;
+    expect(river).toHaveAttribute('data-stage', 'in-progress');
+    expect(within(river).getByTestId('dash-units')).toHaveTextContent('0/2 complete · 0 reviewed');
+    expect(river).toHaveTextContent('RTUs 0/2');
+    expect(river).toHaveTextContent('1 open issue');
+    expect(within(river).getByTestId('dash-export')).toHaveTextContent('Never exported');
+    expect(screen.getByTestId('dash-totals')).toHaveTextContent('2 projects · 0/2 units complete');
+    await user.selectOptions(screen.getByLabelText('Show'), 'empty');
+    await waitFor(() => expect(screen.getAllByTestId('dash-row')).toHaveLength(1));
+    expect(screen.getByTestId('dash-row')).toHaveTextContent('Airport Annex');
+    await user.selectOptions(screen.getByLabelText('Show'), 'all');
+    await user.type(screen.getByLabelText('Search projects'), 'river rd');
+    await waitFor(() => expect(screen.getAllByTestId('dash-row')).toHaveLength(1));
+    expect(screen.getByTestId('dash-row')).toHaveTextContent('Riverside Medical');
+  });
+});
