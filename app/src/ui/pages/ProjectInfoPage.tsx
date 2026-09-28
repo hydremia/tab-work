@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { db } from '../../data/db';
-import { usePhotos, useInstruments, useProjectCompletion } from '../../data/hooks';
+import { useCertProfile, usePhotos, useInstruments, useProjectCompletion } from '../../data/hooks';
 import {
   addInstrument,
   addInstrumentFromLibrary,
@@ -286,6 +286,7 @@ function OtherOutsideAir({ project }: { project: Project }) {
 
 /** Certification sheet: the certified professional, signature and date (required on the final report). */
 function CertificationCard({ project }: { project: Project }) {
+  const profile = useCertProfile();
   const states = certificationStates(project);
   const expired = certificationExpired(project);
   const final = project.reportKind === 'final';
@@ -313,9 +314,12 @@ function CertificationCard({ project }: { project: Project }) {
           />
         ))}
       </div>
-      <p className="small muted" style={{ margin: 0 }}>
-        Stamp / signature image: place it in the stamp box in Excel (the template has no picture there to replace).
-      </p>
+      {profile !== undefined && (
+        <p className="small muted" style={{ margin: 0 }} data-testid="cert-images-line">
+          Stamp: {profile?.stamp ? 'yes' : 'none'} · Signature image: {profile?.signature ? 'yes' : 'none'}. Every
+          export places them from the <Link to="/certification">certification profile</Link>.
+        </p>
+      )}
     </section>
   );
 }

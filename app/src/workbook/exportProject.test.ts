@@ -5,13 +5,20 @@ import JSZip from 'jszip';
 import { importWorkbook, importWorkbookWithReport, listSheets, readText, TEMPLATE_FILE_NAME } from '@a2b/workbook';
 import { describe, expect, it } from 'vitest';
 import { db } from '../data/db';
-import { createRecord, setField, unlockProject, writeTables } from '../data/repo';
+import { createRecord, setCertImage, setField, unlockProject, writeTables } from '../data/repo';
 import type { Revision } from '../data/types';
 import { sampleBundle } from '../test/fixtures';
 import type { ProjectBundle } from './adapter';
 import { exportFileName, exportProject } from './exportProject';
 import { applyReimport, parseWorkbook, prepareReview } from './importProject';
 import { KEEP_REVISION_FILES, listRevisions, saveRevision, suggestLabel } from './revisions';
+
+// a 1 x 1 transparent PNG
+const PNG_1X1 = [
+  137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137,
+  0, 0, 0, 13, 73, 68, 65, 84, 120, 156, 99, 0, 1, 0, 0, 5, 0, 1, 13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66,
+  96, 130,
+];
 
 const template = new Uint8Array(
   readFileSync(fileURLToPath(new URL(`../../../${TEMPLATE_FILE_NAME}`, import.meta.url))),
@@ -144,6 +151,33 @@ describe('export revisions', () => {
     expect(u.lines?.remarks).toEqual(['Belt replaced (new A42 belt).', 'Second remark line.']);
     const vba = async (x: Uint8Array) => (await JSZip.loadAsync(x)).file('xl/vbaProject.bin')!.async('uint8array');
     expect(await vba(rev1.bytes)).toEqual(await vba(template));
+  });
+
+  it("the certification profile's stamp and signature go on every export, once, also onto an issued workbook", async () => {
+    const b = sampleBundle();
+    await store(b);
+    const png = 'data:image/png;base64,' + btoa(String.fromCharCode(...PNG_1X1));
+    await setCertImage('stamp', { dataUrl: png, width: 600, height: 600, type: 'png' });
+    await setCertImage('signature', { dataUrl: png, width: 800, height: 200, type: 'png' });
+    const prelim = await exportProject(b.project.id, { template });
+    const pictures = async (bytes: Uint8Array) => {
+      const zip = await JSZip.loadAsync(bytes);
+      const names: string[] = [];
+      for (const f of Object.keys(zip.files).filter((n) => /^xl\/drawings\/drawing\d+\.xml$/.test(n)))
+        for (const m of (await readText(zip, f)).matchAll(/<xdr:cNvPr\b[^>]*name="(TAB App [^"]+)"/g)) names.push(m[1]);
+      return names.sort();
+    };
+    expect(await pictures(prelim.bytes)).toEqual(['TAB App Signature', 'TAB App Stamp']);
+    expect(await sheetXml(prelim.bytes, 'Certification')).not.toContain('insert the stamp image here');
+    // issued -> re-imported -> exported onto it: still one of each; the stamp removed from the profile -> gone
+    const parsed = await parseWorkbook(prelim.bytes, 'Riverside - TAB Report Prelim.xlsm');
+    await applyReimport(await prepareReview(b.project.id, parsed), parsed, {});
+    const rev1 = await exportProject(b.project.id, { template });
+    expect(rev1.revision.onBase).toBe(true);
+    expect(await pictures(rev1.bytes)).toEqual(['TAB App Signature', 'TAB App Stamp']);
+    await setCertImage('stamp', null);
+    const rev2 = await exportProject(b.project.id, { template });
+    expect(await pictures(rev2.bytes)).toEqual(['TAB App Signature']);
   });
 
   it('Issue report: exports the revision (marked issued) and locks the project at it; re-import is blocked', async () => {

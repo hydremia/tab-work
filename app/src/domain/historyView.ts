@@ -212,6 +212,16 @@ export function fieldLabel(e: HistoryEntry, ctx: HistoryContext): string {
       if (f === 'libraryId') return `Instrument${ins ? ` ${ins.order + 1}` : ''} library link`;
       return `Instrument${ins ? ` ${ins.order + 1}` : ''} ${labels[f] ?? f}`;
     }
+    case 'certProfiles':
+      return (
+        {
+          cpName: 'CP name',
+          certNumber: 'Certification number',
+          expiration: 'Expiration date',
+          stamp: 'Stamp',
+          signature: 'Signature image',
+        }[f] ?? f
+      );
     case 'libraryInstruments':
       return (
         {
@@ -278,6 +288,8 @@ export function subjectText(e: HistoryEntry, ctx: HistoryContext): string {
       return 'Photos';
     case 'instruments':
       return 'Instruments';
+    case 'certProfiles':
+      return 'Certification profile';
     case 'libraryInstruments': {
       const lib = e.recordId ? ctx.library?.get(e.recordId) : undefined;
       const name = lib ? [lib.type, lib.serial && `SN ${lib.serial}`].filter(Boolean).join(' ') : '';

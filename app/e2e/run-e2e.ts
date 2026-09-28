@@ -21,7 +21,7 @@ import { importWorkbook } from '@a2b/workbook';
 import { fillNewTypes, readLivePanels, recalcCrossCheck, verifyNewTypes } from './newTypes';
 import { reimportFlow } from './reimport';
 import { photosFlow } from './photos';
-import { libraryFlow, pressuresAndAttention, scheduleFlow } from './features';
+import { certificationFlow, libraryFlow, pressuresAndAttention, scheduleFlow } from './features';
 import { workflowFlow } from './workflow';
 import { deployFlow } from './deploy';
 import { syncFlow } from './sync';
@@ -708,6 +708,7 @@ async function main() {
     // ------------------------------------------------------------------ schedule import, duplicate (own project)
     await scheduleFlow(browser, BASE, file, DOC_SHOTS, check);
     await libraryFlow(browser, BASE, DOC_SHOTS, check);
+    await certificationFlow(browser, BASE, DOC_SHOTS, OUT, check);
 
     // ------------------------------------------------------------------ review, issue / lock, unlock, history
     await workflowFlow(browser, BASE, file, OUT, DOC_SHOTS, check);

@@ -9,7 +9,10 @@
  *    normalized (phase, V/Ph/Hz); duplicate RTU-3 -> RTU-4 (next slot, design data copied); the TAB workbook source
  *    reads only the {Equipment Data Entry} of the main walk's export.
  */
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { listSheets, readText } from '@a2b/workbook';
+import JSZip from 'jszip';
 import type { Browser, Page } from 'playwright-core';
 
 type Check = (name: string, ok: boolean, detail?: string) => void;
@@ -391,6 +394,136 @@ export async function libraryFlow(browser: Browser, base: string, docShots: stri
       `linked ${linked}, "${outdated}", kept ${kept}, updated ${updated}`,
     );
     check('library e2e: no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
+  } finally {
+    await context.close();
+  }
+}
+
+/**
+ * Certification profile (own browser context): CP name, a stamp picked as a file (a PNG drawn in the page) and a
+ * signature drawn on the pad; a new project takes the CP; its export carries both pictures on the Certification
+ * sheet and the placeholder note is gone. Screenshot 32.
+ */
+export async function certificationFlow(
+  browser: Browser,
+  base: string,
+  docShots: string,
+  outDir: string,
+  check: Check,
+) {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+    colorScheme: 'light',
+    acceptDownloads: true,
+  });
+  const page = await context.newPage();
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('dialog', (d) => void d.accept());
+  try {
+    await page.goto(base);
+    await page.getByTestId('certification-link').click();
+    await page.waitForURL(/\/certification$/);
+    const name = page.getByLabel('NEBB certified professional');
+    await name.fill('Dana Kim');
+    await name.blur();
+    // a round stamp drawn in the page, picked as a PNG file
+    const stampDataUrl = await page.evaluate(() => {
+      const c = document.createElement('canvas');
+      c.width = 900;
+      c.height = 900;
+      const x = c.getContext('2d')!;
+      x.strokeStyle = '#1b3a8c';
+      x.lineWidth = 28;
+      x.beginPath();
+      x.arc(450, 450, 400, 0, Math.PI * 2);
+      x.stroke();
+      x.lineWidth = 10;
+      x.beginPath();
+      x.arc(450, 450, 290, 0, Math.PI * 2);
+      x.stroke();
+      x.fillStyle = '#1b3a8c';
+      x.font = 'bold 64px sans-serif';
+      x.textAlign = 'center';
+      x.fillText('NEBB', 450, 430);
+      x.font = '44px sans-serif';
+      x.fillText('CERTIFIED', 450, 500);
+      return c.toDataURL('image/png');
+    });
+    await page.getByTestId('cert-stamp-file').setInputFiles({
+      name: 'stamp.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(stampDataUrl.split(',')[1], 'base64'),
+    });
+    await page.getByTestId('cert-stamp-img').waitFor();
+    // draw a signature with the pointer
+    await page.getByRole('button', { name: 'Draw signature' }).click();
+    const pad = page.locator('canvas.signature-canvas');
+    const box = (await pad.boundingBox())!;
+    await page.mouse.move(box.x + 20, box.y + box.height * 0.7);
+    await page.mouse.down();
+    for (const [fx, fy] of [
+      [0.15, 0.2],
+      [0.25, 0.75],
+      [0.35, 0.25],
+      [0.45, 0.7],
+      [0.6, 0.35],
+      [0.9, 0.55],
+    ])
+      await page.mouse.move(box.x + box.width * fx, box.y + box.height * fy, { steps: 6 });
+    await page.mouse.up();
+    await page.getByTestId('signature-pad-save').click();
+    await page.getByTestId('cert-signature-img').waitFor();
+    await page.waitForTimeout(300);
+    await page.getByTestId('cert-stamp').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: join(docShots, '32-certification-profile.png') });
+
+    // a new project takes the CP; its export carries both pictures
+    await page.goto(`${base}/new`);
+    await page.getByLabel('Project name').fill('Stamped job');
+    await page.getByRole('button', { name: /Create/ }).click();
+    await page.waitForURL(/\/p\/[^/]+\//);
+    const projectUrl = new URL(page.url()).pathname.replace(/\/(info|equipment)$/, '');
+    await page.goto(`${base}${projectUrl}/info`);
+    const cpValue = await page
+      .getByTestId('certification')
+      .locator('[data-field="certCpName"] input')
+      .first()
+      .inputValue();
+    await page.getByTestId('cert-images-line').filter({ hasText: 'Stamp: yes' }).waitFor({ timeout: 10_000 });
+    const line = await page.getByTestId('cert-images-line').innerText();
+    await page.goto(`${base}${projectUrl}/export`);
+    await page.waitForFunction(() =>
+      Boolean((document.querySelector('[data-testid="revision-label"]') as HTMLInputElement)?.value),
+    );
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-xlsm').click()]);
+    const file = join(outDir, 'stamped.xlsm');
+    await dl.saveAs(file);
+    const zip = await JSZip.loadAsync(readFileSync(file));
+    const names: string[] = [];
+    let media = 0;
+    for (const f of Object.keys(zip.files)) {
+      if (/^xl\/drawings\/drawing\d+\.xml$/.test(f))
+        for (const m of (await zip.file(f)!.async('string')).matchAll(/<xdr:cNvPr\b[^>]*name="(TAB App [^"]+)"/g))
+          names.push(m[1]);
+      if (/^xl\/media\/image\d+\.png$/.test(f)) media++;
+    }
+    const sheets = await listSheets(zip);
+    const certXml = await readText(zip, sheets.find((s) => s.name === 'Certification')!.part);
+    check(
+      'certification profile: CP for new projects; stamp (file) and drawn signature placed on every export',
+      cpValue === 'Dana Kim' &&
+        /Stamp: yes · Signature image: yes/.test(line) &&
+        names.sort().join('|') === 'TAB App Signature|TAB App Stamp' &&
+        media >= 2 &&
+        !/insert the stamp image here/.test(certXml) &&
+        /<drawing r:id=/.test(certXml),
+      `cp ${cpValue} | ${line.replace(/\s+/g, ' ')} | ${names.join(',')} | png ${media}`,
+    );
+    check('certification e2e: no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   } finally {
     await context.close();
   }

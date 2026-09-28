@@ -233,15 +233,30 @@ totals. The trash button removes a row (the rows below move up).
 **Info → Certification** fills the workbook's Certification sheet:
 
 - **NEBB certified professional**, **Certification number** and **Expiration date**: new projects start with the
-  template's (Isaac Rochester, 24053, December 31, 2026). Change them if someone else certifies the report. An
+  ones on the **Certification profile** (below; until someone sets it up, the template's: Isaac Rochester, 24053,
+  December 31, 2026). Change them if someone else certifies the report. An
   expiration date before the report date gets an amber note.
 - **Signature (signed by)** and **Date**: required on a **final** report. On a preliminary report they're N/A for you
   (the workbook shows *N/A* on those lines) unless you fill them in. Change the report type under **Scope and
   tolerance → Report**.
-- The **stamp** (and a signature image, if you use one) is placed in Excel: the template's stamp box has no picture
-  the app could fill.
+- The **stamp** and **signature image** come from the Certification profile: every export places them on the
+  Certification sheet (the card says whether the profile has them).
 
 ![Certification](../screenshots/30-certification.png)
+
+#### Certification profile: stamp and signature
+
+**Projects → Certification (stamp & signature)**. Set up once and shared with the whole team when signed in:
+
+- The certified professional's name, number and expiration date that **new projects** start with.
+- **Stamp:** **Choose picture**, a scan or photo of the stamp cropped close (a PNG with a transparent background prints
+  best). Every export fits it into the stamp box, centred.
+- **Signature:** **Draw signature** with a finger or stylus (then **Use this signature**), or **Choose picture** for a
+  scan. Every export puts it on the signature line, over the signer's name.
+- **Remove** takes an image off; later exports leave that spot empty (an exported or issued file keeps what it had).
+  Anyone on the team can export with them, and the History shows who exported what.
+
+![Certification profile](../screenshots/32-certification-profile.png)
 
 ### Delete a project
 

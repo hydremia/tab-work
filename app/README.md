@@ -148,7 +148,11 @@ re-creates it with new ids (next free slot / number); the other device's matchin
 Library conflicts (filed under the instrument's own id) show on the Attention tab of projects whose rows came from that
 instrument, on the library page and as a badge on the home page.
 
-**Server rules** (0003 – 0005, also in the fake server): lock refusals, review clearing when a change reaches the server
+**Certification profile** (`/certification`, `certification/images.ts`): CP details for new projects and the stamp /
+signature images (picked, or drawn on a pad), synced as an organization record (0006); every export places them on
+the Certification sheet (`@a2b/workbook` `placeCertImages`).
+
+**Server rules** (0003 – 0006, also in the fake server): lock refusals, review clearing when a change reaches the server
 for a unit whose review the device had not seen, a review refused when another device changed the unit after the
 reviewer's last pull (0005), links to deleted units / issues logged unapplied or dropped instead of failing the push
 (0005), idempotent retries, project deletes, the calibration library, and link checks (an `equipmentId` / `issueId`

@@ -11,7 +11,7 @@
  */
 import { DEFAULT_INSTRUMENTS, TEMPLATE_MAP, TEMPLATE_REVISION, tableRows } from '@a2b/workbook/map';
 import type { Table } from 'dexie';
-import { CERT_DEFAULTS } from '../domain/certification';
+import { CERT_DEFAULTS, CERT_KEYS } from '../domain/certification';
 import { computeCompletion } from '../domain/completion';
 import { duplicateData, duplicateRow } from '../domain/duplicate';
 import { equipmentType, nextFreeSlot, type EquipmentTypeKey } from '../domain/equipmentTypes';
@@ -26,7 +26,9 @@ import { comparePhotos, groupKeyOf, sortKey } from '../photos/labels';
 import {
   emptyNaState,
   INSTRUMENT_DETAIL_KEYS,
+  ORG_TABLES,
   type AirflowRow,
+  type CertProfile,
   type Equipment,
   type FieldChange,
   type HistoryEntry,
@@ -41,6 +43,7 @@ import {
   type ProjectLock,
   type ScopeProfile,
   type Signature,
+  type StoredImage,
   type TableName,
 } from './types';
 
@@ -60,6 +63,7 @@ export const writeTables = () => [
   db.photoUploads,
   db.conflicts,
   db.libraryInstruments,
+  db.certProfiles,
 ];
 
 /** Where a write comes from (recorded in the history). */
@@ -83,7 +87,7 @@ function tableOf(name: TableName): Table<AnyRecord, string> {
 
 /** The project a record's changes are filed under (a library instrument, which has none: its own id). */
 function projectIdOf(name: TableName, rec: AnyRecord): string {
-  return name === 'projects' || name === 'libraryInstruments' ? rec.id : (rec.projectId ?? '');
+  return name === 'projects' || ORG_TABLES.includes(name) ? rec.id : (rec.projectId ?? '');
 }
 
 /** The unit a record belongs to: the unit itself, or a row / photo / issue linked to it. */
@@ -114,6 +118,8 @@ export function describeRecord(name: TableName, rec: AnyRecord): string {
       return String(r.type || 'instrument');
     case 'libraryInstruments':
       return `Library: ${String(r.type || 'instrument')}`;
+    case 'certProfiles':
+      return 'Certification profile';
   }
 }
 
@@ -476,6 +482,7 @@ export interface NewProjectInput {
 
 export async function createProject(input: NewProjectInput): Promise<Project> {
   const now = Date.now();
+  const profile = await getCertProfile();
   const project: Project = {
     id: uuid(),
     name: input.name.trim(),
@@ -484,7 +491,8 @@ export async function createProject(input: NewProjectInput): Promise<Project> {
     tolerance: 0.1,
     reportKind: 'prelim',
     // the template's certified professional (Certification sheet); signature and date are filled on the final report
-    info: { address: input.address?.trim() || null, tabDate: input.tabDate || null, ...CERT_DEFAULTS },
+    // (the organization's certification profile when there is one)
+    info: { address: input.address?.trim() || null, tabDate: input.tabDate || null, ...certDefaults(profile) },
     blueprints: [],
     naState: emptyNaState(),
     templateRevision: TEMPLATE_REVISION,
@@ -941,4 +949,45 @@ export async function updateInstrumentFromLibrary(instrumentId: string): Promise
     if (!ins || !lib) throw new Error('library instrument not found');
     for (const k of INSTRUMENT_DETAIL_KEYS) await setField('instruments', ins.id, k, lib[k] ?? '');
   });
+}
+
+// ------------------------------------------------------------------------------------------ certification profile
+/** The organization's certification profile: the oldest one (two devices may each have created one before syncing). */
+export async function getCertProfile(): Promise<CertProfile | undefined> {
+  return db.certProfiles.orderBy('createdAt').first();
+}
+
+/** The certification profile, created from the template's CP when there is none yet. */
+export async function ensureCertProfile(): Promise<CertProfile> {
+  return db.transaction('rw', writeTables(), async () => {
+    const existing = await getCertProfile();
+    if (existing) return existing;
+    const now = Date.now();
+    return createRecord<CertProfile>('certProfiles', {
+      id: uuid(),
+      cpName: CERT_DEFAULTS[CERT_KEYS.cpName],
+      certNumber: CERT_DEFAULTS[CERT_KEYS.number],
+      expiration: CERT_DEFAULTS[CERT_KEYS.expiration],
+      stamp: null,
+      signature: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+}
+
+/** The CP lines a new project starts with: the profile's (blank profile values fall back to the template's). */
+export function certDefaults(profile: CertProfile | undefined): Record<string, string> {
+  if (!profile) return { ...CERT_DEFAULTS };
+  return {
+    [CERT_KEYS.cpName]: profile.cpName || CERT_DEFAULTS[CERT_KEYS.cpName],
+    [CERT_KEYS.number]: profile.certNumber || CERT_DEFAULTS[CERT_KEYS.number],
+    [CERT_KEYS.expiration]: profile.expiration || CERT_DEFAULTS[CERT_KEYS.expiration],
+  };
+}
+
+/** Set / remove the stamp or signature image of the profile (a normal synced field). */
+export async function setCertImage(kind: 'stamp' | 'signature', image: StoredImage | null): Promise<void> {
+  const profile = await ensureCertProfile();
+  await setField('certProfiles', profile.id, kind, image);
 }

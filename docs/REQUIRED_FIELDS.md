@@ -78,7 +78,7 @@ project keeps its photos. Importing into a new project brings units back amber u
 | **Calibration** | At least one instrument, each with type, manufacturer, model, serial and calibration date (8 slots). The date is flagged if it is more than 12 months before the TAB date. | The template's 7 a2b instruments are pre-loaded. **(new)** The app flags any instrument chosen on a unit page that has no calibration row. |
 | **Issues** | Each issue needs New/Existing, a remark, a status (Open/Closed), and equipment **or** "General (N/A)" | Optional: comments, photos. New issues go to *Summary - New* and existing ones to *Summary - (E)*, each numbered separately, 50 per sheet. |
 | **Building pressures** **(new)** (Building Balance) | Building vs. Outdoors ΔP | Kitchen vs. Dining ΔP is required when the project has kitchen hoods, otherwise automatically N/A. One spare pair, remarks and notes are optional. |
-| **Certification** | Signature and date **required on the final report** | Stamp image. Automatically N/A on a prelim report. ✅ R5 |
+| **Certification** | Signature and date **required on the final report** | Stamp and signature images from the certification profile, placed on every export. Automatically N/A on a prelim report. ✅ R5 |
 
 Building Balance and Equipment Summary are all formulas, so they need no entry.
 
