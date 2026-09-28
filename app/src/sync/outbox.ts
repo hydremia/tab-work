@@ -10,9 +10,19 @@ import { appendHistory } from '../data/history';
 import { getDeviceId } from '../data/identity';
 import { deleteProjectLocally, forgetPhotoFile, historyKind, unitOf, writeTables } from '../data/repo';
 import { assertEditablePath, deepEqual, getPath, setPath } from '../data/paths';
-import type { FieldChange, ProjectLock, TableName } from '../data/types';
+import type { DeletedInfo, FieldChange, ProjectLock, TableName } from '../data/types';
 import { uuid } from '../data/uuid';
 import { isConcurrent, laterWins, recordFieldConflict } from './conflicts';
+import {
+  dropLinked,
+  dropWaiting,
+  flagLocalDelete,
+  flagRemoteDelete,
+  goneParent,
+  linkedRecords,
+  parentOf,
+  settleRestored,
+} from './deletes';
 
 /** A field path this app edits (not id / projectId / timestamps, no prototype keys). */
 function isEditablePath(field: string): boolean {
@@ -193,6 +203,11 @@ export async function applyRemoteChanges(changes: readonly RemoteChange[]): Prom
   const res: ApplyResult = { applied: 0, skipped: 0, conflicts: 0 };
   const order = (c: RemoteChange) => c.serverSeq ?? Number.MAX_SAFE_INTEGER;
   const sorted = [...changes].sort((a, b) => order(a) - order(b) || a.ts - b.ts);
+  // records other devices delete in this pull: an outlet row / photo deleted with its unit (or issue) is flagged with it
+  const deletedHere = new Set(
+    sorted.filter((x) => x.op === 'delete' && x.deviceId !== deviceId).map((x) => x.recordId),
+  );
+  const goesWith = new Map<string, DeletedInfo['records']>();
   await db.transaction('rw', [...writeTables(), db.revisions, db.baseWorkbooks], async () => {
     for (const c of sorted) {
       if (c.deviceId === deviceId) {
@@ -247,6 +262,8 @@ export async function applyRemoteChanges(changes: readonly RemoteChange[]): Prom
                 resolution: 'superseded',
               });
         }
+        // a record this device deleted while another device was still editing it
+        if (!rec) res.conflicts += await flagLocalDelete(c, deviceId);
         if (newerKnown || !serverApplied || !rec) res.skipped++;
         else {
           const next = setPath(rec, c.field, c.value);
@@ -267,13 +284,23 @@ export async function applyRemoteChanges(changes: readonly RemoteChange[]): Prom
           );
         }
       } else if (c.op === 'create') {
-        if (serverApplied && !(await t.get(c.recordId)) && c.value && typeof c.value === 'object') {
+        // made on another device in a unit / issue this device has deleted since: an outlet row or photo is flagged
+        // with the delete (and not created: the server removes it with the delete), an issue loses the link
+        const gone = await goneParent(c.table, c.value, deviceId);
+        if (gone && c.table !== 'issues') {
+          res.skipped++;
+          res.conflicts += await flagLocalDelete(c, deviceId);
+        } else if (serverApplied && !(await t.get(c.recordId)) && c.value && typeof c.value === 'object') {
           // the record is the change's record in the change's project (as on the server), whatever the value says
+          const { restoredFrom, ...fields } = c.value as Record<string, unknown>;
           const value = {
-            ...(c.value as Record<string, unknown>),
+            ...fields,
+            ...(gone ? { [gone.key]: null } : {}),
             id: c.recordId,
             ...(c.table === 'projects' || c.table === 'libraryInstruments' ? {} : { projectId: c.projectId }),
           };
+          // a record restored on another device: the same delete flagged here is settled
+          if (typeof restoredFrom === 'string') await settleRestored(restoredFrom);
           // a photo arrives without its file (downloaded by sync/photoSync.ts)
           await t.put(c.table === 'photos' ? { blob: null, thumb: null, ...value, uploaded: 1 } : value);
           res.applied++;
@@ -281,7 +308,12 @@ export async function applyRemoteChanges(changes: readonly RemoteChange[]): Prom
             { ...base, kind: 'create', equipmentId: unitOf(c.table, c.value as never), field: '' },
             who,
           );
-        } else res.skipped++;
+        } else {
+          res.skipped++;
+          // an outlet row another device added to a unit this device deleted (refused by the server)
+          if (c.applied === false && /^links a deleted record/.test(c.note ?? ''))
+            res.conflicts += await flagLocalDelete(c, deviceId);
+        }
       } else if (c.table === 'projects') {
         // another device deleted the whole project: cascade like the server
         if (await db.projects.get(c.recordId)) {
@@ -290,6 +322,26 @@ export async function applyRemoteChanges(changes: readonly RemoteChange[]): Prom
         } else res.skipped++;
       } else {
         const rec = await t.get(c.recordId);
+        if (rec) {
+          const parent = parentOf(c.table as TableName, rec);
+          if (parent && deletedHere.has(parent))
+            goesWith.set(parent, [...(goesWith.get(parent) ?? []), { table: c.table as TableName, rec }]);
+          else {
+            // edits made here that the deleting device had not seen; records added here to a deleted unit / issue
+            const linked = await linkedRecords(c.table as TableName, c.recordId);
+            res.conflicts += await flagRemoteDelete(
+              c,
+              c.table as TableName,
+              rec,
+              [...(goesWith.get(c.recordId) ?? []), ...linked],
+              deviceId,
+            );
+            if (linked.length || c.table === 'equipment') await dropLinked(c.table as TableName, c.recordId, linked);
+            // this device's waiting edits of it (and of what went with it) are moot: kept in the conflict's copy
+            await dropWaiting(c.table as TableName, c.recordId);
+            for (const x of goesWith.get(c.recordId) ?? []) await dropWaiting(x.table, x.rec.id);
+          }
+        }
         await t.delete(c.recordId);
         if (c.table === 'photos') await forgetPhotoFile(c.recordId, true);
         if (rec) {
