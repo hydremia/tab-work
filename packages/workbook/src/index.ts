@@ -9,6 +9,7 @@ export * from './ooxml.js';
 export * from './exportWorkbook.js';
 export * from './importWorkbook.js';
 export * from './coverPhoto.js';
+export * from './certImages.js';
 export * from './lists.js';
 export * from './docProps.js';
 export * from './inputCells.js';
