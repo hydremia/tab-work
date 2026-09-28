@@ -1,5 +1,5 @@
 /**
- * In-memory stand-in for the Supabase backend with the same rules as supabase/migrations/0001–0003 (keep the two in
+ * In-memory stand-in for the Supabase backend with the same rules as supabase/migrations/0001–0005 (keep the two in
  * step; supabase/tests/sync_rules_test.sql checks the SQL, sync/fakeServer.test.ts this file):
  *
  *  - one log of field changes per server, `server_seq` assigned on insert (and, as in Postgres, not given back when a
@@ -12,7 +12,8 @@
  *  - report lock: while a project's `lock` is an object, only the lock itself and deleting the whole project are
  *    accepted, anything else fails the request with TAB_LOCKED (detail: the refused change id);
  *  - review: a change of a reviewed unit (its fields, rows, photos) by a device that had not seen the review (base_seq
- *    older than the review's server_seq) clears it with a server change (device 'server');
+ *    older than the review's server_seq) clears it with a server change (device 'server'); (0005) a review is refused
+ *    (applied = false, answered by a server clear) when another device changed the unit after the reviewer's base_seq;
  *  - deleting a project deletes its records (cascade); photo files by path `<projectId>/<photoId>.jpg`;
  *  - (0004) library instruments: organization records whose changes carry their own id as project_id; a link inside
  *    a value (equipmentId, issueId) must name a record of the same project, libraryId one of the same organization.
@@ -163,9 +164,14 @@ export class FakeSyncServer {
     }
     // links inside values (0004): a unit / issue must be in the same project, a library instrument in the same
     // organization (a record that does not exist (yet) is not checked here)
+    const dead: string[] = [];
     for (const [key, id] of linkRefs(row)) {
       const target = this.record(LINK_TABLES[key], id);
-      if (!target) continue;
+      if (!target) {
+        // (0005) a unit / issue another device deleted
+        if (key !== 'libraryId' && this.log.some((r) => r.record_id === id && r.op === 'delete')) dead.push(key);
+        continue;
+      }
       if (key === 'libraryId' ? target.orgId !== org : target.projectId !== row.project_id)
         throw new FakeServerError(
           `TAB_FORBIDDEN: ${key} names a record of another ${key === 'libraryId' ? 'organization' : 'project'}`,
@@ -193,11 +199,61 @@ export class FakeSyncServer {
       received_at: this.now(),
       org_id: org,
       applied: true,
-      note: null,
+      note: row.device_id === 'server' ? (row.note ?? null) : null,
       base_seq: row.base_seq ?? null,
     };
     const units = this.changeUnits(row);
+    stored.units = units;
     const t = this.table(row.table_name);
+    if (dead.length) {
+      // (0005) an outlet row / a set of the link: logged, not applied; an issue / photo: created without the link
+      if (row.op === 'set' || row.table_name === 'airflowRows') {
+        stored.applied = false;
+        stored.note = `links a deleted record (${dead.join(', ')})`;
+        this.log.push(stored);
+        return stored;
+      }
+      const value = { ...(row.value as Record<string, unknown>) };
+      for (const k of dead) delete value[k];
+      row = { ...row, value };
+      stored.value = value;
+      stored.note = `created without ${dead.join(', ')}: it was deleted`;
+    }
+    if (
+      row.table_name === 'equipment' &&
+      row.op === 'set' &&
+      row.field === 'review' &&
+      row.value &&
+      typeof row.value === 'object' &&
+      this.log.some(
+        (f) =>
+          f.project_id === row.project_id &&
+          f.applied &&
+          f.units?.includes(row.record_id) &&
+          f.device_id !== row.device_id &&
+          f.server_seq! > (row.base_seq ?? 0),
+      )
+    ) {
+      // 0005: a review of data the reviewer had not seen (another device changed the unit after its last pull)
+      stored.applied = false;
+      stored.note = 'review refused: the unit changed on another device before this review reached the server';
+      this.log.push(stored);
+      this.insert(user, {
+        id: crypto.randomUUID(),
+        project_id: row.project_id,
+        table_name: 'equipment',
+        record_id: row.record_id,
+        op: 'set',
+        field: 'review',
+        value: null,
+        user_id: user.id,
+        device_id: 'server',
+        client_ts: row.client_ts + 1,
+        base_seq: seq,
+        note: 'automatic: the unit changed on another device before the review reached the server; review it again',
+      });
+      return stored;
+    }
     if (row.op === 'delete') {
       t.delete(row.record_id);
       if (row.table_name === 'projects')

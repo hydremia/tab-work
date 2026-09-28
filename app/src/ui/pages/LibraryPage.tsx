@@ -8,9 +8,11 @@ import { DEFAULT_INSTRUMENTS } from '@a2b/workbook/map';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
 import { db } from '../../data/db';
+import { useLibraryConflicts } from '../../data/hooks';
 import { addLibraryInstrument, deleteLibraryInstrument, differsFromLibrary, setField } from '../../data/repo';
 import { INSTRUMENT_DETAIL_KEYS, type LibraryInstrument } from '../../data/types';
 import { calibrationExpired } from '../../domain/instruments';
+import { ConflictList } from '../components/Conflicts';
 import { IconPlus, IconTrash } from '../components/Icons';
 import { DateInput, TextArea, TextInput } from '../components/inputs';
 import { Screen } from '../components/Screen';
@@ -25,7 +27,17 @@ const LABEL: Record<(typeof INSTRUMENT_DETAIL_KEYS)[number], string> = {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-function LibraryItem({ lib, usedIn, outdated }: { lib: LibraryInstrument; usedIn: string[]; outdated: number }) {
+function LibraryItem({
+  lib,
+  usedIn,
+  outdated,
+  conflict,
+}: {
+  lib: LibraryInstrument;
+  usedIn: string[];
+  outdated: number;
+  conflict: boolean;
+}) {
   const expired = lib.calibrationDate ? calibrationExpired(lib.calibrationDate, today()) : false;
   const title = [lib.type, lib.manufacturer, lib.model].filter(Boolean).join(' ') || 'New instrument';
   return (
@@ -47,8 +59,13 @@ function LibraryItem({ lib, usedIn, outdated }: { lib: LibraryInstrument; usedIn
               ? `In ${usedIn.length} project${usedIn.length > 1 ? 's' : ''}: ${usedIn.slice(0, 3).join(', ')}${usedIn.length > 3 ? ' …' : ''}`
               : 'Not in a project yet'}
           </span>
-          {(expired || outdated > 0) && (
+          {(expired || outdated > 0 || conflict) && (
             <span className="lib-summary-chips">
+              {conflict && (
+                <span className="chip chip-warn" data-testid="lib-conflict">
+                  Sync conflict
+                </span>
+              )}
               {expired && (
                 <span className="chip chip-warn" data-testid="lib-expired">
                   Calibration over 12 months old
@@ -134,6 +151,7 @@ export function LibraryPage() {
     ]);
     return { library, instruments, names: new Map(projects.map((p) => [p.id, p.name])) };
   }, []);
+  const conflicts = useLibraryConflicts();
   const [busy, setBusy] = useState(false);
   const library = [...(data?.library ?? [])].sort(
     (a, b) => a.type.localeCompare(b.type) || a.serial.localeCompare(b.serial) || a.createdAt - b.createdAt,
@@ -148,6 +166,18 @@ export function LibraryPage() {
   }
   return (
     <Screen title="Instrument library" back="/">
+      {conflicts && conflicts.length > 0 && (
+        <section className="card card-pad stack" aria-labelledby="lib-conflicts-h" data-testid="library-conflicts">
+          <h2 id="lib-conflicts-h">
+            Sync conflicts <span className="tab-count">{conflicts.length}</span>
+          </h2>
+          <p className="small muted" style={{ margin: 0 }}>
+            Edited (or deleted) on two devices before either had synced. The library is shared by every project:
+            resolving here resolves it everywhere.
+          </p>
+          <ConflictList conflicts={conflicts} />
+        </section>
+      )}
       <section className="card card-pad stack" aria-labelledby="lib-h" data-testid="library">
         <h2 id="lib-h">Calibration library</h2>
         <p className="small muted" style={{ margin: 0 }}>
@@ -172,6 +202,7 @@ export function LibraryPage() {
               lib={lib}
               usedIn={usedIn}
               outdated={copies.filter((i) => differsFromLibrary(i, lib)).length}
+              conflict={(conflicts ?? []).some((c) => c.recordId === lib.id)}
             />
           );
         })}

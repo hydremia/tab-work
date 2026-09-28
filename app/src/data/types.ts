@@ -279,7 +279,7 @@ export interface FieldChange {
 export interface SyncConflict {
   id: string;
   projectId: string;
-  kind: 'field' | 'held';
+  kind: 'field' | 'held' | 'deleted';
   table: TableName | null;
   recordId: string | null;
   /** The unit the record belongs to (for the unit badge / page). */
@@ -290,11 +290,30 @@ export interface SyncConflict {
   other?: ConflictSide;
   /** kind 'held': how many changes wait, and the lock that refused them. */
   held?: { count: number; label: string; by: string };
+  /** kind 'deleted': a record deleted on one device while another device edited it. */
+  deleted?: DeletedInfo;
   status: 'open' | 'resolved';
   detectedAt: number;
   resolvedAt?: number;
   /** superseded: someone edited the field again later (having seen both values). */
   resolution?: 'kept' | 'restored' | 'released' | 'discarded' | 'superseded';
+}
+
+/**
+ * A delete that met edits it had not seen (sync/deletes.ts). `by`: 'other' = another device deleted the record and
+ * this device's edits (or records it added to it) were lost; 'this' = this device deleted it and another device's
+ * edits were not applied. The record is not brought back by itself; *Restore* re-creates it (new ids) from `records`.
+ */
+export interface DeletedInfo {
+  by: 'other' | 'this';
+  /** What was deleted, e.g. "RTU-1", "Issue N-3", "supply row S-4". */
+  label: string;
+  /** How many edits were lost / not applied. */
+  edits: number;
+  /** When it was deleted. */
+  ts: number;
+  /** The deleted record first, then what went with it (a unit's outlet rows and photos, an issue's photos). */
+  records: { table: TableName; rec: Record<string, unknown> & { id: string } }[];
 }
 
 export interface ConflictSide {

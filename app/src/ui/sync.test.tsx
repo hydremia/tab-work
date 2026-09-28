@@ -5,7 +5,7 @@
  * changes); the conflict UI (Attention group, unit badge, field flag, resolve); the lock toast.
  */
 import type { SupabaseClient, User } from '@supabase/supabase-js';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,7 +14,14 @@ import { supabaseCloud } from '../auth/supabase';
 import Dexie from 'dexie';
 import { db, DEFAULT_DB_NAME } from '../data/db';
 import { getDeviceId } from '../data/identity';
-import { addEquipment, createProject, LockedError, setField } from '../data/repo';
+import {
+  addEquipment,
+  addInstrumentFromLibrary,
+  addLibraryInstrument,
+  createProject,
+  LockedError,
+  setField,
+} from '../data/repo';
 import type { SyncConflict } from '../data/types';
 import { setCloudForTests, type Cloud } from '../sync/cloud';
 import { FakeBackend } from '../sync/fakeBackend';
@@ -321,6 +328,113 @@ describe('conflict UI', () => {
     await user.click(within(section).getByTestId('conflict-keep'));
     await waitFor(() => expect(screen.queryByTestId('unit-conflicts')).toBeNull());
     expect((await db.equipment.get(rtu.id))?.data.serial).toBe('SN-B');
+  });
+
+  it('library conflicts: on the Attention tab of projects using the instrument, the library page and the home page', async () => {
+    const user = userEvent.setup();
+    setCloudForTests(null);
+    const p = await createProject({ name: 'Riverside' });
+    const lib = await addLibraryInstrument({ type: 'Balometer', serial: '2400180B', calibrationDate: '2026-09-01' });
+    await addInstrumentFromLibrary(p.id, lib.id);
+    await db.conflicts.add({
+      id: 'lc1',
+      projectId: lib.id,
+      kind: 'field',
+      table: 'libraryInstruments',
+      recordId: lib.id,
+      equipmentId: null,
+      field: 'calibrationDate',
+      current: { value: '2026-09-01', ts: Date.now(), userId: 'u2', deviceId: 'dev-b', local: false, changeId: 'y2' },
+      other: {
+        value: '2026-08-15',
+        ts: Date.now() - 1000,
+        userId: 'local',
+        deviceId: 'me',
+        local: true,
+        changeId: 'y1',
+      },
+      status: 'open',
+      detectedAt: Date.now(),
+    });
+    // an unrelated project does not show it
+    const other = await createProject({ name: 'Elsewhere' });
+    const first = renderAt(`/p/${other.id}/attention`);
+    await screen.findByTestId('attention-total');
+    expect(screen.queryByTestId('attention-library-conflicts')).toBeNull();
+    first.dispose();
+    cleanup();
+    renderAt(`/p/${p.id}/attention`);
+    const group = await screen.findByTestId('attention-library-conflicts');
+    await waitFor(() => expect(group).toHaveTextContent('Instrument library: Balometer SN 2400180B'));
+    expect(group).toHaveTextContent('Calibration date');
+    expect(within(group).getByTestId('conflict-other')).toHaveTextContent('2026-08-15');
+    expect(screen.getByTestId('tab-count-attention')).toHaveTextContent('1');
+    cleanup();
+    // home page badge, library page section and chip
+    renderAt('/');
+    expect(await screen.findByTestId('library-conflict-count')).toHaveTextContent('1');
+    cleanup();
+    renderAt('/library');
+    const section = await screen.findByTestId('library-conflicts');
+    expect(screen.getByTestId('lib-conflict')).toBeInTheDocument();
+    await user.click(within(section).getByTestId('conflict-restore'));
+    await waitFor(() => expect(screen.queryByTestId('library-conflicts')).toBeNull());
+    expect((await db.libraryInstruments.get(lib.id))?.calibrationDate).toBe('2026-08-15');
+  });
+
+  it('a delete that met unseen edits: explained with what went with it; Restore brings the unit back', async () => {
+    const user = userEvent.setup();
+    setCloudForTests(null);
+    const p = await createProject({ name: 'Riverside' });
+    const unit = {
+      id: 'dead-unit',
+      projectId: p.id,
+      type: 'rtu',
+      designation: 'RTU-7',
+      slot: 1,
+      isExisting: false,
+      data: { serial: 'SN-7' },
+      naState: { fields: {}, sections: {} },
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    await db.conflicts.add({
+      id: 'dc1',
+      projectId: p.id,
+      kind: 'deleted',
+      table: 'equipment',
+      recordId: unit.id,
+      equipmentId: unit.id,
+      field: '',
+      deleted: {
+        by: 'other',
+        label: 'RTU-7',
+        edits: 3,
+        ts: Date.now(),
+        records: [
+          { table: 'equipment', rec: unit },
+          {
+            table: 'airflowRows',
+            rec: { id: 'dead-row', projectId: p.id, equipmentId: unit.id, table: 'supply', order: 0, data: {}, na: {} },
+          },
+          { table: 'photos', rec: { id: 'dead-photo', projectId: p.id, equipmentId: unit.id, blob: null } },
+        ],
+      },
+      status: 'open',
+      detectedAt: Date.now(),
+    });
+    renderAt(`/p/${p.id}/attention`);
+    const card = await screen.findByTestId('conflict-deleted');
+    expect(card).toHaveTextContent('RTU-7 · deleted');
+    expect(card).toHaveTextContent('before 3 edits made on this device had reached it');
+    expect(within(card).getByTestId('conflict-deleted-with')).toHaveTextContent(
+      "With it: 1 outlet row and 1 photo (1 photo can't come back",
+    );
+    await user.click(within(card).getByTestId('deleted-restore'));
+    await waitFor(() => expect(screen.queryByTestId('conflict-deleted')).toBeNull());
+    const units = await db.equipment.where('projectId').equals(p.id).toArray();
+    expect(units.map((u) => [u.designation, u.data.serial])).toEqual([['RTU-7', 'SN-7']]);
+    expect(await db.airflowRows.where('equipmentId').equals(units[0].id).count()).toBe(1);
   });
 
   it('held changes (report issued elsewhere): explained, and can be discarded', async () => {

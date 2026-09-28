@@ -333,6 +333,32 @@ export function useUserName(): string | undefined {
 }
 
 /** Open sync conflicts of a project (newest first). */
+/**
+ * Open sync conflicts of the shared calibration library (filed under the instrument's own id, so no project's
+ * useConflicts has them). `libIds`: only these library instruments (e.g. the ones a project's rows came from).
+ */
+export function useLibraryConflicts(libIds?: readonly string[]): SyncConflict[] | undefined {
+  const key = libIds ? libIds.join(',') : '*';
+  return useLiveQuery(async () => {
+    const ids = libIds ? new Set(libIds) : null;
+    const list = await db.conflicts
+      .where('status')
+      .equals('open')
+      .filter((c) => c.table === 'libraryInstruments' && (!ids || (c.recordId !== null && ids.has(c.recordId))))
+      .toArray();
+    return list.sort((a, b) => b.detectedAt - a.detectedAt);
+  }, [key]);
+}
+
+/** The library instruments a project's calibration rows came from. */
+export function useProjectLibraryIds(projectId: string | undefined): string[] | undefined {
+  return useLiveQuery(async () => {
+    if (!projectId) return [];
+    const rows = await db.instruments.where('projectId').equals(projectId).toArray();
+    return [...new Set(rows.map((r) => r.libraryId).filter((x): x is string => Boolean(x)))].sort();
+  }, [projectId]);
+}
+
 export function useConflicts(projectId: string | undefined): SyncConflict[] | undefined {
   return useLiveQuery(async () => {
     if (!projectId) return [];

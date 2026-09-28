@@ -1,6 +1,6 @@
 /**
- * The fake server follows the same rules as supabase/migrations/0003_sync_rules.sql (checked on PostgreSQL by
- * supabase/tests/sync_rules_test.sql); these cases mirror that SQL test so the two stay in step. Also: the Supabase
+ * The fake server follows the same rules as supabase/migrations/0003–0005 (checked on PostgreSQL by
+ * supabase/tests/*_test.sql); these cases mirror that SQL test so the two stay in step. Also: the Supabase
  * backend's calls and error mapping with a mocked client.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -239,6 +239,85 @@ describe('fake server rules (as 0003)', () => {
       row({ table_name: 'issues', record_id: crypto.randomUUID(), op: 'create', field: '', value: { equipmentId: U } }),
     ]);
     expect(s.valueOf('equipment', U, 'review')).toEqual({ name: 'Kim' });
+  });
+});
+
+describe('fake server rules (as 0005: review of what the reviewer saw)', () => {
+  const R = 'cccccccc-0000-4000-8000-000000000001';
+  it('a review is refused when another device changed the unit after the reviewer pulled; a server clear answers', () => {
+    const { s, a, b } = setup();
+    s.push(a.id, [
+      row({
+        table_name: 'airflowRows',
+        record_id: R,
+        op: 'create',
+        field: '',
+        value: { equipmentId: U, table: 'supply' },
+      }),
+    ]);
+    const seen = s.log.at(-1)!.server_seq!;
+    expect(s.log.at(-1)!.units).toEqual([U]);
+    // B blanks a reading of the unit; A has not pulled it
+    s.push(b.id, [
+      row({
+        table_name: 'airflowRows',
+        record_id: R,
+        field: 'data.final',
+        value: null,
+        device_id: 'devB',
+        base_seq: seen,
+      }),
+    ]);
+    s.push(a.id, [row({ field: 'review', value: { name: 'Kim' }, base_seq: seen })]);
+    const [refusedReview, clear] = s.log.slice(-2);
+    expect(refusedReview).toMatchObject({ field: 'review', applied: false });
+    expect(refusedReview.note).toMatch(/^review refused/);
+    expect(clear).toMatchObject({ device_id: 'server', field: 'review', value: null, applied: true });
+    expect(clear.client_ts).toBeGreaterThan(refusedReview.client_ts);
+    expect(s.valueOf('equipment', U, 'review')).toBeNull();
+    // after pulling B's change the review is accepted; the reviewer's own edits never refuse it
+    s.push(a.id, [row({ field: 'data.model', value: 'M', base_seq: seen })]);
+    s.push(a.id, [row({ field: 'review', value: { name: 'Kim' }, base_seq: s.log.at(-1)!.server_seq! - 1 })]);
+    expect(s.valueOf('equipment', U, 'review')).toEqual({ name: 'Kim' });
+  });
+
+  it('links to a deleted unit / issue: a row or a set is logged unapplied, an issue / photo is created unlinked', () => {
+    const { s, a, b } = setup();
+    const I = 'dddddddd-0000-4000-8000-000000000001';
+    s.push(a.id, [
+      row({ table_name: 'issues', record_id: I, op: 'create', field: '', value: { kind: 'new', number: 1 } }),
+    ]);
+    s.push(a.id, [
+      row({ op: 'delete', field: '', value: null }),
+      row({ table_name: 'issues', record_id: I, op: 'delete', field: '', value: null }),
+    ]);
+    const PH = crypto.randomUUID();
+    const out = s.push(b.id, [
+      row({
+        table_name: 'airflowRows',
+        record_id: R,
+        op: 'create',
+        field: '',
+        value: { equipmentId: U, table: 'supply' },
+        device_id: 'devB',
+      }),
+      row({
+        table_name: 'photos',
+        record_id: PH,
+        op: 'create',
+        field: '',
+        value: { category: 'deficiency', issueId: I },
+        device_id: 'devB',
+      }),
+      row({ table_name: 'photos', record_id: PH, field: 'equipmentId', value: U, device_id: 'devB' }),
+    ]);
+    expect(out).toHaveLength(3);
+    const [r1, r2, r3] = s.log.slice(-3);
+    expect(r1).toMatchObject({ applied: false, note: 'links a deleted record (equipmentId)' });
+    expect(s.record('airflowRows', R)).toBeUndefined();
+    expect(r2).toMatchObject({ applied: true, note: 'created without issueId: it was deleted' });
+    expect(s.record('photos', PH)?.issueId).toBeUndefined();
+    expect(r3).toMatchObject({ applied: false });
   });
 });
 

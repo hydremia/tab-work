@@ -102,6 +102,8 @@ export async function syncFlow(
     await A.page.getByTestId('setup-banner').getByRole('link', { name: 'Choose' }).click();
     const setup = A.page.getByTestId('cloud-setup');
     await setup.waitFor();
+    // the list of local projects loads after the page (IndexedDB query)
+    await setup.getByTestId('cloud-setup-project').first().waitFor({ timeout: 10_000 });
     const listed = await setup.innerText();
     await A.page.screenshot({ path: join(shots, 'sync-cloud-setup.png') });
     check(
@@ -233,11 +235,17 @@ export async function syncFlow(
     await B.page.getByTestId('sign-out').click();
     await B.page.getByTestId('account-signin').waitFor();
     await B.page.goto(base);
+    await B.page.getByTestId('project-card').first().waitFor({ timeout: 10_000 });
+    const signOutDialog = B.dialogs.find((d) => /Sign out/.test(d)) ?? '(no dialog)';
+    const bCards = await B.page.getByTestId('project-card').count();
+    const bStatus = await B.page.getByTestId('sync-status').innerText();
     check(
       'sign-out: confirmed, the project stays on the device, "Not signed in"',
-      B.dialogs.some((d) => /Sign out/.test(d) && !/not synced yet/.test(d)) &&
-        (await B.page.getByTestId('project-card').count()) === 1 &&
-        /Not signed in/.test(await B.page.getByTestId('sync-status').innerText()),
+      !/not synced yet/.test(signOutDialog) &&
+        signOutDialog !== '(no dialog)' &&
+        bCards === 1 &&
+        /Not signed in/.test(bStatus),
+      `${signOutDialog.replace(/\s+/g, ' ').slice(0, 120)} | cards ${bCards} | ${bStatus}`,
     );
     // ------------------------------------------------ A: sign out and remove the data (shared device)
     await A.page.goto(`${base}/account`);

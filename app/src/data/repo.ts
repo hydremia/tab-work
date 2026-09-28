@@ -95,7 +95,7 @@ export function unitOf(name: TableName, rec: AnyRecord): string | null {
 }
 
 /** Short description of a record for create / delete history entries. */
-function describe(name: TableName, rec: AnyRecord): string {
+export function describeRecord(name: TableName, rec: AnyRecord): string {
   const r = rec as unknown as Record<string, unknown>;
   switch (name) {
     case 'projects':
@@ -146,6 +146,13 @@ async function change(
     synced: 0,
     baseSeq: await currentBaseSeq(),
   };
+}
+
+/** Log a change made by the sync itself on this device (e.g. unlinking a record from a unit another device deleted). */
+export async function logSyncChange(
+  partial: Pick<FieldChange, 'projectId' | 'table' | 'recordId' | 'op' | 'field' | 'value'>,
+): Promise<void> {
+  await db.fieldChanges.add(await change(partial, nextTimestamp()));
 }
 
 /**
@@ -313,7 +320,7 @@ export async function createRecord<T extends AnyRecord>(table: TableName, rec: T
         recordId: rec.id,
         equipmentId: unitOf(table, rec),
         field: '',
-        note: describe(table, rec),
+        note: describeRecord(table, rec),
         ...(opts.source ? { source: opts.source } : {}),
       },
       actor,
@@ -373,7 +380,7 @@ export async function deleteRecord(table: TableName, recordId: string, opts: Wri
             recordId: r.id,
             equipmentId: unitOf(name, r),
             field: '',
-            note: describe(name, r),
+            note: describeRecord(name, r),
             ...(opts.source ? { source: opts.source } : {}),
           },
           actor,
