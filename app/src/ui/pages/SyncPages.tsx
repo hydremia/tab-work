@@ -129,15 +129,17 @@ export function AccountPage() {
               <dd data-testid="account-status">
                 {s.status === 'setup'
                   ? 'Waiting: choose which projects move to the cloud'
-                  : s.status === 'offline'
-                    ? 'Offline — syncs when you reconnect'
-                    : s.status === 'error'
-                      ? `Sync error: ${s.error}`
-                      : s.status === 'syncing'
-                        ? 'Syncing…'
-                        : s.pending
-                          ? `${s.pending} change${s.pending > 1 ? 's' : ''} not synced yet`
-                          : 'Everything synced'}
+                  : s.status === 'paused'
+                    ? `Sync paused${s.pending ? ` — ${s.pending} change${s.pending > 1 ? 's' : ''} not sent` : ''}`
+                    : s.status === 'offline'
+                      ? 'Offline — syncs when you reconnect'
+                      : s.status === 'error'
+                        ? `Sync error: ${s.error}`
+                        : s.status === 'syncing'
+                          ? 'Syncing…'
+                          : s.pending
+                            ? `${s.pending} change${s.pending > 1 ? 's' : ''} not synced yet`
+                            : 'Everything synced'}
               </dd>
               <dt>Last sync</dt>
               <dd>{s.lastSyncAt ? when(s.lastSyncAt) : '—'}</dd>
@@ -162,6 +164,31 @@ export function AccountPage() {
                 Sign out
               </button>
             </div>
+          </section>
+          <section className="card card-pad stack" data-testid="pause-sync">
+            <h2>{s.pausedSince ? 'Sync is paused on this device' : 'Pause sync'}</h2>
+            {s.pausedSince ? (
+              <p className="small muted" style={{ margin: 0 }}>
+                Since {when(s.pausedSince)}. Edits are saved on this device and are not sent, backed up or shared with
+                the team until you resume (or tap <b>Sync now</b>, which syncs once and stays paused). It stays paused
+                after the app restarts.
+              </p>
+            ) : (
+              <p className="small muted" style={{ margin: 0 }}>
+                Stops the automatic sync on this device (weak or metered signal, battery, or no one else&apos;s edits
+                arriving mid-test). Everything keeps working; edits wait on this device until you resume. While paused
+                they are not backed up and the team does not see them.
+              </p>
+            )}
+            <button
+              type="button"
+              className={s.pausedSince ? 'btn btn-primary' : 'btn'}
+              style={{ alignSelf: 'flex-start' }}
+              data-testid="pause-toggle"
+              onClick={() => void s.setPaused(!s.pausedSince)}
+            >
+              {s.pausedSince ? 'Resume sync' : 'Pause sync'}
+            </button>
           </section>
           <section className="card card-pad stack" data-testid="shared-device">
             <h2>Shared device?</h2>
