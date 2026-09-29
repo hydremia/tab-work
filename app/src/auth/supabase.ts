@@ -65,7 +65,13 @@ export function supabaseCloud(getClient: () => Promise<SupabaseClient>): Cloud {
         const client = await getClient();
         const { error } = await client.auth.signInWithOAuth({
           provider: 'azure',
-          options: { scopes: 'email', redirectTo: `${window.location.origin}${CALLBACK_PATH}` },
+          options: {
+            scopes: 'email',
+            redirectTo: `${window.location.origin}${CALLBACK_PATH}`,
+            // always show Microsoft's account picker: a remembered account that can't sign in (or the wrong one on a
+            // shared device) must not send every "Sign in" straight back to the same error
+            queryParams: { prompt: 'select_account' },
+          },
         });
         if (error) throw error;
       },
