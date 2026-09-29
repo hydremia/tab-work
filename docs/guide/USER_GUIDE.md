@@ -321,12 +321,18 @@ or **Import** next to a type heading (that picks the type for you).
 1. **Source**: pick one of
    - **Paste rows**: copy the schedule rows **with the header row** in Excel (or from a PDF table pasted into Excel)
      and paste them.
-   - **CSV / Excel file**: a `.csv`, `.xlsx` or `.xlsm` file. If the file has several sheets, you pick one.
+   - **File (CSV, Excel, PDF)**: a `.csv`, `.xlsx` or `.xlsm` file (if it has several sheets, you pick one), or a
+     **PDF** of the drawings or a submittal. The app rebuilds the schedule tables from the PDF's text and lists each
+     one by page and title (*p. 4 · PUMP SCHEDULE*); the equipment type is picked from the title, and you can change
+     it. Only PDFs made from CAD / Revit / Word have text: a scanned drawing can't be read (paste its rows instead).
+     Check the columns and the preview: a table the app read wrong shows up there.
    - **TAB workbook**: an existing a2b workbook. Only its Equipment Data Entry section is read.
 2. **New units are**: **New** or **Existing**.
 3. **Columns**: the app matches headers such as *Tag*, *Mark*, *Mfr*, *Supply CFM*, *OA CFM*, *E.S.P.*, *V/Ph/Hz*.
    Check each dropdown, and change it or set it to *— ignore —*. Untick **First row is column headers** if there's
    no header row.
+
+   ![Schedule from a PDF](../screenshots/42-pdf-schedule.png)
 4. **Preview**: each row shows **New · slot N**, **Update** (that designation already exists), or **Skip** (with the
    reason: bad number, no designation, repeated designation, over capacity). Values like `1,200 CFM`, `1-1/2` and
    `460/3/60` are understood.

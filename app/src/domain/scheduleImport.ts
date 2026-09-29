@@ -238,6 +238,15 @@ const SYNONYMS: Record<string, readonly string[]> = {
   width: ['width', 'w', 'diameter', 'dia', 'width or diameter'],
   height: ['height', 'h', 'depth'],
   liner: ['liner', 'liner thickness', 'lining'],
+  // hydronic
+  service: ['service', 'serves', 'serving'],
+  system: ['system', 'sys', 'loop', 'piping system'],
+  designGpm: ['gpm', 'flow', 'flow gpm', 'design gpm', 'design flow', 'capacity', 'capacity gpm', 'water flow'],
+  designHead: ['head', 'tdh', 'total head', 'head ft', 'ft hd', 'total dynamic head', 'design head', 'pump head'],
+  connectedLoadGpm: ['connected load', 'connected load gpm', 'connected gpm'],
+  rpm: ['rpm', 'speed', 'pump rpm', 'motor rpm'],
+  impeller: ['impeller', 'impeller dia', 'impeller size', 'imp dia', 'impeller diameter'],
+  pumpType: ['pump type', 'type', 'drive', 'control'],
 };
 
 export const normalizeHeader = (h: string) =>
