@@ -1,7 +1,8 @@
 /**
  * E2E: hydronic units. A new project gets a pump (design data, gauge readings: the pump-test panel shows the head
  * from the gauges), a chilled-water valve system with two valves (one out of tolerance), then the Export tab's
- * hydronic workbook is downloaded and read back with the hydronic map. Screenshots 37 (pump test) and 38 (valves).
+ * hydronic workbook is downloaded and read back with the hydronic map. A pump curve from the shared library gives the
+ * impeller and the flow. Screenshots 37 (pump test), 38 (valves), 43 (pump curve).
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -64,6 +65,48 @@ export async function hydronicFlow(browser: Browser, base: string, docShots: str
     const panel = page.getByTestId('calc-pumpTest');
     await panel.scrollIntoViewIfNeeded();
     await page.screenshot({ path: join(docShots, '37-pump-test.png') });
+
+    // ---- a pump in the shared curve library (test data: two impeller curves), picked on P-1
+    await put(page, 'shutoffSuction', '10');
+    await put(page, 'shutoffDischarge', '40');
+    await page.waitForTimeout(300);
+    const pumpUrl = page.url();
+    await page.goto(`${base}/library`);
+    await page.getByTestId('add-lib-pump').click();
+    const lp = page.getByTestId('pump-lib-item').last();
+    const pput = async (label: string, v: string, nth = 0) => {
+      const el = lp.getByLabel(label, { exact: true }).nth(nth);
+      await el.fill(v);
+      await el.blur();
+    };
+    await pput('Make', 'TestCo');
+    await pput('Model', 'TP');
+    await pput('Curve speed', '1750');
+    for (const [i, imp, pts] of [
+      [0, '8', '0 60\n150 52\n250 37'],
+      [1, '9', '0 76\n150 66\n250 52'],
+    ] as const) {
+      await lp.getByTestId('add-pump-curve').click();
+      await pput('Impeller', imp, i);
+      await pput('Points (GPM ft)', pts, i);
+    }
+    await pput('Curve sheet', 'e2e test data');
+    await page.waitForTimeout(300);
+    await page.goto(pumpUrl);
+    await page.getByLabel('Pump curve', { exact: true }).selectOption({ label: 'TestCo TP' });
+    await page.waitForTimeout(300);
+    const curveText = await page.getByTestId('pump-curve-result').innerText();
+    await page.getByTestId('pump-curve-use-gpm').click();
+    await page.waitForTimeout(300);
+    const gpmNow = await field(page, 'actualGpm').inputValue();
+    // shut-off (40 − 10) × 2.31 = 69.3 ft -> 8.58″; final 60.06 ft on that curve -> 151 GPM
+    check(
+      'hydronic: a library pump curve gives the impeller from the shut-off head and the flow at the final head',
+      /8\.58″ impeller/.test(curveText) && /151 GPM/.test(curveText) && gpmNow === '151',
+      `${curveText} | actual ${gpmNow}`,
+    );
+    await page.getByTestId('pump-curve-pick').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: join(docShots, '43-pump-curve.png') });
 
     // ---- a valve in the shared library (test data: an adjustable orifice valve with a two-row Cv table)
     await page.goto(`${base}/library`);

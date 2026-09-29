@@ -2,7 +2,7 @@
 import { writeFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
-import { emptyNaState, type Equipment } from '../data/types';
+import { emptyNaState, type Equipment, type LibraryPump } from '../data/types';
 import { computeCompletion } from '../domain/completion';
 import { seqKey } from '../domain/specs';
 import { getSpec } from '../domain/specs';
@@ -39,6 +39,7 @@ function bundle() {
       finalDischarge: 35,
       shutoffSuction: 10,
       shutoffDischarge: 40,
+      pumpCurveId: 'lib-p',
     }),
   );
   return b;
@@ -58,6 +59,39 @@ const completions = (b: ReturnType<typeof bundle>) =>
     ]),
   );
 
+// test data (not a real pump)
+const PUMP_LIB: LibraryPump[] = [
+  {
+    id: 'lib-p',
+    make: 'Test',
+    model: 'TP',
+    size: '2x2x9',
+    rpm: 1750,
+    curves: [
+      {
+        impeller: 8,
+        points: [
+          { gpm: 0, head: 60 },
+          { gpm: 150, head: 52 },
+          { gpm: 250, head: 37 },
+        ],
+      },
+      {
+        impeller: 9,
+        points: [
+          { gpm: 0, head: 76 },
+          { gpm: 150, head: 66 },
+          { gpm: 250, head: 52 },
+        ],
+      },
+    ],
+    source: 'test data',
+    notes: '',
+    createdAt: 0,
+    updatedAt: 0,
+  },
+];
+
 describe('graphics appendix', () => {
   it('builds profile, traverse, outlet and pump figures from a project', () => {
     const b = bundle();
@@ -69,6 +103,18 @@ describe('graphics appendix', () => {
     expect(t && t.kind === 'traverse' && t.readings[0].length).toBe(4);
     const p = m.figures.find((f) => f.kind === 'pump');
     expect(p && p.kind === 'pump' && p.finalHead).toBeCloseTo(60.06, 2);
+    expect(p && p.kind === 'pump' && p.curve).toBeNull();
+  });
+
+  it('a pump picked from the pump-curve library carries its curve at the estimated impeller', () => {
+    const b = bundle();
+    const m = buildGraphicsModel({ ...b, completions: completions(b), libraryPumps: PUMP_LIB });
+    const p = m.figures.find((f) => f.kind === 'pump');
+    if (p?.kind !== 'pump') throw new Error('no pump figure');
+    // shut-off (40 − 10) × 2.31 = 69.3 ft: between the 8″ (60) and 9″ (76) curves
+    expect(p.impeller).toBeCloseTo(8 + 9.3 / 16, 3);
+    expect(p.curve?.[0].head).toBeCloseTo(69.3, 3);
+    expect(p.curveName).toBe('Test TP 2x2x9');
   });
 
   it('long tables split into page-sized figures', () => {
@@ -81,7 +127,7 @@ describe('graphics appendix', () => {
 
   it('renders a PDF with a page per few figures', async () => {
     const b = bundle();
-    const m = buildGraphicsModel({ ...b, completions: completions(b) });
+    const m = buildGraphicsModel({ ...b, completions: completions(b), libraryPumps: PUMP_LIB });
     const { bytes, pages } = await renderGraphicsPdf(m, {
       firm: 'a2b accurate air balancing, llc',
       label: 'Prelim',

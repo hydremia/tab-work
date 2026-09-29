@@ -940,6 +940,17 @@ shows the flow (Cv × √ΔP in psi; a ΔP in ft w.g. is converted, set **ΔP me
 initial** / **Use as final**. The app interpolates between the table's settings and never extrapolates. Shared with
 the team when signed in.
 
+**Pump curve library** (**Library** page, under the valve library): enter a pump once from the manufacturer's curve
+sheet: make, model, size, the curves' speed, and one curve per impeller diameter (**Add impeller curve**; one line per
+point, *GPM head*, starting at shut-off). Name the curve sheet. On a pump, pick it under **Pump curve (library)** in
+the pump-test panel: with the shut-off gauges read, the app estimates the impeller (between the two catalogue
+impellers whose shut-off heads bracket the reading) and, with the final gauges, the flow at the final head. It
+corrects the curves to the **Actual RPM** when entered (affinity laws) and never extrapolates. **Use impeller** /
+**Use as actual GPM** (the flow method becomes *Pump curve*) write the estimates; nothing changes until you tap. The
+graphics appendix draws the curve with the design and operating points.
+
+![Pump curve](../screenshots/43-pump-curve.png)
+
 **Export → Hydronic workbook** (shown when the project has hydronic units) downloads it. It is written into the blank
 hydronic template each time (no re-import yet); issuing and locking the report stays on the airside workbook.
 

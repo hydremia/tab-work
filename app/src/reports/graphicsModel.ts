@@ -8,15 +8,16 @@
  *             the spread of the readings (coefficient of variation: how uniform the profile is)
  *   outlets   design vs. actual airflow of each outlet / inlet of a table, with the ± tolerance band
  *   valves    design vs. final GPM of a valve system's valves (same chart)
- *   pump      a pump's design point and operating point (flow vs head), with the shut-off head; the curve itself
- *             comes with the pump-curve library
+ *   pump      a pump's design point and operating point (flow vs head), with the shut-off head, and its curve
+ *             (at the impeller the shut-off head gives) when the pump is picked from the pump-curve library
  */
-import type { AirflowRow, Equipment, Project } from '../data/types';
+import type { AirflowRow, Equipment, LibraryPump, Project, PumpCurvePoint } from '../data/types';
 import { rowCfm } from '../domain/calc';
 import type { Completion } from '../domain/completion';
 import { EQUIPMENT_TYPES, equipmentType } from '../domain/equipmentTypes';
 import { sequenceValues, traverseLayout } from '../domain/equipmentCalcs';
 import { pumpTest } from '../domain/hydronicCalcs';
+import { pumpCurveResult, pumpName } from '../domain/pumpCurves';
 import { staticInputs, staticProfile, xlNum, type StaticProfile } from '../domain/staticProfile';
 import { getSpec } from '../domain/specs';
 import { unitCells } from '../workbook/adapter';
@@ -68,6 +69,11 @@ export interface PumpFigure {
   actualGpm: number | null;
   finalHead: number | null;
   shutoffHead: number | null;
+  /** the library curve at the estimated impeller (and the measured speed) */
+  curve: PumpCurvePoint[] | null;
+  curveName: string | null;
+  impeller: number | null;
+  curveNote: string | null;
 }
 
 export type Figure = ProfileFigure | TraverseFigure | BarsFigure | PumpFigure;
@@ -91,6 +97,7 @@ export function buildGraphicsModel(input: {
   equipment: readonly Equipment[];
   rows: readonly AirflowRow[];
   completions: ReadonlyMap<string, Completion>;
+  libraryPumps?: readonly LibraryPump[];
 }): GraphicsModel {
   const { project, rows, completions } = input;
   const order = (e: Equipment) => EQUIPMENT_TYPES.findIndex((t) => t.key === e.type);
@@ -169,6 +176,10 @@ export function buildGraphicsModel(input: {
     // pump operating point
     if (e.type === 'pump') {
       const p = pumpTest(e.data);
+      const lib = input.libraryPumps?.find((x) => x.id === e.data.pumpCurveId);
+      const r = lib
+        ? pumpCurveResult(lib, { shutoffHead: p.shutoffHead, finalHead: p.finalHead, rpm: xlNum(e.data.actualRpm) })
+        : null;
       if (p.finalHead !== null || p.actualGpm !== null)
         figures.push({
           kind: 'pump',
@@ -178,6 +189,10 @@ export function buildGraphicsModel(input: {
           actualGpm: p.actualGpm,
           finalHead: p.finalHead,
           shutoffHead: p.shutoffHead,
+          curve: r?.curve ?? null,
+          curveName: lib ? pumpName(lib) : null,
+          impeller: r?.impeller ?? null,
+          curveNote: r?.note ?? null,
         });
     }
   }

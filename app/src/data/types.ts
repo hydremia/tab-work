@@ -282,6 +282,33 @@ export interface LibraryValve {
   updatedAt: number;
 }
 
+export interface PumpCurvePoint {
+  gpm: number;
+  /** ft */
+  head: number;
+}
+
+/**
+ * The shared pump-curve library (Dexie v9 `libraryPumps`, server `pump_library`, 0010): pump models with their
+ * published head / flow curve per impeller diameter at the catalogue speed, stored once for the organization (synced
+ * like the valve library) and picked on a pump: the shut-off head gives the impeller, the final head the flow
+ * (domain/pumpCurves.ts). Values are read from published curves only; `source` names the curve sheet.
+ */
+export interface LibraryPump {
+  id: string;
+  make: string;
+  model: string;
+  size: string;
+  /** catalogue speed of the curves */
+  rpm: number | null;
+  /** one curve per impeller diameter (in.), points sorted by flow; the first point is at shut-off (0 GPM) */
+  curves: { impeller: number; points: PumpCurvePoint[] }[] | null;
+  source: string;
+  notes: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type TableName =
   | 'projects'
   | 'equipment'
@@ -291,10 +318,11 @@ export type TableName =
   | 'instruments'
   | 'libraryInstruments'
   | 'certProfiles'
-  | 'libraryValves';
+  | 'libraryValves'
+  | 'libraryPumps';
 
 /** Records of the organization that belong to no project: their changes carry the record's own id as projectId. */
-export const ORG_TABLES: readonly TableName[] = ['libraryInstruments', 'certProfiles', 'libraryValves'];
+export const ORG_TABLES: readonly TableName[] = ['libraryInstruments', 'certProfiles', 'libraryValves', 'libraryPumps'];
 
 /** The sync outbox and audit log: one row per field edit (or record create / delete). */
 export interface FieldChange {
