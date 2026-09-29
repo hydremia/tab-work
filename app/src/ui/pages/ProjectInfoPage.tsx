@@ -40,7 +40,8 @@ import {
   pressureStates,
   type ProjectCompletion,
 } from '../../domain/projectCompletion';
-import { EQUIPMENT_TYPES } from '../../domain/equipmentTypes';
+import { EQUIPMENT_TYPES, equipmentType } from '../../domain/equipmentTypes';
+import { HYDRONIC_INFO_KEYS } from '../../workbook/adapter';
 import { getSpec, type FieldSpec } from '../../domain/specs';
 import { IconPlus, IconTrash } from '../components/Icons';
 import { PhotoPicker, SaverStatus, usePhotoSaver } from '../components/PhotoPicker';
@@ -120,6 +121,37 @@ function PressureField({
         })()
       }
     />
+  );
+}
+
+/** Headers of the hydronic workbook's Plant Equipment and Flow Measurements pages (shown when the project has
+ *  hydronic units). */
+const HYDRONIC_HEADER_FIELDS: FieldSpec[] = [
+  {
+    key: HYDRONIC_INFO_KEYS.plantDpUnits,
+    label: 'Plant ΔP measured in',
+    input: 'select',
+    options: ['psi', 'ft w.g.'],
+    required: false,
+  },
+  { key: HYDRONIC_INFO_KEYS.plantInstrument, label: 'Plant instrument', input: 'text', required: false },
+  { key: HYDRONIC_INFO_KEYS.flowInstrument, label: 'Ultrasonic flow meter', input: 'text', required: false },
+];
+
+function HydronicHeaders({ project }: { project: Project }) {
+  return (
+    <section className="card card-pad stack" aria-labelledby="hyd-h" data-testid="hydronic-headers">
+      <h2 id="hyd-h">Hydronic report</h2>
+      <p className="small muted" style={{ margin: 0 }}>
+        Page headers of the hydronic workbook (Plant Equipment, Flow Measurements). Pumps and valve systems carry their
+        own instrument and ΔP unit.
+      </p>
+      <div className="form-grid">
+        {HYDRONIC_HEADER_FIELDS.map((f) => (
+          <InfoField key={f.key} project={project} field={f} />
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -662,6 +694,10 @@ export function ProjectInfoPage() {
         </section>
 
         <BuildingPressures project={project} hasHoods={hasHoods} />
+
+        {equipment.some((e) => equipmentType(e.type).discipline === 'hydronic') && (
+          <HydronicHeaders project={project} />
+        )}
 
         <OtherOutsideAir project={project} />
 
