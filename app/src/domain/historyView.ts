@@ -268,8 +268,9 @@ export function valueText(e: HistoryEntry, v: unknown, ctx: HistoryContext): str
 }
 
 /** Who: the name given on the device, else the user id (signed in) or "Local user", plus a short device id. */
-export function actorText(e: Pick<HistoryEntry, 'userId' | 'userName' | 'deviceId'>): string {
+export function actorText(e: Pick<HistoryEntry, 'userId' | 'userName' | 'deviceId' | 'deviceName'>): string {
   const who = e.userName || (e.userId && e.userId !== 'local' ? e.userId.slice(0, 8) : 'Local user');
+  if (e.deviceName) return `${who} · ${e.deviceName}`;
   return `${who} · device ${e.deviceId.slice(0, 4)}`;
 }
 export const actorKey = (e: Pick<HistoryEntry, 'userId' | 'deviceId'>) => `${e.userId}|${e.deviceId}`;

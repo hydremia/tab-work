@@ -187,6 +187,9 @@ export type RemoteChange = Omit<FieldChange, 'synced' | 'conflict'> & {
   /** false: the server did not apply it (superseded, a create of an existing / deleted record, unknown field). */
   applied?: boolean;
   note?: string | null;
+  /** (0007) who and which device, for the history */
+  userName?: string;
+  deviceName?: string;
 };
 
 export interface ApplyResult {
@@ -231,7 +234,12 @@ export async function applyRemoteChanges(changes: readonly RemoteChange[], pull?
       }
       const serverApplied = c.applied !== false || c.note === 'unknown field';
       const t = db.table(c.table as TableName) as Table<Record<string, unknown> & { id: string }, string>;
-      const who = { userId: c.userId, deviceId: c.deviceId };
+      const who = {
+        userId: c.userId,
+        deviceId: c.deviceId,
+        ...(c.userName ? { userName: c.userName } : {}),
+        ...(c.deviceName ? { deviceName: c.deviceName } : {}),
+      };
       const base = {
         projectId: c.projectId,
         ts: c.ts,
@@ -346,7 +354,7 @@ export async function applyRemoteChanges(changes: readonly RemoteChange[], pull?
       }
       // keep the remote change in the local log (audit, conflict detection), already synced
       if (!(c.table === 'projects' && c.op === 'delete')) {
-        const { applied: _a, note: _n, ...entry } = c;
+        const { applied: _a, note: _n, userName: _u, deviceName: _d, ...entry } = c;
         await db.fieldChanges.put({ ...entry, synced: 1 });
       }
     }

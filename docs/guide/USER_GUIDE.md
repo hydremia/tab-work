@@ -272,7 +272,12 @@ totals. The trash button removes a row (the rows below move up).
 
 ### Delete a project
 
-**Info → Danger zone → Delete project** removes the project and everything in it **from this device**. Export first.
+Open the project, then tap **⋯** at the top right → **Delete project…** (also at the bottom of **Info → Danger zone**).
+Export the workbook first if you may need it: a delete cannot be undone.
+
+- **Local mode** (or a project kept on this device only): it is removed from this device.
+- **Signed in with cloud sync:** it is removed **for everyone**: from every device and from the cloud, with its photos
+  and history. The confirmation says which one it is.
 
 ---
 
@@ -853,7 +858,8 @@ Each unit page also has a **History** section at the bottom (**Show (N)**) with 
 the History tab filtered to the unit.
 
 The history is kept on the device for **12 months** (at most 5,000 entries per project) and is deleted with the
-project. Changes made on another phone aren't in it (each device has its own history until sync arrives).
+project. With cloud sync, changes made on other devices appear too, e.g. *RTU-1 · Serial number … · Dana Kim · Phone*:
+the person who signed in and the device's name (see *Name this device* below).
 
 ---
 
@@ -864,6 +870,13 @@ project. Changes made on another phone aren't in it (each device has its own his
 > stays on each device, so keep exporting.
 
 ---
+
+### Name this device (with cloud sync)
+
+After you sign in, a yellow banner asks **Name this device**: tap **Phone**, **Tablet**, **Laptop** or **Desktop** (or
+type something like *Dana's iPad*) and **Save**. The History on every device then shows who made a change **and on
+which device**, e.g. *Dana Kim · Phone* instead of *device 3f9a*. Change it later in **Sync & account → This device**.
+The name is kept on the device (not in your account), so each device is named once.
 
 ### Signing out on a shared device (with cloud sync)
 
@@ -920,8 +933,8 @@ Only one person should keep working on a project's data at a time until sync is 
 
 **"Storage full", or photos won't save.**
 Free up space on the device (old videos and apps), then try again. Each project's workbook revisions take up to about
-25 MB, plus the photos. Export and save finished projects, then delete them on the phone (**Info → Danger zone →
-Delete project**).
+25 MB, plus the photos. Export and save finished projects, then delete them on the phone (**⋯ → Delete
+project…**; signed in, this deletes them for everyone, so only when the project is done).
 
 **The Photos tab says storage is "Best effort".**
 The device may clear app data when it runs low on space. Install the app to the home screen (iPhone: from Safari)

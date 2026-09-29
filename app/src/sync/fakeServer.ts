@@ -207,6 +207,9 @@ export class FakeSyncServer {
       org_id: org,
       applied: true,
       note: row.device_id === 'server' ? (row.note ?? null) : null,
+      // (0007) the name from the sign-in (never the device's claim); the device's name trimmed to 40
+      user_name: user.email,
+      device_name: row.device_id === 'server' ? null : row.device_name?.trim().slice(0, 40) || null,
       base_seq: row.base_seq ?? null,
     };
     const units = this.changeUnits(row);

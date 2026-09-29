@@ -22,7 +22,7 @@
  */
 import { db } from '../data/db';
 import { mergeCertProfiles } from '../data/repo';
-import { deviceNow, getSyncCursor, type SyncCursor } from '../data/identity';
+import { deviceNow, getDeviceName, getSyncCursor, type SyncCursor } from '../data/identity';
 import type { FieldChange } from '../data/types';
 import { receivedMs, SyncError, toRow, type SyncBackend } from './backend';
 import {
@@ -193,7 +193,8 @@ export class CloudSyncEngine implements SyncEngine {
         if (!batch.length) break;
       }
       try {
-        const out = await this.backend.push(batch.map((c) => toRow(c, this.userId, this.clockOffset)));
+        const deviceName = await getDeviceName();
+        const out = await this.backend.push(batch.map((c) => toRow(c, this.userId, this.clockOffset, deviceName)));
         await markSynced(batch, new Map(out.map((r) => [r.id, Number(r.server_seq)])));
         res.pushed += batch.length;
       } catch (e) {
@@ -239,6 +240,8 @@ export class CloudSyncEngine implements SyncEngine {
         ts: Number(r.client_ts) - this.clockOffset,
         serverSeq: Number(r.server_seq),
         ...(r.base_seq != null ? { baseSeq: Number(r.base_seq) } : {}),
+        ...(r.user_name ? { userName: r.user_name } : {}),
+        ...(r.device_name ? { deviceName: r.device_name } : {}),
         ...(r.applied === false ? { applied: false, note: r.note ?? null } : {}),
         // the server's own changes say why (e.g. a review it cleared): shown in the history
         ...(r.applied !== false && r.device_id === 'server' && r.note ? { note: r.note } : {}),
