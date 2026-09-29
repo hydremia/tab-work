@@ -170,10 +170,16 @@ describe('device name', () => {
     await db.meta.put({ key: 'cloudUser', value: USER.id });
     renderAt('/account');
     const banner = await screen.findByTestId('device-name-banner');
+    expect(screen.getByTestId('account-button')).toHaveAccessibleName('Account: Dana Kim · this device has no name');
+    expect(screen.getByTestId('account-button').querySelector('.account-dot')).not.toBeNull();
     await user.click(within(banner).getByRole('button', { name: 'Phone' }));
     await user.click(within(banner).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(screen.queryByTestId('device-name-banner')).toBeNull());
     expect((await db.meta.get('deviceName'))?.value).toBe('Phone');
+    const account = screen.getByTestId('account-button');
+    expect(account).toHaveAttribute('href', '/account');
+    expect(account).toHaveTextContent('DK');
+    await waitFor(() => expect(account).toHaveAccessibleName('Account: Dana Kim · Phone'));
     const field = within(screen.getByTestId('account-device-name')).getByLabelText('Device name');
     await waitFor(() => expect(field).toHaveValue('Phone'));
     // own history entries carry the signed-in name and the device name
@@ -187,6 +193,7 @@ describe('device name', () => {
     renderAt('/');
     await screen.findByTestId('local-banner');
     expect(screen.queryByTestId('device-name-banner')).toBeNull();
+    expect(screen.queryByTestId('account-button')).toBeNull();
   });
 });
 

@@ -876,6 +876,10 @@ the person who signed in and the device's name (see *Name this device* below).
 After you sign in, a yellow banner asks **Name this device**: tap **Phone**, **Tablet**, **Laptop** or **Desktop** (or
 type something like *Dana's iPad*) and **Save**. The History on every device then shows who made a change **and on
 which device**, e.g. *Dana Kim · Phone* instead of *device 3f9a*. Change it later in **Sync & account → This device**.
+
+**Your account:** the round button at the top right (your initials) opens **Sync & account**: who is signed in, this
+device's name, **Sync now** and **Sign out**. A yellow dot on it means something needs doing (sign in, or name this
+device). The status pill next to it (cloud icon) opens the same page.
 The name is kept on the device (not in your account), so each device is named once.
 
 ### Signing out on a shared device (with cloud sync)

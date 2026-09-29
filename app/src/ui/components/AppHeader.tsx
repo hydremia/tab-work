@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router';
-import { DeviceNameBanner } from './DeviceName';
+import { DeviceNameBanner, useDeviceName } from './DeviceName';
 import { useSync, type SyncStatus } from '../../sync/SyncProvider';
-import { IconBack, IconCloudCheck, IconCloudOff, IconCloudUp, IconDevice } from './Icons';
+import { IconBack, IconCloudCheck, IconCloudOff, IconCloudUp, IconDevice, IconUser } from './Icons';
 
 export function SyncIndicator() {
   const s = useSync();
@@ -41,8 +41,43 @@ export function SyncIndicator() {
       data-testid="sync-status"
     >
       {icon}
-      {text[s.status]}
+      {s.status === 'synced' ? <span className="hide-sm">{text.synced}</span> : text[s.status]}
       {s.status === 'local' && (s.online ? <span className="hide-sm"> mode</span> : <span> · offline</span>)}
+    </Link>
+  );
+}
+
+/** "Dana Kim" → "DK", "dana@a2b.com" → "D". */
+export function initials(name: string): string {
+  const words = name
+    .replace(/@.*/, '')
+    .split(/[\s._-]+/)
+    .filter(Boolean);
+  return words
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('');
+}
+
+/** The account button: who is signed in (initials), sign-in / sign-out and this device's name, on Sync & account. */
+export function AccountButton() {
+  const s = useSync();
+  const deviceName = useDeviceName();
+  const who = s.user ? s.user.name || s.user.email || 'Signed in' : null;
+  // a dot when something needs doing: sign in, or name this device
+  const needs = s.status === 'signed-out' || (Boolean(s.user) && deviceName === '');
+  if (s.status === 'local') return null; // no accounts in local mode: the Local pill explains it
+  const label = who
+    ? `Account: ${who}${deviceName ? ` · ${deviceName}` : ' · this device has no name'}`
+    : 'Account: not signed in';
+  return (
+    <Link to="/account" className="account-btn" aria-label={label} title={label} data-testid="account-button">
+      {who ? (
+        <span className="account-initials">{initials(who) || <IconUser size={18} />}</span>
+      ) : (
+        <IconUser size={20} />
+      )}
+      {needs && <span className="account-dot" aria-hidden />}
     </Link>
   );
 }
@@ -76,6 +111,7 @@ export function AppHeader({
         </div>
         {actions}
         <SyncIndicator />
+        <AccountButton />
       </div>
     </header>
   );
