@@ -32,6 +32,12 @@ export const IconDevice = (p: P) => (
     <path d="M11 18h2" />
   </svg>
 );
+export const IconUser = (p: P) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 21a8 8 0 0 1 16 0" />
+  </svg>
+);
 export const IconCloudCheck = (p: P) => (
   <svg {...base(p)}>
     <path d="M17.5 19H7a5 5 0 1 1 1-9.9A6 6 0 0 1 19.4 11 4 4 0 0 1 17.5 19z" />
