@@ -214,6 +214,8 @@ describe('deleting a project', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/'));
     expect(await db.projects.get(p.id)).toBeUndefined();
     await waitFor(() => expect(server.record('projects', p.id)).toBeUndefined(), { timeout: 5000 });
+    // let the sync that pushed the delete finish before the next test resets the database
+    await waitFor(() => expect(screen.getByTestId('sync-status')).toHaveTextContent('Synced'), { timeout: 5000 });
   });
 
   it('cancelled: nothing is deleted', async () => {
@@ -258,6 +260,33 @@ describe('first sign-in with local projects', () => {
     expect(only).toHaveTextContent('Bravo Clinic');
     await user.click(within(only).getByRole('button', { name: 'Move to the cloud' }));
     await waitFor(() => expect(server.record('projects', b.id)).toBeDefined(), { timeout: 5000 });
+  });
+});
+
+describe('sync loop lifetime', () => {
+  it('a sync in flight when the app unmounts does not start another round with its old engine', async () => {
+    useCloud(true);
+    await db.meta.put({ key: 'cloudUser', value: USER.id });
+    const { unmount } = render(
+      <SyncProvider>
+        <RouterProvider router={createMemoryRouter(routes, { initialEntries: ['/account'] })} />
+      </SyncProvider>,
+    );
+    await screen.findByTestId('account-signed-in');
+    await waitFor(() => expect(backend).not.toBeNull());
+    const old = backend!;
+    let later = '';
+    old.duringPush = async () => {
+      // while the push is in flight: ask for another round, leave, and edit afterwards
+      screen.getByRole('button', { name: /Sync now/ }).click();
+      unmount();
+      later = (await createProject({ name: 'After unmount' })).id;
+    };
+    await createProject({ name: 'Before' });
+    await waitFor(() => expect(later).not.toBe(''), { timeout: 5000 });
+    await new Promise((r) => setTimeout(r, 300));
+    expect(server.record('projects', later)).toBeUndefined();
+    expect(await db.fieldChanges.where('synced').equals(0).count()).toBeGreaterThan(0);
   });
 });
 

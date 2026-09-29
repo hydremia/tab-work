@@ -79,8 +79,9 @@ export const VALVE_SYSTEM_SPEC: EquipmentSpec = {
     },
     {
       key: 'final',
-      label: 'Final settings',
+      label: 'Balancing and final settings',
       airflow: true,
+      calc: 'balancing',
       fields: [
         {
           key: 'memoryStops',
