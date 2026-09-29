@@ -3,6 +3,7 @@ import { addAirflowRow, airflowTableCapacity, CapacityError, deleteRecord, setFi
 import { NOTATIONS, type AirflowRow, type Equipment, type NaMark, type Notation } from '../../data/types';
 import { formatNumber, formatPercent, rowCfm, tableTotals, withinTolerance } from '../../domain/calc';
 import { valveTotals } from '../../domain/hydronicCalcs';
+import { ValvePick } from './ValvePick';
 import { tableNaKey, type TableResult } from '../../domain/completion';
 import { filterCfm, hoodRow } from '../../domain/equipmentCalcs';
 import { DEFAULT_FILL_DOWN, tableColumns, type RowColumnSpec, type RowTableSpec } from '../../domain/specs';
@@ -195,6 +196,7 @@ function OutletRow({
           ({autoReasons.join('; ')})
         </div>
       )}
+      {spec.calc === 'valve' && <ValvePick row={row} unitData={unitData} label={label} />}
       <div className="outlet-foot">
         <RowCalcLine spec={spec} row={row} unitData={unitData} />
         {spec.tolerance && <Pct ratio={result?.ratio ?? null} tolerance={tolerance} />}

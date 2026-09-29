@@ -27,9 +27,9 @@ Do every step on **tab-app-dev** first, check it with a preview deploy (step 8),
 | Sign in with Microsoft | Microsoft Entra ID + Supabase "Azure" provider | Only accounts of your company's Microsoft 365 can sign in |
 | Two settings | Vercel | Tell the app where the Supabase project is |
 
-## 2. Apply the database migrations (0001 … 0008)
+## 2. Apply the database migrations (0001 … 0009)
 
-Eight files, **in this order**. Each can be run again safely only where noted, so run each one once.
+Nine files, **in this order**. Each can be run again safely only where noted, so run each one once.
 
 | File | What it adds |
 |---|---|
@@ -41,6 +41,7 @@ Eight files, **in this order**. Each can be run again safely only where noted, s
 | `supabase/migrations/0006_cert_profile.sql` | the shared certification profile (CP details, stamp and signature images) (re-runnable) |
 | `supabase/migrations/0007_change_labels.sql` | the History on other devices names the person and the device (*Dana Kim · Phone*) (re-runnable) |
 | `supabase/migrations/0008_hydronic_types.sql` | hydronic equipment (pumps, valve systems, plant, flow readings). **Apply before anyone adds a hydronic unit**: until then the server refuses them and that device's sync stops at the first one (re-runnable) |
+| `supabase/migrations/0009_valve_library.sql` | the shared balancing-valve library (valve models from data sheets, picked on valve rows) (re-runnable) |
 
 **Option A — in the browser (simplest):**
 
@@ -48,7 +49,7 @@ Eight files, **in this order**. Each can be run again safely only where noted, s
 2. Open `supabase/migrations/0001_init.sql` on GitHub (Raw), copy everything, paste, **Run**. It should end with
    "Success. No rows returned".
 3. New query → the same with `0002_review_lock.sql`, then with `0003_sync_rules.sql`, then `0004_library_links.sql`, then
-   `0005_review_deletes.sql`, then `0006_cert_profile.sql`, then `0007_change_labels.sql`, then `0008_hydronic_types.sql`.
+   `0005_review_deletes.sql`, then `0006_cert_profile.sql`, then `0007_change_labels.sql`, then `0008_hydronic_types.sql`, then `0009_valve_library.sql`.
 
 **Option B — command line** (from a checkout of the repository, Node installed):
 
@@ -56,7 +57,7 @@ Eight files, **in this order**. Each can be run again safely only where noted, s
 npx supabase login
 npx supabase init                          # only if it says this is not a Supabase project; answer "n" to the questions
 npx supabase link --project-ref <project-ref>
-npx supabase db push                       # applies 0001 … 0008 in order; shows them and asks first
+npx supabase db push                       # applies 0001 … 0009 in order; shows them and asks first
 ```
 
 The project ref is the `xxxx` in `https://xxxx.supabase.co` (Settings → General). Never run `supabase test db` against
@@ -65,7 +66,7 @@ the project: the files in `supabase/tests/` are for a throw-away local PostgreSQ
 **Check** (SQL Editor, new query):
 
 ```sql
-select count(*) as mapped_fields from public.sync_columns;                       -- 54 (0001 … 0008)
+select count(*) as mapped_fields from public.sync_columns;                       -- 64 (0001 … 0009)
 select public.server_time_ms() > 0 as server_clock;                            -- true
 select id, public, file_size_limit from storage.buckets where id = 'photos';   -- photos | false | 26214400
 select name from public.organizations;                                          -- a2b
@@ -76,6 +77,7 @@ select count(*) from information_schema.columns
  where table_name = 'field_changes' and column_name = 'device_name';          -- 1 (0007 applied)
 select pg_get_constraintdef(oid) like '%valveSystem%' from pg_constraint
  where conname = 'equipment_type_check';                                         -- true (0008 applied)
+select count(*) from public.valve_library;                                     -- 0 (0009 applied)
 ```
 
 ## 3. Photo storage
@@ -214,7 +216,8 @@ sync is off wait on the device (the outbox) until it is on again.
 2. **Undo migration 0003 only** (if its rules cause trouble): SQL Editor → run
    `supabase/rollback/0003_sync_rules_down.sql`. It restores the 0001 / 0002 rules and keeps all data; 0003 can be
    applied again later. (Checked on PostgreSQL 16: after the rollback the 0001 smoke test behaves as before, and 0003
-   re-applies cleanly.) Undo later ones first, newest first: **0008**
+   re-applies cleanly.) Undo later ones first, newest first: **0009**
+   (`supabase/rollback/0009_valve_library_down.sql`: library changes refused again; table and data kept), **0008**
    (`supabase/rollback/0008_hydronic_types_down.sql`: airside types only; delete hydronic units first), **0007**
    (`supabase/rollback/0007_change_labels_down.sql`: names stop being filled in; the columns and names kept), **0006** (`supabase/rollback/0006_cert_profile_down.sql`:
    back to the 0005 rules, the profile table kept), **0005** (`supabase/rollback/0005_review_deletes_down.sql`: back

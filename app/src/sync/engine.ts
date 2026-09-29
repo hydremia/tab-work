@@ -62,6 +62,11 @@ export interface SyncEngine {
   sync(): Promise<SyncResult>;
   /** Live hint that another device pushed (Realtime); returns the unsubscribe function. */
   subscribe?(onChange: () => void): () => void;
+  /**
+   * The engine is no longer in use (sign-out, another user, the app unmounted): a sync in flight stops before its next
+   * push batch, so it never sends changes made after it (with its old session / backend).
+   */
+  stop?(): void;
 }
 
 const NOTHING: SyncResult = { pushed: 0, held: 0, applied: 0, conflicts: 0, slotMoves: 0, released: 0, photos: null };
@@ -132,7 +137,13 @@ export class CloudSyncEngine implements SyncEngine {
     if (typeof row?.value === 'number') this.clockOffset = row.value;
   }
 
+  private stopped = false;
+  stop(): void {
+    this.stopped = true;
+  }
+
   async sync(): Promise<SyncResult> {
+    if (this.stopped) return NOTHING;
     try {
       await this.measureClock();
     } catch (e) {
@@ -149,8 +160,8 @@ export class CloudSyncEngine implements SyncEngine {
     let late: PullResult = { applied: 0, conflicts: 0 };
     // after a push: the server's own changes in answer to it (a review it cleared) and, when a change was refused by
     // a lock this device didn't know about yet, the lock
-    if (pushed.pushed || pushed.held) late = await this.pull();
-    const photos = await processPhotoQueue(this.backend);
+    if ((pushed.pushed || pushed.held) && !this.stopped) late = await this.pull();
+    const photos = this.stopped ? null : await processPhotoQueue(this.backend);
     return {
       ...pushed,
       applied: pulled.applied + late.applied,
@@ -184,6 +195,7 @@ export class CloudSyncEngine implements SyncEngine {
   async push(): Promise<PushResult> {
     const res: PushResult = { pushed: 0, held: 0 };
     for (let guard = 0; guard < 10_000; guard++) {
+      if (this.stopped) break;
       let batch = await pendingChanges(this.batchSize);
       if (!batch.length) break;
       const heldNow = await this.holdLocked(batch);

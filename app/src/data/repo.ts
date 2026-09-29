@@ -37,6 +37,7 @@ import {
   type Issue,
   type IssueKind,
   type LibraryInstrument,
+  type LibraryValve,
   type Photo,
   type PhotoCategory,
   type Project,
@@ -64,6 +65,7 @@ export const writeTables = () => [
   db.conflicts,
   db.libraryInstruments,
   db.certProfiles,
+  db.libraryValves,
 ];
 
 /** Where a write comes from (recorded in the history). */
@@ -120,6 +122,8 @@ export function describeRecord(name: TableName, rec: AnyRecord): string {
       return `Library: ${String(r.type || 'instrument')}`;
     case 'certProfiles':
       return 'Certification profile';
+    case 'libraryValves':
+      return `Library valve: ${[r.make, r.model, r.size].filter(Boolean).join(' ') || 'valve'}`;
   }
 }
 
@@ -907,6 +911,31 @@ export async function deleteLibraryInstrument(libId: string): Promise<void> {
     }
     await deleteRecord('libraryInstruments', libId);
   });
+}
+
+/** A new library valve (synced like the calibration library; its changes are filed under its own id). */
+export async function addLibraryValve(v: Partial<Omit<LibraryValve, 'id' | 'createdAt' | 'updatedAt'>> = {}) {
+  const now = Date.now();
+  return createRecord<LibraryValve>('libraryValves', {
+    id: uuid(),
+    make: v.make ?? '',
+    model: v.model ?? '',
+    size: v.size ?? '',
+    valveType: v.valveType ?? '',
+    cvTable: v.cvTable ?? null,
+    ratedGpm: v.ratedGpm ?? null,
+    dpMin: v.dpMin ?? null,
+    dpMax: v.dpMax ?? null,
+    source: v.source ?? '',
+    notes: v.notes ?? '',
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+/** Deleting a library valve leaves the valve rows picked from it as they are (their make / model / size stay). */
+export async function deleteLibraryValve(id: string): Promise<void> {
+  await deleteRecord('libraryValves', id);
 }
 
 /** Copy a library instrument into one of the project's calibration slots (the project keeps its own copy). */

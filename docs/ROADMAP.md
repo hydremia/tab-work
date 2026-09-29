@@ -347,3 +347,32 @@ them.
 
 **Needs from a2b:** the checks a reviewer already makes by hand (even a rough list), and the thresholds a2b uses.
 
+### 7.5 Equipment performance library: pump curves, fan curves, component pressure drops (added 2026-09-29)
+
+This uses the same pattern as the valve library: data entered once from **real submittals and data sheets**, shared
+with the team, each entry naming its source, and added to as equipment turns up. "Stock" curves for common equipment
+are only worth having when they come from a published data sheet: a curve that is roughly right gives a flow or a
+verdict that is precisely wrong in a certified report.
+
+| Library | What an entry holds | What the app does with it |
+|---|---|---|
+| **Pump curves** (first) | make, model, speed; per impeller diameter the points (GPM, head ft); optional NPSH and BHP curves | NEBB 9.3.4 **pump-curve flow method**, done deterministically: the shut-off head picks the impeller (or a curve drawn parallel to the nearest one, as NEBB describes); the final TDH gives the flow on that curve. It fills the pump's final flow with the working shown, and draws the curve with the operating point on the pump page / report appendix (§7.1). |
+| **Fan curves** | make, model, fan size, class; per RPM the points (CFM, static pressure in. w.g.), and BHP | Operating point from the measured RPM and TSP: the expected CFM, checked against the measured airflow (a large gap means a measurement or system problem); fan laws for the RPM needed to reach design (the sheave change to recommend); the curve with the operating point in the report appendix. |
+| **Component pressure drops** | coil / filter / wheel / heat section: rated ΔP at a rated CFM (from the unit submittal) | The **expected static profile** of a unit at the measured airflow (ΔP scales with (CFM / rated CFM)²), drawn next to the measured one on the unit diagram (§7.1): a loaded filter or a restrictive coil stands out. Filters: clean vs. dirty ΔP. |
+| **Motors** (small) | HP, RPM, FLA, SF, efficiency | Pre-fills motor data; the BHP estimate gets the real efficiency instead of the workbook's fixed 0.9. |
+
+**How entries get in:**
+- **Typed from the submittal:** the curve points read at a few flows (5–8 points per curve is enough for straight
+  interpolation). The app draws what was entered over a picture of the submittal page, so it is easy to check.
+- **Picture tracing (later):** photograph or import the submittal's curve page, click the axes' end values, then click
+  along each curve. The points are read from the picture: this is deterministic, with no AI involved.
+- **Manufacturer selection software exports** (Greenheck CAPS, Loren Cook, Bell & Gossett ESP-Systemwize and others)
+  often give tables or CSV files, which import directly.
+
+**Order I'd suggest:** pump curves first. They complete a NEBB method the hydronic report already uses, and pumps are
+a2b's main hydronic equipment. Then component pressure drops, which pair with the static-profile diagram in §7.1.
+Then fan curves.
+
+**Needs from a2b:** a few real submittals (pump and fan curve pages, AHU / RTU component data) to shape the entry forms
+and to test against.
+

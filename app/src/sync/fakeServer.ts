@@ -143,7 +143,7 @@ export class FakeSyncServer {
       throw new FakeServerError('TAB_FORBIDDEN: a change must be made as the signed-in user', '42501');
     // a library instrument belongs to no project: its changes are filed under its own id (0004)
     // (0006) the certification profile likewise
-    const isLib = row.table_name === 'libraryInstruments' || row.table_name === 'certProfiles';
+    const isLib = ['libraryInstruments', 'certProfiles', 'libraryValves'].includes(row.table_name);
     const project = isLib ? undefined : this.record('projects', row.project_id);
     const org = isLib
       ? ((this.record(row.table_name, row.record_id)?.orgId as string | undefined) ??

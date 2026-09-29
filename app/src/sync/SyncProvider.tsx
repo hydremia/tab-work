@@ -139,6 +139,18 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // the engine in use: a sync loop stops as soon as its engine is replaced (sign-out, another user) or the provider
+  // unmounts, so a stale engine never pushes changes made after it (with its old session / backend)
+  const live = useRef<SyncEngine | null>(null);
+  const latestSync = useRef<() => Promise<void>>(async () => undefined);
+  useEffect(() => {
+    live.current = engine;
+    return () => {
+      if (live.current === engine) live.current = null;
+      engine?.stop?.();
+    };
+  }, [engine]);
+
   const syncNow = useCallback(async () => {
     if (!engine || onboarding || !online) return;
     if (running.current) {
@@ -150,6 +162,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     try {
       do {
         again.current = false;
+        if (live.current !== engine) break;
         await engine.sync();
       } while (again.current);
       setError(null);
@@ -159,8 +172,13 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     } finally {
       running.current = false;
       setSyncing(false);
+      // a stale loop that ended: a sync the current engine asked for meanwhile runs now
+      if (live.current && live.current !== engine) void latestSync.current();
     }
   }, [engine, onboarding, online]);
+  useEffect(() => {
+    latestSync.current = syncNow;
+  }, [syncNow]);
 
   // soon after local edits (and when coming back online), periodically, and on Realtime hints
   useEffect(() => {

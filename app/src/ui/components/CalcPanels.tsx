@@ -3,6 +3,7 @@ import type { AirflowRow, Equipment } from '../../data/types';
 import { formatNumber, formatPercent } from '../../domain/calc';
 import type { Completion } from '../../domain/completion';
 import { ervTotals, filterGridCfm, hoodTotals, mauTotals, traverseTotals } from '../../domain/equipmentCalcs';
+import { balancingPlan } from '../../domain/balancing';
 import { pumpTest } from '../../domain/hydronicCalcs';
 import { motorCalc, motorInputs, motorWarnings } from '../../domain/motorCalcs';
 import type { CalcPanel as PanelKey } from '../../domain/specs';
@@ -346,6 +347,77 @@ export function CalcPanel({
           </div>
         )}
       </>
+    );
+  } else if (panel === 'balancing') {
+    const p = balancingPlan(
+      rows.filter((r) => r.table === 'valves').sort((a, b) => a.order - b.order),
+      tolerance,
+    );
+    const gpm = (x: number | null) => (x === null ? '—' : `${formatNumber(x, 1)} GPM`);
+    body = (
+      <div className="balance-plan" data-testid="balance-plan">
+        <p className="small" style={{ margin: 0 }}>
+          <b>Proportional method</b> (NEBB 9.4.1): with every valve open, read each valve&apos;s initial flow. The valve
+          at the lowest % of design is the reference and stays wide open; throttle the others, next-lowest first, to the
+          same % (the targets below; re-read the reference as you go, its % rises). Then set the pump so every valve is
+          at design ±{Math.round(tolerance * 100)} %.
+        </p>
+        {p.reference ? (
+          <ol className="balance-steps">
+            {p.steps.map((s) => (
+              <li key={s.id} data-done={s.done} data-testid="balance-step">
+                <b>{s.tag}</b>{' '}
+                <span className="small muted">
+                  initial {gpm(s.initial)} = {formatPercent(s.ratio)} of {gpm(s.design)}
+                </span>
+                {s.target === null ? (
+                  <span className="chip">Reference: leave wide open</span>
+                ) : (
+                  <span>
+                    {' '}
+                    → set to <b data-testid="balance-target">{gpm(s.target)}</b>
+                    {s.final !== null && (
+                      <span className="small muted">
+                        {' '}
+                        (final {gpm(s.final)}
+                        {s.done ? ' ✓' : ''})
+                      </span>
+                    )}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="small muted" style={{ margin: 0 }}>
+            Enter the design and initial flow of the valves to get the balancing order and targets.
+          </p>
+        )}
+        {p.waiting > 0 && p.reference && (
+          <p className="small muted" style={{ margin: 0 }}>
+            {p.waiting} valve(s) without a design or initial flow are not in the plan yet.
+          </p>
+        )}
+        <div className="totals" aria-label="Balancing progress">
+          <span>
+            Finals within ±{Math.round(tolerance * 100)} %{' '}
+            <b data-testid="balance-within">
+              {p.finalsWithin} / {p.finals}
+            </b>
+          </span>
+          <span>
+            Wide open <b>{p.wideOpen}</b>
+          </span>
+          {p.balanced ? (
+            <span className="chip" data-testid="balance-done">
+              Balanced
+            </span>
+          ) : (
+            p.finals > 0 &&
+            p.wideOpen === 0 && <span className="chip chip-warn">Mark at least one valve wide open (NEBB 9.4)</span>
+          )}
+        </div>
+      </div>
     );
   } else if (panel === 'pumpTest') {
     const t = pumpTest(d);

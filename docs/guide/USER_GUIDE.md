@@ -886,6 +886,23 @@ project information, remarks, calibration and certification are shared with the 
 
 ![Pump test](../screenshots/37-pump-test.png)
 
+**Balancing assistant** (valve system → *Balancing and final settings*): with every valve open, enter each valve's
+**Initial** flow. The panel lists the valves lowest % of design first: the first is the **reference** (leave it wide
+open); every other valve gets a **target** flow (its design × the reference's %) to throttle it to, next-lowest first
+(NEBB's proportional method). Re-read the reference as you go. Then set the pump so every valve is at design ±10 %,
+enter the **Final** flows and mark the wide-open valve(s): the panel shows **Balanced** when every final is in tolerance
+and a valve is recorded wide open.
+
+![Balancing assistant](../screenshots/40-balancing.png)
+
+**Valve library** (**Library** page, under the calibration library): enter a valve model once from the manufacturer's
+data sheet: make, model, size, type, and either its **Cv table** (one line per setting: *setting Cv*; a fixed orifice:
+just its Cv) or, for a self-adjusting valve, its tag flow and ΔP control range. Name the data sheet. On a valve row,
+pick it under **Library valve**: the row takes the make / model, size and type, and once the setting and ΔP are in it
+shows the flow (Cv × √ΔP in psi; a ΔP in ft w.g. is converted, set **ΔP measured in** on the system) with **Use as
+initial** / **Use as final**. The app interpolates between the table's settings and never extrapolates. Shared with
+the team when signed in.
+
 **Export → Hydronic workbook** (shown when the project has hydronic units) downloads it. It is written into the blank
 hydronic template each time (no re-import yet); issuing and locking the report stays on the airside workbook.
 

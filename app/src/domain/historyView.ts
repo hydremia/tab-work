@@ -222,6 +222,21 @@ export function fieldLabel(e: HistoryEntry, ctx: HistoryContext): string {
           signature: 'Signature image',
         }[f] ?? f
       );
+    case 'libraryValves':
+      return (
+        {
+          make: 'Make',
+          model: 'Model',
+          size: 'Size',
+          valveType: 'Type',
+          cvTable: 'Cv table',
+          ratedGpm: 'Rated flow',
+          dpMin: 'ΔP range min',
+          dpMax: 'ΔP range max',
+          source: 'Data sheet',
+          notes: 'Notes',
+        }[f] ?? f
+      );
     case 'libraryInstruments':
       return (
         {
@@ -291,6 +306,8 @@ export function subjectText(e: HistoryEntry, ctx: HistoryContext): string {
       return 'Instruments';
     case 'certProfiles':
       return 'Certification profile';
+    case 'libraryValves':
+      return 'Valve library';
     case 'libraryInstruments': {
       const lib = e.recordId ? ctx.library?.get(e.recordId) : undefined;
       const name = lib ? [lib.type, lib.serial && `SN ${lib.serial}`].filter(Boolean).join(' ') : '';
