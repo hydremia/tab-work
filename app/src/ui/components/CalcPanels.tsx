@@ -3,6 +3,7 @@ import type { AirflowRow, Equipment } from '../../data/types';
 import { formatNumber, formatPercent } from '../../domain/calc';
 import type { Completion } from '../../domain/completion';
 import { ervTotals, filterGridCfm, hoodTotals, mauTotals, traverseTotals } from '../../domain/equipmentCalcs';
+import { pumpTest } from '../../domain/hydronicCalcs';
 import { motorCalc, motorInputs, motorWarnings } from '../../domain/motorCalcs';
 import type { CalcPanel as PanelKey } from '../../domain/specs';
 import {
@@ -344,6 +345,38 @@ export function CalcPanel({
             {t.entered - t.points} reading(s) past the {t.points} grid points are not averaged by the workbook.
           </div>
         )}
+      </>
+    );
+  } else if (panel === 'pumpTest') {
+    const t = pumpTest(d);
+    const ft = (x: number | null) => (x === null ? '—' : `${formatNumber(x, 1)} ft`);
+    body = (
+      <>
+        <Kv
+          items={[
+            ['Shut-off head', ft(t.shutoffHead), 'Pumps M (No Flow)', 'pump-shutoff-head'],
+            ['Wide-open head', ft(t.wideOpenHead), 'Pumps M (Wide Open)'],
+            ['Final head (TDH)', ft(t.finalHead), 'Pumps M (Final)', 'pump-final-head'],
+            ['Design head', ft(t.designHead)],
+          ]}
+        />
+        <div className="totals" aria-label="Pump results">
+          <span>
+            Head <b>{formatNumber(t.finalHead, 1)}</b> / <b>{formatNumber(t.designHead, 1)}</b> ft
+          </span>
+          <Pct ratio={t.headRatio} tolerance={tolerance} />
+          <span>
+            Flow <b data-testid="pump-flow">{formatNumber(t.actualGpm)}</b> / <b>{formatNumber(t.designGpm)}</b> GPM
+          </span>
+          <Pct ratio={t.flowRatio} tolerance={tolerance} />
+        </div>
+        {t.headAboveDesign && (
+          <div className="callout" data-tone="amber" role="status">
+            Final head is above design, so the flow will be below design (NEBB 9.5.1 m). Check the system for closed
+            valves or dirty strainers before throttling.
+          </div>
+        )}
+        <ReportNote> Head = (discharge − suction) × 2.31 / SG + gauge elevation difference.</ReportNote>
       </>
     );
   }

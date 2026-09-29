@@ -25,6 +25,7 @@ import { certificationFlow, libraryFlow, pressuresAndAttention, scheduleFlow } f
 import { workflowFlow } from './workflow';
 import { deployFlow } from './deploy';
 import { tagsFlow } from './tags';
+import { hydronicFlow } from './hydronic';
 import { syncFlow } from './sync';
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -734,6 +735,7 @@ async function main() {
     await libraryFlow(browser, BASE, DOC_SHOTS, check);
     await certificationFlow(browser, BASE, DOC_SHOTS, OUT, check);
     await tagsFlow(BASE, file, DOC_SHOTS, OUT, check, launch);
+    await hydronicFlow(browser, BASE, DOC_SHOTS, OUT, check);
 
     // ------------------------------------------------------------------ review, issue / lock, unlock, history
     await workflowFlow(browser, BASE, file, OUT, DOC_SHOTS, check);

@@ -863,6 +863,32 @@ the person who signed in and the device's name (see *Name this device* below).
 
 ---
 
+## 10b. Hydronic: pumps, balancing valves, plant
+
+Hydronic work goes in the same project and produces a **separate workbook** (the hydronic TAB report, H01). The
+project information, remarks, calibration and certification are shared with the airside report.
+
+**Add equipment → Hydronic:**
+
+- **Pumps**: the schedule (design flow, head, motor), the final flow and the **pump test** in psi at the gauges:
+  pump off (standing pressure), shut-off, wide open and final suction / discharge. The app shows the head at each
+  condition ((discharge − suction) × 2.31, adjusted for specific gravity and the gauge height difference), final head
+  vs. design and flow vs. design, and warns when the head is well above design. Motor data and readings are the same as
+  on a fan (corrected FLA, BHP). An **integrated variable-speed** pump needs no shut-off test (NEBB 5.3.14).
+- **Valve systems**: one per system (CHW, HW …). The system's name is its designation: name each pump's **System**
+  the same, and the System Summary adds pumps and valves up by it. Each valve row: tag, what it serves, make / model,
+  size, type (F fixed / A adjustable / S self-adjusting), design, initial and final GPM, setting, ΔP, wide open. A final
+  flow outside ±10 % of design turns the row red. Set **Memory stops set / valves marked** once the final settings are
+  in.
+- **Plant equipment**: chillers, cooling towers, boilers and heat exchangers: design and actual flow and ΔP per water
+  circuit (a water-cooled chiller has evaporator and condenser; single-circuit units need only circuit 1).
+- **Flow readings**: ultrasonic readings (pipe, transducer, design and measured flow).
+
+![Pump test](../screenshots/37-pump-test.png)
+
+**Export → Hydronic workbook** (shown when the project has hydronic units) downloads it. It is written into the blank
+hydronic template each time (no re-import yet); issuing and locking the report stays on the airside workbook.
+
 ## 11. Coming later
 
 > **Later: Microsoft sign-in and cloud sync.** You'll sign in with your company Microsoft account. Projects and

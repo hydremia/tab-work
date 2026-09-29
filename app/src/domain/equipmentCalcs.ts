@@ -8,7 +8,9 @@
 import { FILTER_CONSTANTS, MAU_FILTER_GRID_TYPE, PROFILE_CURVE, PSP_K } from '@a2b/workbook/map';
 import type { FieldValue } from '../data/types';
 import { num, ratio, rowCfm, type RowLike } from './calc';
-import { seqKey } from './specs/types';
+import { plantCircuits, pumpTest } from './hydronicCalcs';
+import { xlNum } from './staticProfile';
+import { seqKey, type TotalCalc } from './specs/types';
 
 type Values = Readonly<Record<string, FieldValue | undefined>>;
 interface Row {
@@ -332,9 +334,11 @@ export function traverseTotals(values: Values): TraverseTotals {
 export interface UnitTotal {
   design: number | null;
   actual: number | null;
+  /** A unit with several checks (plant: one per water circuit) labels each. */
+  label?: string;
 }
 /** Unit-level actual vs. design used for the tolerance check of types without per-outlet rows. */
-export const TOTAL_CALCS: Record<'mau' | 'hood' | 'traverse', (values: Values, rows: readonly Row[]) => UnitTotal> = {
+export const TOTAL_CALCS: Record<TotalCalc, (values: Values, rows: readonly Row[]) => UnitTotal | UnitTotal[]> = {
   mau: (v, rows) => {
     const t = mauTotals(v, rows);
     // with Outlets the rows are checked one by one; the method total is checked for PSP / grid / profile
@@ -348,6 +352,12 @@ export const TOTAL_CALCS: Record<'mau' | 'hood' | 'traverse', (values: Values, r
     const t = traverseTotals(v);
     return { design: t.design, actual: t.finalCfm ?? t.initialCfm };
   },
+  pump: (v) => {
+    const t = pumpTest(v);
+    return { design: t.designGpm, actual: t.actualGpm };
+  },
+  plant: (v) => plantCircuits(v),
+  flow: (v) => ({ design: xlNum(v.designGpm), actual: xlNum(v.measuredGpm) }),
 };
 
 // ------------------------------------------------------------------------------------------ Building Balance

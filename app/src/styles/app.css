@@ -2833,3 +2833,11 @@ fieldset.viewer-edit {
   background: #f5b82e;
   border: 2px solid var(--primary);
 }
+
+.discipline-divider {
+  margin: 20px 0 4px;
+  padding-top: 12px;
+  border-top: 2px solid var(--border);
+  font-weight: 700;
+  font-size: 1rem;
+}

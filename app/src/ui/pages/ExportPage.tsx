@@ -13,6 +13,7 @@ import { IconDownload, IconLock, IconUpload } from '../components/Icons';
 import { issuedText, useUnlock } from '../components/LockBanner';
 import { ProgressBar, RollupCounts } from '../components/Status';
 import { ExportStateLine } from '../components/ExportReminder';
+import { HydronicExport } from '../components/HydronicExport';
 import { ShareFile } from '../components/ShareFile';
 import { useProjectContext } from './ProjectLayout';
 
@@ -294,6 +295,8 @@ export function ExportPage() {
           Open it in Excel and let it recalculate.
         </p>
       </section>
+
+      <HydronicExport project={project} equipment={equipment} label={label} />
 
       <section className="card card-pad stack" aria-labelledby="rp-h" data-testid="reports">
         <h2 id="rp-h">Photo and Issues reports (PDF)</h2>
