@@ -53,6 +53,7 @@ const LINK_TABLES: Record<string, string> = {
   equipmentId: 'equipment',
   issueId: 'issues',
   libraryId: 'libraryInstruments',
+  airflowRowId: 'airflowRows',
 };
 
 /** The links a change sets: [field, target id] (a create's value keys, or a set of the link field itself). */
@@ -270,12 +271,21 @@ export class FakeSyncServer {
       if (row.table_name === 'projects')
         for (const c of CHILD_TABLES)
           for (const [id, r] of this.table(c)) if (r.projectId === row.record_id) this.table(c).delete(id);
+      const gone = new Set<string>(row.table_name === 'airflowRows' ? [row.record_id] : []);
       if (row.table_name === 'equipment') {
         for (const [id, r] of this.table('airflowRows'))
-          if (r.equipmentId === row.record_id) this.table('airflowRows').delete(id);
+          if (r.equipmentId === row.record_id) {
+            this.table('airflowRows').delete(id);
+            gone.add(id);
+          }
         for (const [id, r] of this.table('photos'))
           if (r.equipmentId === row.record_id) this.table('photos').delete(id);
       }
+      // (0011) issues and photos of a deleted line stay on their unit (on delete set null)
+      if (gone.size)
+        for (const c of ['issues', 'photos'])
+          for (const r of this.table(c).values())
+            if (typeof r.airflowRowId === 'string' && gone.has(r.airflowRowId)) r.airflowRowId = null;
     } else if (row.op === 'create') {
       if (this.log.some((r) => r.record_id === row.record_id && r.op === 'delete')) {
         stored.applied = false;

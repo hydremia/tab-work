@@ -2908,3 +2908,21 @@ fieldset.viewer-edit {
   margin: 6px 0 0;
   padding-left: 28px;
 }
+
+/* issues / photos of one airflow line (RowLinks) */
+.row-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.row-links .chip {
+  text-decoration: none;
+  font-size: 0.8rem;
+}
+.row-links .chip[data-status='Open'] {
+  background: rgb(255 180 170 / 35%);
+}
+.grid-n .row-links {
+  display: flex;
+  margin-top: 2px;
+}

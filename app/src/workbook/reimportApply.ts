@@ -5,6 +5,7 @@
  *
  * Only items resolved to the workbook ('wb') produce operations; 'app' (declined / use app) leaves the app as is.
  */
+import { findRow, rowNames } from '../domain/rowLabels';
 import type { ProjectData } from '@a2b/workbook/map';
 import { isBlank } from '../domain/conditions';
 import {
@@ -97,6 +98,10 @@ export function planApply(
     return e ? unitIdFor(e.type, e.slot) : null;
   };
   const wbRec = (key: string): FlatRec | undefined => W.get(key);
+  // an issue's airflow line: the line of that name on the unit in the app (units created by this re-import: none)
+  const realLines = rowNames(real.equipment, real.rows);
+  const lineIdIn = (unitId: string | null, name: Val): string | null =>
+    unitId && typeof name === 'string' && name ? findRow(realLines, unitId, name) : null;
   const wbUnit = (type: string, slot: number) => wbSide.equipment.find((e) => e.type === type && e.slot === slot);
 
   const chosen = diff.items.filter((it) => {
@@ -162,7 +167,10 @@ export function planApply(
         const target = real.issues.find((i) => i.kind === ref.issueKind && i.number === ref.number);
         if (it.change === 'field' && target) {
           if (it.cell === 'unit') set('issues', target.id, 'equipmentId', unitIdByWbDesignation(it.wb));
-          else if (it.cell === 'status') set('issues', target.id, 'status', it.wb === 'Closed' ? 'Closed' : 'Open');
+          else if (it.cell === 'line') {
+            const unit = unitIdByWbDesignation(wbRec(it.recKey)?.cells.unit ?? null) ?? target.equipmentId;
+            set('issues', target.id, 'airflowRowId', lineIdIn(unit, it.wb));
+          } else if (it.cell === 'status') set('issues', target.id, 'status', it.wb === 'Closed' ? 'Closed' : 'Open');
           else set('issues', target.id, it.cell!, it.wb === null ? '' : String(it.wb));
         } else if (it.change === 'removed' && target) ops.push({ op: 'delete', table: 'issues', id: target.id });
         else if (it.change === 'added' || it.change === 'restored') {
@@ -176,6 +184,9 @@ export function planApply(
             status: w.status === 'Closed' ? 'Closed' : 'Open',
             comments: String(w.comments ?? ''),
             equipmentId: unitIdByWbDesignation(w.unit ?? null),
+            ...(lineIdIn(unitIdByWbDesignation(w.unit ?? null), w.line ?? null)
+              ? { airflowRowId: lineIdIn(unitIdByWbDesignation(w.unit ?? null), w.line ?? null) }
+              : {}),
             createdAt: now,
             updatedAt: now,
           };

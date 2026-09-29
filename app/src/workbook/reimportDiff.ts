@@ -17,6 +17,7 @@
  * "N/A" the app would set by itself back into automatic N/A. The app side is exported first (toProjectData), so it is
  * compared exactly as the workbook would hold it. Formatting is never compared.
  */
+import { rowNames } from '../domain/rowLabels';
 import {
   blockLayout,
   NOTATIONS,
@@ -275,7 +276,9 @@ export function flatten(b: ProjectBundle, modes: Map<string, RowMode>): Map<stri
       }),
     );
   const byId = new Map(b.equipment.map((e) => [e.id, e]));
+  const lines = rowNames(b.equipment, b.rows);
   for (const i of b.issues) {
+    const line = i.airflowRowId ? lines.get(i.airflowRowId) : undefined;
     add({
       key: `issue:${i.kind}#${i.number}`,
       ref: { kind: 'issue', issueKind: i.kind, number: i.number },
@@ -284,6 +287,7 @@ export function flatten(b: ProjectBundle, modes: Map<string, RowMode>): Map<stri
         status: i.status,
         comments: i.comments.trim() || null,
         unit: i.equipmentId ? (byId.get(i.equipmentId)?.designation ?? null) : null,
+        line: line && line.equipmentId === i.equipmentId ? line.short : null,
       },
     });
   }
@@ -395,6 +399,7 @@ const ISSUE_LABELS: Record<string, string> = {
   remark: 'Remark',
   status: 'Status',
   comments: 'Comments',
+  line: 'Airflow line',
   unit: 'Equipment',
 };
 const REMARK_UNIT_KEYS = new Set(['remarks', 'technicianNotes']);

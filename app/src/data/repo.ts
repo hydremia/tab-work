@@ -405,8 +405,21 @@ export async function deleteRecord(table: TableName, recordId: string, opts: Wri
           await log('airflowRows', r);
         for (const p of await db.photos.where('equipmentId').equals(recordId).toArray()) await log('photos', p);
         for (const i of await db.issues.where('equipmentId').equals(recordId).toArray()) {
-          await setField('issues', i.id, 'equipmentId', null, opts); // the issue becomes "General (N/A)"
+          // the issue becomes "General (N/A)"
+          await setFields(
+            'issues',
+            i.id,
+            { equipmentId: null, ...(i.airflowRowId ? { airflowRowId: null } : {}) },
+            opts,
+          );
         }
+      } else if (table === 'airflowRows') {
+        // issues and photos of the line stay on its unit
+        const unit = (rec as unknown as AirflowRow).equipmentId;
+        for (const i of await db.issues.where('equipmentId').equals(unit).toArray())
+          if (i.airflowRowId === recordId) await setField('issues', i.id, 'airflowRowId', null, opts);
+        for (const p of await db.photos.where('equipmentId').equals(unit).toArray())
+          if (p.airflowRowId === recordId) await setField('photos', p.id, 'airflowRowId', null, opts);
       } else if (table === 'issues') {
         // an issue's deficiency photos go with it
         for (const p of await db.photos.where('issueId').equals(recordId).toArray()) await log('photos', p);
@@ -685,7 +698,7 @@ export async function duplicateEquipment(
 // ------------------------------------------------------------------------------------------ issues
 export async function addIssue(
   projectId: string,
-  input: Partial<Pick<Issue, 'kind' | 'remark' | 'status' | 'comments' | 'equipmentId'>> = {},
+  input: Partial<Pick<Issue, 'kind' | 'remark' | 'status' | 'comments' | 'equipmentId' | 'airflowRowId'>> = {},
 ): Promise<Issue> {
   return db.transaction('rw', writeTables(), async () => {
     const kind: IssueKind = input.kind ?? 'new';
@@ -700,6 +713,8 @@ export async function addIssue(
       status: input.status ?? 'Open',
       comments: input.comments ?? '',
       equipmentId: input.equipmentId ?? null,
+      // only when set: a project whose server has no 0011 yet keeps syncing issues without lines
+      ...(input.airflowRowId && input.equipmentId ? { airflowRowId: input.airflowRowId } : {}),
       createdAt: now,
       updatedAt: now,
     });
@@ -711,6 +726,8 @@ export async function addIssue(
 export interface PhotoTarget {
   category: PhotoCategory;
   equipmentId?: string | null;
+  /** an airflow line of that unit (not for cover / deficiency photos) */
+  airflowRowId?: string | null;
   issueId?: string | null;
   caption?: string;
 }
@@ -737,6 +754,10 @@ async function nextPhotoOrder(
   return all.filter((p) => p.id !== exceptId && groupKeyOf(p) === key).reduce((m, p) => Math.max(m, sortKey(p)), 0) + 1;
 }
 
+/** The airflow line a photo target names: only a unit photo (not cover / deficiency / general) has one. */
+const lineOf = (t: PhotoTarget): string | null =>
+  t.category !== 'deficiency' && t.category !== 'cover' && t.equipmentId && t.airflowRowId ? t.airflowRowId : null;
+
 export async function addPhoto(
   projectId: string,
   file: (Blob & { name?: string }) | PhotoImage,
@@ -754,10 +775,12 @@ export async function addPhoto(
         target.category === 'deficiency' || target.category === 'cover' ? null : (target.equipmentId ?? null),
       issueId: target.category === 'deficiency' ? (target.issueId ?? null) : null,
     };
+    const line = lineOf(target);
     const photo = await createRecord<Photo>('photos', {
       id: uuid(),
       projectId,
       ...base,
+      ...(line ? { airflowRowId: line } : {}),
       caption: target.caption ?? '',
       blob: img.blob,
       thumb: img.thumb ?? null,
@@ -832,8 +855,12 @@ export async function reassignPhoto(photoId: string, target: PhotoTarget): Promi
         target.category === 'deficiency' || target.category === 'cover' ? null : (target.equipmentId ?? null),
       issueId: target.category === 'deficiency' ? (target.issueId ?? null) : null,
     };
+    const line = lineOf(target);
     const moved = groupKeyOf(next) !== groupKeyOf(photo);
-    await setFields('photos', photoId, next);
+    await setFields('photos', photoId, {
+      ...next,
+      ...(line || photo.airflowRowId ? { airflowRowId: line } : {}),
+    });
     if (moved) await setField('photos', photoId, 'order', await nextPhotoOrder(photo.projectId, next, photoId));
   });
 }

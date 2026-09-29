@@ -4,6 +4,7 @@ import { NOTATIONS, type AirflowRow, type Equipment, type NaMark, type Notation 
 import { formatNumber, formatPercent, rowCfm, tableTotals, withinTolerance } from '../../domain/calc';
 import { valveTotals } from '../../domain/hydronicCalcs';
 import { ValvePick } from './ValvePick';
+import { LINE_OPTIONS, RowLinkChips, useLineActions, useRowLinks, type LineLinks } from './RowLinks';
 import { tableNaKey, type TableResult } from '../../domain/completion';
 import { filterCfm, hoodRow } from '../../domain/equipmentCalcs';
 import { DEFAULT_FILL_DOWN, tableColumns, type RowColumnSpec, type RowTableSpec } from '../../domain/specs';
@@ -106,12 +107,16 @@ function OutletRow({
   result,
   tolerance,
   onDuplicate,
+  links,
+  onLine,
 }: {
   row: AirflowRow;
   index: number;
   spec: RowTableSpec;
   unitData: Equipment['data'];
   onDuplicate?: () => void;
+  links?: LineLinks;
+  onLine: (action: string, row: AirflowRow) => Promise<boolean>;
   result: TableResult['rows'][string] | undefined;
   tolerance: number;
 }) {
@@ -205,13 +210,15 @@ function OutletRow({
             {result.missing.length} missing
           </span>
         )}
+        <RowLinkChips links={links} projectId={row.projectId} />
         <select
           className="row-menu"
           aria-label={`${label} actions`}
           value=""
           onChange={(e) => {
             const v = e.target.value;
-            if (v === 'delete') {
+            if (v.startsWith('line-')) void onLine(v, row);
+            else if (v === 'delete') {
               if (window.confirm(`Delete ${label}?`)) void deleteRecord('airflowRows', row.id);
             } else if (v === 'duplicate') {
               onDuplicate?.();
@@ -235,6 +242,7 @@ function OutletRow({
             )),
           )}
           {Object.values(row.na).some(Boolean) && <option value="clear">Clear N/A marks</option>}
+          {LINE_OPTIONS}
           {onDuplicate && <option value="duplicate">Duplicate row</option>}
           <option value="delete">Delete row</option>
         </select>
@@ -290,6 +298,8 @@ function GridTable({
   result,
   tolerance,
   onDuplicate,
+  links,
+  onLine,
 }: {
   spec: RowTableSpec;
   rows: AirflowRow[];
@@ -297,6 +307,8 @@ function GridTable({
   result: TableResult | undefined;
   tolerance: number;
   onDuplicate?: (r: AirflowRow) => void;
+  links?: Map<string, LineLinks>;
+  onLine: (action: string, row: AirflowRow) => Promise<boolean>;
 }) {
   const cols = tableColumns(spec);
   const noun = spec.noun ?? 'row';
@@ -334,6 +346,7 @@ function GridTable({
                       •
                     </span>
                   )}
+                  <RowLinkChips links={links?.get(row.id)} projectId={row.projectId} />
                 </th>
                 {cols.map((col, ci) => {
                   const id = `g-${spec.key}-${i}-${ci}`;
@@ -404,7 +417,8 @@ function GridTable({
                     value=""
                     onChange={(e) => {
                       const v = e.target.value;
-                      if (v === 'delete') {
+                      if (v.startsWith('line-')) void onLine(v, row);
+                      else if (v === 'delete') {
                         if (window.confirm(`Delete ${label}?`)) void deleteRecord('airflowRows', row.id);
                       } else if (v === 'duplicate') onDuplicate?.(row);
                       else if (v === 'clear') void setField('airflowRows', row.id, 'na', {});
@@ -426,6 +440,7 @@ function GridTable({
                       )),
                     )}
                     {Object.values(row.na).some(Boolean) && <option value="clear">Clear N/A marks</option>}
+                    {LINE_OPTIONS}
                     {onDuplicate && <option value="duplicate">Duplicate row</option>}
                     <option value="delete">Delete row</option>
                   </select>
@@ -461,6 +476,8 @@ export function AirflowTable({
   const noun = spec.noun ?? (spec.key === 'return' ? 'inlet' : spec.key === 'oa' ? 'OA row' : 'outlet');
   const firstCol = tableColumns(spec)[0].key;
   const [grid, setGrid] = useState(initialGrid);
+  const links = useRowLinks(equipment.id);
+  const line = useLineActions(equipment);
 
   async function add(copyOf?: AirflowRow) {
     const last = copyOf ?? rows[rows.length - 1];
@@ -524,6 +541,8 @@ export function AirflowTable({
           result={result}
           tolerance={tolerance}
           onDuplicate={rows.length < cap ? (r) => void add(r) : undefined}
+          links={links}
+          onLine={line.run}
         />
       ) : null}
       {!grid &&
@@ -537,8 +556,11 @@ export function AirflowTable({
             result={result?.rows[r.id]}
             tolerance={tolerance}
             onDuplicate={rows.length < cap ? () => void add(r) : undefined}
+            links={links?.get(r.id)}
+            onLine={line.run}
           />
         ))}
+      {line.input}
       {outlet && rows.length > 1 && (
         <div className="totals" aria-label={`${spec.label} totals`}>
           <span>

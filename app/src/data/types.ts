@@ -138,6 +138,11 @@ export interface Issue {
   comments: string;
   /** Linked equipment, or null for "General (N/A)". */
   equipmentId: string | null;
+  /**
+   * (0011) The airflow line of that unit the issue is about (an outlet, grille, valve row), else null / absent. A
+   * line deleted meanwhile is ignored (the issue stays on its unit).
+   */
+  airflowRowId?: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -148,6 +153,8 @@ export interface Photo {
   projectId: string;
   /** Linked equipment (unit / tag / OA damper / other photos of a unit); null for general and deficiency photos. */
   equipmentId: string | null;
+  /** (0011) A unit photo of one airflow line of that unit (duct configuration at an outlet …), else null / absent. */
+  airflowRowId?: string | null;
   /** Deficiency photos: the issue they document (numbered to it, e.g. Photo N-3.1). */
   issueId: string | null;
   category: PhotoCategory;

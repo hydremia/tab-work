@@ -24,6 +24,7 @@ import { isBlank } from '../domain/conditions';
 import { equipmentType, mapOf, workbookDef, type Discipline, type EquipmentTypeKey } from '../domain/equipmentTypes';
 import { CERT_KEYS, CERT_PRELIM_REASON, certValue } from '../domain/certification';
 import { PRESSURE_KEYS, PRESSURE_ROWS } from '../domain/projectCompletion';
+import { findRow, rowNames } from '../domain/rowLabels';
 import { SPARE_OA_ROWS, spareOaKey, type SpareOaColumn } from '../domain/spareOa';
 import { getSpec, seqKey, tableColumns, type EquipmentSpec, type RowTableSpec } from '../domain/specs';
 import {
@@ -237,6 +238,7 @@ export function toProjectData(
 
   // ---- Summary - New / Summary - (E)
   const byId = new Map(b.equipment.map((e) => [e.id, e]));
+  const lines = rowNames(b.equipment, b.rows);
   for (const kind of ['new', 'existing'] as const) {
     // a unit's issues go to its own workbook; general issues (no unit) to both
     const ofReport = (i: Issue) => {
@@ -249,7 +251,10 @@ export function toProjectData(
       warnings.push(`${kind === 'new' ? 'Summary - New' : 'Summary - (E)'}: ${list.length} issues, room for 50`);
     const rows = list.slice(0, 50).map((i) => {
       const eq = i.equipmentId ? byId.get(i.equipmentId) : undefined;
-      const remark = eq && !i.remark.startsWith(`${eq.designation}:`) ? `${eq.designation}: ${i.remark}` : i.remark;
+      // "RTU-1: …", or with the line: "RTU-1 · Supply outlets #12: …" (a re-import links both back)
+      const line = eq && i.airflowRowId ? lines.get(i.airflowRowId) : undefined;
+      const owner = eq ? (line?.equipmentId === eq.id ? `${eq.designation} · ${line.short}` : eq.designation) : '';
+      const remark = owner && !i.remark.startsWith(`${owner}:`) ? `${owner}: ${i.remark}` : i.remark;
       const row: Record<string, Cell> = { no: i.number, status: i.status };
       put(row, 'remark', out(remark, null));
       put(row, 'comments', out(i.comments, null));
@@ -691,6 +696,7 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
 
   const issues: Issue[] = [];
   const designations = new Map(equipment.map((e) => [e.designation.toLowerCase(), e.id]));
+  const lines = rowNames(equipment, rows);
   for (const [key, kind] of [
     ['issuesNew', 'new'],
     ['issuesExisting', 'existing'],
@@ -699,10 +705,17 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
       if (Object.values(r).every((v) => v === null || v === undefined || v === '')) return;
       let remark = r.remark === null || r.remark === undefined ? '' : String(r.remark);
       let equipmentId: string | null = null;
-      const m = /^([^:\n]{1,30}):\s*([\s\S]*)$/.exec(remark);
-      if (m && designations.has(m[1].trim().toLowerCase())) {
-        equipmentId = designations.get(m[1].trim().toLowerCase()) ?? null;
-        remark = m[2];
+      let airflowRowId: string | null = null;
+      // "RTU-1: …" or "RTU-1 · Supply outlets #12: …"
+      const m = /^([^:\n]{1,80}):\s*([\s\S]*)$/.exec(remark);
+      if (m) {
+        const [unit, line] = m[1].split(' · ').map((x) => x.trim());
+        const id = designations.get(unit.toLowerCase());
+        if (id) {
+          equipmentId = id;
+          airflowRowId = line ? findRow(lines, id, line) : null;
+          remark = line && !airflowRowId ? `${line}: ${m[2]}` : m[2];
+        }
       }
       issues.push({
         id: newId(),
@@ -713,6 +726,7 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
         status: r.status === 'Closed' ? 'Closed' : 'Open',
         comments: r.comments === null || r.comments === undefined ? '' : String(r.comments),
         equipmentId,
+        ...(airflowRowId ? { airflowRowId } : {}),
         createdAt: now,
         updatedAt: now,
       });
