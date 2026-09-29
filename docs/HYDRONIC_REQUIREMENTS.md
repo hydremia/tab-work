@@ -91,11 +91,21 @@ shut-off and operating readings are corrected to the pump centreline (§9.5.1 j)
 | Traverses | **Ultrasonic readings** (5.3.17), when used |
 | Building Balance | **System Summary**: pump flow against the sum of the terminals, diversity, VFD setpoint |
 
-**Decisions for a2b:**
+**Decisions (a2b, 2026-09-29):**
 
-1. A separate hydronic workbook sharing Project Information, or extra sheets in the airside workbook? I suggest a
-   separate workbook, so airside-only jobs are unchanged.
-2. Which equipment types come up on a2b jobs (for example pumps and valves only, or plant too)?
-3. Which balancing valve makes are common (B&G, Taco, Nexus, Griswold, Armstrong, Victaulic…)? Their charts or Cv
-   tables make up the valve library.
-4. Temperatures: optional everywhere, or required where the specification asks?
+1. **A separate hydronic workbook**, sharing Project Information with the airside one. Airside-only jobs are
+   unchanged.
+2. **Mostly pumps and balancing valves.** Build those first: Pump Data, Balancing Valve pages, System Summary.
+   Chillers, boilers, heat exchangers, towers and ultrasonic readings come later, on the compact plant page.
+3. **Valve makes: B&G, Armstrong, some Nexus, and "Flow…"** (make to confirm: FDI / Flow Design, FlowCon, or
+   another?). *The more the merrier; add as we go.* So the valve library is **data, not code**:
+   - an organisation library synced like the calibration library, where anyone can add a valve model: make,
+     model, size, type (fixed / adjustable / self-adjusting), and its flow data;
+   - flow data as either **a Cv per setting** (the table from the manufacturer's sheet; flow = Cv × √ΔP psi), or,
+     for a self-adjusting valve, **its rated flow and ΔP range**;
+   - every entry notes its source (data sheet name and date). The app ships **only values entered from published
+     manufacturer data**, never guessed ones. Seeding the four makes means collecting their current data sheets
+     (Cv / setting tables), which is a data-entry job and can happen as valves turn up on jobs;
+   - a valve not in the library can still be recorded with a manually entered flow (from the chart on the tag or
+     a meter), marked *flow entered manually*.
+4. **Temperatures optional** everywhere.
