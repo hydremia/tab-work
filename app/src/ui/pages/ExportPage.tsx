@@ -50,6 +50,22 @@ export function ExportPage() {
   const lastExport = revisions?.find((r) => r.kind === 'export');
   const reportLabel = reportTyped ?? result?.revision.label ?? lastExport?.label ?? suggested;
 
+  async function makeGraphics() {
+    setReportBusy('Drawing the figures…');
+    setReportError(null);
+    setReportResult(null);
+    try {
+      const gen = await import('../../reports/generate');
+      const r = await gen.generateGraphics(project.id, reportLabel.trim());
+      gen.downloadFile(r.bytes, r.fileName, 'application/pdf');
+      setReportResult({ ...r, mime: 'application/pdf' });
+    } catch (e) {
+      setReportError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setReportBusy(null);
+    }
+  }
+
   async function makeReport(req: Omit<ReportRequest, 'label'> | 'zip') {
     setReportBusy('Preparing…');
     setReportError(null);
@@ -406,6 +422,16 @@ export function ExportPage() {
             onClick={() => void makeReport('zip')}
           >
             <IconDownload size={18} /> Photos (.zip)
+          </button>
+          <button
+            type="button"
+            className="btn"
+            disabled={Boolean(reportBusy)}
+            data-testid="report-graphics"
+            title="Static pressure profiles, traverse cross-sections, outlet and valve charts, pump operating points"
+            onClick={() => void makeGraphics()}
+          >
+            <IconDownload size={18} /> Graphics appendix
           </button>
         </div>
         {reportBusy && (
