@@ -126,7 +126,8 @@ const VALVE_SYSTEM: EquipmentDef = {
     sheet: 'Valves',
     anchor: { kind: 'linear', first: 4, stride: 52 },
     fields: [
-      f('system', 'D', 0, 'text'),
+      // the system name is the page's designation (the System Summary sums pumps and valves by it)
+      f('designation', 'D', 0, 'text'),
       f('service', 'I', 0, 'text'),
       f('pumps', 'D', 2, 'text'),
       f('instrument', 'H', 2, 'text'),
@@ -158,20 +159,62 @@ const VALVE_SYSTEM: EquipmentDef = {
   },
 };
 
-const PLANT_COLUMNS: readonly ColumnDef[] = [
-  c('unit', 'B', 'text'),
-  c('type', 'C', 'list', { list: 'Plant.Type' }),
-  c('service', 'D', 'text'),
-  c('manufacturer', 'E', 'text'),
-  c('model', 'F', 'text'),
-  c('serial', 'G', 'text'),
-  c('circuit', 'H', 'list', { list: 'Circuit' }),
-  c('designGpm', 'I', 'number'),
-  c('designDp', 'J', 'number'),
-  c('actualGpm', 'K', 'number'),
-  c('actualDp', 'L', 'number'),
-  c('method', 'N', 'list', { list: 'Flow.Method' }),
-];
+const PLANT: EquipmentDef = {
+  // one unit = two table rows (one per water circuit: evaporator / condenser, primary / secondary; a single-circuit
+  // unit leaves the second row empty); 20 units per page, two pages
+  key: 'plant',
+  label: 'Chiller / tower / boiler / heat exchanger',
+  capacity: 40,
+  block: {
+    sheet: 'Plant Equipment',
+    anchor: { kind: 'paged', first: 8, pageRows: 52, offsets: Array.from({ length: 20 }, (_, i) => 2 * i) },
+    fields: [
+      f('designation', 'B', 0, 'text'),
+      f('plantType', 'C', 0, 'list', { list: 'Plant.Type' }),
+      f('service', 'D', 0, 'text'),
+      f('manufacturer', 'E', 0, 'text'),
+      f('model', 'F', 0, 'text'),
+      f('serial', 'G', 0, 'text'),
+      f('circuit1', 'H', 0, 'list', { list: 'Circuit' }),
+      f('designGpm1', 'I', 0, 'number'),
+      f('designDp1', 'J', 0, 'number'),
+      f('actualGpm1', 'K', 0, 'number'),
+      f('actualDp1', 'L', 0, 'number'),
+      f('method1', 'N', 0, 'list', { list: 'Flow.Method' }),
+      f('circuit2', 'H', 1, 'list', { list: 'Circuit' }),
+      f('designGpm2', 'I', 1, 'number'),
+      f('designDp2', 'J', 1, 'number'),
+      f('actualGpm2', 'K', 1, 'number'),
+      f('actualDp2', 'L', 1, 'number'),
+      f('method2', 'N', 1, 'list', { list: 'Flow.Method' }),
+    ],
+  },
+};
+
+const FLOW: EquipmentDef = {
+  // one ultrasonic reading per row
+  key: 'flowMeasurement',
+  label: 'Ultrasonic flow reading',
+  capacity: 24,
+  block: {
+    sheet: 'Flow Measurements',
+    anchor: { kind: 'linear', first: 8, stride: 1 },
+    fields: [
+      f('designation', 'B', 0, 'text'),
+      f('system', 'C', 0, 'text'),
+      f('location', 'D', 0, 'text'),
+      f('pipeSize', 'E', 0, 'text'),
+      f('pipeMaterial', 'F', 0, 'text'),
+      f('wallThickness', 'G', 0, 'number'),
+      f('transducer', 'H', 0, 'text'),
+      f('configuration', 'I', 0, 'text'),
+      f('spacing', 'J', 0, 'text'),
+      f('designGpm', 'K', 0, 'number'),
+      f('measuredGpm', 'L', 0, 'number'),
+      f('notes', 'N', 0, 'text'),
+    ],
+  },
+};
 
 const HYDRONIC_SECTIONS: SheetSection[] = [
   {
@@ -199,16 +242,6 @@ const HYDRONIC_SECTIONS: SheetSection[] = [
       f('dpUnits2', 'D', 57, 'list', { list: 'DP.Units' }),
       f('instrument2', 'F', 57, 'text'),
     ],
-    tables: [
-      {
-        key: 'circuits',
-        segments: [
-          { row: 8, count: 40 },
-          { row: 60, count: 40 },
-        ],
-        columns: PLANT_COLUMNS,
-      },
-    ],
     lines: [
       {
         key: 'remarks',
@@ -227,26 +260,6 @@ const HYDRONIC_SECTIONS: SheetSection[] = [
     key: 'flowMeasurements',
     sheet: 'Flow Measurements',
     fields: [f('instrument', 'D', 5, 'text')],
-    tables: [
-      {
-        key: 'readings',
-        segments: [{ row: 8, count: 24 }],
-        columns: [
-          c('no', 'B', 'text'),
-          c('system', 'C', 'text'),
-          c('location', 'D', 'text'),
-          c('pipeSize', 'E', 'text'),
-          c('pipeMaterial', 'F', 'text'),
-          c('wallThickness', 'G', 'number'),
-          c('transducer', 'H', 'text'),
-          c('configuration', 'I', 'text'),
-          c('spacing', 'J', 'text'),
-          c('designGpm', 'K', 'number'),
-          c('measuredGpm', 'L', 'number'),
-          c('notes', 'N', 'text'),
-        ],
-      },
-    ],
     lines: [remarks(33)],
   },
 ];
@@ -256,7 +269,7 @@ export const HYDRONIC_MAP: TemplateMap = {
   coverPhoto: TEMPLATE_MAP.coverPhoto,
   certImages: TEMPLATE_MAP.certImages,
   sections: [...TEMPLATE_MAP.sections.filter((s) => SHARED.includes(s.key)), ...HYDRONIC_SECTIONS],
-  equipment: [PUMP, VALVE_SYSTEM],
+  equipment: [PUMP, VALVE_SYSTEM, PLANT, FLOW],
 };
 
 /** Dropdown lists added to {Dropdowns} for the hydronic sheets (`lists.test.ts` checks them against the template). */

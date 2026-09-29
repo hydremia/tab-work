@@ -1,6 +1,10 @@
-import { TEMPLATE_MAP } from '@a2b/workbook/map';
+import { HYDRONIC_MAP, TEMPLATE_MAP, type EquipmentDef, type TemplateMap } from '@a2b/workbook/map';
 
-export type EquipmentTypeKey = 'rtu' | 'mau' | 'erv' | 'fan' | 'smallFan' | 'vav' | 'hood' | 'traverse';
+export type AirTypeKey = 'rtu' | 'mau' | 'erv' | 'fan' | 'smallFan' | 'vav' | 'hood' | 'traverse';
+export type HydronicTypeKey = 'pump' | 'valveSystem' | 'plant' | 'flowMeasurement';
+export type EquipmentTypeKey = AirTypeKey | HydronicTypeKey;
+/** Which report (workbook) a type belongs to: the airside TAB workbook or the hydronic one. */
+export type Discipline = 'air' | 'hydronic';
 
 export interface EquipmentTypeInfo {
   key: EquipmentTypeKey;
@@ -14,6 +18,7 @@ export interface EquipmentTypeInfo {
   capacity: number;
   /** Soft limit with a warning (Building Balance lists small fans 1-30 only). */
   warnAbove?: number;
+  discipline: Discipline;
 }
 
 const META: Record<EquipmentTypeKey, { plural: string; prefix: string; warnAbove?: number }> = {
@@ -25,13 +30,34 @@ const META: Record<EquipmentTypeKey, { plural: string; prefix: string; warnAbove
   vav: { plural: 'VAVs', prefix: 'VAV-' },
   hood: { plural: 'Hoods', prefix: 'H-' },
   traverse: { plural: 'Traverses', prefix: 'T-' },
+  pump: { plural: 'Pumps', prefix: 'P-' },
+  // a valve system's designation is the system name (CHW, HW-1 …): the System Summary sums pumps and valves by it
+  valveSystem: { plural: 'Valve systems', prefix: 'SYS-' },
+  plant: { plural: 'Plant equipment', prefix: 'CH-' },
+  flowMeasurement: { plural: 'Flow readings', prefix: 'U-' },
 };
 
-/** Equipment types in workbook order, capacities taken from the template map. */
-export const EQUIPMENT_TYPES: readonly EquipmentTypeInfo[] = TEMPLATE_MAP.equipment.map((e) => {
-  const key = e.key as EquipmentTypeKey;
-  return { key, label: e.label, capacity: e.capacity, ...META[key] };
-});
+const typesOf = (map: TemplateMap, discipline: Discipline): EquipmentTypeInfo[] =>
+  map.equipment.map((e) => {
+    const key = e.key as EquipmentTypeKey;
+    return { key, label: e.label, capacity: e.capacity, discipline, ...META[key] };
+  });
+
+/** Equipment types in workbook order (airside, then hydronic), capacities taken from the template maps. */
+export const EQUIPMENT_TYPES: readonly EquipmentTypeInfo[] = [
+  ...typesOf(TEMPLATE_MAP, 'air'),
+  ...typesOf(HYDRONIC_MAP, 'hydronic'),
+];
+
+export const isHydronic = (type: EquipmentTypeKey): boolean => equipmentType(type).discipline === 'hydronic';
+
+/** The workbook map a discipline exports to. */
+export const mapOf = (discipline: Discipline): TemplateMap => (discipline === 'air' ? TEMPLATE_MAP : HYDRONIC_MAP);
+
+/** The template map's definition of a type (its sheet block, {Data Entry} row, tables), from either workbook. */
+export function workbookDef(type: EquipmentTypeKey): EquipmentDef | undefined {
+  return TEMPLATE_MAP.equipment.find((d) => d.key === type) ?? HYDRONIC_MAP.equipment.find((d) => d.key === type);
+}
 
 export function equipmentType(key: EquipmentTypeKey): EquipmentTypeInfo {
   const t = EQUIPMENT_TYPES.find((x) => x.key === key);

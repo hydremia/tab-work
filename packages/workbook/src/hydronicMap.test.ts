@@ -124,13 +124,6 @@ describe('hydronic template map (H01)', () => {
         systemSummary: {
           tables: { systems: [{ system: 'CHW', service: 'Chilled Water', pumps: 'P-1', vfdSetpoint: '12 psi' }] },
         },
-        plant: {
-          tables: {
-            circuits: [
-              { unit: 'CH-1', type: 'Chiller (water-cooled)', circuit: 'Evaporator', designGpm: 240, actualGpm: 228 },
-            ],
-          },
-        },
       },
       equipment: {
         pump: [
@@ -148,10 +141,28 @@ describe('hydronic template map (H01)', () => {
             fields: { finalSuction: 9, finalDischarge: 35, actualGpm: 190, flowMethod: 'Pump curve' },
           },
         ],
+        plant: [
+          {
+            slot: 1,
+            fields: {
+              designation: 'CH-1',
+              plantType: 'Chiller (water-cooled)',
+              circuit1: 'Evaporator',
+              designGpm1: 240,
+              actualGpm1: 228,
+              circuit2: 'Condenser',
+              designGpm2: 300,
+            },
+          },
+          {
+            slot: 21,
+            fields: { designation: 'B-1', plantType: 'Hot-water boiler', circuit1: 'Water', designGpm1: 90 },
+          },
+        ],
         valveSystem: [
           {
             slot: 1,
-            fields: { system: 'CHW', dpUnits: 'ft w.g.', method: 'Proportional' },
+            fields: { designation: 'CHW', dpUnits: 'ft w.g.', method: 'Proportional' },
             tables: {
               valves: [
                 {
@@ -181,7 +192,13 @@ describe('hydronic template map (H01)', () => {
       designGpm: 10,
       finalGpm: 10.4,
     });
-    expect(back.sections.plant.tables!.circuits[0]).toMatchObject({ unit: 'CH-1', actualGpm: 228 });
+    expect(back.equipment.plant[0].fields).toMatchObject({
+      designation: 'CH-1',
+      actualGpm1: 228,
+      circuit2: 'Condenser',
+      designGpm2: 300,
+    });
+    expect(back.equipment.plant[1].slot).toBe(21); // page 2, first unit (row 60)
     // the sample designation "P-1" of the template is replaced, not duplicated; slot 2 stays empty
     expect(back.equipment.pump.find((u) => u.slot === 2)).toBeUndefined();
   });
