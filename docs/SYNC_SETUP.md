@@ -183,6 +183,12 @@ Use a throw-away project. Device A = a laptop, device B = a phone (or two browse
 | Pill: *Sync error: … TAB_FORBIDDEN* or *row-level security* | the user has no profile (signed up before 0001 ran) or belongs to another organization | SQL: `insert into public.profiles (user_id, org_id, email) select id, (select id from public.organizations where name = 'a2b'), email from auth.users where email = '<email>';` |
 | Pill: *Sync error: Failed to fetch* on a working network | CSP narrowed to another project, or the URL variable is wrong | check `VITE_SUPABASE_URL`, redeploy |
 | Nobody can sign in, it worked before | the Entra client secret expired | step 4.2 new secret → step 5 |
+| *Sign in with Microsoft* ends on `localhost` with an error | Supabase's Site URL is still its default and `<app>/auth/callback` isn't allowed, so Supabase falls back to the Site URL | step 5, URL Configuration: Site URL = the app's address, Redirect URLs += `<app>/auth/callback` (no redeploy) |
+| Entra admin center: *AADSTS16000 … account does not exist in tenant* | signed in with a personal Microsoft account, which has no directory | sign in with a work account of the tenant (or create a test tenant: azure.microsoft.com/free with the personal account, then work in its *Default Directory*) |
+| Supabase Azure panel shows an email / a short password in the client ID / secret fields | the browser's password manager autofilled them | clear them, paste the real values (client ID = a GUID, secret = the **Value**), turn off autofill for supabase.com |
+| Vercel: *Remove the public framework prefix…* on `VITE_SUPABASE_*` | Vercel warns that `VITE_` values are visible in the browser | expected: the URL and anon key are public by design (row-level security protects the data); keep the names; "sensitive" variables are still passed to the build |
+| Vercel build: `tsc: command not found`, 455 packages installed | the project's **Root Directory** is `app` (only the app workspace installs, `vercel.json` is ignored) | Settings → Build and Deployment → Root Directory: empty; overrides off; redeploy |
+| Pill still says *Local* after adding the variables | the app was built before they were added, or the old version is cached | Redeploy; reload the app (tap *Reload* on *Update available*) |
 
 ## 10. Rollback plan
 
