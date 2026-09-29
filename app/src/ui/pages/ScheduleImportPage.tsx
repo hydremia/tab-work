@@ -1,5 +1,5 @@
 /**
- * Equipment schedule bulk import: paste rows from Excel / an engineer's schedule, pick a CSV / Excel file, or read
+ * Equipment schedule bulk import: paste rows from Excel / an engineer's schedule, pick a CSV / Excel file or a drawing / submittal PDF (its schedule tables rebuilt), or read
  * the {Equipment Data Entry} section of an existing TAB workbook. Columns are mapped by header text (changeable),
  * every row is validated and previewed (create / update / skip, slot, capacity) before anything is written; the
  * import writes through the repository (setField for every value).
@@ -178,12 +178,14 @@ export function ScheduleImportPage() {
       } else {
         const r = await e.readScheduleFile(f);
         setFile(r);
-        setSheet(
-          Math.max(
-            0,
-            r.sheets.findIndex((s) => s.rows.length > 1),
-          ),
+        const first = Math.max(
+          0,
+          r.sheets.findIndex((s) => s.rows.length > 1),
         );
+        setSheet(first);
+        // a PDF table's title suggests the unit type ("PUMP SCHEDULE")
+        const suggested = r.sheets[first]?.type;
+        if (suggested) setType(suggested);
         if (r.schedule) setWorkbook({ fileName: f.name, schedule: r.schedule });
       }
     } catch (err) {
@@ -234,7 +236,7 @@ export function ScheduleImportPage() {
           {(
             [
               ['paste', 'Paste rows'],
-              ['file', 'CSV / Excel file'],
+              ['file', 'File (CSV, Excel, PDF)'],
               ['workbook', 'TAB workbook'],
             ] as const
           ).map(([k, label]) => (
@@ -300,13 +302,13 @@ export function ScheduleImportPage() {
         {source === 'file' && (
           <div className="field">
             <label className="field-label" htmlFor="si-file">
-              Schedule file (.csv, .xlsx, .xlsm)
+              Schedule file (.csv, .xlsx, .xlsm, .pdf)
             </label>
             <input
               id="si-file"
               type="file"
               aria-label="Schedule file"
-              accept=".csv,.tsv,.txt,.xlsx,.xlsm,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              accept=".csv,.tsv,.txt,.xlsx,.xlsm,.pdf,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) void pickFile(f, false);
@@ -318,12 +320,15 @@ export function ScheduleImportPage() {
                 aria-label="Sheet"
                 value={sheet}
                 onChange={(e) => {
-                  setSheet(Number(e.target.value));
+                  const i = Number(e.target.value);
+                  setSheet(i);
+                  const suggested = file.sheets[i]?.type;
+                  if (suggested) setType(suggested);
                   resetGrid();
                 }}
               >
                 {file.sheets.map((s, i) => (
-                  <option key={s.name} value={i}>
+                  <option key={i} value={i}>
                     {s.name} ({s.rows.length} rows)
                   </option>
                 ))}
