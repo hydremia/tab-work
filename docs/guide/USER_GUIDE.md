@@ -973,6 +973,20 @@ device's name, **Sync now** and **Sign out**. A yellow dot on it means something
 device). The status pill next to it (cloud icon) opens the same page.
 The name is kept on the device (not in your account), so each device is named once.
 
+### Pausing sync
+
+Sync runs by itself whenever the device has a signal. To stop it on one device (weak or metered signal, saving
+battery, or not wanting a teammate's edits arriving mid-test), use **Sync & account → Pause sync**. Everything keeps
+working and every edit is saved on the device; nothing is sent or fetched. The pill shows **Paused · N not sent**.
+
+- It stays paused after the app is closed and reopened, until you tap **Resume sync**.
+- **Sync now** still sends and fetches once (for example back at the truck) and stays paused.
+- **Resume sync** syncs straight away and then as usual.
+- While paused, your edits are not backed up and the team doesn't see them. If sync has been paused for more than a
+  day with changes waiting, a banner says so, with a **Resume sync** button.
+- Two people changing the same value meanwhile shows up as a conflict after you resume, the same as after a long time
+  without signal.
+
 ### Signing out on a shared device (with cloud sync)
 
 **Sync & account** (tap the status pill) → **Sign out** keeps your projects on the device; nothing syncs until someone
