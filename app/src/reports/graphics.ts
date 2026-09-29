@@ -396,8 +396,10 @@ export async function renderGraphicsPdf(
     const pw = 300;
     const ph = 170;
     const ptop = top + 34;
-    const maxQ = Math.max(1, f.designGpm ?? 0, f.actualGpm ?? 0) * 1.3;
-    const maxHd = Math.max(1, f.designHead ?? 0, f.finalHead ?? 0, f.shutoffHead ?? 0) * 1.2;
+    const curve = f.curve ?? [];
+    const maxQ = Math.max(1, f.designGpm ?? 0, f.actualGpm ?? 0, ...curve.map((p) => p.gpm / 1.3)) * 1.3;
+    const maxHd =
+      Math.max(1, f.designHead ?? 0, f.finalHead ?? 0, f.shutoffHead ?? 0, ...curve.map((p) => p.head)) * 1.2;
     const X = (q: number) => px + (q / maxQ) * pw;
     const Yh = (h: number) => Y(ptop + ph - (h / maxHd) * ph);
     page.drawLine({ start: { x: px, y: Yh(0) }, end: { x: px + pw, y: Yh(0) }, thickness: 0.8, color: INK });
@@ -408,6 +410,14 @@ export async function renderGraphicsPdf(
     }
     text(page, 'GPM', px + pw + 6, Yh(0) - 3, 7.5, bold);
     text(page, 'ft', px - 4, Yh(maxHd) + 6, 7.5, bold);
+    for (let i = 1; i < curve.length; i++)
+      page.drawLine({
+        start: { x: X(curve[i - 1].gpm), y: Yh(curve[i - 1].head) },
+        end: { x: X(curve[i].gpm), y: Yh(curve[i].head) },
+        thickness: 1.4,
+        color: BRAND,
+        opacity: 0.55,
+      });
     if (f.designGpm !== null && f.designHead !== null) {
       page.drawCircle({ x: X(f.designGpm), y: Yh(f.designHead), size: 4, borderColor: INK, borderWidth: 1.2 });
       text(page, 'design', X(f.designGpm) - 6 - tw('design', 7.5), Yh(f.designHead) + 4, 7.5);
@@ -428,8 +438,23 @@ export async function renderGraphicsPdf(
       f.designGpm && f.actualGpm ? `Flow ${num((f.actualGpm / f.designGpm) * 100)} % of design` : '',
     ].filter(Boolean);
     lines.forEach((l, i) => text(page, l, lx, Y(ptop + 12 + i * 14), 9, i < 2 ? bold : regular));
-    text(page, 'The pump curve is drawn once the', lx, Y(ptop + 12 + 4 * 14 + 4), 7, regular, MUTED);
-    text(page, 'pump-curve library has this pump.', lx, Y(ptop + 12 + 4 * 14 + 13), 7, regular, MUTED);
+    const noteY = ptop + 12 + lines.length * 14 + 4;
+    if (curve.length) {
+      text(page, `Curve: ${f.curveName ?? 'pump library'}`, lx, Y(noteY), 7, regular, MUTED);
+      if (f.impeller !== null)
+        text(
+          page,
+          `impeller ${num(f.impeller, 2)} in. (est. from the shut-off head)`,
+          lx,
+          Y(noteY + 9),
+          7,
+          regular,
+          MUTED,
+        );
+    } else {
+      text(page, 'Pick the pump in the pump-curve', lx, Y(noteY), 7, regular, MUTED);
+      text(page, 'library to draw its curve here.', lx, Y(noteY + 9), 7, regular, MUTED);
+    }
   };
 
   newPage();

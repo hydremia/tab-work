@@ -16,6 +16,7 @@ import { ConflictList } from '../components/Conflicts';
 import { IconPlus, IconTrash } from '../components/Icons';
 import { DateInput, TextArea, TextInput } from '../components/inputs';
 import { Screen } from '../components/Screen';
+import { PumpLibrary } from '../components/PumpLibrary';
 import { ValveLibrary } from '../components/ValveLibrary';
 
 const LABEL: Record<(typeof INSTRUMENT_DETAIL_KEYS)[number], string> = {
@@ -212,6 +213,7 @@ export function LibraryPage() {
         </button>
       </section>
       <ValveLibrary />
+      <PumpLibrary />
     </Screen>
   );
 }

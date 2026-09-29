@@ -38,6 +38,7 @@ import {
   type IssueKind,
   type LibraryInstrument,
   type LibraryValve,
+  type LibraryPump,
   type Photo,
   type PhotoCategory,
   type Project,
@@ -66,6 +67,7 @@ export const writeTables = () => [
   db.libraryInstruments,
   db.certProfiles,
   db.libraryValves,
+  db.libraryPumps,
 ];
 
 /** Where a write comes from (recorded in the history). */
@@ -124,6 +126,8 @@ export function describeRecord(name: TableName, rec: AnyRecord): string {
       return 'Certification profile';
     case 'libraryValves':
       return `Library valve: ${[r.make, r.model, r.size].filter(Boolean).join(' ') || 'valve'}`;
+    case 'libraryPumps':
+      return `Library pump: ${[r.make, r.model, r.size].filter(Boolean).join(' ') || 'pump'}`;
   }
 }
 
@@ -1073,4 +1077,24 @@ export function certDefaults(profile: CertProfile | undefined): Record<string, s
 export async function setCertImage(kind: 'stamp' | 'signature', image: StoredImage | null): Promise<void> {
   const profile = await ensureCertProfile();
   await setField('certProfiles', profile.id, kind, image);
+}
+
+export async function addLibraryPump(p: Partial<Omit<LibraryPump, 'id' | 'createdAt' | 'updatedAt'>> = {}) {
+  const now = Date.now();
+  return createRecord<LibraryPump>('libraryPumps', {
+    id: uuid(),
+    make: p.make ?? '',
+    model: p.model ?? '',
+    size: p.size ?? '',
+    rpm: p.rpm ?? null,
+    curves: p.curves ?? null,
+    source: p.source ?? '',
+    notes: p.notes ?? '',
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+export async function deleteLibraryPump(id: string): Promise<void> {
+  await deleteRecord('libraryPumps', id);
 }
