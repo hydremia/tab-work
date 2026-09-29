@@ -1,0 +1,14 @@
+Source: 05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm
+{Dropdowns}: hydronic lists Pump.Type (AU), Flow.Method (AV), DP.Units (AW), Valve.Type (AX), Balance.Method (AY), Yes.No (AZ), Plant.Type (BA), Circuit (BB), Wide.Open (BC)
+{Hydronic Data Entry}: pump design data, rows 7-26 (20 pumps); hidden S/T link each pump's final GPM / head for the System Summary
+System Summary: 30 systems (names typed in B; they match {Hydronic Data Entry} System and the Valves page System): pump design / final, terminal design / final, %, diversity, wide-open count, VFD setpoint
+Pumps: 20 pumps, two per page (26 rows each, 'Pump' anchors in B from row 4); motor block and its corrected FLA / BHP formulas copied from the fan page; head = (discharge - suction) x 2.31 / SG + gauge elevation difference
+Valves: 25 pages, one system per page ('System' anchors in B every 52 rows from row 4), 38 valves each (rows anchor+6 .. anchor+43); % = final (else initial) / design; hidden P = the page's system for the System Summary
+Plant Equipment: 2 pages x 40 rows, one row per water circuit (a water-cooled chiller = evaporator + condenser rows); design / actual GPM and ΔP, %, flow method
+Flow Measurements: ultrasonic readings, 24 rows
+Cover Page: 'TEST, ADJUST, and BALANCE REPORT' moved to rows 11-12, 'HYDRONIC SYSTEMS' in rows 13-14
+ToC: Table of Contents; Report Summary - Narrative and Remarks; Hydronic System Summary; Pumps; Balancing Valves; Plant Equipment and Flow Measurements; Appendix A - Certifications; Appendix B - Abbreviations; Appendix C - Instrument Calibration; Piping Schematic(s); Site Photos (page numbers are written by the SyncToCPageCounts macro, TABHydronic.bas)
+Abbreviations: hydronic list in column B, temperature list in H25:H31 (electrical and reporting kept)
+removed: Equipment Summary, Building Balance, RTUs, MAUs, ERVs, Fans, Small Fans, VAVs, Hoods, Traverses, {Equipment Data Entry}
+sheet order: Cover Page, ToC, Narrative, Summary - New, Summary - (E), {Project Information}, {Hydronic Data Entry}, {Dropdowns}, System Summary, Pumps, Valves, Plant Equipment, Flow Measurements, Photos, Certification, NEBB Cert , NEBB Frm Cert, Abbreviations, Calibration
+no formula refers to a removed airside sheet
