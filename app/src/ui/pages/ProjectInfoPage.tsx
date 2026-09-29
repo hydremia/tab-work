@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { db } from '../../data/db';
 import { useCertProfile, usePhotos, useInstruments, useProjectCompletion } from '../../data/hooks';
 import {
@@ -49,6 +49,7 @@ import { StatusIcon } from '../components/Status';
 import { PhotoThumb } from '../components/PhotoThumb';
 import { SpecField } from '../components/SpecField';
 import { ConflictKeysContext, conflictKeys } from '../components/ConflictFlag';
+import { DeleteProjectButton } from '../components/DeleteProject';
 import { SCOPE_OPTIONS } from './NewProjectPage';
 import { INFO_FIELDS } from '../../domain/projectFields';
 import { useProjectContext } from './ProjectLayout';
@@ -489,7 +490,6 @@ export function ProjectInfoPage() {
   const hasHoods = equipment.some((e) => e.type === 'hood');
   const coverMark = project.naState.fields['photo:cover'];
   const cover = usePhotos(project.id, null)?.find((p) => p.category === 'cover');
-  const nav = useNavigate();
   const blueprints = project.blueprints.length ? project.blueprints : [{ sheet: '', revisionDate: '' }];
   const scopeSpecs = EQUIPMENT_TYPES.map((t) => ({ type: t.key, plural: t.plural, spec: getSpec(t.key) }));
 
@@ -732,19 +732,7 @@ export function ProjectInfoPage() {
 
       <section className="card card-pad stack">
         <h2>Danger zone</h2>
-        <button
-          className="btn btn-danger"
-          type="button"
-          onClick={() => {
-            if (window.confirm(`Delete "${project.name}" and all its data from this device?`)) {
-              void deleteRecord('projects', project.id).then(() =>
-                nav('/', { replace: true, state: { projectDeleted: true } }),
-              );
-            }
-          }}
-        >
-          <IconTrash size={16} /> Delete project
-        </button>
+        <DeleteProjectButton project={project} />
       </section>
     </ConflictKeysContext.Provider>
   );

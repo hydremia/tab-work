@@ -15,6 +15,8 @@ import {
   setField,
   unlockProject,
 } from '../data/repo';
+import { setDeviceName } from '../data/identity';
+import { actorText } from '../domain/historyView';
 import { makeDevice, type Device } from '../test/devices';
 import { SyncError } from './backend';
 import { discardHeld } from './conflicts';
@@ -70,6 +72,25 @@ describe('push and pull between two devices', () => {
     // the server's record matches
     expect(server.valueOf('equipment', rtu.id, 'data.serial')).toBe('SN-1');
     expect(server.valueOf('equipment', rtu.id, 'data.model')).toBe('48FC');
+  });
+
+  it("the other device's history names who and which device (user name from the server, device name from A)", async () => {
+    const { rtu } = await shared();
+    await A.run(() => setDeviceName('  Laptop '));
+    await A.run(() => setField('equipment', rtu.id, 'data.serial', 'SN-9'));
+    await A.sync();
+    expect(server.log.at(-1)).toMatchObject({ user_name: 'alice@a2b.test', device_name: 'Laptop' });
+    await B.sync();
+    const e = await B.run(async () =>
+      (await db.history.toArray()).find((h) => h.field === 'data.serial' && h.source === 'remote'),
+    );
+    expect(e).toMatchObject({ userName: 'alice@a2b.test', deviceName: 'Laptop' });
+    expect(actorText(e!)).toBe('alice@a2b.test · Laptop');
+    // B's own entries carry B's device name too
+    await B.run(() => setDeviceName('Phone'));
+    await B.run(() => setField('equipment', rtu.id, 'data.model', '48FC'));
+    const own = await B.run(async () => (await db.history.toArray()).find((h) => h.field === 'data.model'));
+    expect(own?.deviceName).toBe('Phone');
   });
 
   it('pushes in batches, oldest first, in the order the edits were made', async () => {

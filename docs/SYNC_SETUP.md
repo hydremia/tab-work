@@ -27,9 +27,9 @@ Do every step on **tab-app-dev** first, check it with a preview deploy (step 8),
 | Sign in with Microsoft | Microsoft Entra ID + Supabase "Azure" provider | Only accounts of your company's Microsoft 365 can sign in |
 | Two settings | Vercel | Tell the app where the Supabase project is |
 
-## 2. Apply the database migrations (0001 … 0006)
+## 2. Apply the database migrations (0001 … 0007)
 
-Six files, **in this order**. Each can be run again safely only where noted, so run each one once.
+Seven files, **in this order**. Each can be run again safely only where noted, so run each one once.
 
 | File | What it adds |
 |---|---|
@@ -39,6 +39,7 @@ Six files, **in this order**. Each can be run again safely only where noted, so 
 | `supabase/migrations/0004_library_links.sql` | shared calibration library, link checks (units / issues of the same project), slot-move note (re-runnable) |
 | `supabase/migrations/0005_review_deletes.sql` | a review signs off only the data the reviewer saw; a record added offline to a unit / issue deleted meanwhile no longer fails the push (re-runnable) |
 | `supabase/migrations/0006_cert_profile.sql` | the shared certification profile (CP details, stamp and signature images) (re-runnable) |
+| `supabase/migrations/0007_change_labels.sql` | the History on other devices names the person and the device (*Dana Kim · Phone*) (re-runnable) |
 
 **Option A — in the browser (simplest):**
 
@@ -46,7 +47,7 @@ Six files, **in this order**. Each can be run again safely only where noted, so 
 2. Open `supabase/migrations/0001_init.sql` on GitHub (Raw), copy everything, paste, **Run**. It should end with
    "Success. No rows returned".
 3. New query → the same with `0002_review_lock.sql`, then with `0003_sync_rules.sql`, then `0004_library_links.sql`, then
-   `0005_review_deletes.sql`, then `0006_cert_profile.sql`.
+   `0005_review_deletes.sql`, then `0006_cert_profile.sql`, then `0007_change_labels.sql`.
 
 **Option B — command line** (from a checkout of the repository, Node installed):
 
@@ -54,7 +55,7 @@ Six files, **in this order**. Each can be run again safely only where noted, so 
 npx supabase login
 npx supabase init                          # only if it says this is not a Supabase project; answer "n" to the questions
 npx supabase link --project-ref <project-ref>
-npx supabase db push                       # applies 0001 … 0006 in order; shows them and asks first
+npx supabase db push                       # applies 0001 … 0007 in order; shows them and asks first
 ```
 
 The project ref is the `xxxx` in `https://xxxx.supabase.co` (Settings → General). Never run `supabase test db` against
@@ -63,13 +64,15 @@ the project: the files in `supabase/tests/` are for a throw-away local PostgreSQ
 **Check** (SQL Editor, new query):
 
 ```sql
-select count(*) as mapped_fields from public.sync_columns;                       -- 54 (0001 … 0006)
+select count(*) as mapped_fields from public.sync_columns;                       -- 54 (0001 … 0007)
 select public.server_time_ms() > 0 as server_clock;                            -- true
 select id, public, file_size_limit from storage.buckets where id = 'photos';   -- photos | false | 26214400
 select name from public.organizations;                                          -- a2b
 select count(*) from information_schema.columns
  where table_name = 'field_changes' and column_name = 'units';                -- 1 (0005 applied)
 select count(*) from public.cert_profiles;                                      -- 0 (0006 applied)
+select count(*) from information_schema.columns
+ where table_name = 'field_changes' and column_name = 'device_name';          -- 1 (0007 applied)
 ```
 
 ## 3. Photo storage
@@ -156,22 +159,29 @@ Never enter the `service_role` key anywhere in the app or Vercel. The values are
 
 Everyone else just signs in the same way; their device downloads the company's projects on first sign-in.
 
-## 8. Check sync between two devices (10 minutes)
+## 8. Check sync between two devices (15 minutes)
 
-Use a throw-away project. Device A = a laptop, device B = a phone (or two browsers signed in as two people).
+Use a throw-away project. Device A = a laptop, device B = a phone (or two browsers signed in as two people). On each,
+answer the **Name this device** banner first (A: *Laptop*, B: *Phone*).
+
+**Sync is automatic:** a change is sent about 2 seconds after you make it, each device checks for changes every 30
+seconds, and a device that comes back online syncs straight away. **Sync now** (tap the status pill) only saves waiting.
+So to make two changes collide, or to hold one back, a device has to be **offline** (airplane mode / Wi-Fi off) while
+you make it.
 
 | # | Do | Expect |
 |---|---|---|
-| 1 | A: new project "Sync test", add RTU-1 | B: appears within 30 s (tap the pill → **Sync now** to not wait) |
-| 2 | B: RTU-1 serial `111`; A: RTU-1 model `48FC` | both devices show both values (different fields merge) |
+| 1 | A: new project "Sync test", add RTU-1 | B: appears within 30 s (or Sync now) |
+| 2 | B: RTU-1 serial `111`; A: RTU-1 model `48FC` | both devices show both values (different fields merge). History on A: *RTU-1 · Serial number … · tech2 · Phone* |
 | 3 | B: take a unit photo | A: the photo appears (thumbnail first says *Downloading…*) |
-| 4 | Both: airplane mode / Wi-Fi off. A: serial `AAA`. Then B: serial `BBB` | pills say *Offline · 1 unsynced* |
-| 5 | A back online, then B, then A: pill → Sync now | both show `BBB` (the later edit); both show **Conflict** on RTU-1 and in the **Attention** tab with `AAA` as the other value |
+| 4 | Both offline. A: serial `AAA`. Then B: serial `BBB` | pills say *Offline · 1 unsynced* |
+| 5 | A online, wait for *Synced*; then B online | both show `BBB` (the later edit); both show **Conflict** on RTU-1 and in the **Attention** tab with `AAA` as the other value |
 | 6 | A: Attention → **Use "AAA"** | A and B show `AAA`; the conflict is gone on both |
-| 7 | A: Export → **Issue report** | B: the lock banner appears; B's form is read-only; an edit B had typed offline meanwhile is kept on B and listed as *not synced* in Attention |
-| 8 | A: **Unlock** | B's held edit syncs |
-| 9 | B: pill → Sign out | the project stays on B; nothing syncs until B signs in again |
-| 10 | A: delete the project | it disappears on B too |
+| 7 | **B offline**, B: RTU-1 model `HELD` (pill: *1 unsynced*). A (online): Export → **Issue report** | A: the report is locked |
+| 8 | B online | B: the lock banner appears and the form is read-only; `HELD` is kept on B and listed as *not synced* in Attention (A still shows `48FC`) |
+| 9 | A: **Unlock** | B's held edit syncs: A shows `HELD` |
+| 10 | A: ⋯ → **Delete project…** (the confirmation says *for everyone*) | it disappears on B too (within 30 s) |
+| 11 | B: pill → **Sign out** | B keeps its other projects; nothing syncs until B signs in again |
 
 ## 9. Troubleshooting
 
@@ -201,7 +211,8 @@ sync is off wait on the device (the outbox) until it is on again.
 2. **Undo migration 0003 only** (if its rules cause trouble): SQL Editor → run
    `supabase/rollback/0003_sync_rules_down.sql`. It restores the 0001 / 0002 rules and keeps all data; 0003 can be
    applied again later. (Checked on PostgreSQL 16: after the rollback the 0001 smoke test behaves as before, and 0003
-   re-applies cleanly.) Undo later ones first, newest first: **0006** (`supabase/rollback/0006_cert_profile_down.sql`:
+   re-applies cleanly.) Undo later ones first, newest first: **0007**
+   (`supabase/rollback/0007_change_labels_down.sql`: names stop being filled in; the columns and names kept), **0006** (`supabase/rollback/0006_cert_profile_down.sql`:
    back to the 0005 rules, the profile table kept), **0005** (`supabase/rollback/0005_review_deletes_down.sql`: back
    to the 0004 rules, data kept), then **0004**: `supabase/rollback/0004_library_links_down.sql`
    restores the 0003 trigger and keeps all data (library changes pushed meanwhile are refused and wait on the devices

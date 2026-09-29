@@ -163,6 +163,64 @@ describe('sign-in (mocked Supabase auth)', () => {
   });
 });
 
+describe('device name', () => {
+  it('signed in without a device name: a banner asks for one; saved, it goes; editable on Sync & account', async () => {
+    const user = userEvent.setup();
+    useCloud(true);
+    await db.meta.put({ key: 'cloudUser', value: USER.id });
+    renderAt('/account');
+    const banner = await screen.findByTestId('device-name-banner');
+    await user.click(within(banner).getByRole('button', { name: 'Phone' }));
+    await user.click(within(banner).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByTestId('device-name-banner')).toBeNull());
+    expect((await db.meta.get('deviceName'))?.value).toBe('Phone');
+    const field = within(screen.getByTestId('account-device-name')).getByLabelText('Device name');
+    await waitFor(() => expect(field).toHaveValue('Phone'));
+    // own history entries carry the signed-in name and the device name
+    const p = await createProject({ name: 'Riverside' });
+    const e = (await db.history.where('projectId').equals(p.id).toArray())[0];
+    expect(e).toMatchObject({ userName: 'Dana Kim', deviceName: 'Phone' });
+  });
+
+  it('local mode: no device-name banner', async () => {
+    setCloudForTests(null);
+    renderAt('/');
+    await screen.findByTestId('local-banner');
+    expect(screen.queryByTestId('device-name-banner')).toBeNull();
+  });
+});
+
+describe('deleting a project', () => {
+  it('signed in: the project ⋯ menu deletes it for everyone (the confirm says so) and the delete syncs', async () => {
+    const user = userEvent.setup();
+    useCloud(true);
+    await db.meta.put({ key: 'cloudUser', value: USER.id });
+    await db.meta.put({ key: 'deviceName', value: 'Laptop' });
+    const p = await createProject({ name: 'Riverside' });
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const router = renderAt(`/p/${p.id}/info`);
+    await waitFor(() => expect(server.record('projects', p.id)).toBeDefined(), { timeout: 5000 });
+    await user.click(within(await screen.findByTestId('project-menu')).getByLabelText('Project actions'));
+    await user.click(screen.getByTestId('menu-delete-project'));
+    await waitFor(() => expect(confirm).toHaveBeenCalled());
+    expect(confirm.mock.calls[0][0]).toContain('Delete "Riverside" for everyone?');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/'));
+    expect(await db.projects.get(p.id)).toBeUndefined();
+    await waitFor(() => expect(server.record('projects', p.id)).toBeUndefined(), { timeout: 5000 });
+  });
+
+  it('cancelled: nothing is deleted', async () => {
+    const user = userEvent.setup();
+    setCloudForTests(null);
+    const p = await createProject({ name: 'Riverside' });
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderAt(`/p/${p.id}/info`);
+    await user.click(await screen.findByTestId('delete-project'));
+    expect(confirm.mock.calls[0][0]).toContain('from this device');
+    expect(await db.projects.get(p.id)).toBeDefined();
+  });
+});
+
 describe('first sign-in with local projects', () => {
   it('waits for the choice, uploads the chosen projects through the normal push, keeps the rest on the device', async () => {
     const user = userEvent.setup();

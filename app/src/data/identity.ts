@@ -28,6 +28,8 @@ export function resetIdentityCache(): void {
   deviceIdPromise = null;
   currentUserId = 'local';
   userName = null;
+  deviceName = null;
+  signedInName = null;
   clockSkew = 0;
 }
 
@@ -84,6 +86,30 @@ export async function getUserName(): Promise<string> {
   }
   return userName;
 }
+let deviceName: string | null = null;
+/** What this device is called in everyone's history ("Phone", "Laptop"; meta "deviceName"; '' until given). */
+export async function getDeviceName(): Promise<string> {
+  if (deviceName === null) {
+    const row = await db.meta.get('deviceName');
+    deviceName = typeof row?.value === 'string' ? row.value : '';
+  }
+  return deviceName;
+}
+export async function setDeviceName(name: string): Promise<void> {
+  deviceName = name.trim().slice(0, 40);
+  await db.meta.put({ key: 'deviceName', value: deviceName });
+}
+
+let signedInName: string | null = null;
+/** The signed-in user's name from Microsoft (else email); set by the sync provider, null in local mode. */
+export function setSignedInName(name: string | null | undefined): void {
+  signedInName = name?.trim() || null;
+}
+/** Who is editing, for this device's own history: the name typed on the device, else the signed-in name. */
+export async function getActorName(): Promise<string> {
+  return (await getUserName()) || signedInName || '';
+}
+
 export async function setUserName(name: string): Promise<void> {
   userName = name.trim();
   await db.meta.put({ key: 'userName', value: userName });

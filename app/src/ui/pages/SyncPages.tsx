@@ -11,6 +11,7 @@ import { Link, useNavigate } from 'react-router';
 import { db } from '../../data/db';
 import { countPending, localOnlyProjects } from '../../sync/outbox';
 import { localProjects, useSync } from '../../sync/SyncProvider';
+import { DeviceNameForm, useDeviceName } from '../components/DeviceName';
 import { Screen } from '../components/Screen';
 
 const when = (t: number) => new Date(t).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
@@ -42,6 +43,7 @@ export function removeDataWarning(pending: number, deviceOnly: number, email = '
 }
 
 export function AccountPage() {
+  const deviceName = useDeviceName();
   const s = useSync();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -116,6 +118,12 @@ export function AccountPage() {
               <b>{s.user.name || s.user.email}</b>
               {s.user.name && s.user.email ? <span className="muted"> · {s.user.email}</span> : null}
             </p>
+            <div className="stack" style={{ gap: 6 }} data-testid="account-device-name">
+              <span className="field-label">This device&apos;s name (shown in everyone&apos;s history)</span>
+              {deviceName !== undefined && (
+                <DeviceNameForm key={deviceName} current={deviceName} compact={Boolean(deviceName)} />
+              )}
+            </div>
             <dl className="kv">
               <dt>Status</dt>
               <dd data-testid="account-status">
