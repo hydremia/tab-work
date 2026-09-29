@@ -16,6 +16,7 @@ import {
 import { DropZone, PhotoPicker, SaverStatus, usePhotoSaver } from '../components/PhotoPicker';
 import { PhotoThumb } from '../components/PhotoThumb';
 import { PhotoViewer } from '../components/PhotoViewer';
+import { useLineNames } from '../components/RowLinks';
 import { useProjectContext } from './ProjectLayout';
 
 type Filter = 'all' | PhotoCategory;
@@ -57,7 +58,16 @@ export function PhotosPage() {
     void persistState().then(setPersist);
   }, [stats?.count]);
 
-  const labels = useMemo(() => allPhotoLabels(photos ?? [], equipment, issues), [photos, equipment, issues]);
+  const lineNames = useLineNames(project.id, equipment);
+  const labels = useMemo(() => {
+    const out = allPhotoLabels(photos ?? [], equipment, issues);
+    // a photo of one airflow line: "RTU-1 · Other 2 · Supply outlets #12"
+    for (const p of photos ?? []) {
+      const line = p.airflowRowId ? lineNames?.get(p.airflowRowId) : undefined;
+      if (line && line.equipmentId === p.equipmentId) out.set(p.id, `${out.get(p.id)} · ${line.short}`);
+    }
+    return out;
+  }, [photos, equipment, issues, lineNames]);
   const groups = useMemo(() => groupPhotos(photos ?? []), [photos]);
 
   // units with required photos still missing (completion engine: photo item state 'missing')

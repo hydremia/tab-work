@@ -612,6 +612,9 @@ separately:
 
 - **Equipment**: pick the unit, or **General (N/A)** for a building-wide issue. In the workbook, a linked issue's
   remark starts with the unit, e.g. `RTU-1: Supply fan belt worn…`.
+- **Airflow line** (when the unit has outlets, grilles or valve rows): **Whole unit**, or the one line the issue is
+  about (an outlet, a grille, a valve). The workbook remark then names both: `RTU-1 · S-12: Balancing damper stuck`.
+  A re-import links it to that line again.
 - **Open / Closed**: an **open** issue turns its unit **red**. Close it when it's resolved.
 - **Remark**: the deficiency, as it should read in the report.
 - **Comments**: follow-up notes (e.g. "Mechanical contractor notified 9/20").
@@ -621,6 +624,17 @@ separately:
 - **Delete** removes the issue and its deficiency photos (it asks first).
 
 The Issues tab count shows open issues.
+
+**Issues and photos of one airflow line.** Each outlet / grille / valve row has, in its **Row…** menu, **Add issue
+for this line** (the new issue opens on the Issues tab with the unit and the line already set) and **Add photo of
+this line…** (for example the duct configuration at that outlet). The row then shows a red **⚑ N-4** chip for each
+issue and **📷 2** for its photos; tap a chip to go to them. A line is named by its **No.** (`S-12`), a valve by its
+tag, else by its table and position (`Supply outlets #3`). Deleting the row keeps its issues and photos on the unit.
+
+![Issue and photo of one line](../screenshots/44-line-links.png)
+
+So there are three levels for both issues and photos: the **project** (General (N/A)), a **unit**, or **one airflow
+line** of a unit.
 
 ---
 
@@ -652,7 +666,7 @@ Most Compatible**.
   or choose photos. Issues use the same words: an issue that isn't about one unit is linked to **General (N/A)**.
 - Category filter chips, and thumbnails grouped by cover, unit, issue and general.
 - Tap a photo to open it. There you can edit the **Caption**, change the **Category**, **Issue** or
-  **Equipment**, move it **← Earlier** / **Later →** within its group, or **Delete** it.
+  **Equipment** (and, for a unit photo, the **Airflow line**: labels then read `RTU-1 · Other · S-12`), move it **← Earlier** / **Later →** within its group, or **Delete** it.
 
 ### Storage on the phone
 

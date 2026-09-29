@@ -98,6 +98,8 @@ export interface ReportInput {
   /** Equipment type keys in report order, and their labels. */
   typeOrder: readonly string[];
   typeLabel: (type: string) => string;
+  /** (0011) airflow line names by row id, for issues and photos of one line ("Supply outlets #12"). */
+  lineNames?: ReadonlyMap<string, { equipmentId: string; short: string }>;
 }
 
 /** "2026-09-24" (or a Date) -> "September 24, 2026". */
@@ -147,7 +149,13 @@ export function buildReportModel(input: ReportInput, opts: ReportOptions): Repor
   const unitName = (e: Pick<Equipment, 'designation' | 'type' | 'isExisting'>) =>
     `${e.designation} – ${input.typeLabel(e.type)}${e.isExisting ? ' (existing)' : ''}`;
 
-  const toReportPhoto = (p: ReportPhotoMeta, label: string): ReportPhoto => {
+  const lineOf = (x: { airflowRowId?: string | null; equipmentId: string | null }) => {
+    const l = x.airflowRowId ? input.lineNames?.get(x.airflowRowId) : undefined;
+    return l && l.equipmentId === x.equipmentId ? l.short : null;
+  };
+  const toReportPhoto = (p: ReportPhotoMeta, base: string): ReportPhoto => {
+    const line = p.category !== 'deficiency' ? lineOf(p) : null;
+    const label = line ? `${base} · ${line}` : base;
     let caption = p.caption.trim();
     if (!caption && p.category === 'deficiency') {
       const issue = p.issueId ? issueById.get(p.issueId) : undefined;
@@ -175,7 +183,7 @@ export function buildReportModel(input: ReportInput, opts: ReportOptions): Repor
               label: issueLabel(i),
               kind: i.kind,
               number: i.number,
-              equipment: e ? unitName(e) : 'General',
+              equipment: e ? `${unitName(e)}${lineOf(i) ? ` · ${lineOf(i)}` : ''}` : 'General',
               status: i.status,
               remark: i.remark,
               comments: i.comments,
