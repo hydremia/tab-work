@@ -9,6 +9,7 @@ import type { FieldValue, NaMark, NaState, Notation, Project } from '../data/typ
 import { num, ratio, rowActualCfm, withinTolerance } from './calc';
 import { evalCond, isBlank } from './conditions';
 import { TOTAL_CALCS } from './equipmentCalcs';
+import { valveRatio } from './hydronicCalcs';
 import {
   DEFAULT_READING_GROUPS,
   designChecks,
@@ -332,6 +333,7 @@ export function computeCompletion(input: CompletionInput): Completion {
     const groups = t.readingGroups ?? DEFAULT_READING_GROUPS;
     const readingCols = new Set(groups.flat());
     const outlet = (t.calc ?? 'outlet') === 'outlet';
+    const valve = t.calc === 'valve';
     rows.forEach((r, i) => {
       const computedDesign = t.firstRowDesignComputed && i === 0;
       const rowValues = { ...values, ...r.data };
@@ -349,8 +351,14 @@ export function computeCompletion(input: CompletionInput): Completion {
       }
       if (groups.length && !groups.some((g) => g.every(ok))) missing.push('reading');
       // first return row: design = supply design total - OA design (workbook formula)
-      const design = !outlet ? null : computedDesign ? designSum('supply') - designSum('oa') : num(r.data.designCfm);
-      const rt = outlet ? ratio(rowActualCfm(r), design) : null;
+      const design = valve
+        ? num(r.data.designGpm)
+        : !outlet
+          ? null
+          : computedDesign
+            ? designSum('supply') - designSum('oa')
+            : num(r.data.designCfm);
+      const rt = outlet ? ratio(rowActualCfm(r), design) : valve ? valveRatio(r.data) : null;
       const out_ = t.tolerance && rt !== null && !withinTolerance(rt, project.tolerance);
       out.rows[r.id] = { missing, auto: autoCols, ratio: rt, outOfTolerance: out_, design };
       if (out_) {
@@ -400,12 +408,15 @@ export function computeCompletion(input: CompletionInput): Completion {
 
   // unit-level actual vs. design (types without per-outlet tolerance rows)
   if (spec.totalCheck && !na.equipment) {
-    const t = TOTAL_CALCS[spec.totalCheck.calc](values, input.rows);
-    const rt = ratio(t.actual, t.design);
-    res.total = { label: spec.totalCheck.label, design: t.design, actual: t.actual, ratio: rt };
-    if (rt !== null && !withinTolerance(rt, project.tolerance)) {
-      res.outOfTolerance.push({ table: 'total', rowId: '', label: spec.totalCheck.label, ratio: rt });
-    }
+    const r = TOTAL_CALCS[spec.totalCheck.calc](values, input.rows);
+    (Array.isArray(r) ? r : [r]).forEach((t, i) => {
+      const rt = ratio(t.actual, t.design);
+      const label = t.label ?? spec.totalCheck!.label;
+      if (i === 0) res.total = { label, design: t.design, actual: t.actual, ratio: rt };
+      if (rt !== null && !withinTolerance(rt, project.tolerance)) {
+        res.outOfTolerance.push({ table: 'total', rowId: '', label, ratio: rt });
+      }
+    });
   }
 
   if (res.openIssues > 0 || res.outOfTolerance.length > 0) res.color = 'red';

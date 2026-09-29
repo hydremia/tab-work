@@ -9,9 +9,8 @@
  *                     duplicate designations, create / update, the slot a new unit gets and capacity limits
  * Writing is repo.applyScheduleImport() (every value through setField).
  */
-import { TEMPLATE_MAP } from '@a2b/workbook/map';
 import type { Equipment, FieldValue } from '../data/types';
-import { equipmentType, type EquipmentTypeKey } from './equipmentTypes';
+import { equipmentType, workbookDef, type EquipmentTypeKey } from './equipmentTypes';
 import { allFields, getSpec } from './specs';
 
 export type Grid = (string | number | null)[][];
@@ -64,14 +63,34 @@ export interface ScheduleTarget {
   unit?: string;
 }
 
-/** Traverses have no {Equipment Data Entry} section: their identity and duct fields are the "schedule". */
-const TRAVERSE_KEYS = ['designation', 'areaServed', 'designCfm', 'shape', 'width', 'height', 'liner'];
+/**
+ * Types without an {Equipment Data Entry} section: the identity and design fields a schedule can fill (traverses:
+ * duct; plant: design flows per water circuit; ultrasonic readings: design flow). Valve systems have none (their
+ * valves are rows).
+ */
+const NO_EDE_KEYS: Partial<Record<EquipmentTypeKey, readonly string[]>> = {
+  traverse: ['designation', 'areaServed', 'designCfm', 'shape', 'width', 'height', 'liner'],
+  plant: [
+    'designation',
+    'plantType',
+    'service',
+    'manufacturer',
+    'model',
+    'circuit1',
+    'designGpm1',
+    'designDp1',
+    'circuit2',
+    'designGpm2',
+    'designDp2',
+  ],
+  flowMeasurement: ['designation', 'system', 'location', 'pipeSize', 'pipeMaterial', 'designGpm'],
+};
 
 /** The fields a type's schedule import can fill, in {Equipment Data Entry} column order. */
 export function scheduleTargets(type: EquipmentTypeKey): ScheduleTarget[] {
-  const def = TEMPLATE_MAP.equipment.find((d) => d.key === type);
+  const def = workbookDef(type);
   const fields = allFields(getSpec(type)).map((f) => f.field);
-  const keys = def?.ede ? def.ede.fields.map((f) => f.key) : TRAVERSE_KEYS;
+  const keys = def?.ede ? def.ede.fields.map((f) => f.key) : (NO_EDE_KEYS[type] ?? []);
   const out: ScheduleTarget[] = [];
   for (const key of keys) {
     const f = fields.find((x) => x.key === key);
