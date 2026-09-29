@@ -22,6 +22,7 @@ const EquipmentPage = page(() => import('./ui/pages/EquipmentPage'), 'EquipmentP
 const ExportPage = page(() => import('./ui/pages/ExportPage'), 'ExportPage');
 const HistoryPage = page(() => import('./ui/pages/HistoryPage'), 'HistoryPage');
 const ImportPage = page(() => import('./ui/pages/ImportPage'), 'ImportPage');
+const CheckWorkbookPage = page(() => import('./ui/pages/CheckWorkbookPage'), 'CheckWorkbookPage');
 const IssuesPage = page(() => import('./ui/pages/IssuesPage'), 'IssuesPage');
 const NewProjectPage = page(() => import('./ui/pages/NewProjectPage'), 'NewProjectPage');
 const PhotosPage = page(() => import('./ui/pages/PhotosPage'), 'PhotosPage');
@@ -67,6 +68,7 @@ export const routes = [
       { index: true, element: <ProjectListPage /> },
       { path: 'new', element: NewProjectPage },
       { path: 'import', element: ImportPage },
+      { path: 'check', element: CheckWorkbookPage },
       { path: 'account', element: AccountPage },
       { path: 'auth/callback', element: AuthCallbackPage },
       { path: 'cloud-setup', element: CloudSetupPage },

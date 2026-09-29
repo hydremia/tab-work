@@ -14,6 +14,7 @@ import { issuedText, useUnlock } from '../components/LockBanner';
 import { ProgressBar, RollupCounts } from '../components/Status';
 import { ExportStateLine } from '../components/ExportReminder';
 import { HydronicExport } from '../components/HydronicExport';
+import { ReportCheck, useReportCheck } from '../components/ReportCheck';
 import { ShareFile } from '../components/ShareFile';
 import { useProjectContext } from './ProjectLayout';
 
@@ -23,7 +24,8 @@ const SCOPE_KINDS: Record<IssueScope, IssueKind[]> = { all: ['new', 'existing'],
 const when = (t: number) => new Date(t).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
 export function ExportPage() {
-  const { project, equipment, issues, status, locked } = useProjectContext();
+  const { project, equipment, issues, status, locked, attention } = useProjectContext();
+  const check = useReportCheck(project, equipment, issues, status?.byEquipment, attention);
   const { unlock } = useUnlock(project);
   const revisions = useRevisions(project.id);
   const base = useBaseWorkbook(project.id);
@@ -76,7 +78,11 @@ export function ExportPage() {
     if (
       issue &&
       !window.confirm(
-        `Issue the report as ${l}?\n\nThe workbook is exported as revision ${l} and the project is locked: nothing can be edited or imported until someone unlocks it for follow-up.`,
+        `Issue the report as ${l}?${
+          check && check.fail > 0
+            ? `\n\nReport check: ${check.fail} item${check.fail > 1 ? 's' : ''} to fix before a report goes out (listed at the top of the Export tab).`
+            : ''
+        }\n\nThe workbook is exported as revision ${l} and the project is locked: nothing can be edited or imported until someone unlocks it for follow-up.`,
       )
     )
       return;
@@ -134,6 +140,8 @@ export function ExportPage() {
           next export.
         </div>
       )}
+
+      <ReportCheck result={check} base={`/p/${project.id}`} />
 
       <section className="card card-pad stack" aria-labelledby="ex-h">
         <h2 id="ex-h">TAB workbook (.xlsm)</h2>
