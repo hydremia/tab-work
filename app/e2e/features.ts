@@ -13,6 +13,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { listSheets, readText } from '@a2b/workbook';
 import JSZip from 'jszip';
+import { PDFDocument, StandardFonts } from 'pdf-lib';
 import type { Browser, Page } from 'playwright-core';
 
 type Check = (name: string, ok: boolean, detail?: string) => void;
@@ -306,6 +307,29 @@ export async function scheduleFlow(
       /RTUs: 1 new, 1 updated/.test(wbSummaries[0] ?? '') && wbSummaries.length >= 6,
       wbSummaries.map((s) => s.replace(/\s+/g, ' ')).join(' | '),
     );
+    // ------------------------------------------------ a drawing PDF: a pump schedule next to a fan schedule
+    await page.goto(`${projectUrl}/schedule`);
+    await page.getByRole('button', { name: 'File (CSV, Excel, PDF)' }).click();
+    await page.locator('input[aria-label="Schedule file"]').setInputFiles({
+      name: 'M-601 Schedules.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from(await schedulePdf()),
+    });
+    await page.getByTestId('preview-summary-pump').waitFor({ timeout: 30_000 });
+    const pdfType = await page.locator('#si-type').inputValue();
+    const pdfSheets = await page.locator('select[aria-label="Sheet"] option').allInnerTexts();
+    const pdfSummary = await page.getByTestId('preview-summary-pump').innerText();
+    check(
+      'PDF schedule: tables rebuilt from a drawing PDF, the pump schedule previews as pumps (type from its title)',
+      pdfType === 'pump' &&
+        pdfSheets.length === 2 &&
+        /PUMP SCHEDULE/.test(pdfSheets[0]) &&
+        /FAN SCHEDULE/.test(pdfSheets[1]) &&
+        /2 new/.test(pdfSummary),
+      `${pdfType} | ${pdfSheets.join(' / ')} | ${pdfSummary}`,
+    );
+    await page.getByTestId('column-map').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: join(docShots, '42-pdf-schedule.png') });
     check('schedule walk: no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   } finally {
     await context.close();
@@ -527,4 +551,41 @@ export async function certificationFlow(
   } finally {
     await context.close();
   }
+}
+
+/** A drawing-like sheet: a pump schedule (two header lines) and an exhaust fan schedule side by side, cell by cell. */
+async function schedulePdf(): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([1224, 792]);
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const table = (x0: number, title: string, widths: number[], rows: string[][]) => {
+    page.drawText(title, { x: x0, y: 740, size: 10, font });
+    rows.forEach((r, i) => {
+      let x = x0;
+      r.forEach((t, c) => {
+        if (t) page.drawText(t, { x, y: 722 - i * 9 - (i ? 4 : 0), size: 7, font });
+        x += widths[c];
+      });
+    });
+  };
+  table(
+    40,
+    'PUMP SCHEDULE',
+    [40, 90, 70, 50, 45, 30, 55],
+    [
+      ['TAG', 'SERVICE', 'MANUFACTURER', 'GPM', 'HEAD (FT)', 'HP', 'V/PH/HZ'],
+      ['P-1', 'CHILLED WATER', 'B&G', '200', '60', '7.5', '460/3/60'],
+      ['P-2', 'HEATING WATER', 'ARMSTRONG', '150', '45', '5', '460/3/60'],
+    ],
+  );
+  table(
+    620,
+    'EXHAUST FAN SCHEDULE',
+    [40, 100, 40, 35],
+    [
+      ['MARK', 'AREA SERVED', 'CFM', 'ESP'],
+      ['EF-1', 'TOILETS', '450', '0.5'],
+    ],
+  );
+  return doc.save();
 }

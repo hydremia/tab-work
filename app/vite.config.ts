@@ -65,8 +65,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // app shell + the workbook template, so export works offline
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}', 'templates/*.xlsm'],
+        // app shell (with the pdf.js worker, .mjs) + the workbook template, so export and PDF schedules work offline
+        globPatterns: ['**/*.{js,mjs,css,html,svg,png,ico,webmanifest}', 'templates/*.xlsm'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallback: '/index.html',
         cleanupOutdatedCaches: true,
