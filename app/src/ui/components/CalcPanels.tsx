@@ -16,6 +16,7 @@ import {
 } from '../../domain/staticProfile';
 import { unitCells } from '../../workbook/adapter';
 import { Pct } from './AirflowTable';
+import { PumpCurvePick } from './PumpCurvePick';
 
 /** [label, value, workbook cell it prints in (marks the value "report")?, test id?] */
 type KvItem = [string, string, string?, string?];
@@ -448,6 +449,7 @@ export function CalcPanel({
             valves or dirty strainers before throttling.
           </div>
         )}
+        <PumpCurvePick equipment={equipment} />
         <ReportNote> Head = (discharge − suction) × 2.31 / SG + gauge elevation difference.</ReportNote>
       </>
     );

@@ -147,6 +147,15 @@ reads its current definition, adds `'libraryValves'` to the organization-table l
 0006 one. Rollback: `rollback/0009_valve_library_down.sql`. `valve_library_test.sql` 10 PASS (incl. re-run and
 rollback → re-apply); the earlier suites pass on 0001 – 0009.
 
+### 0010: pump-curve library
+
+`0010_pump_library.sql` adds `pump_library` (make, model, size, catalogue `rpm`, `curves` [{impeller, points
+[{gpm, head}]}], curve-sheet source, notes): an organization record like the valve library, its changes filed under
+the pump's own id (`libraryPumps`). The apply trigger is patched the same way as in 0009 (the 0009 list extended with
+`'libraryPumps'`; the migration stops if that list is not there). Rollback: `rollback/0010_pump_library_down.sql`.
+`pump_library_test.sql` 11 PASS; rollback → re-apply → re-run clean; the earlier suites pass on 0001 – 0010 and the
+smoke test output is unchanged.
+
 ## Checking the migrations locally (no Supabase needed)
 
 `tests/` holds a stand-in for Supabase's `auth` / `storage` schemas and two tests. On an empty PostgreSQL 15+ database:
@@ -157,7 +166,7 @@ psql -d <empty db> -v ON_ERROR_STOP=1 -f supabase/tests/supabase_stub.sql \
      -f supabase/migrations/0003_sync_rules.sql -f supabase/migrations/0004_library_links.sql \
      -f supabase/migrations/0005_review_deletes.sql -f supabase/migrations/0006_cert_profile.sql \
      -f supabase/migrations/0007_change_labels.sql -f supabase/migrations/0008_hydronic_types.sql \
-     -f supabase/migrations/0009_valve_library.sql \
+     -f supabase/migrations/0009_valve_library.sql -f supabase/migrations/0010_pump_library.sql \
      -f supabase/tests/grants_for_stub.sql
 psql -d <empty db> -f supabase/tests/sync_rules_test.sql    # ends with "ALL SYNC RULE TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/library_links_test.sql   # "ALL 0004 TESTS PASSED"
@@ -166,6 +175,7 @@ psql -d <other empty db, same setup> -f supabase/tests/cert_profile_test.sql    
 psql -d <other empty db, same setup> -f supabase/tests/change_labels_test.sql   # "ALL 0007 TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/hydronic_types_test.sql  # "ALL 0008 TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/valve_library_test.sql   # "ALL 0009 TESTS PASSED"
+psql -d <other empty db, same setup> -f supabase/tests/pump_library_test.sql    # "ALL 0010 TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/smoke_test.sql
 ```
 
