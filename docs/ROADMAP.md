@@ -233,23 +233,33 @@ start with B's traverse and static-profile graphics, because they add the most a
 Project Information, an Equipment Data Entry page, a data page and a readings page per equipment type, Summary
 remarks, Instruments, Certification, and the same N/A, colour and review rules.
 
-- **Equipment types NEBB expects reported** (confirm the list against Section 5.3 of the 9th Edition standard in
-  the repository before building):
-  - pumps: design and actual GPM and head; suction, discharge and shut-off pressure; impeller; motor data; the
-    operating point plotted on the pump curve;
-  - hydronic coils and terminal units: GPM, EWT / LWT, EAT / LAT, pressure drop;
-  - balancing and flow-measuring valves: make, model, size, setting, design and actual pressure drop, GPM;
-  - chillers, boilers, heat exchangers and cooling towers: flows, temperatures, pressure drops;
-  - a system summary.
+- **What NEBB requires** (read from the 9th Edition, §5.3.13 – 5.3.24 and Section 9; details in
+  [`HYDRONIC_REQUIREMENTS.md`](./HYDRONIC_REQUIREMENTS.md)):
+  - **Pumps** are the big form: nameplate, electrical, standing pressure, shut-off test that confirms the
+    impeller, operating suction / discharge / TDH, flow, speed setting. Integrated variable-speed pumps report
+    less.
+  - **Balancing valves** (fixed / adjustable orifice: setting, ΔP, calculated flow; self-adjusting: tag flow and
+    ΔP within range).
+  - **Ultrasonic** flow readings, when used.
+  - **Chillers, boilers, heat exchangers and cooling towers**: flow and ΔP only.
+  - **No coil or terminal form:** terminals are reported through the valve that serves them. Water and air
+    temperatures are optional (only the least accurate flow method uses them).
+  - Tolerance **±10 % of design flow**, plus proof of a wide-open path through the system.
 - **Calculations the app can do live** (the same "Excel does the math, the app shows it" principle):
-  - GPM from a valve's pressure drop: Cv × √ΔP, or the manufacturer's chart;
-  - pump head (TDH) from suction and discharge pressure;
-  - heat transfer: 500 × GPM × ΔT;
-  - % of design and tolerance flags.
+  - GPM from a valve's ΔP and setting (the manufacturer's chart, or Cv × √ΔP);
+  - flow from equipment ΔP against rated;
+  - TDH from suction and discharge, with the elevation correction;
+  - flow on the pump curve;
+  - optional 500 × GPM × ΔT;
+  - % of design and tolerance flags;
+  - ΔP stored with its unit, because NEBB warns about mixing gauge and chart units.
+- **A balancing assistant** (deterministic): NEBB's proportional method is a fixed sequence. After the first pass
+  the app sorts the terminals by % of design, names the next valve to adjust and its target reading, and shows when
+  the branch is balanced.
 - **A balancing-valve library,** like the calibration library: valve models with their Cv or flow charts, so a
   tech picks *B&G CB-1½* and a setting and gets GPM.
 - **No template yet:** I can draft the hydronic workbook *from* the airside one (same styles, headers, page setup
-  and macro), write its template map, and generate the app forms from the map as for airside. The same
+  and macro; proposed sheet list in HYDRONIC_REQUIREMENTS §4), write its template map, and generate the app forms from the map as for airside. The same
   map-driven code then covers both.
 
 **Needs from a2b:**
@@ -324,6 +334,12 @@ workbook*, for example a report from another tech or firm.
   - every out-of-tolerance reading has a remark or an issue;
   - every open issue has a photo;
   - every *Not Accessible* has a reason.
+- **Hydronic, once 7.2 exists:**
+  - pump flow against the sum of its terminals;
+  - at least one wide-open valve path, and memory stops marked;
+  - the shut-off head matches the impeller on the curve;
+  - the VFD setpoint recorded on variable-flow systems;
+  - ΔP units consistent with the valve chart.
 
 The output is a checklist the reviewer works through before **Mark reviewed** and **Issue report**, and it can also
 be printed as a QA sheet. The thresholds (for example 2 % imbalance or 10 % tolerance) are settings, so a2b can tune
