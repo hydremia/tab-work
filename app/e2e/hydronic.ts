@@ -65,6 +65,23 @@ export async function hydronicFlow(browser: Browser, base: string, docShots: str
     await panel.scrollIntoViewIfNeeded();
     await page.screenshot({ path: join(docShots, '37-pump-test.png') });
 
+    // ---- a valve in the shared library (test data: an adjustable orifice valve with a two-row Cv table)
+    await page.goto(`${base}/library`);
+    await page.getByTestId('add-lib-valve').click();
+    const item = page.getByTestId('valve-lib-item').last();
+    const lput = async (label: string, v: string) => {
+      const el = item.getByLabel(label, { exact: true });
+      await el.fill(v);
+      await el.blur();
+    };
+    await lput('Make', 'TestCo');
+    await lput('Model', 'CBV');
+    await lput('Size', '1"');
+    await item.getByLabel('Type', { exact: true }).selectOption('A');
+    await lput('Cv table', '0 0.5\n4 3.5');
+    await lput('Data sheet', 'e2e test data');
+    await page.waitForTimeout(300);
+
     // ---- valve system
     await addUnit(page, projectUrl, /Valve systems/, 'CHW');
     await put(page, 'service', 'Chilled Water');
@@ -78,12 +95,53 @@ export async function hydronicFlow(browser: Browser, base: string, docShots: str
       await row.getByLabel(`Valves valve ${i + 1} Final`).blur();
     };
     await valve(0, 'CBV-1', '10', '10.5');
+    // valve 1 from the library: setting 4, ΔP 1 psi -> Cv 3.5 x √1 = 3.5 GPM (test data), taken as the final flow
+    const r0 = page.getByTestId('row-valves-0');
+    await r0.getByLabel('Valves valve 1 library valve').selectOption({ label: 'TestCo CBV 1" (A)' });
+    await r0.getByLabel('Valves valve 1 Setting').fill('4');
+    await r0.getByLabel('Valves valve 1 ΔP').fill('1');
+    await r0.getByLabel('Valves valve 1 ΔP').blur();
+    await page.waitForTimeout(300);
+    const flowText = await r0.getByTestId('valve-flow').innerText();
+    await r0.getByTestId('valve-use-final').click();
+    await page.waitForTimeout(300);
+    const finalNow = await r0.getByLabel('Valves valve 1 Final').inputValue();
+    const mm = await r0.getByLabel('Valves valve 1 Make / model').inputValue();
+    check(
+      'hydronic: a library valve gives the flow from setting and ΔP (Cv 3.5 × √1 psi) and fills make / model',
+      /3\.5 GPM/.test(flowText) && finalNow === '3.5' && mm === 'TestCo CBV',
+      `${flowText} | final ${finalNow} | ${mm}`,
+    );
+    await r0.getByLabel('Valves valve 1 Final').fill('10.5');
+    await r0.getByLabel('Valves valve 1 Final').blur();
     await valve(1, 'CBV-2', '20', '30');
     await page.waitForTimeout(300);
     const out = await page.getByTestId('row-valves-1').getAttribute('data-out');
     check('hydronic: a valve at 150 % of design is flagged out of tolerance', out === 'true', `data-out=${out}`);
     await page.getByTestId('table-valves').scrollIntoViewIfNeeded();
     await page.screenshot({ path: join(docShots, '38-valves.png') });
+    // balancing assistant: initial readings 9 / 10 (90 %) and 12 / 20 (60 %): CBV-2 is the reference, CBV-1 -> 6 GPM
+    for (const [i, v] of [
+      [0, '9'],
+      [1, '12'],
+    ] as const) {
+      const el = page.getByTestId(`row-valves-${i}`).getByLabel(`Valves valve ${i + 1} Initial`);
+      await el.fill(v);
+      await el.blur();
+    }
+    await page.waitForTimeout(300);
+    const plan = page.getByTestId('balance-plan');
+    await plan.scrollIntoViewIfNeeded();
+    const steps = await plan.getByTestId('balance-step').allInnerTexts();
+    check(
+      'hydronic: balancing assistant: lowest % valve is the reference, the other gets design × that % as target',
+      steps.length === 2 &&
+        /CBV-2/.test(steps[0]) &&
+        /Reference/.test(steps[0]) &&
+        /CBV-1[\s\S]*6\.0 GPM/.test(steps[1]),
+      steps.join(' | '),
+    );
+    await page.screenshot({ path: join(docShots, '40-balancing.png') });
 
     // ---- list and export
     await page.goto(`${projectUrl}/equipment`);

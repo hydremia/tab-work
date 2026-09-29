@@ -21,6 +21,7 @@ import type {
   AirflowRow,
   BaseWorkbook,
   CertProfile,
+  LibraryValve,
   Equipment,
   HistoryEntry,
   Instrument,
@@ -350,6 +351,18 @@ export function useLibraryConflicts(libIds?: readonly string[]): SyncConflict[] 
       .toArray();
     return list.sort((a, b) => b.detectedAt - a.detectedAt);
   }, [key]);
+}
+
+/** The shared valve library, by make / model / size. */
+export function useLibraryValves(): LibraryValve[] | undefined {
+  return useLiveQuery(async () =>
+    (await db.libraryValves.toArray()).sort(
+      (a, b) =>
+        a.make.localeCompare(b.make) ||
+        a.model.localeCompare(b.model) ||
+        a.size.localeCompare(b.size, undefined, { numeric: true }),
+    ),
+  );
 }
 
 /** The organization's certification profile (undefined while loading, null when there is none yet). */

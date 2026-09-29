@@ -257,6 +257,31 @@ export interface CertProfile {
   updatedAt: number;
 }
 
+/**
+ * The shared balancing-valve library (Dexie v8 `libraryValves`, server `valve_library`, 0009): valve models from
+ * manufacturer data sheets, stored once for the organization (synced like the calibration library, changes filed
+ * under the valve's own id) and picked on a valve row, so a setting and a ΔP give a flow.
+ *  - F fixed orifice: one Cv (cvTable with a single row, setting null);
+ *  - A adjustable orifice: Cv by setting (the manufacturer's table; linear between settings);
+ *  - S self-adjusting: the tag flow (ratedGpm) holds while the ΔP is inside dpMin … dpMax (psi).
+ * Flow = Cv × √ΔP (psi). Values are entered from published data only; `source` names the data sheet.
+ */
+export interface LibraryValve {
+  id: string;
+  make: string;
+  model: string;
+  size: string;
+  valveType: 'F' | 'A' | 'S' | '';
+  cvTable: { setting: number | null; cv: number }[] | null;
+  ratedGpm: number | null;
+  dpMin: number | null;
+  dpMax: number | null;
+  source: string;
+  notes: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type TableName =
   | 'projects'
   | 'equipment'
@@ -265,10 +290,11 @@ export type TableName =
   | 'photos'
   | 'instruments'
   | 'libraryInstruments'
-  | 'certProfiles';
+  | 'certProfiles'
+  | 'libraryValves';
 
 /** Records of the organization that belong to no project: their changes carry the record's own id as projectId. */
-export const ORG_TABLES: readonly TableName[] = ['libraryInstruments', 'certProfiles'];
+export const ORG_TABLES: readonly TableName[] = ['libraryInstruments', 'certProfiles', 'libraryValves'];
 
 /** The sync outbox and audit log: one row per field edit (or record create / delete). */
 export interface FieldChange {

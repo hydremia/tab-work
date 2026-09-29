@@ -2841,3 +2841,29 @@ fieldset.viewer-edit {
   font-weight: 700;
   font-size: 1rem;
 }
+
+.valve-pick {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+.valve-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.balance-plan {
+  display: grid;
+  gap: 8px;
+}
+.balance-steps {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 4px;
+}
+.balance-steps li[data-done='true'] {
+  color: var(--green, inherit);
+}
