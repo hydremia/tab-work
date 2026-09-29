@@ -2841,3 +2841,15 @@ fieldset.viewer-edit {
   font-weight: 700;
   font-size: 1rem;
 }
+
+.valve-pick {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+.valve-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
