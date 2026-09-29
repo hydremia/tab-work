@@ -9,7 +9,14 @@ import { EQUIPMENT_TYPES } from '../domain/equipmentTypes';
 import { downscaleForReport } from '../photos/process';
 import { zipEntryNames } from '../photos/labels';
 import type { PerPage } from './layout';
-import { buildReportModel, reportFileName, type ReportInput, type ReportKind, type ReportPhotoMeta } from './model';
+import {
+  buildReportModel,
+  FIRM_NAME,
+  reportFileName,
+  type ReportInput,
+  type ReportKind,
+  type ReportPhotoMeta,
+} from './model';
 import { renderReportPdf, type ImageLoader } from './pdf';
 
 export interface ReportRequest {
@@ -107,6 +114,41 @@ export async function generatePhotoZip(
   }
   const bytes = await zip.generateAsync({ type: 'uint8array', compression: 'STORE' });
   return { bytes, fileName: reportFileName(input.project.name, 'zip', label), pages: 0, photos: ids.length };
+}
+
+/** The graphics appendix PDF (reports/graphics.ts): figures drawn from the project's values. */
+export async function generateGraphics(projectId: string, label: string): Promise<ReportResult> {
+  const [{ loadBundle }, { computeCompletion }, { getSpec }, { buildGraphicsModel }, { renderGraphicsPdf }] =
+    await Promise.all([
+      import('../workbook/bundle'),
+      import('../domain/completion'),
+      import('../domain/specs'),
+      import('./graphicsModel'),
+      import('./graphics'),
+    ]);
+  const b = await loadBundle(projectId);
+  const completions = new Map(
+    b.equipment.map((e) => [
+      e.id,
+      computeCompletion({
+        spec: getSpec(e.type),
+        unit: e,
+        rows: b.rows.filter((r) => r.equipmentId === e.id),
+        photos: [],
+        project: b.project,
+        openIssues: 0,
+      }),
+    ]),
+  );
+  const model = buildGraphicsModel({ ...b, completions });
+  const reportDate =
+    typeof b.project.info.reportDate === 'string' ? b.project.info.reportDate : new Date().toISOString().slice(0, 10);
+  const address = typeof b.project.info.address === 'string' ? b.project.info.address : undefined;
+  const { bytes, pages } = await renderGraphicsPdf(model, { firm: FIRM_NAME, label, reportDate, address });
+  const d = new Date();
+  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const safe = b.project.name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'Project';
+  return { bytes, fileName: `${safe} - Graphics Appendix ${label ? `${label} ` : ''}${date}.pdf`, pages, photos: 0 };
 }
 
 export function downloadFile(bytes: Uint8Array, fileName: string, mime: string): void {

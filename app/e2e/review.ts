@@ -4,11 +4,20 @@
  * page that fixes it. Screenshot 41.
  */
 import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { PDFDocument } from 'pdf-lib';
 import type { Browser } from 'playwright-core';
 
 type Check = (name: string, ok: boolean, detail?: string) => void;
 
-export async function reviewFlow(browser: Browser, base: string, workbookFile: string, docShots: string, check: Check) {
+export async function reviewFlow(
+  browser: Browser,
+  base: string,
+  workbookFile: string,
+  docShots: string,
+  outDir: string,
+  check: Check,
+) {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 2,
@@ -46,6 +55,16 @@ export async function reviewFlow(browser: Browser, base: string, workbookFile: s
     const projectUrl = page.url().replace(/\/equipment.*$/, '');
     await page.goto(`${projectUrl}/export`);
     await page.getByTestId('report-check').waitFor();
+    // graphics appendix from the same project
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.getByTestId('report-graphics').click()]);
+    const pdfPath = join(outDir, 'graphics.pdf');
+    await dl.saveAs(pdfPath);
+    const pdf = await PDFDocument.load(new Uint8Array(readFileSync(pdfPath)));
+    check(
+      'graphics appendix: a PDF of figures (static profiles, outlet charts, traverses) from the project',
+      pdf.getPageCount() >= 2 && /Graphics Appendix/.test(dl.suggestedFilename()),
+      `${dl.suggestedFilename()} · ${pdf.getPageCount()} pages`,
+    );
     const complete = page.getByTestId('check-complete');
     const status = await complete.getAttribute('data-status');
     await complete.locator('summary').click();

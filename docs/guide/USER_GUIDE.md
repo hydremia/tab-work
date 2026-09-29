@@ -886,6 +886,14 @@ runs the same check on any a2b revision 05 workbook (another tech's report, or o
 
 ![Report check](../screenshots/41-report-check.png)
 
+### Graphics appendix
+
+**Export → Graphics appendix** downloads a PDF of figures drawn from the project, to send with the report: each
+unit's static pressure profile (statics at every station, ΔP per component, TSP / ESP against the design ESP), each
+duct traverse as a cross-section shaded by velocity (average, spread, the points far from the average), design vs.
+actual charts of every outlet table and valve system with the tolerance band, and each pump's design and operating
+point. Units without readings are left out. The pump curve itself comes with the pump-curve library.
+
 ## 10b. Hydronic: pumps, balancing valves, plant
 
 Hydronic work goes in the same project and produces a **separate workbook** (the hydronic TAB report, H01). The

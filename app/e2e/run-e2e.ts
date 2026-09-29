@@ -737,7 +737,7 @@ async function main() {
     await certificationFlow(browser, BASE, DOC_SHOTS, OUT, check);
     await tagsFlow(BASE, file, DOC_SHOTS, OUT, check, launch);
     await hydronicFlow(browser, BASE, DOC_SHOTS, OUT, check);
-    await reviewFlow(browser, BASE, file, DOC_SHOTS, check);
+    await reviewFlow(browser, BASE, file, DOC_SHOTS, OUT, check);
 
     // ------------------------------------------------------------------ review, issue / lock, unlock, history
     await workflowFlow(browser, BASE, file, OUT, DOC_SHOTS, check);
