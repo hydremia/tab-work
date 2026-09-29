@@ -120,6 +120,28 @@ export async function hydronicFlow(browser: Browser, base: string, docShots: str
     check('hydronic: a valve at 150 % of design is flagged out of tolerance', out === 'true', `data-out=${out}`);
     await page.getByTestId('table-valves').scrollIntoViewIfNeeded();
     await page.screenshot({ path: join(docShots, '38-valves.png') });
+    // balancing assistant: initial readings 9 / 10 (90 %) and 12 / 20 (60 %): CBV-2 is the reference, CBV-1 -> 6 GPM
+    for (const [i, v] of [
+      [0, '9'],
+      [1, '12'],
+    ] as const) {
+      const el = page.getByTestId(`row-valves-${i}`).getByLabel(`Valves valve ${i + 1} Initial`);
+      await el.fill(v);
+      await el.blur();
+    }
+    await page.waitForTimeout(300);
+    const plan = page.getByTestId('balance-plan');
+    await plan.scrollIntoViewIfNeeded();
+    const steps = await plan.getByTestId('balance-step').allInnerTexts();
+    check(
+      'hydronic: balancing assistant: lowest % valve is the reference, the other gets design × that % as target',
+      steps.length === 2 &&
+        /CBV-2/.test(steps[0]) &&
+        /Reference/.test(steps[0]) &&
+        /CBV-1[\s\S]*6\.0 GPM/.test(steps[1]),
+      steps.join(' | '),
+    );
+    await page.screenshot({ path: join(docShots, '40-balancing.png') });
 
     // ---- list and export
     await page.goto(`${projectUrl}/equipment`);

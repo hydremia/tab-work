@@ -155,7 +155,9 @@ export type CalcPanel =
   /** Unit ESP actual (the strip's ESP) beside the design unit ESP. */
   | 'unitEsp'
   /** Pump head at each test condition from the gauges, actual vs design head and flow (hydronicCalcs.ts). */
-  | 'pumpTest';
+  | 'pumpTest'
+  /** Balancing assistant for a valve system: NEBB proportional method, targets and progress (balancing.ts). */
+  | 'balancing';
 
 export interface SectionSpec {
   key: string;
