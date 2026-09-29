@@ -4,6 +4,7 @@
  * main bundle.
  */
 export * from './templateMap.js';
+export * from './hydronicMap.js';
 export * from './lists.js';
 export type * from './types.js';
 export type { RevisionMarker } from './docProps.js';
