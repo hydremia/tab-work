@@ -9,12 +9,12 @@
  *  - review: any change to a reviewed unit (its fields, N/A marks, rows, photos) clears the review in the same
  *    transaction, noted in the history as an automatic review clear.
  */
-import { DEFAULT_INSTRUMENTS, TEMPLATE_MAP, TEMPLATE_REVISION, tableRows } from '@a2b/workbook/map';
+import { DEFAULT_INSTRUMENTS, TEMPLATE_REVISION, tableRows } from '@a2b/workbook/map';
 import type { Table } from 'dexie';
 import { CERT_DEFAULTS, CERT_KEYS } from '../domain/certification';
 import { computeCompletion } from '../domain/completion';
 import { duplicateData, duplicateRow } from '../domain/duplicate';
-import { equipmentType, nextFreeSlot, type EquipmentTypeKey } from '../domain/equipmentTypes';
+import { equipmentType, nextFreeSlot, workbookDef, type EquipmentTypeKey } from '../domain/equipmentTypes';
 import type { PreviewRow } from '../domain/scheduleImport';
 import { getSpec } from '../domain/specs';
 import { db } from './db';
@@ -565,7 +565,7 @@ export async function addEquipment(
 
 /** Rows available in an airflow table of an equipment type (from the template map). */
 export function airflowTableCapacity(type: EquipmentTypeKey, table: string): number {
-  const block = TEMPLATE_MAP.equipment.find((e) => e.key === type)?.block;
+  const block = workbookDef(type)?.block;
   const def = block?.tables?.find((t) => t.key === table);
   if (def) return tableRows(def).length;
   // column tables (MAU filter grid: one filter per column)

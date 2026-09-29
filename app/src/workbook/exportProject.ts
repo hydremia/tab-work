@@ -10,6 +10,7 @@
 import {
   checkTemplateCompatibility,
   exportWorkbookWithReport,
+  HYDRONIC_MAP,
   importWorkbook,
   type ExportReport,
   type RevisionMarker,
@@ -25,6 +26,7 @@ import { loadBundle } from './bundle';
 import { getBaseWorkbook, listRevisions, newRevisionBase, saveRevision, suggestLabel } from './revisions';
 
 export const TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/tab-template-rev05.xlsm`;
+export const HYDRONIC_TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/tab-hydronic-h01.xlsm`;
 export const XLSM_MIME = 'application/vnd.ms-excel.sheet.macroEnabled.12';
 
 export async function loadTemplate(url = TEMPLATE_URL): Promise<Uint8Array> {
@@ -33,7 +35,7 @@ export async function loadTemplate(url = TEMPLATE_URL): Promise<Uint8Array> {
   return new Uint8Array(await res.arrayBuffer());
 }
 
-export function exportFileName(projectName: string, label = '', date = new Date()): string {
+export function exportFileName(projectName: string, label = '', date = new Date(), kind = 'TAB Report'): string {
   const clean = (s: string) =>
     s
       .replace(/[\\/:*?"<>|]+/g, '-')
@@ -42,7 +44,7 @@ export function exportFileName(projectName: string, label = '', date = new Date(
   const safe = clean(projectName) || 'Project';
   const d = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   const l = clean(label);
-  return `${safe} - TAB Report ${l ? `${l} ` : ''}${d}.xlsm`;
+  return `${safe} - ${kind} ${l ? `${l} ` : ''}${d}.xlsm`;
 }
 
 export interface ExportOptions {
@@ -129,6 +131,41 @@ export async function exportProject(projectId: string, opts: ExportOptions = {})
   await saveRevision(revision);
   if (opts.issue) await lockProject(projectId, label, revisionId);
   return { bytes: out.bytes, fileName, report: out.report, warnings, revision, baseFileName };
+}
+
+export interface HydronicExportResult {
+  bytes: Uint8Array;
+  fileName: string;
+  report: ExportReport;
+  warnings: string[];
+}
+
+/**
+ * The hydronic workbook (H01): pumps, valve systems, plant, flow readings and the shared report pages, written into
+ * the blank hydronic template. Not recorded as a revision and not re-importable yet (the airside export keeps the
+ * issue / lock workflow); the cover photo and the certification profile's stamp and signature are placed as on the
+ * airside workbook.
+ */
+export async function exportHydronic(
+  projectId: string,
+  opts: { label?: string; template?: Uint8Array } = {},
+): Promise<HydronicExportResult> {
+  const bundle = await loadBundle(projectId);
+  const { data, warnings } = toProjectData(bundle, 'hydronic');
+  const cover = (await db.photos.where('[projectId+category]').equals([projectId, 'cover']).toArray())[0];
+  const coverPhoto = cover?.blob ? new Uint8Array(await cover.blob.arrayBuffer()) : undefined;
+  const template = opts.template ?? (await loadTemplate(HYDRONIC_TEMPLATE_URL));
+  const certImages = certImagesOf(await getCertProfile());
+  const out = await exportWorkbookWithReport(template, data, {
+    map: HYDRONIC_MAP,
+    coverPhoto,
+    cropCoverPhoto: cropCoverPhotoBrowser,
+    certImages,
+  });
+  for (const sk of out.report.certImages?.skipped ?? [])
+    warnings.push(`The ${sk.kind} from the certification profile was not placed: ${sk.reason}.`);
+  const fileName = exportFileName(bundle.project.name, opts.label?.trim() ?? '', new Date(), 'Hydronic TAB Report');
+  return { bytes: out.bytes, fileName, report: out.report, warnings };
 }
 
 export function downloadBytes(bytes: Uint8Array | Blob, fileName: string, mime = XLSM_MIME): void {

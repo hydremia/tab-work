@@ -135,7 +135,10 @@ export function EquipmentListPage() {
       {equipment.length === 0 && (
         <div className="card empty">
           <h2>No equipment yet</h2>
-          <p>RTUs, MAUs, ERVs, fans, VAVs, hoods and traverses go here.</p>
+          <p>
+            RTUs, MAUs, ERVs, fans, VAVs, hoods and traverses go here, and pumps, balancing valves and plant equipment
+            for the hydronic report.
+          </p>
         </div>
       )}
       {status &&
@@ -146,8 +149,24 @@ export function EquipmentListPage() {
             .filter((e) => f.test(status.byEquipment.get(e.id)!, status.display.get(e.id)!));
           const r = status.byType.get(t.key);
           if (!r || !list.length) return null;
+          // a divider before the first hydronic group shown (the hydronic types export to their own workbook)
+          const firstHydronic =
+            t.discipline === 'hydronic' &&
+            !EQUIPMENT_TYPES.some(
+              (x, i) =>
+                i < EQUIPMENT_TYPES.indexOf(t) &&
+                x.discipline === 'hydronic' &&
+                equipment.some(
+                  (e) => e.type === x.key && f.test(status.byEquipment.get(e.id)!, status.display.get(e.id)!),
+                ),
+            );
           return (
             <section key={t.key} className="type-group" aria-labelledby={`grp-${t.key}`}>
+              {firstHydronic && (
+                <p className="discipline-divider" data-testid="hydronic-divider">
+                  Hydronic <span className="small muted">· separate workbook (Export tab)</span>
+                </p>
+              )}
               <div className="type-head">
                 <h2 id={`grp-${t.key}`}>{t.plural}</h2>
                 <span className="rollup" data-testid={`rollup-${t.key}`}>
@@ -158,7 +177,7 @@ export function EquipmentListPage() {
                     </>
                   )}
                 </span>
-                {!locked && (
+                {!locked && t.key !== 'valveSystem' && (
                   <Link
                     to={`/p/${project.id}/schedule?type=${t.key}`}
                     className="small"

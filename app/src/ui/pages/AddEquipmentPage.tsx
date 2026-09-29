@@ -52,28 +52,33 @@ export function AddEquipmentPage() {
           <legend className="field-label" style={{ marginBottom: 8 }}>
             Type
           </legend>
-          <div className="type-picker">
-            {EQUIPMENT_TYPES.map((t) => {
-              const n = equipment.filter((e) => e.type === t.key).length;
-              return (
-                <button
-                  key={t.key}
-                  type="button"
-                  className="type-option"
-                  aria-pressed={type === t.key}
-                  onClick={() => {
-                    setType(t.key);
-                    setDesignation(null);
-                  }}
-                >
-                  <b>{t.plural}</b>
-                  <small>
-                    {n} / {t.capacity} used
-                  </small>
-                </button>
-              );
-            })}
-          </div>
+          {(['air', 'hydronic'] as const).map((disc) => (
+            <div key={disc} className="stack" style={{ gap: 6 }}>
+              <span className="small muted">{disc === 'air' ? 'Airside' : 'Hydronic (separate workbook)'}</span>
+              <div className="type-picker" data-testid={`type-picker-${disc}`}>
+                {EQUIPMENT_TYPES.filter((t) => t.discipline === disc).map((t) => {
+                  const n = equipment.filter((e) => e.type === t.key).length;
+                  return (
+                    <button
+                      key={t.key}
+                      type="button"
+                      className="type-option"
+                      aria-pressed={type === t.key}
+                      onClick={() => {
+                        setType(t.key);
+                        setDesignation(null);
+                      }}
+                    >
+                      <b>{t.plural}</b>
+                      <small>
+                        {n} / {t.capacity} used
+                      </small>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </fieldset>
         <div className="field">
           <label className="field-label" htmlFor="eq-designation">

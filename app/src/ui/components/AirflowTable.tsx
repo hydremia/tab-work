@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { addAirflowRow, airflowTableCapacity, CapacityError, deleteRecord, setField, setFields } from '../../data/repo';
 import { NOTATIONS, type AirflowRow, type Equipment, type NaMark, type Notation } from '../../data/types';
 import { formatNumber, formatPercent, rowCfm, tableTotals, withinTolerance } from '../../domain/calc';
+import { valveTotals } from '../../domain/hydronicCalcs';
 import { tableNaKey, type TableResult } from '../../domain/completion';
 import { filterCfm, hoodRow } from '../../domain/equipmentCalcs';
 import { DEFAULT_FILL_DOWN, tableColumns, type RowColumnSpec, type RowTableSpec } from '../../domain/specs';
@@ -60,6 +61,7 @@ function RowCalcLine({
   compact?: boolean;
 }) {
   const calc = spec.calc ?? 'outlet';
+  if (calc === 'valve') return null; // the % is the valve row's only calculation
   if (compact && calc !== 'filterGrid') {
     const [a, b] =
       calc === 'hoodFilter'
@@ -307,7 +309,7 @@ function GridTable({
                 {c.label}
               </th>
             ))}
-            <th scope="col">{spec.calc === 'filterGrid' ? 'CFM' : 'CFM init / final'}</th>
+            {spec.calc !== 'valve' && <th scope="col">{spec.calc === 'filterGrid' ? 'CFM' : 'CFM init / final'}</th>}
             {spec.tolerance && <th scope="col">%</th>}
             <th scope="col">
               <span className="visually-hidden">Row actions</span>
@@ -383,9 +385,11 @@ function GridTable({
                     </td>
                   );
                 })}
-                <td className="grid-calc">
-                  <RowCalcLine spec={spec} row={row} unitData={unitData} compact />
-                </td>
+                {spec.calc !== 'valve' && (
+                  <td className="grid-calc">
+                    <RowCalcLine spec={spec} row={row} unitData={unitData} compact />
+                  </td>
+                )}
                 {spec.tolerance && (
                   <td>
                     <Pct ratio={res?.ratio ?? null} tolerance={tolerance} />
@@ -451,6 +455,7 @@ export function AirflowTable({
   const st = result?.state;
   const outlet = (spec.calc ?? 'outlet') === 'outlet';
   const totals = tableTotals(rows);
+  const valves = spec.calc === 'valve' ? valveTotals(rows) : null;
   const noun = spec.noun ?? (spec.key === 'return' ? 'inlet' : spec.key === 'oa' ? 'OA row' : 'outlet');
   const firstCol = tableColumns(spec)[0].key;
   const [grid, setGrid] = useState(initialGrid);
@@ -541,6 +546,17 @@ export function AirflowTable({
             Actual <b>{formatNumber(totals.actual)}</b>
           </span>
           <Pct ratio={totals.ratio} tolerance={tolerance} />
+        </div>
+      )}
+      {valves && rows.length > 1 && (
+        <div className="totals" aria-label={`${spec.label} totals`}>
+          <span>
+            Design <b>{formatNumber(valves.design)}</b> GPM
+          </span>
+          <span>
+            Final <b>{formatNumber(valves.final ?? valves.initial)}</b> GPM
+          </span>
+          <Pct ratio={valves.ratio} tolerance={tolerance} />
         </div>
       )}
       {rows.length < cap && !(naLine && rows.length === 0) && (

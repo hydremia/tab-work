@@ -13,7 +13,6 @@ import {
   blockLayout,
   NOTATIONS as WB_NOTATIONS,
   TEMPLATE_MAP,
-  TEMPLATE_REVISION,
   type Cell,
   type EquipmentDef,
   type FieldDef,
@@ -22,7 +21,7 @@ import {
 } from '@a2b/workbook/map';
 import { computeCompletion, isNaState, seqNaKey, tableNaKey, type Completion } from '../domain/completion';
 import { isBlank } from '../domain/conditions';
-import { equipmentType, type EquipmentTypeKey } from '../domain/equipmentTypes';
+import { equipmentType, mapOf, workbookDef, type Discipline, type EquipmentTypeKey } from '../domain/equipmentTypes';
 import { CERT_KEYS, CERT_PRELIM_REASON, certValue } from '../domain/certification';
 import { PRESSURE_KEYS, PRESSURE_ROWS } from '../domain/projectCompletion';
 import { SPARE_OA_ROWS, spareOaKey, type SpareOaColumn } from '../domain/spareOa';
@@ -102,10 +101,39 @@ const splitLines = (text: string, room: number): string[] => {
   return lines;
 };
 
-export function toProjectData(b: ProjectBundle): { data: ProjectData; warnings: string[] } {
+/** Project-level hydronic values (project.info keys): the Plant Equipment and Flow Measurements page headers. */
+export const HYDRONIC_INFO_KEYS = {
+  plantDpUnits: 'hydPlantDpUnits',
+  plantInstrument: 'hydPlantInstrument',
+  flowInstrument: 'hydFlowInstrument',
+} as const;
+
+/** Sections of the hydronic workbook the app writes (reset when exporting onto an issued hydronic workbook). */
+export const HYDRONIC_APP_SECTIONS = [
+  'projectInfo',
+  'narrative',
+  'issuesNew',
+  'issuesExisting',
+  'calibration',
+  'certification',
+  'systemSummary',
+  'plant',
+  'flowMeasurements',
+] as const;
+
+/**
+ * The project as ProjectData for one workbook: the airside TAB workbook (revision 05) or the hydronic one (H01).
+ * Both carry the shared report pages (project information, narrative, remarks, calibration, certification); each gets
+ * its own discipline's equipment.
+ */
+export function toProjectData(
+  b: ProjectBundle,
+  discipline: Discipline = 'air',
+): { data: ProjectData; warnings: string[] } {
   const warnings: string[] = [];
   const { project } = b;
-  const pd: ProjectData = { templateRevision: TEMPLATE_REVISION, name: project.name, sections: {}, equipment: {} };
+  const map = mapOf(discipline);
+  const pd: ProjectData = { templateRevision: map.revision, name: project.name, sections: {}, equipment: {} };
   const pn = project.naState.fields;
 
   // ---- {Project Information}
@@ -210,7 +238,12 @@ export function toProjectData(b: ProjectBundle): { data: ProjectData; warnings: 
   // ---- Summary - New / Summary - (E)
   const byId = new Map(b.equipment.map((e) => [e.id, e]));
   for (const kind of ['new', 'existing'] as const) {
-    const list = b.issues.filter((i) => i.kind === kind).sort((a, c) => a.number - c.number);
+    // a unit's issues go to its own workbook; general issues (no unit) to both
+    const ofReport = (i: Issue) => {
+      const eq = i.equipmentId ? byId.get(i.equipmentId) : undefined;
+      return !eq || equipmentType(eq.type).discipline === discipline;
+    };
+    const list = b.issues.filter((i) => i.kind === kind && ofReport(i)).sort((a, c) => a.number - c.number);
     if (!list.length) continue;
     if (list.length > 50)
       warnings.push(`${kind === 'new' ? 'Summary - New' : 'Summary - (E)'}: ${list.length} issues, room for 50`);
@@ -238,7 +271,7 @@ export function toProjectData(b: ProjectBundle): { data: ProjectData; warnings: 
       warnings.push(`${e.designation} is not exported: slot ${e.slot} is also used by ${owner.designation}`);
       continue;
     }
-    const def = TEMPLATE_MAP.equipment.find((d) => d.key === e.type);
+    const def = map.equipment.find((d) => d.key === e.type);
     if (!def) continue;
     const spec = getSpec(e.type);
     const layout = blockLayout(def, e.slot);
@@ -325,7 +358,49 @@ export function toProjectData(b: ProjectBundle): { data: ProjectData; warnings: 
     (pd.equipment[e.type] ??= []).push(unit);
   }
   for (const k of Object.keys(pd.equipment)) pd.equipment[k].sort((a, c) => a.slot - c.slot);
+  if (discipline === 'hydronic') hydronicSections(b, pd, warnings);
+  // keep only the sections the workbook has (the airside-only pages are not in the hydronic workbook)
+  for (const k of Object.keys(pd.sections)) if (!map.sections.some((sec) => sec.key === k)) delete pd.sections[k];
   return { data: pd, warnings };
+}
+
+/**
+ * Hydronic page headers and the System Summary: one line per system, from the valve systems (their designation is
+ * the system name) and the systems named on the pumps; the workbook's formulas add the flows up by that name.
+ */
+function hydronicSections(b: ProjectBundle, pd: ProjectData, warnings: string[]): void {
+  const info = b.project.info;
+  const text = (v: FieldValue | undefined): string => (typeof v === 'string' ? v.trim() : v == null ? '' : String(v));
+  const bySlot = (x: Equipment, y: Equipment) => x.slot - y.slot;
+  const valveSystems = b.equipment.filter((e) => e.type === 'valveSystem').sort(bySlot);
+  const pumps = b.equipment.filter((e) => e.type === 'pump').sort(bySlot);
+  const names: string[] = [];
+  const add = (n: string) => {
+    if (n && !names.some((x) => x.toLowerCase() === n.toLowerCase())) names.push(n);
+  };
+  for (const v of valveSystems) add(v.designation.trim());
+  for (const p of pumps) add(text(p.data.system));
+  if (names.length > 30) warnings.push(`System Summary: ${names.length} systems, the workbook lists 30`);
+  const systems = names.slice(0, 30).map((name) => {
+    const same = (v: FieldValue | undefined) => text(v).toLowerCase() === name.toLowerCase();
+    const vs = valveSystems.find((v) => same(v.designation));
+    const ps = pumps.filter((p) => same(p.data.system));
+    const row: Record<string, Cell> = { system: name };
+    const service = text(vs?.data.service) || text(ps[0]?.data.service);
+    const pumpNames = text(vs?.data.pumps) || ps.map((p) => p.designation).join(', ');
+    if (service) row.service = service;
+    if (pumpNames) row.pumps = pumpNames;
+    if (text(vs?.data.vfdSetpoint)) row.vfdSetpoint = text(vs?.data.vfdSetpoint);
+    return row;
+  });
+  if (systems.length) pd.sections.systemSummary = { tables: { systems } };
+  const field = (k: string) => text(info[k]);
+  const plant: Record<string, Cell> = {};
+  if (field(HYDRONIC_INFO_KEYS.plantDpUnits)) plant.dpUnits = field(HYDRONIC_INFO_KEYS.plantDpUnits);
+  if (field(HYDRONIC_INFO_KEYS.plantInstrument)) plant.instrument = field(HYDRONIC_INFO_KEYS.plantInstrument);
+  if (Object.keys(plant).length) pd.sections.plant = { fields: plant };
+  if (field(HYDRONIC_INFO_KEYS.flowInstrument))
+    pd.sections.flowMeasurements = { fields: { instrument: field(HYDRONIC_INFO_KEYS.flowInstrument) } };
 }
 
 /**
@@ -342,7 +417,7 @@ export function unitFieldCells(
 ): { schedule: Record<string, Cell>; fields: Record<string, Cell> } {
   const schedule: Record<string, Cell> = {};
   const fields: Record<string, Cell> = {};
-  const def = TEMPLATE_MAP.equipment.find((d) => d.key === e.type);
+  const def = workbookDef(e.type);
   if (!def) return { schedule, fields };
   const layout = blockLayout(def, e.slot);
   const keys = new Set([...Object.keys(e.data), ...Object.keys(e.naState.fields), ...Object.keys(c.fields)]);

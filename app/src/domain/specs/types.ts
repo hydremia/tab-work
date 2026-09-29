@@ -84,7 +84,7 @@ export interface RowColumnSpec {
 }
 
 /** Live calculation shown per row / in the table totals (see domain/equipmentCalcs.ts). */
-export type RowCalc = 'outlet' | 'hoodFilter' | 'filterGrid';
+export type RowCalc = 'outlet' | 'hoodFilter' | 'filterGrid' | 'valve';
 
 export interface RowTableSpec {
   /** Template map table key (supply, return, oa, outlets, exhaust, filters) or column table (filterGrid). */
@@ -153,7 +153,9 @@ export type CalcPanel =
   /** Motor: average volts / amps, corrected FLA, estimated BHP and the amps / BHP checks (motorCalcs.ts). */
   | 'motor'
   /** Unit ESP actual (the strip's ESP) beside the design unit ESP. */
-  | 'unitEsp';
+  | 'unitEsp'
+  /** Pump head at each test condition from the gauges, actual vs design head and flow (hydronicCalcs.ts). */
+  | 'pumpTest';
 
 export interface SectionSpec {
   key: string;
@@ -184,7 +186,7 @@ export interface DesignCheck {
 }
 
 /** Unit-level actual / design checked against the project tolerance (see TOTAL_CALCS in equipmentCalcs.ts). */
-export type TotalCalc = 'mau' | 'hood' | 'traverse';
+export type TotalCalc = 'mau' | 'hood' | 'traverse' | 'pump' | 'plant' | 'flow';
 
 export interface EquipmentSpec {
   type: EquipmentTypeKey;
