@@ -92,6 +92,11 @@ function hydronicBundle(): ProjectBundle {
   });
   const reading = unit(pid, 'flowMeasurement', 1, 'U-1', { system: 'CHW', designGpm: 200, measuredGpm: 210 });
   b.equipment.push(pump, sys, chiller, reading);
+  Object.assign(b.project.info, {
+    hydPlantDpUnits: 'ft w.g.',
+    hydPlantInstrument: 'Hydronic manometer',
+    hydFlowInstrument: 'Ultrasonic UFM-1',
+  });
   b.rows.push(
     valve(pid, sys.id, 1, {
       no: '1',
@@ -190,6 +195,8 @@ describe('hydronic units', () => {
     expect(back.equipment.valveSystem[0].tables?.valves.map((v) => v.tag)).toEqual(['CBV-1', 'CBV-2']);
     expect(back.equipment.plant[0].fields).toMatchObject({ designation: 'CH-1', actualGpm2: 250 });
     expect(back.equipment.flowMeasurement[0].fields).toMatchObject({ designation: 'U-1', measuredGpm: 210 });
+    expect(back.sections.plant?.fields).toMatchObject({ dpUnits: 'ft w.g.', instrument: 'Hydronic manometer' });
+    expect(back.sections.flowMeasurements?.fields).toMatchObject({ instrument: 'Ultrasonic UFM-1' });
   });
 
   it('the airside workbook leaves the hydronic units out (and still exports)', async () => {
