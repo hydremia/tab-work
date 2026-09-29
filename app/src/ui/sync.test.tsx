@@ -290,6 +290,64 @@ describe('sync loop lifetime', () => {
   });
 });
 
+describe('pause sync', () => {
+  it('paused: edits stay on the device (also after a restart); Sync now sends once and stays paused; Resume syncs', async () => {
+    const user = userEvent.setup();
+    useCloud(true);
+    await db.meta.put({ key: 'cloudUser', value: USER.id });
+    const p = await createProject({ name: 'Riverside' });
+    renderAt('/account');
+    await waitFor(() => expect(screen.getByTestId('account-status')).toHaveTextContent('Everything synced'));
+    await user.click(screen.getByTestId('pause-toggle'));
+    await waitFor(() => expect(screen.getByTestId('sync-status')).toHaveTextContent('Sync paused'));
+    await setField('projects', p.id, 'info.architect', 'Lionakis');
+    await waitFor(() => expect(screen.getByTestId('sync-status')).toHaveTextContent(/Paused · \d+ not sent/));
+    await new Promise((r) => setTimeout(r, 2500)); // longer than the after-edit delay (1.5 s)
+    expect(server.valueOf('projects', p.id, 'info.architect')).not.toBe('Lionakis');
+
+    // a restart keeps it paused
+    cleanup();
+    renderAt('/account');
+    await waitFor(() => expect(screen.getByTestId('pause-toggle')).toHaveTextContent('Resume sync'));
+    await new Promise((r) => setTimeout(r, 2000));
+    expect(server.valueOf('projects', p.id, 'info.architect')).not.toBe('Lionakis');
+    expect(screen.getByTestId('account-status')).toHaveTextContent(/Sync paused — \d+ changes? not sent/);
+
+    // Sync now: once, still paused
+    await user.click(screen.getByTestId('sync-now'));
+    await waitFor(() => expect(server.valueOf('projects', p.id, 'info.architect')).toBe('Lionakis'), {
+      timeout: 5000,
+    });
+    await waitFor(() => expect(screen.getByTestId('sync-status')).toHaveTextContent('Sync paused'));
+    await setField('projects', p.id, 'info.engineer', 'Guttmann');
+    await new Promise((r) => setTimeout(r, 2500));
+    expect(server.valueOf('projects', p.id, 'info.engineer')).not.toBe('Guttmann');
+
+    // Resume: syncs right away and automatically again
+    await user.click(screen.getByTestId('pause-toggle'));
+    await waitFor(() => expect(server.valueOf('projects', p.id, 'info.engineer')).toBe('Guttmann'), {
+      timeout: 5000,
+    });
+    await waitFor(() => expect(screen.getByTestId('account-status')).toHaveTextContent('Everything synced'));
+    expect(await db.meta.get('syncPausedSince')).toBeUndefined();
+  }, 30_000);
+
+  it('paused for more than a day with changes waiting: a banner reminds, Resume sync from it', async () => {
+    const user = userEvent.setup();
+    useCloud(true);
+    await db.meta.put({ key: 'cloudUser', value: USER.id });
+    await db.meta.put({ key: 'syncPausedSince', value: Date.now() - 25 * 60 * 60 * 1000 });
+    const p = await createProject({ name: 'Old pause' });
+    renderAt('/');
+    const banner = await screen.findByTestId('paused-banner');
+    expect(banner).toHaveTextContent(/not backed up or shared yet/);
+    expect(server.record('projects', p.id)).toBeUndefined();
+    await user.click(within(banner).getByRole('button', { name: 'Resume sync' }));
+    await waitFor(() => expect(server.record('projects', p.id)).toBeDefined(), { timeout: 5000 });
+    await waitFor(() => expect(screen.queryByTestId('paused-banner')).toBeNull());
+  });
+});
+
 describe('sign-out', () => {
   it('warns about unsynced changes, keeps local data, stops syncing', async () => {
     const user = userEvent.setup();

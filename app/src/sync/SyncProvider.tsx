@@ -6,6 +6,10 @@
  * First sign-in on a device that already has projects (made in local mode): syncing waits until the user chooses on
  * /cloud-setup which of them move to the cloud (the others stay on this device only). Sign-out keeps all local data
  * and stops syncing; unsynced changes stay in the outbox until someone signs in again.
+ *
+ * Pause sync (this device, kept across restarts until resumed): the automatic syncs stop (after edits, every 30 s,
+ * on reconnect, on Realtime hints); edits keep saving on the device and queue in the outbox. "Sync now" still sends
+ * and fetches once and stays paused. Resuming syncs right away.
  */
 import { useLiveQuery } from 'dexie-react-hooks';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -17,7 +21,8 @@ import { countPending, localOnlyProjects, setLocalOnlyProjects } from './outbox'
 
 export type SyncUser = CloudUser;
 
-export type SyncStatus = 'local' | 'signed-out' | 'setup' | 'offline' | 'syncing' | 'synced' | 'pending' | 'error';
+export type SyncStatus =
+  'local' | 'signed-out' | 'setup' | 'paused' | 'offline' | 'syncing' | 'synced' | 'pending' | 'error';
 
 export interface SyncState {
   configured: boolean;
@@ -29,6 +34,13 @@ export interface SyncState {
   lastSyncAt: number | null;
   /** First sign-in with local projects on the device: waiting for the choice on /cloud-setup. */
   onboarding: boolean;
+  /** Sync paused on this device: since when (ms), else null. */
+  pausedSince: number | null;
+  /** Paused for more than PAUSE_REMINDER_MS (the banner reminds when changes are waiting). */
+  pausedLong: boolean;
+  /** Pause (true) or resume (false) the automatic sync on this device. */
+  setPaused: (paused: boolean) => Promise<void>;
+  /** Sync once now (also while paused). */
   syncNow: () => Promise<void>;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -43,6 +55,11 @@ export interface SyncState {
 }
 
 const SyncContext = createContext<SyncState | null>(null);
+
+const PAUSED_KEY = 'syncPausedSince';
+
+/** Paused this long with changes not sent: the banner reminds. */
+export const PAUSE_REMINDER_MS = 24 * 60 * 60 * 1000;
 
 export function useOnline(): boolean {
   const [online, setOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine));
@@ -96,6 +113,16 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const running = useRef(false);
   const again = useRef(false);
   const pending = useLiveQuery(() => countPending(Boolean(user)), [user], 0);
+  // undefined while loading: nothing syncs automatically until it is known
+  const pausedSince = useLiveQuery(
+    async () => {
+      const v = (await db.meta.get(PAUSED_KEY))?.value;
+      return typeof v === 'number' ? v : null;
+    },
+    [],
+    undefined,
+  );
+  const auto = pausedSince === null;
 
   // auth state
   useEffect(() => {
@@ -181,18 +208,19 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   }, [syncNow]);
 
   // soon after local edits (and when coming back online), periodically, and on Realtime hints
+  // (none of them while paused)
   useEffect(() => {
-    if (!engine || !online) return;
+    if (!engine || !online || !auto) return;
     const t = setTimeout(() => void syncNow(), pending ? 1500 : 0);
     return () => clearTimeout(t);
-  }, [pending, engine, online, syncNow]);
+  }, [pending, engine, online, auto, syncNow]);
   useEffect(() => {
-    if (!engine || !online) return;
+    if (!engine || !online || !auto) return;
     const t = setInterval(() => void syncNow(), 30_000);
     return () => clearInterval(t);
-  }, [engine, online, syncNow]);
+  }, [engine, online, auto, syncNow]);
   useEffect(() => {
-    if (!engine?.subscribe || !online) return;
+    if (!engine?.subscribe || !online || !auto) return;
     let t: ReturnType<typeof setTimeout> | undefined;
     const stop = engine.subscribe(() => {
       clearTimeout(t);
@@ -202,7 +230,22 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       clearTimeout(t);
       stop();
     };
-  }, [engine, online, syncNow]);
+  }, [engine, online, auto, syncNow]);
+
+  // the reminder: set by a timer when the pause (the one started at pausedSince) passes PAUSE_REMINDER_MS
+  const [longFor, setLongFor] = useState<number | null>(null);
+  useEffect(() => {
+    if (!pausedSince) return;
+    const left = pausedSince + PAUSE_REMINDER_MS - Date.now();
+    const t = setTimeout(() => setLongFor(pausedSince), Math.max(0, Math.min(left, 2 ** 31 - 1)));
+    return () => clearTimeout(t);
+  }, [pausedSince]);
+  const pausedLong = Boolean(pausedSince) && longFor === pausedSince;
+
+  const setPaused = useCallback(async (paused: boolean) => {
+    if (paused) await db.meta.put({ key: PAUSED_KEY, value: Date.now() });
+    else await db.meta.delete(PAUSED_KEY);
+  }, []);
 
   const signIn = useCallback(async () => {
     if (!cloud) throw new Error('Sign-in is not configured (local mode)');
@@ -256,15 +299,17 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       ? 'signed-out'
       : onboarding
         ? 'setup'
-        : !online
-          ? 'offline'
-          : error
-            ? 'error'
-            : syncing || !engine || !lastSyncAt
-              ? 'syncing'
-              : pending > 0
-                ? 'pending'
-                : 'synced';
+        : pausedSince && !syncing
+          ? 'paused'
+          : !online
+            ? 'offline'
+            : error
+              ? 'error'
+              : syncing || !engine || !lastSyncAt
+                ? 'syncing'
+                : pending > 0
+                  ? 'pending'
+                  : 'synced';
 
   const value = useMemo<SyncState>(
     () => ({
@@ -276,6 +321,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       error,
       lastSyncAt,
       onboarding,
+      pausedSince: pausedSince ?? null,
+      pausedLong,
+      setPaused,
       syncNow,
       signIn,
       signOut,
@@ -293,6 +341,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       error,
       lastSyncAt,
       onboarding,
+      pausedSince,
+      pausedLong,
+      setPaused,
       syncNow,
       signIn,
       signOut,
