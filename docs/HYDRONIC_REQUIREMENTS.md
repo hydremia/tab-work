@@ -109,3 +109,46 @@ shut-off and operating readings are corrected to the pump centreline (§9.5.1 j)
    - a valve not in the library can still be recorded with a manually entered flow (from the chart on the tag or
      a meter), marked *flow entered manually*.
 4. **Temperatures optional** everywhere.
+
+## 5. Workbook revision H01 (built 2026-09-29)
+
+`H01 - a2b_Blank_Hydronic_Workbook 9-29-26.xlsm`, built from the airside revision 05 by
+`tools/build_hydronic.py` (log: `docs/build-log-hydronic-h01.txt`). `tools/functional_test_hydronic.py`
+recalculates it in LibreOffice: **39 PASS**. It checks that the blank template has no error cells, the pump head
+from the gauges (including specific gravity and gauge elevation), the motor formulas, valve % and totals, the
+System Summary sums by system, and N/A notations (blank results, no errors). It still has to be opened in desktop
+Excel.
+
+| Sheet | What it holds | The app writes |
+|---|---|---|
+| Cover Page, ToC, Narrative, Summary - New / (E), {Project Information}, Certification, NEBB Cert, NEBB Frm Cert, Calibration, Photos | as airside (the cover adds *HYDRONIC SYSTEMS*; the ToC lists the hydronic sections) | the same cells as airside |
+| {Hydronic Data Entry} | pump design data, rows 7 – 26: designation, service, **system**, location, mfr, model / size, design GPM, head (ft), connected load, motor HP, RPM, impeller, voltage, phase, pump type | B – P |
+| System Summary | 30 systems (B7 – B36): pump design / final GPM, valve design / final GPM (summed by system name), %, diversity, wide-open count, VFD setpoint | system name, service, pumps, VFD setpoint |
+| Pumps | 20 pumps, two per page (26-row blocks from row 4, "Pump" in B): unit data, design vs actual (flow, head, RPM, impeller), motor (the fan page's block, with corrected FLA and BHP), pump test (standing, shut-off, wide open, final: suction / discharge in psi, head in ft), SG, gauge elevation, flow by meter or valve, VFD Hz, final setpoints, remarks | serial, flow method, actual flow / RPM / impeller, motor data and readings, gauge readings, SG, elevation, meter flow, VFD, setpoints, remarks |
+| Valves | 25 pages, one system per page (52 rows, "System" in B): pumps, instrument, ΔP unit (psi / ft w.g.), method, memory stops; 38 valves: no., tag, serves, make / model, size, type F / A / S, design GPM, initial GPM, final setting / ΔP / GPM, %, wide open; total, remarks | everything but % and totals |
+| Plant Equipment | 2 pages × 40 rows, one row per water circuit: unit, type, service, mfr, model, serial, circuit, design GPM / ΔP, actual GPM / ΔP, %, flow method | everything but % |
+| Flow Measurements | 24 ultrasonic readings: system, location, pipe size, material, wall, transducer, configuration, spacing, design / measured GPM, % | everything but % |
+
+**Macros.** `tools/vba/TABHydronic.bas` has the same entry points as the airside `TABReport.bas`: PrintReport,
+HideUnusedBlocks, ShowAllBlocks and SyncToCPageCounts, adapted to these sheets. As with the airside module, import
+it once into the template (Alt+F11 → Import) and delete the old SyncToCPageCounts module. The build can't embed VBA.
+
+**Judgement calls (pending a2b review):**
+
+1. **A valve's GPM is an input, not a formula.** Adjustable and fixed orifice valves read their flow from the
+   manufacturer's chart at the setting and ΔP, and self-adjusting valves from the tag. The app looks this up in its
+   valve library and writes the GPM; the workbook still does the %, totals and summaries. The airside equivalent is
+   the velocity, which is also an input.
+2. **One system per valve page**, with the system name in D. The System Summary adds up pumps
+   ({Hydronic Data Entry} *System*) and valves by that name, so the names must match. The app will fill them from
+   one list.
+3. **Plant equipment is a table,** one row per water circuit (a water-cooled chiller has an evaporator row and a
+   condenser row), not a form per unit. NEBB only asks for flow and ΔP, and accepts custom forms that report every
+   item (§5.1).
+4. **ΔP unit set per page** (psi or ft w.g.), because NEBB §9.3.2 warns about mixing gauge and chart units. Pump
+   gauges are in psi and head is in ft (× 2.31 / SG).
+5. **Initial GPM** is kept on the valve page, like *Initial* on the airside outlet tables. NEBB only requires the
+   final values.
+6. **Calibration** is unchanged from airside. Its list already includes the hydronic manometer (S-DP-250); the app
+   replaces the rows with the project's instruments as on airside.
+
