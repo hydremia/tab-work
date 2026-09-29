@@ -16,6 +16,7 @@ import { ConflictList } from '../components/Conflicts';
 import { IconPlus, IconTrash } from '../components/Icons';
 import { DateInput, TextArea, TextInput } from '../components/inputs';
 import { Screen } from '../components/Screen';
+import { ValveLibrary } from '../components/ValveLibrary';
 
 const LABEL: Record<(typeof INSTRUMENT_DETAIL_KEYS)[number], string> = {
   type: 'Instrument',
@@ -210,6 +211,7 @@ export function LibraryPage() {
           <IconPlus size={18} /> Add instrument
         </button>
       </section>
+      <ValveLibrary />
     </Screen>
   );
 }

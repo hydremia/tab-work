@@ -3,6 +3,7 @@ import type {
   AirflowRow,
   BaseWorkbook,
   CertProfile,
+  LibraryValve,
   Equipment,
   FieldChange,
   HistoryEntry,
@@ -33,6 +34,7 @@ export class TabDatabase extends Dexie {
   conflicts!: EntityTable<SyncConflict, 'id'>;
   libraryInstruments!: EntityTable<LibraryInstrument, 'id'>;
   certProfiles!: EntityTable<CertProfile, 'id'>;
+  libraryValves!: EntityTable<LibraryValve, 'id'>;
 
   constructor(name = 'a2b-tab') {
     super(name);
@@ -129,6 +131,8 @@ export class TabDatabase extends Dexie {
     this.version(6).stores({ libraryInstruments: 'id, updatedAt' });
     // v7: the certification profile (CP details, stamp and signature images). New table only.
     this.version(7).stores({ certProfiles: 'id, createdAt' });
+    // v8: the shared balancing-valve library (hydronic). New table only.
+    this.version(8).stores({ libraryValves: 'id, updatedAt' });
   }
 }
 
