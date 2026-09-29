@@ -42,7 +42,7 @@ export const CATEGORY_RANK: Record<PhotoCategory, number> = {
 
 export type PhotoMeta = Pick<
   Photo,
-  'id' | 'equipmentId' | 'issueId' | 'category' | 'caption' | 'createdAt' | 'order' | 'projectId'
+  'id' | 'equipmentId' | 'airflowRowId' | 'issueId' | 'category' | 'caption' | 'createdAt' | 'order' | 'projectId'
 >;
 
 /** The group a photo is ordered in: cover | issue:<id> | eq:<id> | general. */
