@@ -4,6 +4,7 @@
  * entry point, `@a2b/workbook/browser`; the Node one lives in spike/export.
  */
 export * from './templateMap.js';
+export * from './hydronicMap.js';
 export type * from './types.js';
 export * from './ooxml.js';
 export * from './exportWorkbook.js';
