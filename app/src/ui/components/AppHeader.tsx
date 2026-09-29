@@ -10,6 +10,7 @@ export function SyncIndicator() {
     local: 'Local',
     'signed-out': 'Not signed in',
     setup: 'Choose projects',
+    paused: s.pending ? `Paused · ${s.pending} not sent` : 'Sync paused',
     offline: s.pending ? `Offline · ${s.pending} unsynced` : 'Offline',
     syncing: 'Syncing…',
     synced: 'Synced',
@@ -19,7 +20,7 @@ export function SyncIndicator() {
   const icon =
     s.status === 'local' || s.status === 'signed-out' || s.status === 'setup' ? (
       <IconDevice size={16} />
-    ) : s.status === 'offline' || s.status === 'error' ? (
+    ) : s.status === 'offline' || s.status === 'error' || s.status === 'paused' ? (
       <IconCloudOff size={16} />
     ) : s.status === 'synced' ? (
       <IconCloudCheck size={16} />
@@ -29,7 +30,9 @@ export function SyncIndicator() {
   const title =
     s.status === 'local'
       ? `Local mode: saved on this device only (${s.pending} changes logged). ${s.online ? 'Online' : 'Offline'}.`
-      : (s.error ?? text[s.status]);
+      : s.status === 'paused'
+        ? 'Sync paused on this device: changes are saved here and not sent until you sync or resume.'
+        : (s.error ?? text[s.status]);
   return (
     <Link
       to="/account"
@@ -157,7 +160,23 @@ export function ModeBanner() {
       </div>
     );
   }
-  if (!s.online) {
+  if (s.status === 'paused' && s.pending > 0 && s.pausedSince && s.pausedLong) {
+    return (
+      <div className="banner" data-tone="warn" data-testid="paused-banner">
+        <div className="banner-inner">
+          <IconCloudOff size={16} />
+          <span>
+            Sync has been paused since {new Date(s.pausedSince).toLocaleDateString()}: {s.pending} change
+            {s.pending > 1 ? 's are' : ' is'} not backed up or shared yet.
+          </span>
+          <button type="button" className="btn btn-primary" onClick={() => void s.setPaused(false)}>
+            Resume sync
+          </button>
+        </div>
+      </div>
+    );
+  }
+  if (!s.online && s.status !== 'paused') {
     return (
       <div className="banner" data-tone="warn">
         <div className="banner-inner">

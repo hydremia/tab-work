@@ -280,6 +280,7 @@ textarea {
   color: inherit;
 }
 .sync-pill[data-status='offline'],
+.sync-pill[data-status='paused'],
 .sync-pill[data-status='error'] {
   background: rgb(255 180 170 / 25%);
 }
