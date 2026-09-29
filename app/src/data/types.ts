@@ -433,6 +433,8 @@ export interface HistoryEntry {
   source?: 'import' | 'schedule' | 'remote' | 'auto';
   userId: string;
   userName?: string;
+  /** The name of the device the change was made on ("Phone", "Laptop"; meta "deviceName" there). */
+  deviceName?: string;
   deviceId: string;
 }
 

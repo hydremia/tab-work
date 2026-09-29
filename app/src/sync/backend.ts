@@ -26,6 +26,9 @@ export interface FieldChangeRow {
   applied?: boolean;
   note?: string | null;
   org_id?: string | null;
+  /** (0007) The signed-in user's name (set by the server) and the device's name (set by the device). */
+  user_name?: string | null;
+  device_name?: string | null;
   /** The unit(s) the change touched (server, 0005: a review is refused when another device changed the unit since). */
   units?: string[] | null;
 }
@@ -96,7 +99,7 @@ export function toSyncError(e: unknown, what: string): SyncError {
 export const photoPath = (projectId: string, photoId: string) => `${projectId}/${photoId}.jpg`;
 
 /** Local FieldChange -> row (client_ts corrected by the clock offset). */
-export function toRow(c: FieldChange, userId: string, clockOffset: number): FieldChangeRow {
+export function toRow(c: FieldChange, userId: string, clockOffset: number, deviceName = ''): FieldChangeRow {
   return {
     id: c.id,
     project_id: c.projectId,
@@ -109,6 +112,7 @@ export function toRow(c: FieldChange, userId: string, clockOffset: number): Fiel
     device_id: c.deviceId,
     client_ts: Math.round(c.ts + clockOffset),
     base_seq: c.baseSeq ?? null,
+    ...(deviceName ? { device_name: deviceName } : {}),
   };
 }
 

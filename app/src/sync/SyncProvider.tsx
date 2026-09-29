@@ -10,7 +10,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { db } from '../data/db';
-import { setCurrentUser } from '../data/identity';
+import { setCurrentUser, setSignedInName } from '../data/identity';
 import { cloudConfigured, getCloud, type Cloud, type CloudUser } from './cloud';
 import type { SyncEngine } from './engine';
 import { countPending, localOnlyProjects, setLocalOnlyProjects } from './outbox';
@@ -109,11 +109,15 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       setCloud(c);
       const apply = async (u: CloudUser | null) => {
         if (stopped || (u?.id ?? null) === lastId) {
-          if (u) setUser(u);
+          if (u) {
+            setSignedInName(u.name || u.email);
+            setUser(u);
+          }
           return;
         }
         lastId = u?.id ?? null;
         setCurrentUser(u?.id);
+        setSignedInName(u?.name || u?.email);
         setUser(u);
         setError(null);
         if (!u) {

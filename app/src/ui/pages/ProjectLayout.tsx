@@ -16,6 +16,7 @@ import type { AttentionItem } from '../../domain/attention';
 import { AppHeader, ModeBanner } from '../components/AppHeader';
 import { ExportReminderGuard } from '../components/ExportReminder';
 import { LockBanner } from '../components/LockBanner';
+import { ProjectMenu } from '../components/DeleteProject';
 
 export interface ProjectContext {
   project: Project;
@@ -85,6 +86,7 @@ export function ProjectLayout() {
         title={project.name}
         subtitle={typeof project.info.address === 'string' ? project.info.address : undefined}
         back="/"
+        actions={<ProjectMenu project={project} />}
       />
       <ModeBanner />
       <nav className="tabs" aria-label="Project sections">

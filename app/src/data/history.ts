@@ -13,27 +13,31 @@
  * project. Deleting a project deletes its history.
  */
 import { db } from './db';
-import { getCurrentUser, getDeviceId, getUserName } from './identity';
+import { getActorName, getCurrentUser, getDeviceId, getDeviceName } from './identity';
 import type { HistoryEntry } from './types';
 import { uuid } from './uuid';
 
 export const HISTORY_MAX_AGE_DAYS = 365;
 export const HISTORY_MAX_PER_PROJECT = 5000;
 
-export type NewHistoryEntry = Omit<HistoryEntry, 'id' | 'userId' | 'deviceId' | 'userName'> &
-  Partial<Pick<HistoryEntry, 'userId' | 'deviceId' | 'userName'>>;
+export type NewHistoryEntry = Omit<HistoryEntry, 'id' | 'userId' | 'deviceId' | 'userName' | 'deviceName'> &
+  Partial<Pick<HistoryEntry, 'userId' | 'deviceId' | 'userName' | 'deviceName'>>;
+
+export type Actor = Pick<HistoryEntry, 'userId' | 'deviceId' | 'userName' | 'deviceName'>;
 
 /** Who is writing (read before a transaction: the device id / name may need a database read). */
-export async function currentActor(): Promise<Pick<HistoryEntry, 'userId' | 'deviceId' | 'userName'>> {
-  const [deviceId, userName] = await Promise.all([getDeviceId(), getUserName()]);
-  return { userId: getCurrentUser(), deviceId, ...(userName ? { userName } : {}) };
+export async function currentActor(): Promise<Actor> {
+  const [deviceId, userName, deviceName] = await Promise.all([getDeviceId(), getActorName(), getDeviceName()]);
+  return {
+    userId: getCurrentUser(),
+    deviceId,
+    ...(userName ? { userName } : {}),
+    ...(deviceName ? { deviceName } : {}),
+  };
 }
 
 /** Append one entry. Call inside a transaction that includes db.history (or on its own). */
-export async function appendHistory(
-  entry: NewHistoryEntry,
-  actor?: Pick<HistoryEntry, 'userId' | 'deviceId' | 'userName'>,
-): Promise<void> {
+export async function appendHistory(entry: NewHistoryEntry, actor?: Actor): Promise<void> {
   const who = actor ?? (await currentActor());
   await db.history.add({ id: uuid(), ...who, ...entry });
 }
