@@ -2867,3 +2867,36 @@ fieldset.viewer-edit {
 .balance-steps li[data-done='true'] {
   color: var(--green, inherit);
 }
+
+.report-checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.report-checks summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+.report-checks summary::-webkit-details-marker {
+  display: none;
+}
+.report-checks summary .status-icon {
+  margin-top: 3px;
+}
+.rc-title {
+  display: grid;
+  gap: 1px;
+}
+.report-checks li[data-status='fail'] > details > summary b {
+  color: var(--red);
+}
+.report-checks ul {
+  margin: 6px 0 0;
+  padding-left: 28px;
+}

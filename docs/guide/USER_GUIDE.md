@@ -863,6 +863,29 @@ the person who signed in and the device's name (see *Name this device* below).
 
 ---
 
+### Report check
+
+The **Export** tab starts with the **Report check**: what a reviewer looks at before a report goes out, the same rules
+every time, each line linking to the unit or page to fix:
+
+- **Report content (NEBB 5.2):** narrative; TAB and report dates (the report not dated before the test); the
+  certification lines, not expired at the report date, signed and dated on a final report; the stamp and signature
+  images; every listed instrument calibrated within 12 months before the TAB date.
+- **Units:** every unit complete (a *must fix* on a final report); reviewed before a final report; no two units of a
+  type with the same designation, no repeated row numbers.
+- **Remarks:** every unit with a reading out of tolerance has a remark or an issue explaining it.
+- **Electrical:** measured voltage within ±10 % of the rated voltage; voltage imbalance at most 2 %.
+- **Values:** readings outside a plausible range (a typo such as 85 in. w.g. or 25,000 fpm).
+- **Hydronic:** a valve recorded wide open per system, memory stops set, pumps and valve systems named alike, the VFD
+  setpoint recorded.
+- A summary of the **Attention** tab.
+
+**Issue report** mentions the *must fix* count in its confirmation. **Projects → Check a workbook without importing it**
+runs the same check on any a2b revision 05 workbook (another tech's report, or one to review); nothing is saved
+(unit completeness is left out there: photos are not in a workbook).
+
+![Report check](../screenshots/41-report-check.png)
+
 ## 10b. Hydronic: pumps, balancing valves, plant
 
 Hydronic work goes in the same project and produces a **separate workbook** (the hydronic TAB report, H01). The

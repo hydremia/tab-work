@@ -83,6 +83,12 @@ export function ProjectListPage() {
           </Link>
         </div>
       </div>
+      <p className="small" style={{ margin: '-4px 0 0' }}>
+        <Link to="/check" data-testid="check-link">
+          Check a workbook without importing it
+        </Link>{' '}
+        <span className="muted">(report check on another tech&apos;s or firm&apos;s .xlsm)</span>
+      </p>
       <InstallPrompt />
       {projects && projects.length === 0 && (
         <div className="card empty">
