@@ -115,7 +115,11 @@ describe('sign-in (mocked Supabase auth)', () => {
     await user.click(await screen.findByRole('button', { name: 'Sign in with Microsoft' }));
     expect(auth.signInWithOAuth).toHaveBeenCalledWith({
       provider: 'azure',
-      options: { scopes: 'email', redirectTo: `${window.location.origin}/auth/callback` },
+      options: {
+        scopes: 'email',
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: { prompt: 'select_account' },
+      },
     });
   });
 
@@ -133,6 +137,13 @@ describe('sign-in (mocked Supabase auth)', () => {
     renderAt('/auth/callback?error=access_denied&error_description=AADSTS50105%3A+user+not+assigned');
     expect(await screen.findByTestId('signin-error')).toHaveTextContent('AADSTS50105: user not assigned');
     expect(screen.getByRole('link', { name: 'Try again' })).toHaveAttribute('href', '/account');
+  });
+
+  it('callback: the missing-email error from Supabase explains what the admin must set', async () => {
+    useCloud(false);
+    renderAt('/auth/callback?error=server_error&error_description=Error+getting+user+email+from+external+provider');
+    expect(await screen.findByTestId('signin-error')).toHaveTextContent('Error getting user email');
+    expect(screen.getByTestId('signin-error-hint')).toHaveTextContent('set the Email field on your account');
   });
 
   it('callback: a failed code exchange is shown', async () => {

@@ -220,8 +220,10 @@ export function AuthCallbackPage() {
         <section className="card card-pad stack" data-testid="signin-error">
           <h2>Sign-in didn&apos;t finish</h2>
           <p role="alert">{err}</p>
-          <p className="small muted">
-            If this keeps happening, ask your Microsoft 365 admin whether your account may use the TAB App.
+          <p className="small muted" data-testid="signin-error-hint">
+            {/email/i.test(err)
+              ? 'Your Microsoft account did not share an email address, which the TAB App needs. Ask your Microsoft 365 admin to set the Email field on your account (Entra ID → Users → Properties), then try again.'
+              : 'If this keeps happening, ask your Microsoft 365 admin whether your account may use the TAB App.'}
           </p>
           <Link className="btn btn-primary" to="/account">
             Try again
