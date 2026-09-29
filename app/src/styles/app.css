@@ -2734,3 +2734,63 @@ fieldset.viewer-edit {
 .tag-list b {
   white-space: nowrap;
 }
+
+/* device name (history labels) */
+.device-name-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.device-name-form .input {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.device-name-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.device-name-banner {
+  flex-wrap: wrap;
+}
+
+/* project header ⋯ menu */
+.header-menu {
+  position: relative;
+}
+.header-menu > summary {
+  list-style: none;
+  cursor: pointer;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  display: grid;
+  place-items: center;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: inherit;
+  border-radius: var(--radius-sm);
+}
+.header-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.header-menu-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 30;
+  min-width: 200px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  padding: 4px;
+}
+.header-menu-list .btn {
+  width: 100%;
+  justify-content: flex-start;
+}
+.btn-danger-text {
+  color: var(--red);
+}

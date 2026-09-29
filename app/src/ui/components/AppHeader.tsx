@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router';
+import { DeviceNameBanner } from './DeviceName';
 import { useSync, type SyncStatus } from '../../sync/SyncProvider';
 import { IconBack, IconCloudCheck, IconCloudOff, IconCloudUp, IconDevice } from './Icons';
 
@@ -130,5 +131,5 @@ export function ModeBanner() {
       </div>
     );
   }
-  return null;
+  return <DeviceNameBanner />;
 }

@@ -1,8 +1,8 @@
-# Supabase backend (not deployed yet)
+# Supabase backend
 
 `migrations/0001_init.sql`, `0002_review_lock.sql`, `0003_sync_rules.sql`, `0004_library_links.sql`,
-`0005_review_deletes.sql` and `0006_cert_profile.sql` create everything
-the TAB App needs on Supabase. **Nothing has been applied to a Supabase project yet**: the app runs in local-only mode until
+`0005_review_deletes.sql`, `0006_cert_profile.sql` and `0007_change_labels.sql` create everything
+the TAB App needs on Supabase. A test project (separate from a2b's production accounts) has them applied (0001 – 0006, 2026-09-28); the app runs in local-only mode until
 `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` are set (see [`app/README.md`](../app/README.md)). Account setup:
 [`docs/SETUP_ACCOUNTS.md`](../docs/SETUP_ACCOUNTS.md); switching sign-in and sync on, step by step (migrations, bucket,
 Azure provider, Vercel, first sign-in, two-device check, rollback): **[`docs/SYNC_SETUP.md`](../docs/SYNC_SETUP.md)**.
@@ -122,6 +122,15 @@ open issue added on another device refuses a review) while issues still never cl
 `rollback/0006_cert_profile_down.sql` (0005 trigger; table and data kept). `cert_profile_test.sql` 15 PASS; the 0003 –
 0005 suites pass on 0001 – 0006, and the 0005 suite after the rollback.
 
+### 0007: names in the history
+
+`0007_change_labels.sql` adds `user_name` and `device_name` to `field_changes` and a BEFORE INSERT trigger that fills
+them: `user_name` from the signed-in account (`full_name`, else `name`, else the email; a value sent by the device is
+ignored, so no one can post as someone else), `device_name` from what the device sent (trimmed, at most 40 characters;
+empty for the server's own changes). Devices show them in the History (*Dana Kim · Phone*). Nothing else changes.
+Rollback: `rollback/0007_change_labels_down.sql` (trigger and function dropped; columns and names kept).
+`change_labels_test.sql` 7 PASS; the earlier suites pass on 0001 – 0007.
+
 ## Checking the migrations locally (no Supabase needed)
 
 `tests/` holds a stand-in for Supabase's `auth` / `storage` schemas and two tests. On an empty PostgreSQL 15+ database:
@@ -131,11 +140,13 @@ psql -d <empty db> -v ON_ERROR_STOP=1 -f supabase/tests/supabase_stub.sql \
      -f supabase/migrations/0001_init.sql -f supabase/migrations/0002_review_lock.sql \
      -f supabase/migrations/0003_sync_rules.sql -f supabase/migrations/0004_library_links.sql \
      -f supabase/migrations/0005_review_deletes.sql -f supabase/migrations/0006_cert_profile.sql \
+     -f supabase/migrations/0007_change_labels.sql \
      -f supabase/tests/grants_for_stub.sql
 psql -d <empty db> -f supabase/tests/sync_rules_test.sql    # ends with "ALL SYNC RULE TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/library_links_test.sql   # "ALL 0004 TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/review_deletes_test.sql  # "ALL 0005 TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/cert_profile_test.sql    # "ALL 0006 TESTS PASSED"
+psql -d <other empty db, same setup> -f supabase/tests/change_labels_test.sql   # "ALL 0007 TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/smoke_test.sql
 ```
 
