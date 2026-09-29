@@ -332,7 +332,7 @@ describe('database upgrade to v4', () => {
     v3.close();
     const v4 = new TabDatabase(name);
     await v4.open();
-    expect(v4.verno).toBe(7);
+    expect(v4.verno).toBe(8);
     const hs = (await v4.history.toArray()).sort((a, b) => a.ts - b.ts);
     expect(hs.map((h) => [h.kind, h.equipmentId, h.note ?? null])).toEqual([
       ['create', 'e1', 'RTU-1'],
