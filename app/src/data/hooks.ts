@@ -22,6 +22,7 @@ import type {
   BaseWorkbook,
   CertProfile,
   LibraryValve,
+  LibraryPump,
   Equipment,
   HistoryEntry,
   Instrument,
@@ -357,6 +358,18 @@ export function useLibraryConflicts(libIds?: readonly string[]): SyncConflict[] 
 export function useLibraryValves(): LibraryValve[] | undefined {
   return useLiveQuery(async () =>
     (await db.libraryValves.toArray()).sort(
+      (a, b) =>
+        a.make.localeCompare(b.make) ||
+        a.model.localeCompare(b.model) ||
+        a.size.localeCompare(b.size, undefined, { numeric: true }),
+    ),
+  );
+}
+
+/** The shared pump-curve library, by make / model / size. */
+export function useLibraryPumps(): LibraryPump[] | undefined {
+  return useLiveQuery(async () =>
+    (await db.libraryPumps.toArray()).sort(
       (a, b) =>
         a.make.localeCompare(b.make) ||
         a.model.localeCompare(b.model) ||

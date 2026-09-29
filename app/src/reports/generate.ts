@@ -127,6 +127,7 @@ export async function generateGraphics(projectId: string, label: string): Promis
       import('./graphics'),
     ]);
   const b = await loadBundle(projectId);
+  const libraryPumps = await db.libraryPumps.toArray();
   const completions = new Map(
     b.equipment.map((e) => [
       e.id,
@@ -140,7 +141,7 @@ export async function generateGraphics(projectId: string, label: string): Promis
       }),
     ]),
   );
-  const model = buildGraphicsModel({ ...b, completions });
+  const model = buildGraphicsModel({ ...b, completions, libraryPumps });
   const reportDate =
     typeof b.project.info.reportDate === 'string' ? b.project.info.reportDate : new Date().toISOString().slice(0, 10);
   const address = typeof b.project.info.address === 'string' ? b.project.info.address : undefined;

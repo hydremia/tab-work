@@ -2854,6 +2854,13 @@ fieldset.viewer-edit {
   gap: 8px;
 }
 
+.pump-curve-edit {
+  display: grid;
+  grid-template-columns: 7rem 1fr auto;
+  gap: 8px;
+  align-items: start;
+}
+
 .balance-plan {
   display: grid;
   gap: 8px;
