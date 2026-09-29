@@ -217,3 +217,23 @@ describe('planApply / previewBundle (pure)', () => {
     );
   });
 });
+
+describe('re-import: the airflow line of an issue', () => {
+  it('a Summary remark naming another line moves the issue to that line; a new issue on a line is linked', async () => {
+    const { b, rtu } = await setup();
+    const wb = structuredClone(exported(b));
+    const issue = b.issues.find((i) => i.equipmentId === rtu.id)!;
+    const s2 = b.rows.find((r) => r.equipmentId === rtu.id && r.data.no === 'S-2')!;
+    const row = wb.sections.issuesNew.tables!.issues.find((r) => r.no === issue.number)!;
+    row.remark = `RTU-1 · S-2: ${issue.remark}`;
+    wb.sections.issuesNew.tables!.issues.push({ no: 9, remark: 'RTU-1 · S-1: diffuser dirty', status: 'Open' });
+    const parsed = parsedOf(wb, { projectId: b.project.id, revisionId: 'rev-prelim', label: 'Prelim' });
+    const review = await prepareReview(b.project.id, parsed);
+    expect(review.diff.items.find((i) => i.cell === 'line')).toMatchObject({ wb: 'S-2', app: null });
+    await applyReimport(review, parsed, {});
+    expect((await db.issues.get(issue.id))?.airflowRowId).toBe(s2.id);
+    const added = (await db.issues.where('projectId').equals(b.project.id).toArray()).find((i) => i.number === 9)!;
+    const s1 = b.rows.find((r) => r.equipmentId === rtu.id && r.data.no === 'S-1')!;
+    expect(added).toMatchObject({ equipmentId: rtu.id, airflowRowId: s1.id, remark: 'diffuser dirty' });
+  });
+});

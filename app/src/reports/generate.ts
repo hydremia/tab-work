@@ -6,6 +6,7 @@ import JSZip from 'jszip';
 import { db } from '../data/db';
 import type { IssueKind, Photo } from '../data/types';
 import { EQUIPMENT_TYPES } from '../domain/equipmentTypes';
+import { rowNames } from '../domain/rowLabels';
 import { downscaleForReport } from '../photos/process';
 import { zipEntryNames } from '../photos/labels';
 import type { PerPage } from './layout';
@@ -39,7 +40,7 @@ const meta = ({ blob: _b, thumb: _t, ...m }: Photo): ReportPhotoMeta => m;
 export async function loadReportInput(projectId: string): Promise<ReportInput> {
   const project = await db.projects.get(projectId);
   if (!project) throw new Error('Project not found');
-  const [equipment, issues, photos] = await Promise.all([
+  const [equipment, issues, photos, rows] = await Promise.all([
     db.equipment.where('projectId').equals(projectId).toArray(),
     db.issues.where('projectId').equals(projectId).toArray(),
     // metadata only; each image is read when it is drawn
@@ -48,6 +49,7 @@ export async function loadReportInput(projectId: string): Promise<ReportInput> {
       .equals(projectId)
       .toArray()
       .then((ps) => ps.map(meta)),
+    db.airflowRows.where('projectId').equals(projectId).toArray(),
   ]);
   return {
     project,
@@ -56,6 +58,7 @@ export async function loadReportInput(projectId: string): Promise<ReportInput> {
     photos,
     typeOrder: EQUIPMENT_TYPES.map((t) => t.key),
     typeLabel: (t) => EQUIPMENT_TYPES.find((x) => x.key === t)?.label ?? t,
+    lineNames: rowNames(equipment, rows),
   };
 }
 

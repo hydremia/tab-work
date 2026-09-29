@@ -7,6 +7,7 @@ import type { PhotoCategory } from '../../data/types';
 import { allPhotoLabels, CATEGORY_LABEL, groupKeyOf, groupPhotos, issueLabel, sortIssues } from '../../photos/labels';
 import { TextArea } from './inputs';
 import { PhotoThumb } from './PhotoThumb';
+import { useLineNames } from './RowLinks';
 
 const CATEGORIES: PhotoCategory[] = ['unit', 'tag', 'oa_damper', 'other', 'deficiency', 'cover'];
 
@@ -31,6 +32,7 @@ export function PhotoViewer({ photoId, onClose }: { photoId: string; onClose: ()
         : [],
     [photo?.projectId],
   );
+  const lineNames = useLineNames(photo?.projectId, equipment);
   const closeRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => {
@@ -56,7 +58,9 @@ export function PhotoViewer({ photoId, onClose }: { photoId: string; onClose: ()
   const eqSorted = [...equipment].sort((a, b) =>
     a.designation.localeCompare(b.designation, undefined, { numeric: true }),
   );
-  const label = labels.get(photo.id) ?? CATEGORY_LABEL[photo.category];
+  const line = photo.airflowRowId ? lineNames?.get(photo.airflowRowId) : undefined;
+  const label = `${labels.get(photo.id) ?? CATEGORY_LABEL[photo.category]}${line ? ` · ${line.short}` : ''}`;
+  const unitLines = [...(lineNames?.values() ?? [])].filter((l) => l.equipmentId === photo.equipmentId);
   const needsEquipment = photo.category === 'unit' || photo.category === 'tag' || photo.category === 'oa_damper';
 
   return (
@@ -177,6 +181,26 @@ export function PhotoViewer({ photoId, onClose }: { photoId: string; onClose: ()
                 </select>
               </div>
             ) : null}
+            {photo.category !== 'deficiency' && photo.category !== 'cover' && unitLines.length > 0 && (
+              <div className="field">
+                <label className="field-label" htmlFor="pv-line">
+                  Airflow line
+                </label>
+                <select
+                  id="pv-line"
+                  className="select"
+                  value={line ? photo.airflowRowId! : ''}
+                  onChange={(e) => void setField('photos', photo.id, 'airflowRowId', e.target.value || null)}
+                >
+                  <option value="">Whole unit</option>
+                  {unitLines.map((l) => (
+                    <option key={l.rowId} value={l.rowId}>
+                      {l.long}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
           <div className="row viewer-actions">
             <button

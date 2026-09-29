@@ -1,6 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router';
+import { db } from '../../data/db';
 import { usePhotos } from '../../data/hooks';
-import { addIssue, deleteRecord, moveIssue, setField } from '../../data/repo';
+import { addIssue, deleteRecord, moveIssue, setField, setFields } from '../../data/repo';
+import { rowNames } from '../../domain/rowLabels';
 import type { Equipment, Issue, IssueKind, Photo } from '../../data/types';
 import { deficiencyLabels, issueLabel, issuePhotos } from '../../photos/labels';
 import { IconPlus, IconTrash } from '../components/Icons';
@@ -31,8 +35,21 @@ function IssueCard({
   const label = issueLabel(issue);
   const saver = usePhotoSaver(issue.projectId);
   const save = (files: File[]) => void saver.save(files, { category: 'deficiency', issueId: issue.id });
+  const unit = equipment.find((e) => e.id === issue.equipmentId);
+  // the unit's airflow lines (outlets, grilles, valves …) the issue can be about
+  const lines = useLiveQuery(
+    async () =>
+      unit ? [...rowNames([unit], await db.airflowRows.where('equipmentId').equals(unit.id).toArray()).values()] : [],
+    [unit?.id, unit?.type],
+  );
+  const lineGone = Boolean(issue.airflowRowId && lines && !lines.some((l) => l.rowId === issue.airflowRowId));
   return (
-    <article className="card issue-card" data-testid={`issue-${issue.kind}-${issue.number}`}>
+    <article
+      className="card issue-card"
+      id={`issue-${issue.id}`}
+      tabIndex={-1}
+      data-testid={`issue-${issue.kind}-${issue.number}`}
+    >
       <div className="row" style={{ flexWrap: 'nowrap' }}>
         <span className="issue-num" title={`Issue ${label}`}>
           {label}
@@ -41,7 +58,12 @@ function IssueCard({
           className="select"
           aria-label={`Issue ${label} equipment`}
           value={issue.equipmentId ?? ''}
-          onChange={(e) => void setField('issues', issue.id, 'equipmentId', e.target.value || null)}
+          onChange={(e) =>
+            void setFields('issues', issue.id, {
+              equipmentId: e.target.value || null,
+              ...(issue.airflowRowId ? { airflowRowId: null } : {}),
+            })
+          }
         >
           <option value="">General (N/A)</option>
           {equipment.map((e) => (
@@ -63,6 +85,27 @@ function IssueCard({
           ))}
         </div>
       </div>
+      {unit && lines && lines.length > 0 && (
+        <div className="field">
+          <label className="field-label" htmlFor={`${id}-line`}>
+            Airflow line
+          </label>
+          <select
+            id={`${id}-line`}
+            className="select"
+            aria-label={`Issue ${label} airflow line`}
+            value={lineGone ? '' : (issue.airflowRowId ?? '')}
+            onChange={(e) => void setField('issues', issue.id, 'airflowRowId', e.target.value || null)}
+          >
+            <option value="">Whole unit ({unit.designation})</option>
+            {lines.map((l) => (
+              <option key={l.rowId} value={l.rowId}>
+                {l.long}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="field">
         <label className="field-label" htmlFor={`${id}-remark`}>
           Remark
@@ -160,6 +203,16 @@ export function IssuesPage() {
   const { project, equipment, issues, locked } = useProjectContext();
   const photos = usePhotos(project.id);
   const [viewing, setViewing] = useState<string | null>(null);
+  // "#issue-<id>" (an issue just added from an airflow line): scroll to it once it is listed
+  const { hash } = useLocation();
+  const target = hash.startsWith('#issue-') ? hash.slice(1) : null;
+  const listed = Boolean(target && issues.some((i) => `issue-${i.id}` === target));
+  useEffect(() => {
+    if (!target || !listed) return;
+    const el = document.getElementById(target);
+    el?.scrollIntoView?.({ block: 'center' });
+    el?.focus({ preventScroll: true });
+  }, [target, listed]);
   const sorted = [...equipment].sort((a, b) =>
     a.designation.localeCompare(b.designation, undefined, { numeric: true }),
   );
