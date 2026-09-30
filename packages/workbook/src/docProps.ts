@@ -67,9 +67,31 @@ export async function readRevisionMarker(zip: JSZip): Promise<RevisionMarker | n
 
 /** Write (or replace) the marker properties, keeping every other custom property. */
 export async function writeRevisionMarker(zip: JSZip, marker: RevisionMarker): Promise<void> {
-  const props = (Object.keys(NAMES) as (keyof RevisionMarker)[])
-    .filter((k) => marker[k] !== undefined && marker[k] !== '')
-    .map((k) => [NAMES[k], String(marker[k])] as const);
+  const props: Record<string, string | null> = {};
+  for (const k of Object.keys(NAMES) as (keyof RevisionMarker)[])
+    props[NAMES[k]] = marker[k] !== undefined && marker[k] !== '' ? String(marker[k]) : null;
+  await writeCustomProperties(zip, props);
+}
+
+/** The units marked Existing, as "type#slot" (e.g. "fan#1,rtu#3"). */
+export const EXISTING_UNITS_PROP = `${MARKER_PREFIX}existingUnits`;
+
+export async function readExistingUnits(zip: JSZip): Promise<Set<string>> {
+  const v = (await readCustomProperties(zip))[EXISTING_UNITS_PROP] ?? '';
+  return new Set(
+    v
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean),
+  );
+}
+
+/**
+ * Set (string) or remove (null) the named custom properties, keeping every other one. Nothing is created when there
+ * is nothing to write and the workbook has no custom properties part.
+ */
+export async function writeCustomProperties(zip: JSZip, props: Record<string, string | null>): Promise<void> {
+  const set = Object.entries(props).filter((e): e is [string, string] => e[1] !== null);
   let part = await customPart(zip);
   let kept: string[] = [];
   let pid = 1;
@@ -78,9 +100,10 @@ export async function writeRevisionMarker(zip: JSZip, marker: RevisionMarker): P
     for (const m of xml.matchAll(/<property\b([^>]*)>[\s\S]*?<\/property>/g)) {
       const name = attr(`<p${m[1]}>`, 'name') ?? '';
       pid = Math.max(pid, Number(attr(`<p${m[1]}>`, 'pid') ?? 1));
-      if (!name.startsWith(MARKER_PREFIX)) kept.push(m[0]);
+      if (!(name in props)) kept.push(m[0]);
     }
   } else {
+    if (!set.length) return;
     part = 'docProps/custom.xml';
     kept = [];
     const rels = await readText(zip, '_rels/.rels');
@@ -102,7 +125,7 @@ export async function writeRevisionMarker(zip: JSZip, marker: RevisionMarker): P
       );
     }
   }
-  const ours = props.map(
+  const ours = set.map(
     ([name, value]) =>
       `<property fmtid="${FMTID}" pid="${++pid}" name="${xmlEscape(name)}"><vt:lpwstr>${xmlEscape(value)}</vt:lpwstr></property>`,
   );

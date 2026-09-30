@@ -186,6 +186,36 @@ describe('revision marker (custom document properties)', () => {
   });
 });
 
+describe('New / Existing units (custom document property)', () => {
+  it('existing units come back existing; a unit set back to New loses the flag on the next export onto the file', async () => {
+    const p = full();
+    const [type] = Object.keys(p.equipment);
+    const unit = p.equipment[type][0];
+    unit.existing = true;
+    const { bytes } = await exportWorkbookWithReport(templateBytes(), p);
+    const props = await readCustomProperties(await JSZip.loadAsync(bytes));
+    expect(props['a2bTab.existingUnits']).toBe(`${type}#${unit.slot}`);
+    const back = await importWorkbook(bytes);
+    expect(back.equipment[type].find((u) => u.slot === unit.slot)?.existing).toBe(true);
+    expect(
+      Object.values(back.equipment)
+        .flat()
+        .filter((u) => u.existing),
+    ).toHaveLength(1);
+    expect(diff(normalizeProject(back).equipment, normalizeProject(p).equipment)).toEqual([]);
+
+    unit.existing = false;
+    const again = await exportWorkbookWithReport(bytes, p, { reset });
+    const z = await JSZip.loadAsync(again.bytes);
+    expect((await readCustomProperties(z))['a2bTab.existingUnits']).toBeUndefined();
+    expect(
+      Object.values((await importWorkbook(again.bytes)).equipment)
+        .flat()
+        .some((u) => u.existing),
+    ).toBe(false);
+  });
+});
+
 describe('export onto a previously issued workbook', () => {
   it('clears values removed in the app (value only, the cell style is kept) and restores unused blocks', async () => {
     const issued = (await exportWorkbookWithReport(templateBytes(), full())).bytes;

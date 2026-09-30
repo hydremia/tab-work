@@ -290,7 +290,7 @@ export function toProjectData(
       openIssues: 0,
     });
     const path = `${e.designation} (${e.type} slot ${e.slot})`;
-    const unit: UnitData = { slot: e.slot };
+    const unit: UnitData = { slot: e.slot, ...(e.isExisting ? { existing: true } : {}) };
     const schedule: Record<string, Cell> = {};
     const fields: Record<string, Cell> = {};
     if (def.ede) schedule.designation = e.designation;
@@ -599,7 +599,7 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
         type: type as EquipmentTypeKey,
         designation: typeof designation === 'string' && designation.trim() ? designation : `${info.prefix}${u.slot}`,
         slot: u.slot,
-        isExisting: false,
+        isExisting: u.existing === true,
         data,
         naState: na,
         createdAt: now,
