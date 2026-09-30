@@ -21,7 +21,7 @@ import {
   type UnitData,
 } from '@a2b/workbook/map';
 import { computeCompletion, isNaState, seqNaKey, tableNaKey, type Completion } from '../domain/completion';
-import { isBlank } from '../domain/conditions';
+import { isBlank, tapSkipped, THREE_POINT } from '../domain/conditions';
 import { equipmentType, mapOf, workbookDef, type Discipline, type EquipmentTypeKey } from '../domain/equipmentTypes';
 import { CERT_KEYS, CERT_PRELIM_REASON, certValue } from '../domain/certification';
 import { PRESSURE_KEYS, PRESSURE_ROWS } from '../domain/projectCompletion';
@@ -605,6 +605,17 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
       const naOnly = (k: string) => na.fields[k]?.notation === 'N/A' && isBlank(data[k]);
       if (data.hasVfd === undefined && naOnly('vsdFinal')) data.hasVfd = 'No';
       if (data.hasFilters === undefined && naOnly('filters')) data.hasFilters = 'No';
+      // a 3-point static profile: entering, fan inlet and discharge only (the other leaving statics blank)
+      if (typeof data.spEntering === 'number' && typeof data.spLeaving5 === 'number') {
+        const skipped = [1, 2, 3, 4].filter((n) => tapSkipped(n, { ...data, spTaps: THREE_POINT }));
+        const fanInlet = [1, 2, 3, 4].some((n) => !skipped.includes(n) && typeof data[`spLeaving${n}`] === 'number');
+        if (
+          fanInlet &&
+          skipped.length &&
+          skipped.every((n) => isBlank(data[`spLeaving${n}`]) && !na.fields[`spLeaving${n}`])
+        )
+          data.spTaps = THREE_POINT;
+      }
       const designation = u.schedule?.designation ?? u.fields?.designation;
       equipment.push({
         id,

@@ -22,13 +22,20 @@ const absent = (n: number): AutoNa => ({
 });
 const NO_FILTERS_STATIC: AutoNa = { ...NO_FILTERS, exportBlank: true };
 
+/** A 3-point profile: the component's leaving static is not measured (blank in the workbook, so the strip passes). */
+const NOT_TAPPED = (n: number): AutoNa => ({
+  when: { tapSkipped: n },
+  reason: '3-point profile: not measured',
+  exportBlank: true,
+});
+
 const leaving = (n: number, extra: AutoNa[] = []): FieldSpec => ({
   key: `spLeaving${n}`,
   label: `Leaving component ${n}`,
   input: 'number',
   unit: 'in. w.g.',
   component: n,
-  autoNa: [absent(n), ...extra],
+  autoNa: [absent(n), NOT_TAPPED(n), ...extra],
 });
 
 /** Schedule fields every unit sheet shares (EDE columns E-O). */
@@ -145,6 +152,14 @@ export function staticSection(enteringLabel = 'Entering static (first component)
     airflow: false,
     calc: 'staticProfile',
     fields: [
+      {
+        key: 'spTaps',
+        label: 'Static taps',
+        input: 'select',
+        options: ['Full profile', '3-point'],
+        required: false,
+        hint: '3-point: entering, fan inlet (the leaving static of the last component before the fan) and discharge',
+      },
       { key: 'spEntering', label: enteringLabel, input: 'number', unit: 'in. w.g.' },
       leaving(1, [NO_FILTERS_STATIC]),
       leaving(2),
