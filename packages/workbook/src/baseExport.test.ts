@@ -366,7 +366,9 @@ describe('Tolerance colours (conditional formatting on % of design)', () => {
     const sheets = await listSheets(z);
     const rtus = sheets.find((s) => s.name === 'RTUs')!;
     const xml = await readText(z, rtus.part);
-    const ours = [...xml.matchAll(/<conditionalFormatting sqref="([^"]+)">(?:(?!<\/conditionalFormatting>)[\s\S])*?ABS\(/g)];
+    const ours = [
+      ...xml.matchAll(/<conditionalFormatting sqref="([^"]+)">(?:(?!<\/conditionalFormatting>)[\s\S])*?ABS\(/g),
+    ];
     expect(ours).toHaveLength(1);
     expect(ours[0][1]).toMatch(/^M\d+:M\d+/);
     expect(xml).toMatch(/ABS\(M\d+-1\)&lt;=0\.1/);
@@ -382,7 +384,9 @@ describe('Tolerance colours (conditional formatting on % of design)', () => {
     const x2 = await readText(z2, rtus.part);
     expect([...x2.matchAll(/ABS\(M\d+-1\)&lt;=/g)]).toHaveLength(1);
     expect(x2).toMatch(/&lt;=0\.05/);
-    expect((await readText(z2, 'xl/styles.xml')).match(/FFC6EFCE/g)).toHaveLength((styles.match(/FFC6EFCE/g) ?? []).length);
+    expect((await readText(z2, 'xl/styles.xml')).match(/FFC6EFCE/g)).toHaveLength(
+      (styles.match(/FFC6EFCE/g) ?? []).length,
+    );
     // null removes them
     await applyToleranceColors(z2, await listSheets(z2), null);
     expect(await readText(z2, rtus.part)).not.toMatch(/ABS\(M\d+-1\)/);
