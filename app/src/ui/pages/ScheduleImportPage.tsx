@@ -10,6 +10,7 @@ import { useEquipmentList, useProject } from '../../data/hooks';
 import { applyAirBalance, applyScheduleImport } from '../../data/repo';
 import type { FieldValue } from '../../data/types';
 import { EQUIPMENT_TYPES, equipmentType, type EquipmentTypeKey } from '../../domain/equipmentTypes';
+import { tableScope, type UnitScope } from '../../domain/unitScope';
 import { airBalanceChecks, entryTotals, readAirBalance, tableKind, type BalanceUnitRef } from '../../domain/airBalance';
 import { formatNumber } from '../../domain/calc';
 import {
@@ -144,7 +145,9 @@ interface SheetOpts {
 interface SheetView {
   index: number;
   name: string;
-  kind: 'units' | 'airBalance' | 'spaces';
+  kind: 'units' | 'airBalance' | 'spaces' | 'other';
+  /** the table's own scope (title / note): rows that give none get it */
+  scope: UnitScope | null;
   include: boolean;
   type: EquipmentTypeKey;
   grid: Grid;
@@ -159,6 +162,8 @@ interface SheetView {
 }
 
 const SCOPE_LABEL = { new: 'New', existing: 'Existing', removed: 'Removed' } as const;
+/** a unit tag in a cell ("AC-1", "EF-12", "(E) RTU-5", "HP-3 / FC-3") */
+const TAG_LIKE = /^(\([EN]\)\s*)?[A-Z]{1,5}[- ]?[A-Z]?\d+[A-Z]?\b/;
 
 export function ScheduleImportPage() {
   const { projectId } = useParams();
@@ -194,8 +199,16 @@ export function ScheduleImportPage() {
     if (source === 'file') return file?.sheets ?? [];
     return [];
   }, [source, text, file]);
+  // what each table is: a unit schedule, the air balance, space ventilation, or something else (general notes, a
+  // gas pipe sizing table: no unit tags)
   const kinds = useMemo(
-    () => sourceSheets.map((s) => (s.rows.length > 1 ? (tableKind(s.rows, s.name) ?? 'units') : 'units')),
+    () =>
+      sourceSheets.map((s): SheetView['kind'] => {
+        const k = s.rows.length > 1 ? tableKind(s.rows, s.name) : null;
+        if (k) return k;
+        const tagged = s.rows.some((r) => r.slice(0, 2).some((c) => typeof c === 'string' && TAG_LIKE.test(c.trim())));
+        return s.type || tagged || sourceSheets.length === 1 ? 'units' : 'other';
+      }),
     [sourceSheets],
   );
   const anyTyped = sourceSheets.some((s, i) => s.type || kinds[i] !== 'units');
@@ -229,6 +242,7 @@ export function ScheduleImportPage() {
       index: i,
       name: s.name,
       kind,
+      scope: tableScope(s.name, s.rows),
       include,
       type: t,
       grid,
@@ -242,7 +256,7 @@ export function ScheduleImportPage() {
     };
   });
   const current = views[sheet] ?? views[0];
-  const unitViews = views.filter((v) => v.include && v.kind === 'units' && v.dataRows.length);
+  const unitViews = views.filter((v) => v.include && (v.kind === 'units' || v.kind === 'other') && v.dataRows.length);
   const setOpt = (i: number, o: SheetOpts) => setOpts((all) => ({ ...all, [i]: { ...all[i], ...o } }));
 
   // one preview per unit type: the included tables of that type, each remapped to the type's targets (the columns
@@ -264,6 +278,7 @@ export function ScheduleImportPage() {
       const keys = importTargets(t).map((x) => x.key);
       const rows: Grid = [];
       const labels: string[] = [];
+      const scopes: (UnitScope | null)[] = [];
       for (const v of vs) {
         const colOf = (k: string) => v.mapping.indexOf(k);
         const lowHere = new Set(v.low.map(([r, c]) => `${r}:${c}`));
@@ -273,6 +288,7 @@ export function ScheduleImportPage() {
             ...keys.map((k) => (colOf(k) >= 0 ? (r[colOf(k)] ?? null) : null)),
             ...r.filter((_, c) => !v.mapping[c]),
           ]);
+          scopes.push(v.scope);
           labels.push(
             vs.length > 1 ? `${ri + 1 + (v.hasHeader ? 1 : 0)} of ${v.name}` : String(ri + 1 + (v.hasHeader ? 1 : 0)),
           );
@@ -289,6 +305,7 @@ export function ScheduleImportPage() {
           ],
           existing: equipment,
           rowNumber: (i) => labels[i],
+          rowScope: (i) => scopes[i],
         }),
       ];
     });
@@ -653,43 +670,66 @@ export function ScheduleImportPage() {
             the building air balance is checked against the units; space-by-space ventilation tables are not needed.
           </p>
           <div className="stack" style={{ gap: 6 }} data-testid="table-list">
-            {views.map((v) => (
-              <div key={v.index} className="table-pick" data-testid="table-pick" data-kind={v.kind}>
-                <label className="row small" style={{ gap: 8, minWidth: 0 }}>
-                  <input
-                    type="checkbox"
-                    checked={v.include}
-                    aria-label={`Import ${v.name}`}
-                    onChange={(e) => setOpt(v.index, { include: e.target.checked })}
-                  />
-                  <span className="table-pick-name" title={v.name}>
-                    {v.name} <span className="muted">({Math.max(0, v.dataRows.length)} rows)</span>
-                    {v.ocr && <span className="chip">text recognition</span>}
-                  </span>
-                </label>
-                {v.kind === 'units' ? (
-                  <>
-                    {typeSelect(
-                      v.type,
-                      (t) => setOpt(v.index, { type: t, mapping: {}, header: null }),
-                      undefined,
-                      `Type of ${v.name}`,
-                    )}
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      aria-pressed={sheet === v.index}
-                      onClick={() => setSheet(v.index)}
-                    >
-                      Columns
-                    </button>
-                  </>
-                ) : (
-                  <span className="chip">{v.kind === 'airBalance' ? 'Air balance' : 'Space ventilation'}</span>
-                )}
-              </div>
-            ))}
+            {views
+              .filter((v) => v.kind !== 'other')
+              .map((v) => (
+                <div key={v.index} className="table-pick" data-testid="table-pick" data-kind={v.kind}>
+                  <label className="row small" style={{ gap: 8, minWidth: 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={v.include}
+                      aria-label={`Import ${v.name}`}
+                      onChange={(e) => setOpt(v.index, { include: e.target.checked })}
+                    />
+                    <span className="table-pick-name" title={v.name}>
+                      {v.name} <span className="muted">({Math.max(0, v.dataRows.length)} rows)</span>
+                      {v.ocr && <span className="chip">text recognition</span>}
+                    </span>
+                  </label>
+                  {v.kind === 'units' ? (
+                    <>
+                      {typeSelect(
+                        v.type,
+                        (t) => setOpt(v.index, { type: t, mapping: {}, header: null }),
+                        undefined,
+                        `Type of ${v.name}`,
+                      )}
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        aria-pressed={sheet === v.index}
+                        onClick={() => setSheet(v.index)}
+                      >
+                        Columns
+                      </button>
+                    </>
+                  ) : (
+                    <span className="chip">{v.kind === 'airBalance' ? 'Air balance' : 'Space ventilation'}</span>
+                  )}
+                </div>
+              ))}
           </div>
+          {views.some((v) => v.kind === 'other') && (
+            <details className="small">
+              <summary className="muted">
+                {views.filter((v) => v.kind === 'other').length} other table
+                {views.filter((v) => v.kind === 'other').length === 1 ? '' : 's'} (no unit tags: notes, gas piping…)
+              </summary>
+              {views
+                .filter((v) => v.kind === 'other')
+                .map((v) => (
+                  <label key={v.index} className="row small" style={{ gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      checked={v.include}
+                      aria-label={`Import ${v.name}`}
+                      onChange={(e) => setOpt(v.index, { include: e.target.checked, type: v.type })}
+                    />
+                    {v.name} <span className="muted">({v.dataRows.length} rows)</span>
+                  </label>
+                ))}
+            </details>
+          )}
         </section>
       )}
 

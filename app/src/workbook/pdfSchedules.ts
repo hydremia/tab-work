@@ -15,7 +15,7 @@ import { pageWords, pdfTables, wordsToPage, type PdfPageText, type PdfTable } fr
 import { autoMap } from '../domain/scheduleImport';
 import type { EquipmentTypeKey } from '../domain/equipmentTypes';
 import { findLines, toGray, type HLine, type VLine } from '../domain/rasterLines';
-import { gridTables, tableBoxes, type GridTable, type Word } from '../domain/tableGrid';
+import { dropTextStrokes, gridTables, tableBoxes, type GridTable, type Word } from '../domain/tableGrid';
 
 export type Progress = (message: string) => void;
 
@@ -338,7 +338,8 @@ async function sheetTables(
 
 /** Text-layer tables: the grid first, else the whitespace method. */
 function textTables(lines: Lines, text: PdfPageText, known: readonly string[]): FoundTable[] {
-  const grid = gridTables(lines, pageWords(text), known, text.page, 3).filter(looksLikeSchedule);
+  const words = pageWords(text);
+  const grid = gridTables(dropTextStrokes(lines, words), words, known, text.page, 3).filter(looksLikeSchedule);
   if (grid.length)
     return grid.map((t) => ({
       page: t.page,

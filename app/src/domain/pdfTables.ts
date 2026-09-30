@@ -175,7 +175,7 @@ const TYPE_WORDS: [RegExp, EquipmentTypeKey][] = [
   [/\b(chiller|boiler|heat exchanger|cooling tower)s?\b/i, 'plant'],
   [/\b(balancing valve|circuit setter|flow control valve|cbv)s?\b/i, 'valveSystem'],
   [/\b(vav|terminal unit|air terminal|fan powered|fpb|vav box)(es|s)?\b/i, 'vav'],
-  [/\b(rooftop|rtu|air handl|ahu)/i, 'rtu'],
+  [/\b(rooftop|rtu|air handl|ahu|dedicated outside air|dedicated outdoor air|doas)/i, 'rtu'],
   [/\b(make[- ]?up air|mau)\b/i, 'mau'],
   [/\b(energy recovery|erv|hrv)\b/i, 'erv'],
   [/\bhoods?\b/i, 'hood'],

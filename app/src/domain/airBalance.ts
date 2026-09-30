@@ -93,7 +93,14 @@ function layoutOf(rows: Grid): Layout | null {
 }
 
 const text = (c: string | number | null | undefined) => (c === null || c === undefined ? '' : String(c).trim());
-const isTag = (t: string) => /^[A-Z]{1,5}[- ]?[A-Z]?\d+[A-Z]?$/i.test(t.replace(/\s+/g, '').replace(/^\([EN]\)/i, ''));
+const TAG = /^[A-Z]{1,5}[- ]?[A-Z]?\d+[A-Z]?$/i;
+/** "AC-1", "EF-12A", "(E) RTU-5", "HP-3/FC-3" (a split system's two tags) */
+const isTag = (t: string) =>
+  t
+    .replace(/\s+/g, '')
+    .replace(/^\([EN]\)/i, '')
+    .split('/')
+    .every((x) => TAG.test(x));
 
 /** "1,000 (1)" -> 1000 and note "1"; "1,890" -> 1890. */
 function cfmOf(c: string | number | null | undefined): { cfm: number; note?: string } | null {
@@ -226,14 +233,17 @@ export function airBalanceChecks(
   table: AirBalanceTable,
   units: readonly BalanceUnitRef[],
 ): { checks: AirBalanceCheck[]; notListed: BalanceUnitRef[] } {
+  // a split system's two tags ("HP-3 / FC-3") match either one ("FC-3"), both ways
+  const keysOf = (d: string) => {
+    const full = designationKey(d);
+    const parts = full.split('/').filter(Boolean);
+    return parts.length > 1 ? [full, ...parts] : [full];
+  };
   const byKey = new Map<string, BalanceUnitRef[]>();
-  for (const u of units) {
-    const k = designationKey(u.designation);
-    byKey.set(k, [...(byKey.get(k) ?? []), u]);
-  }
+  for (const u of units) for (const k of keysOf(u.designation)) byKey.set(k, [...(byKey.get(k) ?? []), u]);
   const listed = new Set<BalanceUnitRef>();
   const checks = table.entries.map((entry): AirBalanceCheck => {
-    const cands = byKey.get(designationKey(entry.designation)) ?? [];
+    const cands = [...new Set(keysOf(entry.designation).flatMap((k) => byKey.get(k) ?? []))];
     const unit = cands.find((u) => designFieldOf(u.type, entry.side, u.data)) ?? cands[0];
     if (!unit) return { entry, status: 'missing', suggestType: typeFromTag(entry.designation, entry.side) };
     listed.add(unit);

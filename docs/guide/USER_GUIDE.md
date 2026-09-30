@@ -353,6 +353,7 @@ or **Import** next to a type heading (that picks the type for you).
      totals) is marked **Air balance** and checked against the units (step 6).
    - Space-by-space ventilation tables (room / zone / occupancy / area) are marked **Space ventilation** and left
      out: TAB doesn't need them.
+   - Tables without unit tags (general notes, gas pipe sizing) are folded away under **other tables**.
 
    ![Every table of a drawing](../screenshots/46-schedule-tables.png)
 3. **New or existing, and removed units.** The schedule decides where it says so:
@@ -360,7 +361,9 @@ or **Import** next to a type heading (that picks the type for you).
      *EXISTING TO REMAIN*, *RELOCATED* → Existing; *REMOVE*, *REMOVE AND CAP*, *DEMO*, *EXISTING TO BE REMOVED* →
      removed;
    - **(E)** or **(N)** before the tag (*(E) RTU-5*);
-   - *EXISTING TO REMAIN* or *REMOVE AND CAP* anywhere in the row (a remarks column, or across the data cells).
+   - *EXISTING TO REMAIN* or *REMOVE AND CAP* anywhere in the row (a remarks column, or across the data cells);
+   - the **table's title or a note in it**: every unit in an *EXISTING FAN SCHEDULE*, or a table noting *ALL
+     EQUIPMENT IS EXISTING TO REMAIN*, is existing, unless its row says otherwise (*DEMO EXISTING* is removed).
 
    **Shell & TI**: on a TI set for a new building, equipment installed under the shell (rooftop units…) is shown as
    existing, but it's new to the building and gets full TAB. Set **Units the schedule marks existing are: New (built
@@ -396,6 +399,11 @@ or **Import** next to a type heading (that picks the type for you).
 
    ![Air balance check](../screenshots/47-air-balance.png)
 7. Tap **Import N units** (**+ air balance** when there is one).
+
+An RTU's scheduled **design OA** also goes on its **outside-air row** (a new *OA* row, or the design of its only
+one if blank), so the workbook's **Building Balance** shows the design OA right after the import. The air balance's
+fill does the same. MAU and fan design lines on Building Balance come from their outlet / hood rows, so they fill
+in as those rows are entered.
 
 Updating an existing unit only fills in the values the schedule has. Blank schedule cells never erase what's in the
 app. Skipped rows aren't imported at all, so fix them and import again.
@@ -800,6 +808,26 @@ Formulas, macros, formatting and print setup are left as they are.
 - Let Excel recalculate on open. If it asks to save changes when you close, that's normal.
 - Excel on a phone can show the workbook but won't run macros.
 
+**Linked cells look blank?** The workbook is saved without calculated values, so Excel works them all out when it
+opens the file. Everything the report pages take from **{Equipment Data Entry}** (designations, design data,
+Building Balance) is a formula. Until Excel calculates, those cells are empty. Excel doesn't calculate in:
+- **Protected View** (the yellow *PROTECTED VIEW* bar on a downloaded file): click **Enable Editing**;
+- previews (the phone, Dropbox, Outlook, the Claude app): open the file in desktop Excel.
+
+**Stop unblocking every file.** Windows marks files that come from a browser download or an email as *from the
+internet*. That's why Excel opens them in Protected View and blocks their macros. The mark is added on your computer,
+so a workbook can't arrive without it. Set your computer up once instead:
+1. **Trusted Location (recommended).** In Excel: **File → Options → Trust Center → Trust Center Settings → Trusted
+   Locations → Add new location**. Pick the folder you keep TAB workbooks in (for example the Dropbox projects
+   folder), tick **Subfolders of this location are also trusted**, then **OK**. Workbooks opened from there skip
+   Protected View and their macros run, even if they came from the internet. Move downloaded workbooks into that
+   folder before opening them. For a network drive, also tick **Allow Trusted Locations on my network**. IT can
+   set the same location for everyone with Group Policy.
+2. **Or unblock a whole folder at once** (Windows PowerShell; change the path to your folder):
+   `Get-ChildItem "$env:USERPROFILE\Dropbox\TAB Projects" -Recurse -Include *.xlsm | Unblock-File`
+3. Files that arrive through the **Dropbox desktop app**'s sync (not a browser download) usually don't carry the
+   mark.
+
 ### Photo and Issues reports (PDF)
 
 On the same tab, **Photo and Issues reports (PDF)**:
@@ -1139,7 +1167,11 @@ it again.
 
 **Excel says macros are disabled or blocked.**
 See [Opening it in Excel](#opening-it-in-excel-macros): **Enable Content**, or **Properties → Unblock** for a
-downloaded file.
+downloaded file. A **Trusted Location** for your TAB folder stops this for good.
+
+**The report pages are blank but Equipment Data Entry is filled in.**
+The file is in Protected View or a preview, so Excel hasn't calculated it yet. Click **Enable Editing** in desktop
+Excel (see [Opening it in Excel](#opening-it-in-excel-macros)).
 
 **Why is this unit red when everything is filled in?**
 It has an open issue, or a reading is outside the tolerance. The red box at the top of the unit says which. Close
