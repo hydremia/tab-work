@@ -33,7 +33,16 @@ const show = (v: FieldValue | undefined) => (v === undefined || v === null ? '' 
 
 type Source = 'paste' | 'file' | 'workbook';
 
-function PreviewTable({ preview, testId }: { preview: Preview; testId: string }) {
+function PreviewTable({
+  preview,
+  testId,
+  low,
+}: {
+  preview: Preview;
+  testId: string;
+  /** cells text recognition was unsure of: "<row index>:<field key>" */
+  low?: ReadonlySet<string>;
+}) {
   const targets = scheduleTargets(preview.type).filter((t) => t.key !== 'designation');
   const used = targets.filter((t) => preview.rows.some((r) => r.values[t.key] !== undefined));
   return (
@@ -52,7 +61,7 @@ function PreviewTable({ preview, testId }: { preview: Preview; testId: string })
         <tbody>
           {preview.rows.map((r) => (
             <tr key={r.index} data-action={r.action} data-testid="preview-row">
-              <td>{r.designation || '—'}</td>
+              <td data-low={low?.has(`${r.index}:designation`) || undefined}>{r.designation || '—'}</td>
               <td>
                 <span className="action-pill" data-action={r.action}>
                   {r.action === 'create'
@@ -62,9 +71,18 @@ function PreviewTable({ preview, testId }: { preview: Preview; testId: string })
                       : 'Skip'}
                 </span>
               </td>
-              {used.map((t) => (
-                <td key={t.key}>{show(r.values[t.key])}</td>
-              ))}
+              {used.map((t) => {
+                const unsure = low?.has(`${r.index}:${t.key}`);
+                return (
+                  <td
+                    key={t.key}
+                    data-low={unsure || undefined}
+                    title={unsure ? 'Text recognition was unsure of this value: check it on the drawing' : undefined}
+                  >
+                    {show(r.values[t.key])}
+                  </td>
+                );
+              })}
               <td className="msgs">
                 {r.errors.map((m) => (
                   <div key={m} className="msg-error">
@@ -118,6 +136,7 @@ export function ScheduleImportPage() {
   const [workbook, setWorkbook] = useState<{ fileName: string; schedule: ScheduleFile['schedule'] } | null>(null);
   const [existingFlag, setExistingFlag] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
 
@@ -135,6 +154,15 @@ export function ScheduleImportPage() {
   if (!hasHeader && mapping.length && mapping.every((m) => !m) && !(0 in mappingOverride)) mapping[0] = 'designation';
   const dataRows = hasHeader ? grid.slice(1) : grid;
 
+  // cells text recognition was unsure of, as "<data row index>:<field key>" (the preview's row index / mapping)
+  const lowCells: ReadonlySet<string> = (() => {
+    const s = source === 'file' ? file?.sheets[sheet] : undefined;
+    if (!s?.lowConfidence?.length) return new Set<string>();
+    const shift = hasHeader ? 1 : 0;
+    return new Set(
+      s.lowConfidence.flatMap(([r, c]) => (mapping[c] && r - shift >= 0 ? [`${r - shift}:${mapping[c]}`] : [])),
+    );
+  })();
   const previews: Preview[] = (() => {
     if (!equipment) return [];
     if (source === 'workbook') {
@@ -176,7 +204,7 @@ export function ScheduleImportPage() {
       if (asWorkbook) {
         setWorkbook({ fileName: f.name, schedule: await e.readWorkbookSchedule(f) });
       } else {
-        const r = await e.readScheduleFile(f);
+        const r = await e.readScheduleFile(f, setProgress);
         setFile(r);
         const first = Math.max(
           0,
@@ -192,6 +220,7 @@ export function ScheduleImportPage() {
       setError(`Could not read ${f.name}: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   }
 
@@ -302,13 +331,13 @@ export function ScheduleImportPage() {
         {source === 'file' && (
           <div className="field">
             <label className="field-label" htmlFor="si-file">
-              Schedule file (.csv, .xlsx, .xlsm, .pdf)
+              Schedule file (.csv, .xlsx, .xlsm, .pdf, photo)
             </label>
             <input
               id="si-file"
               type="file"
               aria-label="Schedule file"
-              accept=".csv,.tsv,.txt,.xlsx,.xlsm,.pdf,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              accept=".csv,.tsv,.txt,.xlsx,.xlsm,.pdf,.jpg,.jpeg,.png,.webp,text/csv,application/pdf,image/jpeg,image/png,image/webp,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) void pickFile(f, false);
@@ -333,6 +362,20 @@ export function ScheduleImportPage() {
                   </option>
                 ))}
               </select>
+            )}
+            {source === 'file' && file?.sheets[sheet]?.ocr && (
+              <div className="callout" data-tone="amber" role="status" data-testid="ocr-note">
+                <span>
+                  Read by <b>text recognition</b> (this drawing has no text layer, or it is a photo). Check the values
+                  against the drawing before importing
+                  {lowCells.size ? (
+                    <>
+                      : <b>{lowCells.size}</b> highlighted value{lowCells.size > 1 ? 's' : ''} it was unsure of
+                    </>
+                  ) : null}
+                  .
+                </span>
+              </div>
             )}
             {file && workbook?.schedule && (
               <div className="callout" data-tone="info">
@@ -386,7 +429,11 @@ export function ScheduleImportPage() {
             </button>
           </div>
         </div>
-        {busy && <p className="small muted">Reading…</p>}
+        {busy && (
+          <p className="small muted" role="status" data-testid="schedule-progress">
+            {progress ?? 'Reading…'}
+          </p>
+        )}
         {error && (
           <div className="callout" data-tone="red" role="alert">
             {error}
@@ -455,7 +502,7 @@ export function ScheduleImportPage() {
           {previews.map((p) => (
             <div key={p.type} className="stack" style={{ gap: 8 }}>
               <Summary p={p} />
-              <PreviewTable preview={p} testId={`preview-${p.type}`} />
+              <PreviewTable preview={p} testId={`preview-${p.type}`} low={lowCells} />
             </div>
           ))}
           <div className="row">

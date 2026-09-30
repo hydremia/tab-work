@@ -321,11 +321,21 @@ or **Import** next to a type heading (that picks the type for you).
 1. **Source**: pick one of
    - **Paste rows**: copy the schedule rows **with the header row** in Excel (or from a PDF table pasted into Excel)
      and paste them.
-   - **File (CSV, Excel, PDF)**: a `.csv`, `.xlsx` or `.xlsm` file (if it has several sheets, you pick one), or a
-     **PDF** of the drawings or a submittal. The app rebuilds the schedule tables from the PDF's text and lists each
-     one by page and title (*p. 4 · PUMP SCHEDULE*); the equipment type is picked from the title, and you can change
-     it. Only PDFs made from CAD / Revit / Word have text: a scanned drawing can't be read (paste its rows instead).
-     Check the columns and the preview: a table the app read wrong shows up there.
+   - **File (CSV, Excel, PDF)**: a `.csv`, `.xlsx` or `.xlsm` file (if it has several sheets, you pick one), a
+     **PDF** of the drawings or a submittal, or a **photo** of a schedule (JPEG / PNG). The app finds each schedule by
+     its grid lines and lists it by page and title (*p. 4 · PUMP SCHEDULE*); the equipment type is picked from the
+     title, and you can change it. Tables that aren't schedules (revision blocks, curb details) are left out.
+     - PDFs with text (made from CAD / Revit / Word) are read directly.
+     - **Drawings without text** (text plotted as lines, a scanned set) and **photos** are read by **text
+       recognition** on the device: the sheet name says *(text recognition)*, a note asks you to check the values,
+       and the values it was unsure of are **highlighted** in the preview. A 36 × 48 sheet with six schedules takes
+       about a minute on a laptop, longer on a phone; progress shows while it reads. It works offline once the app
+       has downloaded text recognition (it does that by itself in the background, about 7 MB, the first time the app
+       is open with a connection).
+     - Check model numbers in particular: drawing fonts make 1 / I, 0 / O and 5 / S easy to confuse.
+
+     ![Schedule from a scanned drawing](../screenshots/45-scanned-schedule.png)
+
    - **TAB workbook**: an existing a2b workbook. Only its Equipment Data Entry section is read.
 2. **New units are**: **New** or **Existing**.
 3. **Columns**: the app matches headers such as *Tag*, *Mark*, *Mfr*, *Supply CFM*, *OA CFM*, *E.S.P.*, *V/Ph/Hz*.
