@@ -31,7 +31,9 @@ export function scopeOf(
   const strongRemoved =
     /\bremoved?\s*(and|&)\s*cap(ped)?\b/.test(t) ||
     /\b(to be|be|being)\s+(removed|demolished|abandoned|replaced)\b/.test(t) ||
-    /\b(demo|demolish|demolished|abandon|abandoned)\b/.test(t) ||
+    /\b(demolish|demolished|abandon|abandoned)\b/.test(t) ||
+    /\bdemo\s+(existing|exist|unit|equipment)\b/.test(t) ||
+    /^demo$/.test(t) ||
     /^(removed?|removal)$/.test(t);
   const strongExisting =
     /\b(existing|exist|ex)\s+(to\s+)?remain\b/.test(t) ||
@@ -43,11 +45,32 @@ export function scopeOf(
     if (strongExisting && !/\b(replaces?|replacing|replacement)\b/.test(t)) return 'existing';
     return null;
   }
-  if (strongRemoved) return 'removed';
+  if (strongRemoved || /\bdemo\b/.test(t)) return 'removed';
   if (/\b(removed|replaced|remove)\b/.test(t) && !/\b(new|replaces|replacement|replacing)\b/.test(t)) return 'removed';
   if (/\b(new|replaces?|replacement|replacing)\b/.test(t) || /^(n|\(n\))$/.test(t)) return 'new';
   if (strongExisting || /\b(existing|exist|exst|ex)\b/.test(t) || /^(e|\(e\))$/.test(t)) return 'existing';
   if (/^(r|d|\(r\)|\(d\))$/.test(t)) return 'removed';
+  return null;
+}
+
+/**
+ * A whole table's scope: its title ("EXISTING FAN SCHEDULE", "NEW DEDICATED OUTSIDE AIR UNIT SCHEDULE") or a note in
+ * it ("ALL EQUIPMENT IS EXISTING TO REMAIN"). Rows that say otherwise (a scope column, a phrase) still win.
+ */
+export function tableScope(
+  title: string | null | undefined,
+  rows: readonly (readonly (string | number | null)[])[] = [],
+): UnitScope | null {
+  const t = norm(title ?? '');
+  const existing = /\bexisting\b/.test(t);
+  const isNew = /\bnew\b/.test(t);
+  if (existing && !isNew) return 'existing';
+  if (isNew && !existing) return 'new';
+  for (const r of rows) {
+    const line = norm(r.filter((c) => typeof c === 'string').join(' '));
+    if (/\ball (the )?(equipment|units?)\b.*\bexisting( to remain)?\b/.test(line)) return 'existing';
+    if (/\ball (the )?(equipment|units?)\b.*\b(is|are) new\b/.test(line)) return 'new';
+  }
   return null;
 }
 
