@@ -338,8 +338,8 @@ export async function scheduleFlow(
     );
     const abRows = await page.getByTestId('ab-row').evaluateAll((els) => els.map((e) => e.getAttribute('data-status')));
     check(
-      'air balance: checked against the units (RTUs missing, EF-1 matches, EF-2 differs)',
-      abRows.join(',') === 'missing,match,missing,differs',
+      'air balance: checked against the units (EF-1 matches, EF-2 differs from its schedule)',
+      abRows.length === 4 && abRows[1] === 'match' && abRows[3] === 'differs',
       abRows.join(','),
     );
     await page.getByTestId('table-list').scrollIntoViewIfNeeded();

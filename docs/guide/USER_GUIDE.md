@@ -378,7 +378,7 @@ or **Import** next to a type heading (that picks the type for you).
    **Update** (that designation already exists), or **Skip** (with the reason: removed, bad number, no designation,
    repeated designation, over capacity). Values like `1,200 CFM`, `1-1/2` and `460/3/60` are understood.
 6. **Air balance** (when a ticked table is one): its design OA, exhaust and net, and each unit it lists:
-   - **Matches the unit**, or **Unit design is … CFM: confirm with the engineer** when the unit's schedule says
+   - **Matches**, or **Unit: … Confirm (not changed)** when the unit's schedule says
      something else (the unit keeps its schedule value; check it on site or with the engineer);
    - **Fill blank unit design CFMs from the table** (a unit whose schedule has no CFM);
    - **Add the units the schedules don't have (as Existing)**: units the air balance lists but no schedule does
