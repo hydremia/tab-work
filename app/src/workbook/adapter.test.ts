@@ -260,3 +260,16 @@ describe('round trip: app project -> export (rev 05 template) -> import -> app p
     expect(diff(normalizeProject(toProjectData(back).data), normalizeProject(data))).toEqual([]);
   });
 });
+
+describe('New / Existing', () => {
+  it('an existing unit comes back existing after export -> import (rev 05 template)', async () => {
+    const b = sampleBundle();
+    const vav = b.equipment.find((e) => e.type === 'vav')!;
+    vav.isExisting = true;
+    const { data } = toProjectData(b);
+    const { bytes } = await exportWorkbookWithReport(template(), data);
+    let n = 0;
+    const back = fromProjectData(await importWorkbook(bytes), { newId: () => `id-${++n}`, now: 1 });
+    expect(back.equipment.filter((e) => e.isExisting).map((e) => e.designation)).toEqual([vav.designation]);
+  });
+});
