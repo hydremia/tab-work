@@ -289,7 +289,7 @@ export async function exportWorkbook(templateBytes: Uint8Array, project: Project
 export async function exportWorkbookWithReport(templateBytes: Uint8Array, project: ProjectData, opts: ExportOptions = {}):
   Promise<{ bytes: Uint8Array; report: ExportReport }> {
   const map = opts.map ?? TEMPLATE_MAP;
-  if (project.templateRevision !== map.revision) {
+  if (project.templateRevision !== map.revision && !map.compatibleRevisions?.includes(project.templateRevision)) {
     throw new ValidationError(`project is for template revision ${project.templateRevision}, the map is revision ${map.revision}`);
   }
   const zip = await JSZip.loadAsync(templateBytes);

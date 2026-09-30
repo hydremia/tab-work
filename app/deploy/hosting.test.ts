@@ -32,7 +32,7 @@ describe('hosting config', () => {
     for (const p of ['/', '/index.html', '/sw.js', '/manifest.webmanifest', '/workbox-2fbc6a65.js'])
       expect(headersFor(p)['Cache-Control'], p).toBe(NO_CACHE);
     expect(headersFor('/assets/index-abc123.js')['Cache-Control']).toBe(IMMUTABLE);
-    const t = headersFor('/templates/tab-template-rev05.xlsm');
+    const t = headersFor('/templates/tab-template-rev06.xlsm');
     expect(t['Content-Type']).toBe(XLSM_MIME);
     expect(t['Cache-Control']).toBe(NO_CACHE);
     expect(headersFor('/p/123/equipment')['Cache-Control']).toBeUndefined();

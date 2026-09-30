@@ -3,7 +3,7 @@
 For HVAC TAB technicians and project managers, in the field and in the office. For the short version, see
 [QUICK_START.md](./QUICK_START.md). A one-page [Field cheat sheet](#field-cheat-sheet) is at the end.
 
-The app fills in the a2b TAB workbook (revision 05) for you. You enter readings on your phone, tablet or laptop,
+The app fills in the a2b TAB workbook (revision 06, a2b's look in the e2s colours; revision 05 workbooks work the same) for you. You enter readings on your phone, tablet or laptop,
 and the app writes them into the right cells of the `.xlsm` file. The workbook's own formulas, macros and
 print layout stay as they are.
 
@@ -664,7 +664,7 @@ Kitchen vs Dining. The scope profile shows **N/A for this scope**.
 ### How N/A prints in the workbook
 
 Every N/A is written into the workbook as text. Marks you set print as the notation you chose (`N/A`, `Not Avail.`
-or `Not Acc.`). Automatic and scope N/A print as `N/A`. The revision 05 formulas skip these cells in totals and
+or `Not Acc.`). Automatic and scope N/A print as `N/A`. The workbook formulas skip these cells in totals and
 averages, so nothing shows an error, and **no cell is left blank to mean N/A**.
 
 *One exception:* the leaving static of a component the unit type doesn't have (and the filter static on a unit with
@@ -766,7 +766,7 @@ sent anywhere by itself.
 ### The TAB workbook (.xlsm)
 
 1. **Export** tab → **TAB workbook (.xlsm)** card. It shows the equipment and issue counts, the template
-   (**Revision 05**) and the status bar.
+   (**Revision 06**, or 05 for projects started before) and the status bar.
 2. Check the **Revision** label. The app suggests **Prelim** first, then **Rev 1**, **Rev 2**… and you can type
    **Final** or anything else.
 3. Tap **Export Prelim (.xlsm)** (the button shows the label).
@@ -998,7 +998,7 @@ every time, each line linking to the unit or page to fix:
 - A summary of the **Attention** tab.
 
 **Issue report** mentions the *must fix* count in its confirmation. **Projects → Check a workbook without importing it**
-runs the same check on any a2b revision 05 workbook (another tech's report, or one to review); nothing is saved
+runs the same check on any a2b revision 05 or 06 workbook (another tech's report, or one to review); nothing is saved
 (unit completeness is left out there: photos are not in a workbook).
 
 ![Report check](../screenshots/41-report-check.png)

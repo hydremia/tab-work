@@ -24,8 +24,10 @@ const CW = W - 2 * MX;
 const INK = rgb(0.1, 0.12, 0.15);
 const MUTED = rgb(0.42, 0.46, 0.52);
 const RULE = rgb(0.82, 0.85, 0.88);
-const BRAND = rgb(0.06, 0.29, 0.5);
-const GREEN = rgb(0.09, 0.47, 0.25);
+/** e2s steel blue #4A7EC0 (the e2s website) */
+const BRAND = rgb(0.29, 0.494, 0.753);
+/** e2s green, darkened for text on white (#4A9A2E; the website's #6AB23E is the bar colour) */
+const GREEN = rgb(0.29, 0.604, 0.18);
 const RED = rgb(0.72, 0.16, 0.12);
 const BAND = rgb(0.9, 0.93, 0.96);
 const BOX = rgb(0.87, 0.92, 0.97);
@@ -469,7 +471,8 @@ export async function renderGraphicsPdf(
   /** Sequential velocity colour: t 0 (slowest) → light, 1 (fastest) → dark. */
   const velColor = (t: number) => {
     const u = Math.max(0, Math.min(1, t));
-    return rgb(0.93 - 0.89 * u, 0.955 - 0.715 * u, 0.99 - 0.52 * u);
+    // pale steel blue -> deep steel blue #28518A
+    return rgb(0.93 - 0.773 * u, 0.955 - 0.637 * u, 0.99 - 0.449 * u);
   };
   const onColor = (t: number) => (t > 0.55 ? rgb(1, 1, 1) : INK);
 
