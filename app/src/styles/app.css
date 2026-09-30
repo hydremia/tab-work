@@ -1848,6 +1848,29 @@ textarea {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.table-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.table-pick > label {
+  flex: 1 1 100%;
+}
+.table-pick .select {
+  width: auto;
+  max-width: calc(100% - 110px);
+}
+.table-pick-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.table-pick-name .chip,
+.preview-table .chip {
+  margin-left: 6px;
+}
 .preview-wrap {
   overflow-x: auto;
   margin: 0 -16px;

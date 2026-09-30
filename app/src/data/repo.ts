@@ -17,6 +17,17 @@ import { duplicateData, duplicateRow } from '../domain/duplicate';
 import { equipmentType, nextFreeSlot, workbookDef, type EquipmentTypeKey } from '../domain/equipmentTypes';
 import type { PreviewRow } from '../domain/scheduleImport';
 import { getSpec } from '../domain/specs';
+import { airflowOnlySections } from '../domain/unitScope';
+import {
+  AIR_BALANCE_KEYS,
+  airBalanceChecks,
+  designFieldOf,
+  entryTotals,
+  type AirBalanceTable,
+} from '../domain/airBalance';
+import { designationKey } from '../domain/scheduleImport';
+import { SPARE_OA_ROWS, spareOaKey } from '../domain/spareOa';
+import { isBlank } from '../domain/conditions';
 import { db } from './db';
 import { appendHistory, currentActor } from './history';
 import { uuid } from './uuid';
@@ -39,6 +50,7 @@ import {
   type LibraryInstrument,
   type LibraryValve,
   type LibraryPump,
+  type FieldValue,
   type Photo,
   type PhotoCategory,
   type Project,
@@ -629,27 +641,142 @@ export async function addAirflowRow(
 export async function applyScheduleImport(
   projectId: string,
   type: EquipmentTypeKey,
-  rows: readonly Pick<PreviewRow, 'action' | 'designation' | 'values' | 'existingId'>[],
-  isExisting = false,
+  rows: readonly (Pick<PreviewRow, 'action' | 'designation' | 'values' | 'existingId'> & {
+    scope?: PreviewRow['scope'];
+  })[],
+  opts: {
+    /** New / Existing for rows the schedule gives no scope (default New). */
+    isExisting?: boolean;
+    /** Existing units are airflow only: their non-airflow sections (unit, motor, drive, ...) are marked N/A. */
+    existingAirflowOnly?: boolean;
+    /**
+     * Units the schedule marks existing are New for this project (a TI set of a new building: the shell's rooftop
+     * units show as existing, but this project tests them in full).
+     */
+    existingAsNew?: boolean;
+  } = {},
 ): Promise<{ created: Equipment[]; updated: number }> {
+  const naSections = opts.existingAirflowOnly ? airflowOnlySections(type) : [];
   return db.transaction('rw', writeTables(), async () => {
     const created: Equipment[] = [];
     let updated = 0;
     for (const r of rows) {
-      if (r.action === 'skip') continue;
+      if (r.action === 'skip' || r.scope === 'removed') continue;
+      const isExisting = r.scope ? r.scope === 'existing' && !opts.existingAsNew : (opts.isExisting ?? false);
       let id = r.existingId;
       if (r.action === 'create') {
         const unit = await addEquipment(projectId, type, r.designation, isExisting);
         created.push(unit);
         id = unit.id;
-      } else updated++;
+      } else {
+        updated++;
+        // the schedule says new or existing: the unit follows it
+        if (id && r.scope) {
+          const cur = await db.equipment.get(id);
+          if (cur && cur.isExisting !== isExisting) await setField('equipment', id, 'isExisting', isExisting);
+        }
+      }
       if (!id) continue;
       for (const [k, v] of Object.entries(r.values)) {
         if (v === null || v === '') continue;
         await setField('equipment', id, `data.${k}`, v, { source: 'schedule' });
       }
+      if (isExisting && r.action === 'create')
+        for (const key of naSections)
+          await setField('equipment', id, `naState.sections.${key}`, {
+            notation: 'N/A',
+            reason: 'existing unit, airflow only',
+          });
     }
     return { created, updated };
+  });
+}
+
+/**
+ * The engineer's air balance table (domain/airBalance) into the project: blank design CFMs filled from it, the units
+ * it lists that the project does not have added as Existing (with its design CFM; airflow only on request; an OA
+ * source that is no unit type goes to a spare "Other outside air" row), and its totals kept on the project. A unit
+ * whose design CFM differs is left as it is (the check shows it).
+ */
+export async function applyAirBalance(
+  projectId: string,
+  table: AirBalanceTable,
+  opts: {
+    fillBlank?: boolean;
+    addMissing?: boolean;
+    existingAirflowOnly?: boolean;
+    /** Units only in the air balance are New (shell & TI: installed under the shell), not Existing. */
+    missingAsNew?: boolean;
+    source?: string;
+  } = {},
+): Promise<{ filled: number; added: Equipment[]; spareRows: number; notAdded: string[] }> {
+  return db.transaction('rw', writeTables(), async () => {
+    const project = await db.projects.get(projectId);
+    if (!project) throw new Error('project not found');
+    const units = await db.equipment.where('projectId').equals(projectId).toArray();
+    const { checks } = airBalanceChecks(table, units);
+    let filled = 0;
+    const added: Equipment[] = [];
+    const notAdded: string[] = [];
+    let spareRows = 0;
+    const addedByKey = new Map<string, Equipment>();
+    const info = { ...project.info };
+    const setInfo = async (k: string, v: FieldValue) => {
+      info[k] = v;
+      await setField('projects', projectId, `info.${k}`, v);
+    };
+    for (const c of checks) {
+      if (c.status === 'blank' && opts.fillBlank && c.unit && c.field) {
+        await setField('equipment', (c.unit as Equipment).id, `data.${c.field}`, c.entry.cfm, { source: 'schedule' });
+        filled++;
+      }
+      if (c.status !== 'missing' || !opts.addMissing) continue;
+      const key = designationKey(c.entry.designation);
+      const type = c.suggestType;
+      if (!type) {
+        if (c.entry.side === 'oa') {
+          let n = 1;
+          while (n <= SPARE_OA_ROWS && !isBlank(info[spareOaKey(n, 'Unit')] ?? null)) n++;
+          if (n <= SPARE_OA_ROWS) {
+            await setInfo(spareOaKey(n, 'Unit'), c.entry.designation);
+            await setInfo(spareOaKey(n, 'Design'), c.entry.cfm);
+            spareRows++;
+            continue;
+          }
+        }
+        notAdded.push(c.entry.designation);
+        continue;
+      }
+      let unit = addedByKey.get(key);
+      if (!unit) {
+        try {
+          unit = await addEquipment(projectId, type, c.entry.designation, !opts.missingAsNew);
+        } catch (err) {
+          if (err instanceof CapacityError) {
+            notAdded.push(c.entry.designation);
+            continue;
+          }
+          throw err;
+        }
+        addedByKey.set(key, unit);
+        added.push(unit);
+        if (opts.existingAirflowOnly && !opts.missingAsNew)
+          for (const k of airflowOnlySections(type))
+            await setField('equipment', unit.id, `naState.sections.${k}`, {
+              notation: 'N/A',
+              reason: 'existing unit, airflow only',
+            });
+      }
+      const field = designFieldOf(unit.type, c.entry.side);
+      if (field) await setField('equipment', unit.id, `data.${field}`, c.entry.cfm, { source: 'schedule' });
+    }
+    const sums = entryTotals(table);
+    await setInfo(AIR_BALANCE_KEYS.oa, table.totalOa ?? sums.oa);
+    await setInfo(AIR_BALANCE_KEYS.exhaust, table.totalExhaust ?? sums.exhaust);
+    await setInfo(AIR_BALANCE_KEYS.net, table.net ?? (table.totalOa ?? sums.oa) - (table.totalExhaust ?? sums.exhaust));
+    await setInfo(AIR_BALANCE_KEYS.source, opts.source ?? 'Air balance table');
+    await setInfo(AIR_BALANCE_KEYS.excluded, table.excluded.length ? table.excluded.join(', ') : null);
+    return { filled, added, spareRows, notAdded };
   });
 }
 

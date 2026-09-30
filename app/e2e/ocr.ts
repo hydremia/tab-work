@@ -49,7 +49,7 @@ async function imagePdf(png: Buffer): Promise<Uint8Array> {
 
 async function importFile(page: Page, projectUrl: string, file: { name: string; mimeType: string; buffer: Buffer }) {
   await page.goto(`${projectUrl}/schedule`);
-  await page.getByRole('button', { name: 'File (CSV, Excel, PDF)' }).click();
+  await page.getByRole('button', { name: 'File (CSV, Excel, PDF, photo)' }).click();
   await page.locator('input[aria-label="Schedule file"]').setInputFiles(file);
   await page.getByTestId('preview-summary-fan').waitFor({ timeout: 120_000 });
 }

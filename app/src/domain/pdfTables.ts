@@ -182,7 +182,12 @@ const TYPE_WORDS: [RegExp, EquipmentTypeKey][] = [
   [/\b(exhaust fan|fan|ef)s?\b/i, 'fan'],
 ];
 
+/** Units the app has no type for, whose titles would otherwise match one ("FAN COIL" is no fan). */
+const NO_TYPE =
+  /\b(fan coils?|fcus?|condensing units?|split systems?|mini[- ]splits?|unit heaters?|cabinet heaters?|vrf)\b/i;
+
 export function suggestType(text: string, known: readonly string[]): EquipmentTypeKey | null {
+  if (NO_TYPE.test(text)) return null;
   for (const [re, key] of TYPE_WORDS) if (re.test(text) && known.includes(key)) return key;
   return null;
 }

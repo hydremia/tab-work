@@ -86,6 +86,23 @@ export async function readExistingUnits(zip: JSZip): Promise<Set<string>> {
   );
 }
 
+/** App project values not on the sheets (ProjectData.appInfo), as JSON. */
+export const APP_INFO_PROP = `${MARKER_PREFIX}appInfo`;
+
+export async function readAppInfo(zip: JSZip): Promise<Record<string, string | number> | null> {
+  const v = (await readCustomProperties(zip))[APP_INFO_PROP];
+  if (!v) return null;
+  try {
+    const o: unknown = JSON.parse(v);
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+    const out: Record<string, string | number> = {};
+    for (const [k, x] of Object.entries(o)) if (typeof x === 'string' || typeof x === 'number') out[k] = x;
+    return Object.keys(out).length ? out : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Set (string) or remove (null) the named custom properties, keeping every other one. Nothing is created when there
  * is nothing to write and the workbook has no custom properties part.
