@@ -649,6 +649,11 @@ export async function applyScheduleImport(
     isExisting?: boolean;
     /** Existing units are airflow only: their non-airflow sections (unit, motor, drive, ...) are marked N/A. */
     existingAirflowOnly?: boolean;
+    /**
+     * Units the schedule marks existing are New for this project (a TI set of a new building: the shell's rooftop
+     * units show as existing, but this project tests them in full).
+     */
+    existingAsNew?: boolean;
   } = {},
 ): Promise<{ created: Equipment[]; updated: number }> {
   const naSections = opts.existingAirflowOnly ? airflowOnlySections(type) : [];
@@ -657,7 +662,7 @@ export async function applyScheduleImport(
     let updated = 0;
     for (const r of rows) {
       if (r.action === 'skip' || r.scope === 'removed') continue;
-      const isExisting = r.scope ? r.scope === 'existing' : (opts.isExisting ?? false);
+      const isExisting = r.scope ? r.scope === 'existing' && !opts.existingAsNew : (opts.isExisting ?? false);
       let id = r.existingId;
       if (r.action === 'create') {
         const unit = await addEquipment(projectId, type, r.designation, isExisting);
@@ -696,7 +701,14 @@ export async function applyScheduleImport(
 export async function applyAirBalance(
   projectId: string,
   table: AirBalanceTable,
-  opts: { fillBlank?: boolean; addMissing?: boolean; existingAirflowOnly?: boolean; source?: string } = {},
+  opts: {
+    fillBlank?: boolean;
+    addMissing?: boolean;
+    existingAirflowOnly?: boolean;
+    /** Units only in the air balance are New (shell & TI: installed under the shell), not Existing. */
+    missingAsNew?: boolean;
+    source?: string;
+  } = {},
 ): Promise<{ filled: number; added: Equipment[]; spareRows: number; notAdded: string[] }> {
   return db.transaction('rw', writeTables(), async () => {
     const project = await db.projects.get(projectId);
@@ -738,7 +750,7 @@ export async function applyAirBalance(
       let unit = addedByKey.get(key);
       if (!unit) {
         try {
-          unit = await addEquipment(projectId, type, c.entry.designation, true);
+          unit = await addEquipment(projectId, type, c.entry.designation, !opts.missingAsNew);
         } catch (err) {
           if (err instanceof CapacityError) {
             notAdded.push(c.entry.designation);
@@ -748,7 +760,7 @@ export async function applyAirBalance(
         }
         addedByKey.set(key, unit);
         added.push(unit);
-        if (opts.existingAirflowOnly)
+        if (opts.existingAirflowOnly && !opts.missingAsNew)
           for (const k of airflowOnlySections(type))
             await setField('equipment', unit.id, `naState.sections.${k}`, {
               notation: 'N/A',

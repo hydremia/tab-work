@@ -40,11 +40,14 @@ function PreviewTable({
   preview,
   testId,
   low,
+  existingAsNew,
 }: {
   preview: Preview;
   testId: string;
   /** cells text recognition was unsure of: "<type>:<row index>:<field key>" */
   low?: ReadonlySet<string>;
+  /** the schedule's existing units are imported as New (shell & TI) */
+  existingAsNew?: boolean;
 }) {
   const targets = scheduleTargets(preview.type).filter((t) => t.key !== 'designation');
   const used = targets.filter((t) => preview.rows.some((r) => r.values[t.key] !== undefined));
@@ -68,7 +71,7 @@ function PreviewTable({
                 {r.designation || '—'}
                 {r.scope && r.scope !== 'new' && (
                   <span className="chip chip-existing" data-testid="scope-chip">
-                    {SCOPE_LABEL[r.scope]}
+                    {r.scope === 'existing' && existingAsNew ? 'Existing → New' : SCOPE_LABEL[r.scope]}
                   </span>
                 )}
               </td>
@@ -171,6 +174,7 @@ export function ScheduleImportPage() {
   const [opts, setOpts] = useState<Record<number, SheetOpts>>({});
   const [workbook, setWorkbook] = useState<{ fileName: string; schedule: ScheduleFile['schedule'] } | null>(null);
   const [existingFlag, setExistingFlag] = useState(false);
+  const [existingAsNew, setExistingAsNew] = useState(false);
   const [airflowOnly, setAirflowOnly] = useState(false);
   const [abFill, setAbFill] = useState(true);
   const [abAdd, setAbAdd] = useState(true);
@@ -363,6 +367,7 @@ export function ScheduleImportPage() {
         const r = await applyScheduleImport(project!.id, p.type, p.rows, {
           isExisting: existingFlag,
           existingAirflowOnly: airflowOnly,
+          existingAsNew,
         });
         created += r.created.length;
         updated += r.updated;
@@ -375,6 +380,7 @@ export function ScheduleImportPage() {
           fillBlank: abFill,
           addMissing: abAdd,
           existingAirflowOnly: airflowOnly,
+          missingAsNew: existingAsNew,
           source: abView?.name,
         });
         parts.push(
@@ -560,6 +566,30 @@ export function ScheduleImportPage() {
             )}
           </div>
         )}
+        <div className="field">
+          <span className="field-label" id="si-me">
+            Units the schedule marks existing are
+          </span>
+          <div className="segmented" role="group" aria-labelledby="si-me" data-testid="marked-existing">
+            <button type="button" aria-pressed={!existingAsNew} onClick={() => setExistingAsNew(false)}>
+              Existing
+            </button>
+            <button type="button" aria-pressed={existingAsNew} onClick={() => setExistingAsNew(true)}>
+              New (built under the shell)
+            </button>
+          </div>
+          {existingAsNew ? (
+            <span className="field-hint">
+              Shell &amp; TI: the TI drawings call the shell&apos;s equipment existing, but this project tests it as new
+              (full data). Removed units are still left out.
+            </span>
+          ) : (
+            <span className="field-hint">
+              On a TI set for a new building, rooftop units installed under the shell show as existing: pick New to test
+              them in full.
+            </span>
+          )}
+        </div>
         <div className="field">
           <span className="field-label" id="si-ne">
             Rows the schedule doesn&apos;t mark new or existing are
@@ -781,7 +811,7 @@ export function ScheduleImportPage() {
                       {c.status === 'missing' &&
                         (c.suggestType
                           ? abAdd
-                            ? `Added as existing (${equipmentType(c.suggestType).plural.replace(/s$/, '')})`
+                            ? `Added as ${existingAsNew ? 'new' : 'existing'} (${equipmentType(c.suggestType).plural.replace(/s$/, '')})`
                             : 'Not in the schedules'
                           : c.entry.side === 'oa' && abAdd
                             ? 'Added as an Other OA row'
@@ -814,7 +844,7 @@ export function ScheduleImportPage() {
             <label className="row small" style={{ gap: 8 }}>
               <input type="checkbox" checked={abAdd} onChange={(e) => setAbAdd(e.target.checked)} />
               Add the {abMissing.length} unit{abMissing.length === 1 ? '' : 's'} the schedules don&apos;t have (as
-              Existing)
+              {existingAsNew ? ' New' : ' Existing'})
             </label>
           )}
         </section>
@@ -825,14 +855,14 @@ export function ScheduleImportPage() {
           <h2 id="si-prev">Preview</h2>
           {existingRows > 0 && (
             <p className="small muted" style={{ margin: 0 }}>
-              {existingRows} existing unit{existingRows === 1 ? '' : 's'}: {airflowOnly ? 'airflow only' : 'full data'}{' '}
-              (Existing units need, above).
+              {existingRows} unit{existingRows === 1 ? '' : 's'} marked existing:{' '}
+              {existingAsNew ? 'imported as New (built under the shell)' : airflowOnly ? 'airflow only' : 'full data'}.
             </p>
           )}
           {previews.map((p) => (
             <div key={p.type} className="stack" style={{ gap: 8 }}>
               <Summary p={p} />
-              <PreviewTable preview={p} testId={`preview-${p.type}`} low={low} />
+              <PreviewTable preview={p} testId={`preview-${p.type}`} low={low} existingAsNew={existingAsNew} />
             </div>
           ))}
           <div className="row">

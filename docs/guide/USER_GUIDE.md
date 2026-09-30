@@ -362,6 +362,11 @@ or **Import** next to a type heading (that picks the type for you).
    - **(E)** or **(N)** before the tag (*(E) RTU-5*);
    - *EXISTING TO REMAIN* or *REMOVE AND CAP* anywhere in the row (a remarks column, or across the data cells).
 
+   **Shell & TI**: on a TI set for a new building, equipment installed under the shell (rooftop units…) is shown as
+   existing, but it's new to the building and gets full TAB. Set **Units the schedule marks existing are: New (built
+   under the shell)**: they come in as New with full data (the preview shows *Existing → New*), units only in the air
+   balance too. Removed units are still left out. Single units can always be switched on the unit page.
+
    **Removed units are left out** (Skip, *Removed (REMOVE AND CAP): not in the scope*): they aren't in the report.
    Existing units are imported and reported (with an **Existing** chip in the preview). For rows the schedule
    doesn't mark, pick **Rows the schedule doesn't mark new or existing are: New / Existing**.

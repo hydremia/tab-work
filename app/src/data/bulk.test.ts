@@ -108,6 +108,28 @@ describe('applyScheduleImport: scope', () => {
   });
 });
 
+describe('applyScheduleImport: shell & TI', () => {
+  it('units the schedule marks existing come in as New with full data; removed ones are still left out', async () => {
+    const p = await createProject({ name: 'TI' });
+    const preview = buildPreview({
+      type: 'rtu',
+      rows: [
+        ['RTU-1', 'EXISTING'],
+        ['RTU-2', 'NEW'],
+        ['RTU-3', 'EXISTING TO BE REMOVED'],
+      ],
+      mapping: ['designation', 'scope'],
+      existing: [],
+    });
+    await applyScheduleImport(p.id, 'rtu', preview.rows, { existingAirflowOnly: true, existingAsNew: true });
+    const all = (await db.equipment.where('projectId').equals(p.id).toArray()).sort((a, b) => a.slot - b.slot);
+    expect(all.map((e) => [e.designation, e.isExisting, Object.keys(e.naState.sections).length])).toEqual([
+      ['RTU-1', false, 0],
+      ['RTU-2', false, 0],
+    ]);
+  });
+});
+
 describe('applyAirBalance', () => {
   it('fills blank design CFMs, adds missing units as Existing, other OA (transfer air TA-1) to a spare row, keeps the totals', async () => {
     const p = await createProject({ name: 'Job' });
