@@ -625,7 +625,7 @@ export function ScheduleImportPage() {
           <div className="stack" style={{ gap: 6 }} data-testid="table-list">
             {views.map((v) => (
               <div key={v.index} className="table-pick" data-testid="table-pick" data-kind={v.kind}>
-                <label className="row small" style={{ gap: 8, flex: 1, minWidth: 0 }}>
+                <label className="row small" style={{ gap: 8, minWidth: 0 }}>
                   <input
                     type="checkbox"
                     checked={v.include}
@@ -773,21 +773,18 @@ export function ScheduleImportPage() {
                       {c.entry.note ? ` (note ${c.entry.note})` : ''}
                     </td>
                     <td className="msgs">
-                      {c.status === 'match' && 'Matches the unit'}
+                      {c.status === 'match' && 'Matches'}
                       {c.status === 'differs' && (
-                        <div className="msg-warn">
-                          Unit design is {formatNumber(c.unitCfm ?? 0)} CFM: confirm with the engineer (not changed)
-                        </div>
+                        <div className="msg-warn">Unit: {formatNumber(c.unitCfm ?? 0)}. Confirm (not changed)</div>
                       )}
-                      {c.status === 'blank' &&
-                        (abFill ? 'Unit design CFM filled from the table' : 'Unit has no design CFM')}
+                      {c.status === 'blank' && (abFill ? 'Filled from the table' : 'Unit has no design CFM')}
                       {c.status === 'missing' &&
                         (c.suggestType
                           ? abAdd
-                            ? `Not in the schedules: added as an existing ${equipmentType(c.suggestType).plural.replace(/s$/, '')}`
+                            ? `Added as existing (${equipmentType(c.suggestType).plural.replace(/s$/, '')})`
                             : 'Not in the schedules'
                           : c.entry.side === 'oa' && abAdd
-                            ? 'Not a unit type: added as an Other outside air row'
+                            ? 'Added as an Other OA row'
                             : 'Not a unit type the app has')}
                       {c.status === 'noField' &&
                         `${equipmentType(c.unit!.type).plural}: no design ${c.entry.side === 'oa' ? 'OA' : 'exhaust'} field`}
@@ -799,7 +796,12 @@ export function ScheduleImportPage() {
           </div>
           {abResult.notListed.length > 0 && (
             <p className="small muted" style={{ margin: 0 }}>
-              Not in the air balance: {abResult.notListed.map((u) => u.designation).join(', ')}.
+              Not in the air balance:{' '}
+              {abResult.notListed
+                .map((u) => u.designation)
+                .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+                .join(', ')}
+              .
             </p>
           )}
           {abBlank.length > 0 && (
