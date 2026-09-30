@@ -23,6 +23,11 @@ export interface UnitData extends LayoutData {
   slot: number;
   /** {Equipment Data Entry} row (design schedule). */
   schedule?: Record<string, Cell>;
+  /**
+   * Existing equipment (the app's New / Existing). Not on the sheets: kept in the workbook's custom document property
+   * `a2bTab.existingUnits` (docProps.ts), so a round trip through Excel keeps it.
+   */
+  existing?: boolean;
 }
 
 export interface ProjectData {

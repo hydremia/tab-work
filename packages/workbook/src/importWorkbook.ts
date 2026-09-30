@@ -6,7 +6,7 @@ import { loadWorkbookZip } from './zipLimits.js';
 import { cellValue, listSheets, loadSharedStrings, longToIso, parseCells, RawCell, readText, serialToIso, usToIso } from './ooxml.js';
 import { anchorRow, blockLayout, FieldDef, fieldPreset, FieldType, Layout, sequenceCells, tableRows, TEMPLATE_MAP, TemplateMap } from './templateMap.js';
 import type { Cell, LayoutData, ProjectData, UnitData, Value } from './types.js';
-import { readRevisionMarker, type RevisionMarker } from './docProps.js';
+import { readExistingUnits, readRevisionMarker, type RevisionMarker } from './docProps.js';
 
 export interface ImportOptions { map?: TemplateMap }
 export interface ImportReport { warnings: string[] }
@@ -148,6 +148,9 @@ export async function importWorkbookWithReport(bytes: Uint8Array, opts: ImportOp
     }
     if (units.length) project.equipment[def.key] = units;
   }
+  const existing = await readExistingUnits(zip);
+  for (const [type, units] of Object.entries(project.equipment))
+    for (const u of units) if (existing.has(`${type}#${u.slot}`)) u.existing = true;
   return { project, report, marker: await readRevisionMarker(zip) };
 }
 
