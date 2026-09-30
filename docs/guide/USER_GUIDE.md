@@ -539,6 +539,12 @@ damper · Static pressure profile · Airflow · Photos · Remarks.
 
 - Enter the entering static at the first component and the leaving static after each component. The strip shows
   each component's Δ, then **Fan TSP**, **ESP** (unit ESP actual) and **Unit ΔP (inlet → fan)**.
+- **Static taps: 3-point** (the usual packaged RTU: entering / return, fan inlet, discharge). Enter the entering
+  static, the **fan inlet** as the leaving static of the last component before the fan (Heat on an RTU, Burner on an
+  MAU) and the discharge as the fan's leaving static. The other leaving statics become N/A automatically and are left
+  blank in the workbook, so its TSP, ESP and unit ΔP still calculate. The drop between entering and fan inlet then
+  shows under that last component in the workbook; the graphics appendix shows it as one drop across all the
+  components in between. A workbook with only those three readings comes back as 3-point.
 - Motor: **Average volts**, **Average amps**, **Corrected FLA** (rated V ÷ average measured V × FLA) and **BHP**
   (estimated).
 - Values tagged **REPORT** are exactly what the workbook will print.

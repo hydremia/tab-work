@@ -306,8 +306,6 @@ export async function renderGraphicsPdf(
       if (i > 0) line(x, yb, x, yb + cabH, 0.6, RULE);
       drawComponent(s.k < 0 ? 'inlet ' + s.label : s.label, x, yb, secW, cabH);
       center(page, s.label, x + secW / 2, Y(cabTop + cabH + 11), 8, bold);
-      if (s.k >= 0 && p.dp[s.k] !== null)
-        center(page, `ΔP ${num(p.dp[s.k], 2)}`, x + secW / 2, Y(cabTop + cabH + 21), 7.5, regular, MUTED);
       const v = s.k < 0 ? p.strip[0] : p.strip[s.k + 1];
       // the fan's leaving static is at the discharge (in the duct); the others at the section's leaving side
       const sx = s.k >= 0 && s.label.toLowerCase().startsWith('fan') ? dx + ductW / 2 : x + secW;
@@ -315,8 +313,30 @@ export async function renderGraphicsPdf(
       stationV.push(typeof v === 'number' ? v : null);
       stationTxt.push(cellText(v));
     });
-    // taps: a dot on the casing, a leader and the reading
+    // ΔP under each component measured on both sides; across unmeasured components (a 3-point profile) one bracket
+    let last = stationV[0] !== null ? 0 : -1;
+    for (let i = 1; i < sections.length; i++) {
+      const v = stationV[i];
+      if (v === null) continue;
+      if (last >= 0) {
+        const d = v - stationV[last]!;
+        const x0 = cabX + (last + 1) * secW;
+        const x1 = cabX + (i + 1) * secW;
+        const by = Y(cabTop + cabH + 21);
+        if (i === last + 1) center(page, `ΔP ${num(d, 2)}`, (x0 + x1) / 2, by, 7.5, regular, MUTED);
+        else {
+          const names = sections.slice(last + 1, i + 1).map((q) => q.label);
+          line(x0 + 6, by + 8, x1 - 6, by + 8, 0.6, MUTED);
+          line(x0 + 6, by + 8, x0 + 6, by + 11, 0.6, MUTED);
+          line(x1 - 6, by + 8, x1 - 6, by + 11, 0.6, MUTED);
+          center(page, `ΔP ${num(d, 2)} across ${names.join(' · ')}`, (x0 + x1) / 2, by, 7.5, regular, MUTED);
+        }
+      }
+      last = i;
+    }
+    // taps: a dot on the casing, a leader and the reading (unmeasured taps of a 3-point profile are not drawn)
     stationX.forEach((sx, i) => {
+      if (stationV[i] === null && !stationTxt[i]) return;
       const inDuct = sx > dx;
       const tapY = inDuct ? yb + cabH * 0.75 : yb + cabH;
       page.drawCircle({ x: sx, y: tapY, size: 2.6, color: RED });
