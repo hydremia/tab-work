@@ -223,5 +223,9 @@ describe('schedules from a PDF', () => {
     expect(suggestType('VAV BOX SCHEDULE', KNOWN)).toBe('vav');
     expect(suggestType('CHILLER SCHEDULE', KNOWN)).toBe('plant');
     expect(suggestType('LIGHT FIXTURE SCHEDULE', KNOWN)).toBeNull();
+    // units the app has no type for, though their titles name one
+    expect(suggestType('FAN COIL SCHEDULE', KNOWN)).toBeNull();
+    expect(suggestType('OUTDOOR CONDENSING UNIT SCHEDULE', KNOWN)).toBeNull();
+    expect(suggestType('EXHAUST FAN SCHEDULE', KNOWN)).toBe('fan');
   });
 });

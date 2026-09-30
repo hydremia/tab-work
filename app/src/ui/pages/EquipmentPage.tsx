@@ -33,6 +33,7 @@ import { evalCond } from '../../domain/conditions';
 import { traverseLayout } from '../../domain/equipmentCalcs';
 import { equipmentType, nextDesignation } from '../../domain/equipmentTypes';
 import { getSpec, type FieldSpec, type SectionSpec, type SequenceSpec } from '../../domain/specs';
+import { airflowOnlySections } from '../../domain/unitScope';
 import { AirflowTable } from '../components/AirflowTable';
 import { CalcPanel, espText, unitEspCheck } from '../components/CalcPanels';
 import { SequenceGrid, type GridShape } from '../components/SequenceGrid';
@@ -501,6 +502,40 @@ function UnitHistory({
   );
 }
 
+/**
+ * Existing unit, airflow only (per the proposal): its unit, motor, drive, misc., RPM and static sections N/A in one
+ * go (the schedule import does the same), or back to full data.
+ */
+function AirflowOnly({ equipment }: { equipment: Equipment }) {
+  const keys = airflowOnlySections(equipment.type);
+  if (!keys.length) return null;
+  const on = keys.every((k) => {
+    const m = equipment.naState.sections[k];
+    return m && m !== 'applies';
+  });
+  const toggle = () =>
+    void setFields(
+      'equipment',
+      equipment.id,
+      Object.fromEntries(
+        keys.map((k) => [
+          `naState.sections.${k}`,
+          on ? null : { notation: 'N/A', reason: 'existing unit, airflow only' },
+        ]),
+      ),
+    );
+  return (
+    <div className="row small" style={{ justifyContent: 'space-between' }} data-testid="airflow-only">
+      <span className="muted">
+        {on ? 'Airflow only: unit, motor, drive and static data are N/A.' : 'Existing unit: full data.'}
+      </span>
+      <button type="button" className="btn btn-ghost" aria-pressed={on} onClick={toggle}>
+        Airflow only
+      </button>
+    </div>
+  );
+}
+
 export function EquipmentPage() {
   const { projectId, equipmentId } = useParams();
   const project = useProject(projectId);
@@ -586,6 +621,7 @@ export function EquipmentPage() {
               </button>
             </div>
           </div>
+          {equipment.isExisting && !locked && <AirflowOnly equipment={equipment} />}
           <div>
             <div className="row small muted" style={{ justifyContent: 'space-between' }}>
               <span data-testid="unit-progress">

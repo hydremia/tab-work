@@ -12,7 +12,7 @@ import {
   anchorRow, blockLayout, ColumnDef, FieldDef, Layout, NOTATIONS, sequenceCells, tableRows, TEMPLATE_MAP, TemplateMap,
 } from './templateMap.js';
 import { inputCells } from './inputCells.js';
-import { EXISTING_UNITS_PROP, type RevisionMarker, writeCustomProperties, writeRevisionMarker } from './docProps.js';
+import { APP_INFO_PROP, EXISTING_UNITS_PROP, type RevisionMarker, writeCustomProperties, writeRevisionMarker } from './docProps.js';
 import { anchorSizeEmu, type CoverPhotoCropper, drawingPictures } from './coverPhoto.js';
 import { placeCertImages, type CertImages, type CertImagesReport } from './certImages.js';
 import type { Cell, LayoutData, ProjectData } from './types.js';
@@ -564,7 +564,11 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
   // New / Existing is not on the sheets: a custom property (also replaced when exporting onto an issued workbook)
   const existing = Object.entries(project.equipment).flatMap(([type, units]) =>
     units.filter((u) => u.existing).map((u) => `${type}#${u.slot}`));
-  await writeCustomProperties(zip, { [EXISTING_UNITS_PROP]: existing.length ? existing.join(',') : null });
+  const appInfo = project.appInfo && Object.keys(project.appInfo).length ? JSON.stringify(project.appInfo) : null;
+  await writeCustomProperties(zip, {
+    [EXISTING_UNITS_PROP]: existing.length ? existing.join(',') : null,
+    [APP_INFO_PROP]: appInfo && appInfo.length <= 255 ? appInfo : null,
+  });
 
   // ---- cover photo
   if (opts.coverPhoto) report.coverPhoto = await replaceCoverPhoto(zip, sheets, map, opts);
