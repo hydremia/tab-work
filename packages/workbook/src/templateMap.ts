@@ -1,5 +1,6 @@
 /**
- * Template map for the a2b TAB workbook, revision 05 (`05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm`).
+ * Template map for the a2b TAB workbook, revision 06 (`06 - a2b_Blank_TAB_Workbook 9-30-26.xlsm`: revision 05's
+ * layout in the a2b / e2s colours, so revision 05 workbooks read and write with it too).
  *
  * Everything the exporter and importer know about the template lives here as DATA:
  *  - sheets are referred to by NAME; the XML part is resolved at run time through
@@ -14,7 +15,12 @@
  */
 import type { CertImagesDef } from './certImages.js';
 
-export const TEMPLATE_REVISION = '05';
+export const TEMPLATE_REVISION = '06';
+/**
+ * Revisions with the same cell layout as this map: rev 06 is rev 05 restyled (styles and print-header colour only,
+ * tools/build_rev06.py), so projects and workbooks of rev 05 export and import with this map unchanged.
+ */
+export const COMPATIBLE_REVISIONS: readonly string[] = ['05', '06'];
 
 /** Notations accepted in any numeric/date/list field (Abbreviations legend). Written as text. */
 export const NOTATIONS = ['N/A', 'Not Avail.', 'Not Acc.'] as const;
@@ -165,6 +171,8 @@ export interface EquipmentDef {
 
 export interface TemplateMap {
   revision: string;
+  /** Revisions with this map's cell layout (a project of any of them exports with the map). */
+  compatibleRevisions?: readonly string[];
   sections: readonly SheetSection[];
   equipment: readonly EquipmentDef[];
   /** Cover photo picture: sheet, and the drawing picture's name (xdr:cNvPr/@name). */
@@ -256,6 +264,7 @@ const Q = 52; // continuation page offset (Q = P + 52)
 // ------------------------------------------------------------------------------------------ the map
 export const TEMPLATE_MAP: TemplateMap = {
   revision: TEMPLATE_REVISION,
+  compatibleRevisions: COMPATIBLE_REVISIONS,
   coverPhoto: { sheet: 'Cover Page', pictureName: 'Project Photo' },
   // stamp box C51:G56 (bordered, empty); signature right of the "Signature:" label (I52), on the line I53:L53
   certImages: { sheet: 'Certification', stamp: 'C51:G56', signature: 'J51:L53', placeholder: 'C50' },

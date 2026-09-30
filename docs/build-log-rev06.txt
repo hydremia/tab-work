@@ -1,0 +1,6 @@
+Source: 05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm
+Restyle (xl/styles.xml only):
+  fills: 1 header band(s) -> FFE3ECF7, 1 grey -> FFEEF2F7, 1 input yellow -> white
+  headers: 53 centred header formats -> steel-blue band / white text, 8 label formats -> pale blue / deep-blue text, 12 title formats -> deep blue (15 new fonts, 1 new fill)
+  borders: 81 thin edges -> FFBFCCDB, 17 heavy edges -> FF6AB23E
+  print headers: page titles near-black on 11 sheets

@@ -25,7 +25,7 @@ import { APP_SECTIONS, toProjectData } from './adapter';
 import { loadBundle } from './bundle';
 import { getBaseWorkbook, listRevisions, newRevisionBase, saveRevision, suggestLabel } from './revisions';
 
-export const TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/tab-template-rev05.xlsm`;
+export const TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/tab-template-rev06.xlsm`;
 export const HYDRONIC_TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/tab-hydronic-h01.xlsm`;
 export const XLSM_MIME = 'application/vnd.ms-excel.sheet.macroEnabled.12';
 

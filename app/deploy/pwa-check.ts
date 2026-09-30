@@ -89,7 +89,7 @@ ok(!/\sstyle="/.test(html) && !/<style/.test(html), 'no inline style in index.ht
 const sw = readFileSync(join(DIST, 'sw.js'), 'utf8');
 const precached = new Set([...sw.matchAll(/url:"([^"]+)"/g)].map((m) => m[1]));
 ok(precached.has('index.html'), 'SW precaches index.html');
-ok(precached.has('templates/tab-template-rev05.xlsm'), 'SW precaches the workbook template (offline export)');
+ok(precached.has('templates/tab-template-rev06.xlsm'), 'SW precaches the workbook template (offline export)');
 ok(precached.has('manifest.webmanifest'), 'SW precaches the manifest');
 for (const f of readdirSync(join(DIST, 'assets'))) ok(precached.has(`assets/${f}`), `SW precaches assets/${f}`);
 for (const i of icons) ok(precached.has(i.src.replace(/^\//, '')), `SW precaches ${i.src}`);
