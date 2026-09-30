@@ -135,3 +135,18 @@ describe('air balance vs unit schedules', () => {
     expect(tableKind(rtu, 'ROOFTOP PACKAGED UNIT SCHEDULE')).toBeNull();
   });
 });
+
+describe('split system tags', () => {
+  it('"HP-3/FC-3" in the table matches a unit tagged FC-3 or "HP-3 / FC-3"', () => {
+    const t = readAirBalance([
+      ['UNIT', 'OSA (CFM)', 'UNIT', 'EXHAUST (CFM)'],
+      ['HP-3/FC-3', '680', 'EF-1', '100'],
+      ['AC-1', '500', 'EF-2', '200'],
+    ])!;
+    expect(t.entries[0].designation).toBe('HP-3/FC-3');
+    const a = airBalanceChecks(t, [{ type: 'rtu', designation: 'FC-3', data: { designOaCfm: 680 } }]);
+    expect(a.checks[0].status).toBe('match');
+    const b = airBalanceChecks(t, [{ type: 'rtu', designation: 'HP-3 / FC-3', data: {} }]);
+    expect(b.checks[0].status).toBe('blank');
+  });
+});

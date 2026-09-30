@@ -108,6 +108,41 @@ describe('applyScheduleImport: scope', () => {
   });
 });
 
+describe('applyScheduleImport: RTU outside air row', () => {
+  it('a scheduled design OA goes on a new OA row (Building Balance design OA), once', async () => {
+    const p = await createProject({ name: 'OA' });
+    const rows = () =>
+      buildPreview({
+        type: 'rtu',
+        rows: [
+          ['RTU-1', '10,000', '7,000'],
+          ['RTU-2', '2,000', '-'],
+        ],
+        mapping: ['designation', 'designTotalCfm', 'designOaCfm'],
+        existing: [],
+      }).rows;
+    await applyScheduleImport(p.id, 'rtu', rows());
+    const units = await db.equipment.where('projectId').equals(p.id).toArray();
+    const oaOf = async (d: string) =>
+      (
+        await db.airflowRows
+          .where('equipmentId')
+          .equals(units.find((u) => u.designation === d)!.id)
+          .toArray()
+      ).filter((r) => r.table === 'oa');
+    expect((await oaOf('RTU-1')).map((r) => r.data.designCfm)).toEqual([7000]);
+    expect(await oaOf('RTU-2')).toEqual([]);
+    const again = buildPreview({
+      type: 'rtu',
+      rows: [['RTU-1', '10,000', '7,000']],
+      mapping: ['designation', 'designTotalCfm', 'designOaCfm'],
+      existing: units,
+    });
+    await applyScheduleImport(p.id, 'rtu', again.rows);
+    expect((await oaOf('RTU-1')).length).toBe(1);
+  });
+});
+
 describe('applyScheduleImport: shell & TI', () => {
   it('units the schedule marks existing come in as New with full data; removed ones are still left out', async () => {
     const p = await createProject({ name: 'TI' });

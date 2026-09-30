@@ -227,5 +227,6 @@ describe('schedules from a PDF', () => {
     expect(suggestType('FAN COIL SCHEDULE', KNOWN)).toBeNull();
     expect(suggestType('OUTDOOR CONDENSING UNIT SCHEDULE', KNOWN)).toBeNull();
     expect(suggestType('EXHAUST FAN SCHEDULE', KNOWN)).toBe('fan');
+    expect(suggestType('NEW DEDICATED OUTSIDE AIR UNIT SCHEDULE', KNOWN)).toBe('rtu');
   });
 });

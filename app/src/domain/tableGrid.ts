@@ -117,12 +117,16 @@ export function gridTables(
     const text = (ws: Word[]) => {
       if (!ws.length) return '';
       const hgt = Math.max(1, ...ws.map((w) => w.y1 - w.y0));
-      return [...ws]
-        .sort((a, b) => (Math.abs(a.y0 - b.y0) > hgt * 0.5 ? a.y0 - b.y0 : a.x0 - b.x0))
-        .map((w) => w.text)
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+      return (
+        [...ws]
+          .sort((a, b) => (Math.abs(a.y0 - b.y0) > hgt * 0.5 ? a.y0 - b.y0 : a.x0 - b.x0))
+          .map((w) => w.text)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          // a model number wrapped at its dash ("HCUc6030AAD-LBBS80M-" / "2TRSPTGAA-0B0B000X0") is one word
+          .replace(/(\S)- (?=[A-Z0-9])/g, '$1-')
+          .trim()
+      );
     };
     // merged spans per row: [start, end] column ranges without a line between them
     const spans = (r: number): [number, number][] => {
@@ -235,6 +239,33 @@ export function gridTables(
     });
   }
   return out.sort((a, b) => a.box.y0 - b.box.y0 || a.box.x0 - b.box.x0);
+}
+
+/**
+ * Text read as lines: at line-finding resolution a run of small text blurs into short strokes ("=" signs, serifs of a
+ * word), which would be taken for rules and cut a cell in two. With the words known (a text layer), a stroke that
+ * lies mostly inside a word's box is dropped.
+ */
+export function dropTextStrokes(
+  lines: { h: readonly HLine[]; v: readonly VLine[] },
+  words: readonly Pick<Word, 'x0' | 'y0' | 'x1' | 'y1'>[],
+  pad = 1,
+): { h: HLine[]; v: VLine[] } {
+  const inH = (l: HLine) =>
+    words.some(
+      (w) =>
+        l.y >= w.y0 - pad &&
+        l.y <= w.y1 + pad &&
+        Math.min(l.x1, w.x1) - Math.max(l.x0, w.x0) >= 0.5 * Math.max(1, l.x1 - l.x0),
+    );
+  const inV = (l: VLine) =>
+    words.some(
+      (w) =>
+        l.x >= w.x0 - pad &&
+        l.x <= w.x1 + pad &&
+        Math.min(l.y1, w.y1) - Math.max(l.y0, w.y0) >= 0.5 * Math.max(1, l.y1 - l.y0),
+    );
+  return { h: lines.h.filter((l) => !inH(l)), v: lines.v.filter((l) => !inV(l)) };
 }
 
 /** Lines that cross each other, grouped: one group per table (its outline and inner lines). */
