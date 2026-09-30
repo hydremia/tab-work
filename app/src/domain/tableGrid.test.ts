@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { EQUIPMENT_TYPES } from './equipmentTypes';
 import { cleanOcrCell, cleanOcrWord } from './ocrClean';
 import { findLines, type Gray, type HLine, type VLine } from './rasterLines';
-import { gridTables, tableBoxes, type Word } from './tableGrid';
+import { dropTextStrokes, gridTables, tableBoxes, type Word } from './tableGrid';
 
 const KNOWN = EQUIPMENT_TYPES.map((t) => t.key);
 
@@ -143,6 +143,34 @@ describe('schedule from its grid', () => {
     const lines = { h: [{ y: 10, x0: 0, x1: 100 }], v: [{ x: 0, y0: 0, y1: 50 }] };
     expect(gridTables(lines, fanWords(), KNOWN)).toEqual([]);
     expect(tableBoxes(lines)).toEqual([]);
+  });
+});
+
+describe('text-layer drawings', () => {
+  it('short strokes inside a word (small text blurred into lines) are no rules, so a cell is not cut in two', () => {
+    const { h, v } = fanLines();
+    // EF-2's CFM cell holds two lines; a stroke of the first line's text, touching the column rule, is found as a line between them
+    const words = [
+      ...fanWords()
+        .filter((x) => x.text !== '2,300')
+        .map((x) => (x.y0 === 64 ? { ...x, y0: 61, y1: 69 } : x)),
+      w('2,300', 245, 61),
+      w('(E)', 245, 66),
+    ];
+    const stroke = { y: 68, x0: 240, x1: 262 };
+    const cut = gridTables({ h: [...h, stroke], v }, words, KNOWN)[0];
+    expect(cut.rows).toHaveLength(5);
+    const [t] = gridTables(dropTextStrokes({ h: [...h, stroke], v }, words), words, KNOWN);
+    expect(t.rows).toHaveLength(4);
+    expect(t.rows[1][4]).toBe('2,300 (E)');
+  });
+
+  it('a model number wrapped at its dash is one word', () => {
+    const words = fanWords().map((x) => (x.text === 'DISCONNECT.' ? x : x));
+    words.push(w('DU180-', 64, 62), w('HFA', 64, 70));
+    const words2 = words.filter((x) => !['HOOD', 'H-2'].includes(x.text));
+    const [t] = gridTables(fanLines(), words2, KNOWN);
+    expect(t.rows[1][1]).toBe('DU180-HFA');
   });
 });
 

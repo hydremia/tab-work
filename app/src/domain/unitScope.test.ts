@@ -1,7 +1,7 @@
 /** A unit's scope from a schedule: scope column values, phrases in other cells, "(E)" tags, airflow-only sections. */
 import { describe, expect, it } from 'vitest';
 import { buildPreview } from './scheduleImport';
-import { airflowOnlySections, designationScope, scopeOf } from './unitScope';
+import { airflowOnlySections, designationScope, scopeOf, tableScope } from './unitScope';
 
 describe('scope of a schedule row', () => {
   it('a scope / status column', () => {
@@ -88,5 +88,23 @@ describe('scope in the schedule preview', () => {
     });
     expect(p.rows.map((r) => r.scope)).toEqual(['new', 'existing', null]);
     expect(p.rows[2].warnings[0]).toMatch(/Scope: "maybe"/);
+  });
+});
+
+describe('scope: more drawings (Redmond)', () => {
+  it('"DEMO KITCHEN" is a room; "DEMO EXISTING" is removed', () => {
+    expect(scopeOf('DEMO KITCHEN - H-8', 'cell')).toBeNull();
+    expect(scopeOf('DEMO EXISTING', 'cell')).toBe('removed');
+    expect(scopeOf('DEMO EXISTING', 'column')).toBe('removed');
+    expect(scopeOf('DEMO', 'column')).toBe('removed');
+  });
+
+  it("a table's scope from its title or a note in it", () => {
+    expect(tableScope('EXISTING FAN SCHEDULE')).toBe('existing');
+    expect(tableScope('NEW DEDICATED OUTSIDE AIR UNIT SCHEDULE')).toBe('new');
+    expect(tableScope('FAN SCHEDULE')).toBeNull();
+    expect(
+      tableScope('ROOFTOP UNIT SCHEDULE', [['NOTES SHOWN FOR REFERENCE ONLY. ALL EQUIPMENT IS EXISTING TO REMAIN.']]),
+    ).toBe('existing');
   });
 });

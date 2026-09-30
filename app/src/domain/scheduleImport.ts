@@ -198,6 +198,11 @@ const SYNONYMS: Record<string, readonly string[]> = {
     'design total cfm',
   ],
   designOaCfm: [
+    'min outside air',
+    'minimum outside air',
+    'min outdoor air',
+    'min osa',
+    'design outside air',
     'oa cfm',
     'outside air',
     'outside air cfm',
@@ -387,7 +392,10 @@ export function splitElectrical(
   v: string | number | null,
 ): { volts: number; phase: '1-phase' | '3-phase' | null } | null {
   if (v === null || typeof v === 'number') return null;
-  const m = /^\s*(\d{3})\s*(?:v|volts?)?\s*[/\-x]\s*(\d)\s*(?:ph)?\s*(?:[/\-x]\s*(\d{2})\s*(?:hz)?)?\s*$/i.exec(v);
+  const m =
+    /^\s*(\d{3})\s*(?:v|volts?)?\.?\s*[/\-x]\s*(\d)\s*(?:ph|phase)?\.?\s*(?:[/\-x]\s*(\d{2})\s*(?:hz)?\.?)?\s*$/i.exec(
+      v,
+    );
   if (!m) return null;
   return { volts: Number(m[1]), phase: normalizePhase(m[2]) };
 }
@@ -435,6 +443,8 @@ export interface PreviewInput {
   existing: readonly Pick<Equipment, 'id' | 'designation' | 'slot' | 'type'>[];
   /** Source row numbers for messages (default: index + 1). */
   rowNumber?: (i: number) => number | string;
+  /** The scope of rows that give none themselves (the table's: "EXISTING FAN SCHEDULE"; unitScope tableScope). */
+  rowScope?: (i: number) => UnitScope | null;
 }
 
 function convert(
@@ -454,7 +464,15 @@ function convert(
         return;
       }
     }
-    const n = parseNumber(text);
+    let n = parseNumber(text);
+    if (n === null && typeof text === 'string') {
+      // two values in one cell ("1,380 & 2,000": two speeds, "1200/800"): the first, with a warning
+      const parts = text.split(/\s*(?:&|\band\b|\/|;)\s*/i).map((x) => parseNumber(x));
+      if (parts.length > 1 && parts.every((x) => x !== null)) {
+        n = parts[0];
+        warnings.push(`${t.label}: "${text}" has ${parts.length} values; the first (${n}) is used`);
+      }
+    }
     if (n === null) {
       errors.push(`${t.label}: "${text}" is not a number`);
       return;
@@ -481,6 +499,10 @@ function convert(
   }
   put(t.key, String(text));
 }
+
+/** A cell with nothing in it: empty, or the schedule's "none" ("-", "--", "—"). */
+export const isBlankCell = (v: string | number | null | undefined): boolean =>
+  v === null || v === undefined || (typeof v === 'string' && /^[\s\-—–_.]*$/.test(v));
 
 /** Designation key for duplicate checks: case-insensitive, spaces ignored ("vav 12" == "VAV-12" is NOT assumed). */
 export const designationKey = (d: string) => d.trim().toLowerCase().replace(/\s+/g, '');
@@ -536,6 +558,7 @@ export function buildPreview(input: PreviewInput): Preview {
         removedBy = String(c);
       } else if (s === 'existing' && scope === null) scope = 'existing';
     }
+    scope ??= input.rowScope?.(index) ?? null;
     if (scope === 'removed') {
       const d = (tag?.designation ?? String(tagCell ?? '')).trim();
       const why = removedBy || (scopeCol >= 0 ? String(cells[scopeCol] ?? '') : '') || 'removed';
@@ -555,7 +578,7 @@ export function buildPreview(input: PreviewInput): Preview {
       if (!key || key === 'scope') return;
       const t = targets.get(key);
       const raw = key === 'designation' && tag ? tag.designation : cells[col];
-      if (!t || raw === null || raw === undefined || (typeof raw === 'string' && raw.trim() === '')) return;
+      if (!t || raw === null || raw === undefined || isBlankCell(raw)) return;
       convert(t, raw, put, errors, warnings);
     });
     if (phaseFromVoltage && targets.has('phase')) {
@@ -569,6 +592,12 @@ export function buildPreview(input: PreviewInput): Preview {
     out.push(row);
     if (!designation) {
       errors.unshift('No designation');
+      return;
+    }
+    // a note row inside the table ("NOTES SHOWN FOR REFERENCE ONLY. ALL EQUIPMENT IS EXISTING TO REMAIN.")
+    if (designation.split(/\s+/).length >= 4 && !Object.keys(values).length) {
+      row.errors = [];
+      row.warnings = ['A note, not a unit'];
       return;
     }
     const key = designationKey(designation);

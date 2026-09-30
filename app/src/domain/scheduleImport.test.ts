@@ -46,6 +46,8 @@ describe('schedule import: parsing', () => {
     expect(splitElectrical('460/3/60')).toEqual({ volts: 460, phase: '3-phase' });
     expect(splitElectrical('115-1-60')).toEqual({ volts: 115, phase: '1-phase' });
     expect(splitElectrical('208V/3PH')).toEqual({ volts: 208, phase: '3-phase' });
+    expect(splitElectrical('460V/3 PH.')).toEqual({ volts: 460, phase: '3-phase' });
+    expect(splitElectrical('208 / 3')).toEqual({ volts: 208, phase: '3-phase' });
   });
 });
 
@@ -205,6 +207,58 @@ describe('schedule import: preview', () => {
     });
     expect(p.rows[0].values).toEqual({ shape: 'Rectangular', width: 24 });
     expect(p.rows[1].errors[0]).toMatch(/shape: "Oval" is not one of Rectangular, Round/);
+  });
+});
+
+describe('schedule import: drawing details (Redmond)', () => {
+  it('"-" is blank, two values take the first, MIN OUTSIDE AIR is the design OA, a note row is no unit', () => {
+    const head = [
+      'EQUIPMENT NO.',
+      '(CFM) SUPPLY AIR',
+      '(CFM) MAX OUTSIDE AIR',
+      '(CFM) MIN OUTSIDE AIR',
+      'MOTOR HP',
+      'ELEC.',
+    ];
+    const mapping = autoMap(head, 'rtu');
+    expect(mapping).toEqual(['designation', 'designTotalCfm', null, 'designOaCfm', 'hp', 'voltage']);
+    const p = buildPreview({
+      type: 'rtu',
+      rows: [
+        ['AC-1', '10,000', '8,500', '7,000', '15', '460V/3 PH.'],
+        ['AC-5', '2,000', '-', '-', '5', '460V/3 PH.'],
+        ['AC-9', '1,380 & 2,000', null, null, '-', null],
+        ['NOTES SHOWN FOR REFERENCE ONLY. ALL EQUIPMENT IS EXISTING TO REMAIN.', null, null, null, null, null],
+      ],
+      mapping,
+      existing: [],
+    });
+    expect(p.rows.map((r) => [r.designation.slice(0, 5), r.action, r.errors])).toEqual([
+      ['AC-1', 'create', []],
+      ['AC-5', 'create', []],
+      ['AC-9', 'create', []],
+      ['NOTES', 'skip', []],
+    ]);
+    expect(p.rows[0].values).toMatchObject({ designOaCfm: 7000, voltage: 460, phase: '3-phase' });
+    expect(p.rows[1].values.designOaCfm).toBeUndefined();
+    expect(p.rows[2].values.designTotalCfm).toBe(1380);
+    expect(p.rows[2].warnings[0]).toMatch(/2 values; the first \(1380\)/);
+    expect(p.rows[3].warnings).toEqual(['A note, not a unit']);
+  });
+
+  it("the table's scope applies to rows without their own", () => {
+    const p = buildPreview({
+      type: 'fan',
+      rows: [
+        ['EF-1', 'EXISTING TO REMAIN'],
+        ['EF-2', null],
+        ['EF-3', 'NEW'],
+      ],
+      mapping: ['designation', 'scope'],
+      existing: [],
+      rowScope: () => 'existing',
+    });
+    expect(p.rows.map((r) => r.scope)).toEqual(['existing', 'existing', 'new']);
   });
 });
 

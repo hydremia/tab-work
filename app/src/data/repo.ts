@@ -633,6 +633,20 @@ export async function addAirflowRow(
 
 // ------------------------------------------------------------------------------------------ schedule import
 /**
+ * An RTU's design OA goes on its outside-air row too (the Building Balance design OA reads that row): a new row when
+ * it has none, else the design of its only row when blank. Inside a write transaction.
+ */
+async function ensureOaRow(unitId: string, cfm: number): Promise<void> {
+  if (!(cfm > 0)) return;
+  const oaRows = (await db.airflowRows.where('equipmentId').equals(unitId).toArray()).filter((x) => x.table === 'oa');
+  if (!oaRows.length) {
+    const unit = await db.equipment.get(unitId);
+    if (unit?.type === 'rtu') await addAirflowRow(unit, 'oa', { no: 'OA', area: 'Outside air', designCfm: cfm });
+  } else if (oaRows.length === 1 && oaRows[0].data.designCfm == null)
+    await setField('airflowRows', oaRows[0].id, 'data.designCfm', cfm, { source: 'schedule' });
+}
+
+/**
  * Create / update units from a schedule import preview (domain/scheduleImport.ts) in one transaction: a new unit is
  * created (next free slot, like "Add equipment"), then every value goes through setField; an existing unit (same
  * designation) gets only the values the schedule has (blank schedule cells never clear app values). Rows with
@@ -681,6 +695,7 @@ export async function applyScheduleImport(
         if (v === null || v === '') continue;
         await setField('equipment', id, `data.${k}`, v, { source: 'schedule' });
       }
+      if (type === 'rtu' && typeof r.values.designOaCfm === 'number') await ensureOaRow(id, r.values.designOaCfm);
       if (isExisting && r.action === 'create')
         for (const key of naSections)
           await setField('equipment', id, `naState.sections.${key}`, {
@@ -728,6 +743,7 @@ export async function applyAirBalance(
     for (const c of checks) {
       if (c.status === 'blank' && opts.fillBlank && c.unit && c.field) {
         await setField('equipment', (c.unit as Equipment).id, `data.${c.field}`, c.entry.cfm, { source: 'schedule' });
+        if (c.field === 'designOaCfm') await ensureOaRow((c.unit as Equipment).id, c.entry.cfm);
         filled++;
       }
       if (c.status !== 'missing' || !opts.addMissing) continue;
@@ -769,6 +785,7 @@ export async function applyAirBalance(
       }
       const field = designFieldOf(unit.type, c.entry.side);
       if (field) await setField('equipment', unit.id, `data.${field}`, c.entry.cfm, { source: 'schedule' });
+      if (field === 'designOaCfm') await ensureOaRow(unit.id, c.entry.cfm);
     }
     const sums = entryTotals(table);
     await setInfo(AIR_BALANCE_KEYS.oa, table.totalOa ?? sums.oa);
