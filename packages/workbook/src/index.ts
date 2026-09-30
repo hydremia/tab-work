@@ -19,5 +19,5 @@ export * from './schedule.js';
 export * from './zipLimits.js';
 
 /** File name of the template the map describes (at the repository root). */
-export const TEMPLATE_FILE_NAME = '05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm';
+export const TEMPLATE_FILE_NAME = '06 - a2b_Blank_TAB_Workbook 9-30-26.xlsm';
 export * from './toleranceColors.js';

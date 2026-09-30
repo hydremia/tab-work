@@ -52,7 +52,8 @@ export interface RenderOptions {
 const INK = rgb(0.08, 0.12, 0.17);
 const MUTED = rgb(0.36, 0.41, 0.48);
 const RULE = rgb(0.78, 0.81, 0.85);
-const BRAND = rgb(0.06, 0.3, 0.51);
+/** e2s steel blue #4A7EC0 (the e2s website) */
+const BRAND = rgb(0.29, 0.494, 0.753);
 const BAND = rgb(0.93, 0.95, 0.97);
 const RED = rgb(0.64, 0.14, 0.11);
 const GREEN = rgb(0.09, 0.41, 0.23);

@@ -168,7 +168,7 @@ describe('Building Balance: other outside air (spare OA rows)', () => {
 
   it('round trip through the real template (Certification sheet texts, Building Balance rows 67-86)', async () => {
     const template = new Uint8Array(
-      readFileSync(join(__dirname, '..', '..', '..', '05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm')),
+      readFileSync(join(__dirname, '..', '..', '..', '06 - a2b_Blank_TAB_Workbook 9-30-26.xlsm')),
     );
     const b = signed();
     Object.assign(b.project.info, withOa().project.info);
