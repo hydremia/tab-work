@@ -345,6 +345,8 @@ describe('pause sync', () => {
     await user.click(within(banner).getByRole('button', { name: 'Resume sync' }));
     await waitFor(() => expect(server.record('projects', p.id)).toBeDefined(), { timeout: 5000 });
     await waitFor(() => expect(screen.queryByTestId('paused-banner')).toBeNull());
+    // end with sync idle: a sync still running would meet the next test's database reset
+    await waitFor(() => expect(screen.getByTestId('sync-status')).toHaveTextContent('Synced'), { timeout: 5000 });
   });
 });
 
