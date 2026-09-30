@@ -309,25 +309,43 @@ export async function scheduleFlow(
     );
     // ------------------------------------------------ a drawing PDF: a pump schedule next to a fan schedule
     await page.goto(`${projectUrl}/schedule`);
-    await page.getByRole('button', { name: 'File (CSV, Excel, PDF)' }).click();
+    await page.getByRole('button', { name: 'File (CSV, Excel, PDF, photo)' }).click();
     await page.locator('input[aria-label="Schedule file"]').setInputFiles({
       name: 'M-601 Schedules.pdf',
       mimeType: 'application/pdf',
       buffer: Buffer.from(await schedulePdf()),
     });
     await page.getByTestId('preview-summary-pump').waitFor({ timeout: 30_000 });
-    const pdfType = await page.locator('#si-type').inputValue();
-    const pdfSheets = await page.locator('select[aria-label="Sheet"] option').allInnerTexts();
+    const picks = page.getByTestId('table-pick');
+    const pdfSheets = await picks.allInnerTexts();
+    const kinds = await picks.evaluateAll((els) => els.map((e) => e.getAttribute('data-kind')));
+    const pdfType = await picks.nth(0).locator('select').inputValue();
     const pdfSummary = await page.getByTestId('preview-summary-pump').innerText();
+    const fanSummary = await page.getByTestId('preview-summary-fan').innerText();
     check(
-      'PDF schedule: tables rebuilt from a drawing PDF, the pump schedule previews as pumps (type from its title)',
+      'PDF schedule: every table of the drawing in one import (pumps + fans by their titles, the air balance recognized)',
       pdfType === 'pump' &&
-        pdfSheets.length === 2 &&
         /PUMP SCHEDULE/.test(pdfSheets[0]) &&
-        /FAN SCHEDULE/.test(pdfSheets[1]) &&
+        pdfSheets.some((t) => /FAN SCHEDULE/.test(t)) &&
+        kinds.includes('airBalance') &&
         /2 new/.test(pdfSummary),
-      `${pdfType} | ${pdfSheets.join(' / ')} | ${pdfSummary}`,
+      `${pdfType} | ${pdfSheets.map((t) => t.replace(/\s+/g, ' ')).join(' / ')} | ${kinds.join(',')} | ${pdfSummary}`,
     );
+    check(
+      'PDF schedule: "REMOVE AND CAP" left out, "EXISTING TO REMAIN" imported as existing',
+      /2 new, 0 updated, 1 skipped \(1 removed/.test(fanSummary) && /1 existing/.test(fanSummary),
+      fanSummary.replace(/\s+/g, ' '),
+    );
+    const abRows = await page.getByTestId('ab-row').evaluateAll((els) => els.map((e) => e.getAttribute('data-status')));
+    check(
+      'air balance: checked against the units (RTUs missing, EF-1 matches, EF-2 differs)',
+      abRows.join(',') === 'missing,match,missing,differs',
+      abRows.join(','),
+    );
+    await page.getByTestId('table-list').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: join(docShots, '46-schedule-tables.png') });
+    await page.getByTestId('air-balance').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: join(docShots, '47-air-balance.png') });
     await page.getByTestId('column-map').scrollIntoViewIfNeeded();
     await page.screenshot({ path: join(docShots, '42-pdf-schedule.png') });
     check('schedule walk: no page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
@@ -558,12 +576,12 @@ async function schedulePdf(): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const page = doc.addPage([1224, 792]);
   const font = await doc.embedFont(StandardFonts.Helvetica);
-  const table = (x0: number, title: string, widths: number[], rows: string[][]) => {
-    page.drawText(title, { x: x0, y: 740, size: 10, font });
+  const table = (x0: number, title: string, widths: number[], rows: string[][], y0 = 740) => {
+    page.drawText(title, { x: x0, y: y0, size: 10, font });
     rows.forEach((r, i) => {
       let x = x0;
       r.forEach((t, c) => {
-        if (t) page.drawText(t, { x, y: 722 - i * 9 - (i ? 4 : 0), size: 7, font });
+        if (t) page.drawText(t, { x, y: y0 - 18 - i * 9 - (i ? 4 : 0), size: 7, font });
         x += widths[c];
       });
     });
@@ -581,11 +599,26 @@ async function schedulePdf(): Promise<Uint8Array> {
   table(
     620,
     'EXHAUST FAN SCHEDULE',
-    [40, 100, 40, 35],
+    [40, 100, 40, 35, 90],
     [
-      ['MARK', 'AREA SERVED', 'CFM', 'ESP'],
-      ['EF-1', 'TOILETS', '450', '0.5'],
+      ['MARK', 'AREA SERVED', 'CFM', 'ESP', 'REMARKS'],
+      ['EF-1', 'TOILETS', '450', '0.5', ''],
+      ['EF-2', 'JANITOR', '120', '0.25', 'EXISTING TO REMAIN'],
+      ['EF-9', 'STORAGE', '', '', 'REMOVE AND CAP'],
     ],
+  );
+  // the building air balance (engineer's OA / exhaust per unit)
+  table(
+    620,
+    'AIR BALANCE',
+    [45, 55, 45, 70],
+    [
+      ['UNIT', 'OA (CFM)', 'UNIT', 'EXHAUST (CFM)'],
+      ['RTU-1', '800', 'EF-1', '450'],
+      ['RTU-2', '600', 'EF-2', '150'],
+      ['TOTAL', '1,400', 'TOTAL', '600'],
+    ],
+    560,
   );
   return doc.save();
 }

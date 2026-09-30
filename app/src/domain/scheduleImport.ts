@@ -6,12 +6,15 @@
  *   scheduleTargets() the fields a type's schedule can fill ({Equipment Data Entry} columns the app has a field for)
  *   autoMap()         column headers -> target field keys (by header text; the user can change every column)
  *   buildPreview()    grid + mapping -> one preview row per data row: normalized values, errors / warnings,
- *                     duplicate designations, create / update, the slot a new unit gets and capacity limits
+ *                     duplicate designations, create / update, the slot a new unit gets and capacity limits, the
+ *                     row's scope (a scope / status column, "(E)" before the tag, or a "REMOVE AND CAP" /
+ *                     "EXISTING TO REMAIN" anywhere in the row): removed units are skipped, existing ones flagged
  * Writing is repo.applyScheduleImport() (every value through setField).
  */
 import type { Equipment, FieldValue } from '../data/types';
 import { equipmentType, workbookDef, type EquipmentTypeKey } from './equipmentTypes';
 import { allFields, getSpec } from './specs';
+import { designationScope, scopeOf, type UnitScope } from './unitScope';
 
 export type Grid = (string | number | null)[][];
 
@@ -107,6 +110,12 @@ export function scheduleTargets(type: EquipmentTypeKey): ScheduleTarget[] {
   }
   return out;
 }
+
+/** Not a field: the row's scope (new / existing / removed, domain/unitScope). */
+export const SCOPE_TARGET: ScheduleTarget = { key: 'scope', label: 'Scope (new / existing / remove)', kind: 'text' };
+
+/** What a schedule column can be mapped to: the type's fields and the scope. */
+export const importTargets = (type: EquipmentTypeKey): ScheduleTarget[] => [...scheduleTargets(type), SCOPE_TARGET];
 
 // ------------------------------------------------------------------------------------------ header mapping
 /** Header words for each target field (normalized: lower case, punctuation -> spaces). Longest match wins. */
@@ -261,6 +270,19 @@ const SYNONYMS: Record<string, readonly string[]> = {
   rpm: ['rpm', 'speed', 'pump rpm', 'motor rpm'],
   impeller: ['impeller', 'impeller dia', 'impeller size', 'imp dia', 'impeller diameter'],
   pumpType: ['pump type', 'type', 'drive', 'control'],
+  scope: [
+    'scope',
+    'project scope',
+    'status',
+    'new existing',
+    'new or existing',
+    'new exist',
+    'n e',
+    'e n',
+    'new',
+    'existing',
+    'disposition',
+  ],
 };
 
 export const normalizeHeader = (h: string) =>
@@ -297,7 +319,7 @@ function headerScore(header: string, key: string): number {
 
 /** Column -> target key (null: ignored), each target used at most once (the best-scoring column wins). */
 export function autoMap(headers: readonly (string | number | null)[], type: EquipmentTypeKey): (string | null)[] {
-  const targets = scheduleTargets(type);
+  const targets = importTargets(type);
   const cands: { col: number; key: string; score: number }[] = [];
   headers.forEach((h, col) => {
     const text = h === null ? '' : String(h);
@@ -323,7 +345,7 @@ export function autoMap(headers: readonly (string | number | null)[], type: Equi
  */
 export function looksLikeHeader(first: readonly (string | number | null)[], type: EquipmentTypeKey): boolean {
   if (first.some((c) => typeof c === 'number')) return false;
-  const targets = scheduleTargets(type);
+  const targets = importTargets(type);
   const exact = (text: string) =>
     targets.some(
       (t) =>
@@ -383,6 +405,8 @@ export interface PreviewRow {
   /** Slot the new unit gets (create) or has (update). */
   slot: number | null;
   existingId?: string;
+  /** The schedule's scope for the row (null: not given, the import's default applies). Removed rows are skipped. */
+  scope: UnitScope | null;
 }
 
 export interface Preview {
@@ -391,6 +415,10 @@ export interface Preview {
   create: number;
   update: number;
   skip: number;
+  /** Rows skipped as removed / capped / demolished (out of scope). */
+  removed: number;
+  /** Rows the schedule marks existing. */
+  existing: number;
   capacity: number;
   /** Units of this type after the import. */
   totalAfter: number;
@@ -406,7 +434,7 @@ export interface PreviewInput {
   mapping: readonly (string | null)[];
   existing: readonly Pick<Equipment, 'id' | 'designation' | 'slot' | 'type'>[];
   /** Source row numbers for messages (default: index + 1). */
-  rowNumber?: (i: number) => number;
+  rowNumber?: (i: number) => number | string;
 }
 
 function convert(
@@ -461,12 +489,13 @@ export function buildPreview(input: PreviewInput): Preview {
   const { type } = input;
   const info = equipmentType(type);
   const targets = new Map(scheduleTargets(type).map((t) => [t.key, t]));
+  const scopeCol = input.mapping.indexOf('scope');
   const existingByKey = new Map(
     input.existing.filter((e) => e.type === type).map((e) => [designationKey(e.designation), e]),
   );
   const usedSlots = new Set(input.existing.filter((e) => e.type === type).map((e) => e.slot));
   const seen = new Map<string, number>();
-  const rowNo = input.rowNumber ?? ((i: number) => i + 1);
+  const rowNo = input.rowNumber ?? ((i: number): number | string => i + 1);
   const out: PreviewRow[] = [];
   const notes: string[] = [];
   let nextSlotFrom = 1;
@@ -491,10 +520,41 @@ export function buildPreview(input: PreviewInput): Preview {
       if (k === 'phase:fromVoltage') phaseFromVoltage = v;
       else values[k] = v;
     };
+    // the row's scope: its scope column, "(E)" before the tag, else a plain phrase in any cell
+    const tagCol = input.mapping.indexOf('designation');
+    const tagCell = tagCol >= 0 ? cells[tagCol] : null;
+    const tag = typeof tagCell === 'string' ? designationScope(tagCell) : null;
+    let scope: UnitScope | null = scopeCol >= 0 ? scopeOf(cells[scopeCol], 'column') : null;
+    if (scopeCol >= 0 && scope === null && cells[scopeCol] !== null && String(cells[scopeCol]).trim())
+      warnings.push(`Scope: "${String(cells[scopeCol])}" is not new, existing or remove`);
+    scope ??= tag?.scope ?? null;
+    let removedBy = '';
+    for (const c of cells) {
+      const s = scopeOf(c, 'cell');
+      if (s === 'removed' && scope !== 'new') {
+        scope = 'removed';
+        removedBy = String(c);
+      } else if (s === 'existing' && scope === null) scope = 'existing';
+    }
+    if (scope === 'removed') {
+      const d = (tag?.designation ?? String(tagCell ?? '')).trim();
+      const why = removedBy || (scopeCol >= 0 ? String(cells[scopeCol] ?? '') : '') || 'removed';
+      out.push({
+        index,
+        designation: d,
+        values: {},
+        errors: [],
+        warnings: [`Removed (${why.trim()}): not in the scope, not imported`],
+        action: 'skip',
+        slot: null,
+        scope,
+      });
+      return;
+    }
     input.mapping.forEach((key, col) => {
-      if (!key) return;
+      if (!key || key === 'scope') return;
       const t = targets.get(key);
-      const raw = cells[col];
+      const raw = key === 'designation' && tag ? tag.designation : cells[col];
       if (!t || raw === null || raw === undefined || (typeof raw === 'string' && raw.trim() === '')) return;
       convert(t, raw, put, errors, warnings);
     });
@@ -505,7 +565,7 @@ export function buildPreview(input: PreviewInput): Preview {
     }
     const designation = typeof values.designation === 'string' ? values.designation.trim() : '';
     delete values.designation;
-    const row: PreviewRow = { index, designation, values, errors, warnings, action: 'skip', slot: null };
+    const row: PreviewRow = { index, designation, values, errors, warnings, action: 'skip', slot: null, scope };
     out.push(row);
     if (!designation) {
       errors.unshift('No designation');
@@ -557,6 +617,8 @@ export function buildPreview(input: PreviewInput): Preview {
     create,
     update,
     skip: out.length - create - update,
+    removed: out.filter((r) => r.scope === 'removed').length,
+    existing: out.filter((r) => r.scope === 'existing' && r.action !== 'skip').length,
     capacity: info.capacity,
     totalAfter,
     notes,

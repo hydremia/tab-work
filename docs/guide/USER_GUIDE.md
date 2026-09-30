@@ -240,6 +240,14 @@ grille or a relief opening. Tap **Add OA row** for each (up to 20). Each row has
 They go into the spare outside-air rows on the workbook's Building Balance sheet, so they count in the building's OA
 totals. The trash button removes a row (the rows below move up).
 
+### Design air balance
+
+**Info → Design air balance (Building Balance)**: the design outside air (RTU OA, MAUs, ERV supply, Other outside air
+rows) and exhaust (fans, small fans 1–30, ERV exhaust) of the project's units, and the net. When the schedule's air
+balance was imported, its totals are shown next to them, with the difference in amber. If they differ, a unit is
+missing or its design CFM differs from the engineer's table. The air balance totals travel with the exported
+workbook (as a file property), so they come back when the workbook is imported on another device.
+
 ### Certification
 
 **Info → Certification** fills the workbook's Certification sheet:
@@ -321,14 +329,14 @@ or **Import** next to a type heading (that picks the type for you).
 1. **Source**: pick one of
    - **Paste rows**: copy the schedule rows **with the header row** in Excel (or from a PDF table pasted into Excel)
      and paste them.
-   - **File (CSV, Excel, PDF)**: a `.csv`, `.xlsx` or `.xlsm` file (if it has several sheets, you pick one), a
-     **PDF** of the drawings or a submittal, or a **photo** of a schedule (JPEG / PNG). The app finds each schedule by
-     its grid lines and lists it by page and title (*p. 4 · PUMP SCHEDULE*); the equipment type is picked from the
-     title, and you can change it. Tables that aren't schedules (revision blocks, curb details) are left out.
+   - **File (CSV, Excel, PDF, photo)**: a `.csv`, `.xlsx` or `.xlsm` file, a **PDF** of the drawings or a
+     submittal, or a **photo** of a schedule (JPEG / PNG). The app finds each schedule by its grid lines and lists
+     them all under **Tables** by page and title (*p. 1 · FAN SCHEDULE*). Tables that aren't schedules (revision
+     blocks, curb details) are left out.
      - PDFs with text (made from CAD / Revit / Word) are read directly.
      - **Drawings without text** (text plotted as lines, a scanned set) and **photos** are read by **text
-       recognition** on the device: the sheet name says *(text recognition)*, a note asks you to check the values,
-       and the values it was unsure of are **highlighted** in the preview. A 36 × 48 sheet with six schedules takes
+       recognition** on the device: the table says *(text recognition)*, a note asks you to check the values, and
+       the values it was unsure of are **highlighted** in the preview. A 36 × 48 sheet with six schedules takes
        about a minute on a laptop, longer on a phone; progress shows while it reads. It works offline once the app
        has downloaded text recognition (it does that by itself in the background, about 7 MB, the first time the app
        is open with a connection).
@@ -337,19 +345,59 @@ or **Import** next to a type heading (that picks the type for you).
      ![Schedule from a scanned drawing](../screenshots/45-scanned-schedule.png)
 
    - **TAB workbook**: an existing a2b workbook. Only its Equipment Data Entry section is read.
-2. **New units are**: **New** or **Existing**.
-3. **Columns**: the app matches headers such as *Tag*, *Mark*, *Mfr*, *Supply CFM*, *OA CFM*, *E.S.P.*, *V/Ph/Hz*.
-   Check each dropdown, and change it or set it to *— ignore —*. Untick **First row is column headers** if there's
-   no header row.
+2. **Tables** (a file with more than one table): **every ticked table is imported in one go.**
+   - A unit schedule is ticked when its title names a type the app has (*ROOFTOP*, *MAKE-UP AIR*, *FAN*, *PUMP*…),
+     with that type picked; change the type, or tick / untick any table. Schedules for units the app has no type for
+     (*FAN COIL*, *CONDENSING UNIT*) start unticked.
+   - The building **air balance** (*AIR BALANCE*, *VENTILATION CALCULATION*: unit / OA CFM / unit / exhaust CFM, with
+     totals) is marked **Air balance** and checked against the units (step 6).
+   - Space-by-space ventilation tables (room / zone / occupancy / area) are marked **Space ventilation** and left
+     out: TAB doesn't need them.
+
+   ![Every table of a drawing](../screenshots/46-schedule-tables.png)
+3. **New or existing, and removed units.** The schedule decides where it says so:
+   - a **scope / status column** (*PROJECT SCOPE*, *NEW / EXISTING*, *STATUS*): *NEW* → New; *EXISTING*, *E*,
+     *EXISTING TO REMAIN*, *RELOCATED* → Existing; *REMOVE*, *REMOVE AND CAP*, *DEMO*, *EXISTING TO BE REMOVED* →
+     removed;
+   - **(E)** or **(N)** before the tag (*(E) RTU-5*);
+   - *EXISTING TO REMAIN* or *REMOVE AND CAP* anywhere in the row (a remarks column, or across the data cells).
+
+   **Removed units are left out** (Skip, *Removed (REMOVE AND CAP): not in the scope*): they aren't in the report.
+   Existing units are imported and reported (with an **Existing** chip in the preview). For rows the schedule
+   doesn't mark, pick **Rows the schedule doesn't mark new or existing are: New / Existing**.
+
+   **Existing units need: Full data / Airflow only**. With **Airflow only** (per the proposal), each existing unit
+   the import creates gets its unit data, motor, drive, misc., RPM and static sections marked **N/A**, so only its
+   design data, airflow, photos and remarks are asked for. You can change this on any unit later (below).
+4. **Columns** (of the table picked with **Columns**): the app matches headers such as *Tag*, *Mark*, *Mfr*,
+   *Supply CFM*, *OA CFM*, *E.S.P.*, *V/Ph/Hz*, *Project scope*. Check each dropdown, and change it or set it to
+   *— ignore —*. Untick **First row is column headers** if there's no header row.
 
    ![Schedule from a PDF](../screenshots/42-pdf-schedule.png)
-4. **Preview**: each row shows **New · slot N**, **Update** (that designation already exists), or **Skip** (with the
-   reason: bad number, no designation, repeated designation, over capacity). Values like `1,200 CFM`, `1-1/2` and
-   `460/3/60` are understood.
-5. Tap **Import N units**.
+5. **Preview**, one per unit type (tables of the same type are combined): each row shows **New · slot N**,
+   **Update** (that designation already exists), or **Skip** (with the reason: removed, bad number, no designation,
+   repeated designation, over capacity). Values like `1,200 CFM`, `1-1/2` and `460/3/60` are understood.
+6. **Air balance** (when a ticked table is one): its design OA, exhaust and net, and each unit it lists:
+   - **Matches the unit**, or **Unit design is … CFM: confirm with the engineer** when the unit's schedule says
+     something else (the unit keeps its schedule value; check it on site or with the engineer);
+   - **Fill blank unit design CFMs from the table** (a unit whose schedule has no CFM);
+   - **Add the units the schedules don't have (as Existing)**: units the air balance lists but no schedule does
+     (usually existing units that stay), with the table's CFM as their design OA / exhaust. An OA source that isn't
+     a unit type goes to an **Other outside air** row;
+   - if its totals leave out some rows with a note mark (*(1) EF-22 & EF-23 serve mechanical spaces, not part of the
+     air balance*), the app says so and compares the same way.
+
+   Its totals are kept on the project: **Info → Design air balance** (below).
+
+   ![Air balance check](../screenshots/47-air-balance.png)
+7. Tap **Import N units** (**+ air balance** when there is one).
 
 Updating an existing unit only fills in the values the schedule has. Blank schedule cells never erase what's in the
-app. Skipped rows aren't imported at all, so fix them and paste again.
+app. Skipped rows aren't imported at all, so fix them and import again.
+
+**Airflow only on a unit**: on an existing unit's page, under **New / Existing**, **Airflow only** marks its unit,
+motor, drive, misc., RPM and static sections N/A in one tap (tap again for full data). Single sections can still be
+changed with their own N/A menus.
 
 ### Duplicate a unit
 

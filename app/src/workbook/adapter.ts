@@ -9,6 +9,7 @@
  *    A blank cell never means N/A (user decision 2026-09-24);
  *  - app-only fields (Has VFD?, Has filters?) are not written; import derives them from the data.
  */
+import { AIR_BALANCE_KEYS } from '../domain/airBalance';
 import {
   blockLayout,
   NOTATIONS as WB_NOTATIONS,
@@ -135,6 +136,14 @@ export function toProjectData(
   const { project } = b;
   const map = mapOf(discipline);
   const pd: ProjectData = { templateRevision: map.revision, name: project.name, sections: {}, equipment: {} };
+  // the engineer's air balance totals are not on the sheets: a custom document property
+  const appInfo: Record<string, string | number> = {};
+  for (const k of Object.values(AIR_BALANCE_KEYS)) {
+    const v = project.info[k];
+    if (typeof v === 'number' || (typeof v === 'string' && v))
+      appInfo[k] = k === AIR_BALANCE_KEYS.source ? String(v).slice(0, 80) : v;
+  }
+  if (Object.keys(appInfo).length) pd.appInfo = appInfo;
   const pn = project.naState.fields;
 
   // ---- {Project Information}
@@ -525,6 +534,10 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
   // the certified professional's lines are always there in a workbook: blank means cleared, not "template default"
   for (const k of [CERT_KEYS.cpName, CERT_KEYS.number, CERT_KEYS.expiration])
     if (!(k in info) && !naState.fields[k]) info[k] = null;
+  for (const k of Object.values(AIR_BALANCE_KEYS)) {
+    const v = pd.appInfo?.[k];
+    if (v !== undefined) info[k] = v;
+  }
   const noteLines = bb?.lines?.notes ?? [];
   if (noteLines.some((l) => l !== null && String(l).trim() !== ''))
     info[PRESSURE_KEYS.notes] = noteLines

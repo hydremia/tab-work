@@ -16,6 +16,58 @@ import {
   setFields,
 } from '../data/repo';
 import { SyncProvider } from '../sync/SyncProvider';
+import type { ScheduleFile } from '../workbook/scheduleFile';
+
+// a drawing with several schedules (what readScheduleFile rebuilds from a PDF): fans, MAUs, the air balance and a
+// space-by-space ventilation table
+const DRAWING: ScheduleFile = {
+  fileName: 'M3.0.pdf',
+  schedule: null,
+  sheets: [
+    {
+      name: 'p.1 FAN SCHEDULE',
+      type: 'fan',
+      rows: [
+        ['UNIT NO.', 'SERVICE', 'CFM', 'REMARKS'],
+        ['EF-1', 'HOOD H-1', '1,890', 'EXISTING TO REMAIN'],
+        ['EF-2', 'HOOD H-2', '2,300', null],
+        ['EF-17', 'SIGN ROOM', 'REMOVE AND CAP', null],
+      ],
+    },
+    {
+      name: 'p.1 MAKE-UP AIR UNIT SCHEDULE',
+      type: 'mau',
+      rows: [
+        ['UNIT', 'SERVICE', 'CFM'],
+        ['MAU-9', 'HOOD H-2', null],
+      ],
+    },
+    {
+      name: 'p.1 VENTILATION CALCULATION',
+      rows: [
+        ['UNIT', 'OSA (CFM)', 'UNIT', 'EXHAUST (CFM)'],
+        ['MAU-9', '3,352', 'EF-1', '1,890'],
+        ['RTU-7', '500', 'EF-2', '2,000'],
+        ['TOTAL', '3,852', 'TOTAL', '3,890'],
+      ],
+    },
+    {
+      name: 'p.1 VENTILATION SCHEDULE',
+      rows: [
+        ['ROOM', 'AREA (SF)', 'OCCUPANCY', 'Voz'],
+        ['SALES', '12,000', '180', '2,790'],
+      ],
+    },
+  ],
+};
+vi.mock('../workbook/scheduleFile', async (orig) => {
+  const real = await orig<typeof import('../workbook/scheduleFile')>();
+  return {
+    ...real,
+    readScheduleFile: (f: File, progress?: (m: string) => void) =>
+      f.name === 'M3.0.pdf' ? Promise.resolve(DRAWING) : real.readScheduleFile(f, progress),
+  };
+});
 
 function renderAt(path: string) {
   const router = createMemoryRouter(routes, { initialEntries: [path] });
@@ -335,6 +387,71 @@ describe('Schedule import page (jsdom)', () => {
       ['VAV-1', 600, '3001'],
       ['VAV-2', 450, '3002'],
     ]);
+  });
+});
+
+describe('Schedule import: every table of a drawing in one go (jsdom)', () => {
+  it('unit tables by type, removed rows left out, existing airflow only, the air balance checked and kept', async () => {
+    const user = userEvent.setup();
+    const p = await createProject({ name: 'Job' });
+    renderAt(`/p/${p.id}/schedule`);
+    await user.click(await screen.findByRole('button', { name: 'File (CSV, Excel, PDF, photo)' }));
+    await user.upload(screen.getByLabelText('Schedule file'), new File(['x'], 'M3.0.pdf', { type: 'application/pdf' }));
+    const picks = await screen.findAllByTestId('table-pick');
+    expect(picks.map((x) => x.getAttribute('data-kind'))).toEqual(['units', 'units', 'airBalance', 'spaces']);
+    expect(within(picks[3]).getByRole('checkbox')).not.toBeChecked();
+    expect(await screen.findByTestId('preview-summary-fan')).toHaveTextContent(
+      '2 new, 0 updated, 1 skipped (1 removed / capped) · 1 existing',
+    );
+    expect(screen.getByTestId('preview-summary-mau')).toHaveTextContent('1 new');
+    expect(screen.getAllByTestId('scope-chip').map((c) => c.textContent)).toEqual(['Existing', 'Removed']);
+    const ab = screen.getByTestId('air-balance');
+    expect(
+      within(ab)
+        .getAllByTestId('ab-row')
+        .map((r) => r.getAttribute('data-status')),
+    ).toEqual(['blank', 'match', 'missing', 'differs']);
+    await user.click(within(screen.getByTestId('existing-scope')).getByRole('button', { name: 'Airflow only' }));
+    await user.click(screen.getByTestId('schedule-import'));
+    expect(await screen.findByTestId('schedule-done')).toHaveTextContent(
+      '3 units created, 0 updated; 1 removed unit left out; air balance kept, 1 design CFM filled, 1 existing unit added.',
+    );
+    const all = await db.equipment.where('projectId').equals(p.id).toArray();
+    const by = (d: string) => all.find((e) => e.designation === d)!;
+    expect(all.map((e) => e.designation).sort()).toEqual(['EF-1', 'EF-2', 'MAU-9', 'RTU-7']);
+    expect([by('EF-1').isExisting, by('EF-2').isExisting, by('RTU-7').isExisting]).toEqual([true, false, true]);
+    expect(by('EF-1').naState.sections.motor).toMatchObject({ notation: 'N/A' });
+    expect(by('MAU-9').data.designTotalCfm).toBe(3352);
+    expect(by('EF-2').data.designTotalCfm).toBe(2300); // differs from the air balance: left as scheduled
+    expect(by('RTU-7').data.designOaCfm).toBe(500);
+    const info = (await db.projects.get(p.id))!.info;
+    expect([info.abOaDesign, info.abExhaustDesign, info.abNet]).toEqual([3852, 3890, -38]);
+  });
+});
+
+describe('Existing unit: airflow only (jsdom)', () => {
+  it('marks the non-airflow sections N/A in one go and back', async () => {
+    const user = userEvent.setup();
+    const p = await createProject({ name: 'Job' });
+    const ef = await addEquipment(p.id, 'fan', 'EF-1', true);
+    renderAt(`/p/${p.id}/e/${ef.id}`);
+    const box = await screen.findByTestId('airflow-only');
+    await user.click(within(box).getByRole('button', { name: 'Airflow only' }));
+    await waitFor(async () =>
+      expect(Object.keys((await db.equipment.get(ef.id))!.naState.sections).sort()).toEqual([
+        'drive',
+        'misc',
+        'motor',
+        'rpm',
+        'static',
+        'unit',
+      ]),
+    );
+    expect(await within(box).findByRole('button', { name: 'Airflow only', pressed: true })).toBeInTheDocument();
+    await user.click(within(box).getByRole('button', { name: 'Airflow only' }));
+    await waitFor(async () =>
+      expect(Object.values((await db.equipment.get(ef.id))!.naState.sections).every((m) => m === null)).toBe(true),
+    );
   });
 });
 

@@ -344,3 +344,16 @@ describe('template compatibility of a base workbook', () => {
     expect(r.problems.join(' ')).toMatch(/N\/A-safe/);
   });
 });
+
+describe('App values not on the sheets (custom document property)', () => {
+  it('the air balance totals come back; removed when the project has none', async () => {
+    const p = full();
+    p.appInfo = { abOaDesign: 16766, abExhaustDesign: 19559, abNet: -2793, abSource: 'M3.0 VENTILATION CALCULATION' };
+    const { bytes } = await exportWorkbookWithReport(templateBytes(), p);
+    expect((await importWorkbook(bytes)).appInfo).toEqual(p.appInfo);
+    delete p.appInfo;
+    const again = await exportWorkbookWithReport(bytes, p, { reset });
+    const props = await readCustomProperties(await JSZip.loadAsync(again.bytes));
+    expect(props['a2bTab.appInfo']).toBeUndefined();
+  });
+});
