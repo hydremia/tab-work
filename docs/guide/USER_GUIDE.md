@@ -999,11 +999,41 @@ runs the same check on any a2b revision 05 workbook (another tech's report, or o
 
 ### Graphics appendix
 
-**Export → Graphics appendix** downloads a PDF of figures drawn from the project, to send with the report: each
-unit's static pressure profile (statics at every station, ΔP per component, TSP / ESP against the design ESP), each
-duct traverse as a cross-section shaded by velocity (average, spread, the points far from the average), design vs.
-actual charts of every outlet table and valve system with the tolerance band, and each pump's design and operating
-point. Units without readings are left out. The pump curve itself comes with the pump-curve library.
+**Export → Graphics appendix** downloads a PDF of figures drawn from the project, to send with the report. Units
+without readings are left out.
+
+- **Summary** (first page): units complete, airflow / water lines within the tolerance (per equipment type), open
+  deficiencies, static profiles with ESP within ±10 % of design, uneven traverses, and the building balance: outside
+  air and exhaust, design against actual, with the engineer's air balance marked when it was imported, the net, and
+  the measured building pressures.
+- **Static pressure profile**, per unit: the unit drawn as a cabinet (dampers, filter, wheel, coil, heat / burner,
+  fan, discharge duct), each static tap with its reading, the ΔP across every component, and a chart of the statics
+  through the unit (suction below zero, discharge above) with the fan's rise (TSP). Tiles give the TSP, the ESP
+  against design (a gauge with the ±10 % band) and the unit ΔP inlet to fan.
+- **Duct traverse**, per traverse:
+  - **rectangular**: the duct face to scale with its dimensions, every point coloured by velocity (a legend with the
+    average), the points more than 25 % from the average outlined in red;
+  - **round**: the duct with its equal-area rings and both diameters, the points at their real positions, and the
+    readings of each diameter in a coloured table;
+  - a **velocity profile** across the duct (one line per diameter or per row), the average, the airflow against
+    design, the spread (coefficient of variation: 10 % or less is even, over 20 % uneven), and the location check:
+    how many readings have a velocity pressure of at least 1/10 of the highest. Under 75 % marks a poor traverse
+    location (the usual field-test criterion).
+- **Outlet / valve charts**: design vs. actual for every outlet table and valve system, with the tolerance band.
+- **Pumps**: design and operating point, and the pump curve with the pump-curve library.
+
+![Appendix summary](../screenshots/48-appendix-summary.png)
+![Static pressure profile](../screenshots/49-static-profile.png)
+![Round and rectangular traverses](../screenshots/50-traverses.png)
+
+### Tolerance colours in the workbook
+
+Every export colours the workbook's **% of design** cells: outlet and inlet rows, unit totals, the Equipment
+Summary, the Building Balance and the hood sheets. **Green** is within the project's tolerance (Info → Tolerance, ±10 %
+by default), **red** outside. The colours are conditional formatting, so they follow the values when you change a
+reading in Excel. A re-export replaces them, including when the tolerance was changed.
+
+![Tolerance colours on a unit page](../screenshots/51-tolerance-colours.png)
 
 ## 10b. Hydronic: pumps, balancing valves, plant
 

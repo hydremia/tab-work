@@ -12,6 +12,7 @@ import {
   anchorRow, blockLayout, ColumnDef, FieldDef, Layout, NOTATIONS, sequenceCells, tableRows, TEMPLATE_MAP, TemplateMap,
 } from './templateMap.js';
 import { inputCells } from './inputCells.js';
+import { applyToleranceColors } from './toleranceColors.js';
 import { APP_INFO_PROP, EXISTING_UNITS_PROP, type RevisionMarker, writeCustomProperties, writeRevisionMarker } from './docProps.js';
 import { anchorSizeEmu, type CoverPhotoCropper, drawingPictures } from './coverPhoto.js';
 import { placeCertImages, type CertImages, type CertImagesReport } from './certImages.js';
@@ -51,6 +52,11 @@ export interface ExportOptions {
    * the template, so an input cell that someone turned into a formula in Excel is overwritten with the app's value.
    */
   reset?: { template: Uint8Array; sections: readonly string[] };
+  /**
+   * Tolerance colours (a fraction: 0.1 = ±10 %): the "% of design" cells get conditional formatting, green within the
+   * tolerance and red outside (toleranceColors.ts). null: colours of an earlier export are removed. Omitted: nothing.
+   */
+  toleranceColors?: number | null;
 }
 
 export interface ExportReport {
@@ -532,6 +538,12 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
     if (p.apply()) zip.file(p.part, p.xml);
     report.cellsWritten += p.stats.written; report.cellsCleared += p.stats.cleared;
     report.cellsCreated += p.stats.created; report.rowsCreated += p.stats.rowsCreated;
+  }
+
+  // ---- tolerance colours on the "% of design" cells
+  if (opts.toleranceColors !== undefined) {
+    const n = await applyToleranceColors(zip, sheets, opts.toleranceColors);
+    if (n) report.warnings.push(`tolerance colours on ${n} % of design cells`);
   }
 
   // ---- stale cached values in formula cells, full recalculation on load
