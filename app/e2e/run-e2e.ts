@@ -27,6 +27,7 @@ import { deployFlow } from './deploy';
 import { tagsFlow } from './tags';
 import { hydronicFlow } from './hydronic';
 import { rowLinksFlow } from './rowLinks';
+import { ocrFlow } from './ocr';
 import { reviewFlow } from './review';
 import { syncFlow } from './sync';
 
@@ -739,6 +740,7 @@ async function main() {
     await tagsFlow(BASE, file, DOC_SHOTS, OUT, check, launch);
     await hydronicFlow(browser, BASE, DOC_SHOTS, OUT, check);
     await rowLinksFlow(browser, BASE, DOC_SHOTS, OUT, check);
+    await ocrFlow(browser, BASE, DOC_SHOTS, check);
     await reviewFlow(browser, BASE, file, DOC_SHOTS, OUT, check);
 
     // ------------------------------------------------------------------ review, issue / lock, unlock, history

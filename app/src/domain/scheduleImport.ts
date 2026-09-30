@@ -159,7 +159,21 @@ const SYNONYMS: Record<string, readonly string[]> = {
   fanPulley: ['fan pulley', 'pulley', 'fan sheave', 'driven sheave'],
   belts: ['belt', 'belts', 'belt size', 'belt s'],
   cToC: ['c to c', 'c c', 'center to center', 'centers', 'ctc'],
-  voltage: ['voltage', 'volts', 'volt', 'v', 'electrical', 'v ph hz', 'v ph', 'volts ph hz', 'elec', 'power'],
+  // ("v p": V-PH with its H misread by text recognition)
+  voltage: [
+    'voltage',
+    'volts',
+    'volt',
+    'v',
+    'electrical',
+    'v ph hz',
+    'v ph',
+    'v p',
+    'motor v ph',
+    'volts ph hz',
+    'elec',
+    'power',
+  ],
   phase: ['phase', 'ph', 'phases'],
   designTotalCfm: [
     'cfm',
@@ -256,14 +270,26 @@ export const normalizeHeader = (h: string) =>
     .replace(/[^a-z0-9#]+/g, ' ')
     .trim();
 
+/**
+ * Words that name a field only when they are the whole header: inside a longer header they are a group heading
+ * ("ELECTRICAL BHP", "ELECTRICAL V-PH") or too short to mean anything ("V").
+ */
+const WHOLE_HEADER_ONLY = new Set(['electrical', 'elec', 'power', 'v', 'unit', 'fan', 'service', 'supply', 'exhaust']);
+
 /** Best target for one header: exact synonym match first, else the longest synonym contained as whole words. */
 function headerScore(header: string, key: string): number {
   const h = ` ${normalizeHeader(header)} `;
   if (h.trim() === '') return 0;
   let best = 0;
+  // a stacked header ("MOTOR HP", "ELECTRICAL (UNIT) ELEC."): its last part is the column's own label
+  const words = h.trim().split(' ');
+  for (let k = 1; k < words.length; k++) {
+    const tail = words.slice(k).join(' ');
+    if ((SYNONYMS[key] ?? []).includes(tail)) best = Math.max(best, 900 + tail.length);
+  }
   for (const s of SYNONYMS[key] ?? []) {
     if (h.trim() === s) best = Math.max(best, 1000 + s.length);
-    else if (s.length > 1 && h.includes(` ${s} `)) best = Math.max(best, s.length);
+    else if (s.length > 1 && !WHOLE_HEADER_ONLY.has(s) && h.includes(` ${s} `)) best = Math.max(best, s.length);
   }
   // the field's own label ("Design max CFM") is an exact match too
   return best;

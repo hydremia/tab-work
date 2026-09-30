@@ -40,9 +40,9 @@ describe('hosting config', () => {
 
   it('CSP: no inline script, no framing, blob/data images, Supabase connect-src (wildcard or one project)', () => {
     const csp = contentSecurityPolicy();
-    expect(csp).toContain("script-src 'self';");
-    expect(csp).not.toContain('unsafe-inline');
-    expect(csp).not.toContain('unsafe-eval');
+    // WebAssembly for the schedule import's text recognition only; never eval() or inline script
+    expect(csp).toContain("script-src 'self' 'wasm-unsafe-eval';");
+    expect(csp).not.toMatch(/'unsafe-eval'|'unsafe-inline'/);
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("img-src 'self' blob: data:");
     expect(csp).toContain('https://*.supabase.co wss://*.supabase.co');

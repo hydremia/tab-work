@@ -313,3 +313,26 @@ export function pdfTables(pages: readonly PdfPageText[], known: readonly string[
   }
   return out;
 }
+
+/** The words of a page's text layer with their boxes (points, y downwards), for the grid method (tableGrid.ts). */
+export function pageWords(page: PdfPageText): { text: string; x0: number; y0: number; x1: number; y1: number }[] {
+  return boxes(page).map((b) => ({ text: b.text, x0: b.x0, y0: b.top, x1: b.x1, y1: b.bottom }));
+}
+
+/** OCR / text words (y downwards) -> text items for the whitespace method (tables without lines). */
+export function wordsToPage(
+  words: readonly { text: string; x0: number; y0: number; x1: number; y1: number }[],
+  page: number,
+  width: number,
+  height: number,
+): PdfPageText {
+  return {
+    page,
+    width,
+    height,
+    items: words.map((w) => {
+      const h = Math.max(1, w.y1 - w.y0);
+      return { str: w.text, width: w.x1 - w.x0, height: h, transform: [h, 0, 0, h, w.x0, height - w.y1 + h * 0.2] };
+    }),
+  };
+}
