@@ -14,7 +14,7 @@ import {
   setFields,
   updateInstrumentFromLibrary,
 } from '../../data/repo';
-import type { FieldValue, Instrument, LibraryInstrument, NaMark, Photo, Project } from '../../data/types';
+import type { Equipment, FieldValue, Instrument, LibraryInstrument, NaMark, Photo, Project } from '../../data/types';
 import { formatNumber, formatPercent } from '../../domain/calc';
 import {
   CERT_FIELDS,
@@ -24,6 +24,7 @@ import {
   certValue,
 } from '../../domain/certification';
 import { calibrationExpired } from '../../domain/instruments';
+import { AIR_BALANCE_KEYS, unitDesignBalance } from '../../domain/airBalance';
 import {
   SPARE_OA_ROWS,
   spareOaCell,
@@ -240,6 +241,77 @@ const OA_FIELD: Record<SpareOaColumn, (n: number) => FieldSpec> = {
   Design: (n) => ({ key: spareOaKey(n, 'Design'), label: 'Design', input: 'number', unit: 'CFM', required: false }),
   Actual: (n) => ({ key: spareOaKey(n, 'Actual'), label: 'Actual', input: 'number', unit: 'CFM', required: false }),
 };
+
+/**
+ * Building Balance design side: the engineer's air balance table (kept by the schedule import: info.abOaDesign /
+ * abExhaustDesign / abNet) next to the design OA and exhaust of the project's units, so the prep can be checked.
+ */
+function DesignAirBalance({ project, equipment }: { project: Project; equipment: readonly Equipment[] }) {
+  const excludedText = project.info[AIR_BALANCE_KEYS.excluded];
+  const excluded = typeof excludedText === 'string' && excludedText ? excludedText.split(/\s*,\s*/) : [];
+  const units = unitDesignBalance(equipment, spareOaTotals(project).design, excluded);
+  const ab = {
+    oa: project.info[AIR_BALANCE_KEYS.oa],
+    exhaust: project.info[AIR_BALANCE_KEYS.exhaust],
+    net: project.info[AIR_BALANCE_KEYS.net],
+  };
+  const has = typeof ab.oa === 'number' || typeof ab.exhaust === 'number';
+  if (!has && !units.oa && !units.exhaust) return null;
+  const rows: [string, number, FieldValue][] = [
+    ['Outside air', units.oa, ab.oa],
+    ['Exhaust', units.exhaust, ab.exhaust],
+    ['Net (OA − exhaust)', units.net, ab.net],
+  ];
+  const off = (u: number, e: FieldValue) => typeof e === 'number' && Math.abs(u - e) >= 1;
+  return (
+    <section className="card card-pad stack" aria-labelledby="dab-h" data-testid="design-air-balance">
+      <h2 id="dab-h">Design air balance (Building Balance)</h2>
+      <p className="small muted" style={{ margin: 0 }}>
+        The units&apos; design OA (RTU OA, MAU, ERV supply, other OA rows) and exhaust (fans, small fans 1–30, ERV
+        exhaust)
+        {has ? (
+          <>
+            {' '}
+            against the engineer&apos;s air balance
+            {project.info[AIR_BALANCE_KEYS.source] ? ` (${String(project.info[AIR_BALANCE_KEYS.source])})` : ''}
+            {excluded.length ? `; like it, the units leave out ${excluded.join(', ')}` : ''}
+          </>
+        ) : (
+          '. Import the schedule’s air balance / ventilation table to check them against it'
+        )}
+        .
+      </p>
+      <table className="preview-table">
+        <thead>
+          <tr>
+            <th>CFM</th>
+            <th>Units</th>
+            {has && <th>Air balance</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([label, u, e]) => (
+            <tr key={label} data-off={(has && off(u, e)) || undefined}>
+              <td>{label}</td>
+              <td>{formatNumber(u)}</td>
+              {has && (
+                <td>
+                  {typeof e === 'number' ? formatNumber(e) : '—'}
+                  {off(u, e) && (
+                    <div className="msg-warn">
+                      {u - (e as number) > 0 ? '+' : ''}
+                      {formatNumber(u - (e as number))} on the units
+                    </div>
+                  )}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
 
 /** Building Balance: the 20 spare manual outside-air rows (rows 67-86, part of the OA totals). */
 function OtherOutsideAir({ project }: { project: Project }) {
@@ -698,6 +770,8 @@ export function ProjectInfoPage() {
         {equipment.some((e) => equipmentType(e.type).discipline === 'hydronic') && (
           <HydronicHeaders project={project} />
         )}
+
+        <DesignAirBalance project={project} equipment={equipment} />
 
         <OtherOutsideAir project={project} />
 

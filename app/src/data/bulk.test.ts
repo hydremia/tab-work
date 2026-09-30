@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { buildPreview } from '../domain/scheduleImport';
 import { db } from './db';
-import { addAirflowRow, addEquipment, applyScheduleImport, createProject, duplicateEquipment, setField } from './repo';
+import { readAirBalance } from '../domain/airBalance';
+import {
+  addAirflowRow,
+  addEquipment,
+  applyAirBalance,
+  applyScheduleImport,
+  createProject,
+  duplicateEquipment,
+  setField,
+} from './repo';
 
 describe('applyScheduleImport', () => {
   it('creates new units in the free slots and updates existing ones, every value a field change in the outbox', async () => {
@@ -62,5 +71,102 @@ describe('duplicateEquipment', () => {
     ]);
     const without = await duplicateEquipment(a.id, 'VAV-15');
     expect(await db.airflowRows.where('equipmentId').equals(without.id).count()).toBe(0);
+  });
+});
+
+describe('applyScheduleImport: scope', () => {
+  it('existing rows are Existing (airflow only: non-airflow sections N/A), removed rows are left out', async () => {
+    const p = await createProject({ name: 'Job' });
+    const preview = buildPreview({
+      type: 'fan',
+      rows: [
+        ['EF-1', '1890', 'EXISTING TO REMAIN'],
+        ['EF-2', '2300', null],
+        ['EF-17', 'REMOVE AND CAP', null],
+      ],
+      mapping: ['designation', 'designTotalCfm', null],
+      existing: [],
+    });
+    await applyScheduleImport(p.id, 'fan', preview.rows, { existingAirflowOnly: true });
+    const all = (await db.equipment.where('projectId').equals(p.id).toArray()).sort((a, b) => a.slot - b.slot);
+    expect(all.map((e) => [e.designation, e.isExisting])).toEqual([
+      ['EF-1', true],
+      ['EF-2', false],
+    ]);
+    expect(Object.keys(all[0].naState.sections).sort()).toEqual(['drive', 'misc', 'motor', 'rpm', 'static', 'unit']);
+    expect(all[1].naState.sections).toEqual({});
+
+    // re-import: the schedule now says EF-2 is existing (and the default for unmarked rows is Existing)
+    const again = buildPreview({
+      type: 'fan',
+      rows: [['EF-2', 'EXISTING', null]],
+      mapping: ['designation', 'scope', null],
+      existing: all,
+    });
+    await applyScheduleImport(p.id, 'fan', again.rows, { isExisting: true });
+    expect((await db.equipment.get(all[1].id))?.isExisting).toBe(true);
+  });
+});
+
+describe('applyScheduleImport: shell & TI', () => {
+  it('units the schedule marks existing come in as New with full data; removed ones are still left out', async () => {
+    const p = await createProject({ name: 'TI' });
+    const preview = buildPreview({
+      type: 'rtu',
+      rows: [
+        ['RTU-1', 'EXISTING'],
+        ['RTU-2', 'NEW'],
+        ['RTU-3', 'EXISTING TO BE REMOVED'],
+      ],
+      mapping: ['designation', 'scope'],
+      existing: [],
+    });
+    await applyScheduleImport(p.id, 'rtu', preview.rows, { existingAirflowOnly: true, existingAsNew: true });
+    const all = (await db.equipment.where('projectId').equals(p.id).toArray()).sort((a, b) => a.slot - b.slot);
+    expect(all.map((e) => [e.designation, e.isExisting, Object.keys(e.naState.sections).length])).toEqual([
+      ['RTU-1', false, 0],
+      ['RTU-2', false, 0],
+    ]);
+  });
+});
+
+describe('applyAirBalance', () => {
+  it('fills blank design CFMs, adds missing units as Existing, other OA (transfer air TA-1) to a spare row, keeps the totals', async () => {
+    const p = await createProject({ name: 'Job' });
+    const rtu = await addEquipment(p.id, 'rtu', 'RTU-1');
+    const ef8 = await addEquipment(p.id, 'fan', 'EF-8');
+    await setField('equipment', ef8.id, 'data.designTotalCfm', 1200);
+    const table = readAirBalance([
+      ['UNIT', 'OSA (CFM)', 'UNIT', 'EXHAUST (CFM)'],
+      ['RTU-1', '4,100', 'EF-8', '1,575'],
+      ['RTU-9', '500', 'EF-40', '300'],
+      ['TA-1', '200', null, null],
+      ['TOTAL', '4,800', 'TOTAL', '1,875'],
+    ])!;
+    const r = await applyAirBalance(p.id, table, {
+      fillBlank: true,
+      addMissing: true,
+      existingAirflowOnly: true,
+      source: 'M3.0 VENTILATION CALCULATION',
+    });
+    expect([r.filled, r.added.map((u) => u.designation), r.spareRows, r.notAdded]).toEqual([
+      1,
+      ['RTU-9', 'EF-40'],
+      1,
+      [],
+    ]);
+    expect((await db.equipment.get(rtu.id))?.data.designOaCfm).toBe(4100);
+    expect((await db.equipment.get(ef8.id))?.data.designTotalCfm).toBe(1200); // differs: left as it is
+    const ef40 = await db.equipment.get(r.added[1].id);
+    expect([ef40?.type, ef40?.isExisting, ef40?.data.designTotalCfm]).toEqual(['fan', true, 300]);
+    expect(ef40?.naState.sections.motor).toMatchObject({ notation: 'N/A' });
+    const info = (await db.projects.get(p.id))!.info;
+    expect([info.bbOa1Unit, info.bbOa1Design]).toEqual(['TA-1', 200]);
+    expect([info.abOaDesign, info.abExhaustDesign, info.abNet, info.abSource]).toEqual([
+      4800,
+      1875,
+      2925,
+      'M3.0 VENTILATION CALCULATION',
+    ]);
   });
 });

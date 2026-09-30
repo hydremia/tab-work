@@ -38,4 +38,9 @@ export interface ProjectData {
   equipment: Record<string, UnitData[]>;
   /** Not in the workbook as data: the cover picture, passed to the exporter as bytes. Path relative to the JSON. */
   coverPhoto?: string;
+  /**
+   * App project values that are not on the sheets (the engineer's air balance totals): kept as JSON in the custom
+   * document property `a2bTab.appInfo` (docProps.ts). Keep it small (Excel limits a text property to 255 characters).
+   */
+  appInfo?: Record<string, string | number>;
 }
