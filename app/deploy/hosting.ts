@@ -120,7 +120,7 @@ export const PATH_RULES: PathRule[] = [
     headers: {
       'Cache-Control': NO_CACHE,
       'Content-Type': XLSM_MIME,
-      'Content-Disposition': 'attachment; filename="a2b TAB template rev05.xlsm"',
+      'Content-Disposition': 'attachment; filename="a2b TAB template rev06.xlsm"',
     },
   },
   { path: '/icons/*', headers: { 'Cache-Control': ONE_DAY } },

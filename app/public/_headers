@@ -30,7 +30,7 @@
 /templates/*
   Cache-Control: public, max-age=0, must-revalidate
   Content-Type: application/vnd.ms-excel.sheet.macroEnabled.12
-  Content-Disposition: attachment; filename="a2b TAB template rev05.xlsm"
+  Content-Disposition: attachment; filename="a2b TAB template rev06.xlsm"
 
 /icons/*
   Cache-Control: public, max-age=86400

@@ -102,7 +102,7 @@ export async function reimportFlow(
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('dialog', (d) => void d.accept());
-  const template = readFileSync(join(import.meta.dirname, '..', 'public', 'templates', 'tab-template-rev05.xlsm'));
+  const template = readFileSync(join(import.meta.dirname, '..', 'public', 'templates', 'tab-template-rev06.xlsm'));
   const vbaOf = async (b: Uint8Array) => (await JSZip.loadAsync(b)).file('xl/vbaProject.bin')!.async('uint8array');
   const templateVba = await vbaOf(template);
   try {

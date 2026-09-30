@@ -34,7 +34,7 @@ commit. A unit test fails when they are out of date.
 - **Caching**: `index.html`, `sw.js`, the workbox runtime, the manifest and the template are revalidated on every
   request (`max-age=0, must-revalidate`), so a new version is picked up right away; the hashed files in `/assets/`
   are cached for a year (`immutable`); icons for a day.
-- **Template**: `/templates/tab-template-rev05.xlsm` is served as
+- **Template**: `/templates/tab-template-rev06.xlsm` is served as
   `application/vnd.ms-excel.sheet.macroEnabled.12`.
 
 **Pinned to your Supabase project at build time.** A build with `VITE_SUPABASE_URL` set (the hosting provider's
@@ -48,8 +48,8 @@ as well: `VITE_SUPABASE_URL=https://<ref>.supabase.co npm run hosting-config -w 
 
 ### How the workbook template gets into the build
 
-The template lives once in git, at the repository root (`05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm`). Before every
-build, `app/scripts/copy-template.mjs` copies it to `app/public/templates/tab-template-rev05.xlsm` (git-ignored), so
+The template lives once in git, at the repository root (`06 - a2b_Blank_TAB_Workbook 9-30-26.xlsm`). Before every
+build, `app/scripts/copy-template.mjs` copies it to `app/public/templates/tab-template-rev06.xlsm` (git-ignored), so
 Vite puts it in `app/dist/templates/` and the service worker precaches it: exports work offline from the first visit.
 The host therefore has to build from the **repository root** (the npm workspace), not from `app/`. When the template
 changes (a new revision), update the file name in `copy-template.mjs` and the app's template map; nothing changes on
