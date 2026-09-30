@@ -34,6 +34,14 @@ function bundle() {
     (v, i) => (roundReadings[seqKey('readings', i + 1)] = v),
   );
   b.equipment.push(
+    mk('rtu', 'RTU-30', {
+      unitType: 'RTU',
+      unitEsp: 0.8,
+      spTaps: '3-point',
+      spEntering: -0.3,
+      spLeaving4: -1.0,
+      spLeaving5: 0.72,
+    }),
     mk('traverse', 'T-20', { shape: 'Round', width: 20, designCfm: 2200, ...roundReadings }),
     mk('traverse', 'T-9', { shape: 'Rectangular', width: 24, height: 12, designCfm: 2000, ...readings }),
     mk('pump', 'P-1', {

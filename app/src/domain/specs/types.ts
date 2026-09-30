@@ -18,6 +18,8 @@ export type Cond =
   | { field: string; notMatches: string }
   /** Static profile component n (1-5) is "—" for the unit's unit type. */
   | { componentAbsent: number }
+  /** a 3-point static profile (spTaps) does not measure this component's leaving static */
+  | { tapSkipped: number }
   | { not: Cond }
   | { any: readonly Cond[] }
   | { all: readonly Cond[] };
