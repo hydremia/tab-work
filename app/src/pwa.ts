@@ -1,4 +1,5 @@
 import { registerSW } from 'virtual:pwa-register';
+import { prefetchOcr } from './ocrPrefetch';
 import { captureInstallPrompt, markInstalled, setUpdateAvailable } from './pwaState';
 
 /** How often a long-running app (left open all day on a laptop) checks for a new version. */
@@ -24,6 +25,7 @@ export function registerPwa(): void {
         setInterval(() => {
           if (navigator.onLine && !registration.installing) void registration.update().catch(() => undefined);
         }, UPDATE_CHECK_MS);
+        prefetchOcr();
       },
     });
   }

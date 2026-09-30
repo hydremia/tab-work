@@ -5,7 +5,7 @@
   "type": "module",
   "description": "a2b TAB App: offline-first PWA for TAB field data entry",
   "scripts": {
-    "copy-template": "node scripts/copy-template.mjs",
+    "copy-template": "node scripts/copy-template.mjs && node scripts/copy-ocr.mjs",
     "predev": "npm run copy-template",
     "dev": "vite",
     "prebuild": "npm run copy-template",
@@ -24,6 +24,7 @@
   "dependencies": {
     "@a2b/workbook": "*",
     "@supabase/supabase-js": "^2.100.0",
+    "@tesseract.js-data/eng": "^1.0.0",
     "dexie": "^4.2.0",
     "dexie-react-hooks": "^4.2.0",
     "jsqr": "^1.4.0",
@@ -33,7 +34,8 @@
     "qrcode-generator": "^2.0.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-router": "^7.9.0"
+    "react-router": "^7.9.0",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.0",

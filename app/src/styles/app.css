@@ -2926,3 +2926,10 @@ fieldset.viewer-edit {
   display: flex;
   margin-top: 2px;
 }
+
+/* schedule import: values text recognition was unsure of */
+.preview-table td[data-low] {
+  background: rgb(255 200 80 / 35%);
+  outline: 1px dashed var(--amber, #b7791f);
+  outline-offset: -2px;
+}
