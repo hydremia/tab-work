@@ -11,11 +11,14 @@
  *   pump      a pump's design point and operating point (flow vs head), with the shut-off head, and its curve
  *             (at the impeller the shut-off head gives) when the pump is picked from the pump-curve library
  */
-import type { AirflowRow, Equipment, LibraryPump, Project, PumpCurvePoint } from '../data/types';
+import type { AirflowRow, Equipment, Issue, LibraryPump, Project, PumpCurvePoint } from '../data/types';
+import { AIR_BALANCE_KEYS } from '../domain/airBalance';
+import { PRESSURE_KEYS } from '../domain/projectCompletion';
+import { spareOaTotals } from '../domain/spareOa';
 import { rowCfm } from '../domain/calc';
 import type { Completion } from '../domain/completion';
 import { EQUIPMENT_TYPES, equipmentType } from '../domain/equipmentTypes';
-import { sequenceValues, traverseLayout } from '../domain/equipmentCalcs';
+import { buildingBalance, sequenceValues, traverseLayout, type BuildingBalance } from '../domain/equipmentCalcs';
 import { pumpTest } from '../domain/hydronicCalcs';
 import { pumpCurveResult, pumpName } from '../domain/pumpCurves';
 import { staticInputs, staticProfile, xlNum, type StaticProfile } from '../domain/staticProfile';
@@ -78,9 +81,37 @@ export interface PumpFigure {
 
 export type Figure = ProfileFigure | TraverseFigure | BarsFigure | PumpFigure;
 
+export interface SummaryTypeRow {
+  label: string;
+  units: number;
+  complete: number;
+  /** airflow / water lines with a design and a measured value, and those within the tolerance */
+  lines: number;
+  within: number;
+}
+
+/** The appendix's first page: where the project stands, in numbers. */
+export interface Summary {
+  units: number;
+  complete: number;
+  lines: number;
+  within: number;
+  tolerance: number;
+  types: SummaryTypeRow[];
+  openIssues: { new: number; existing: number };
+  closedIssues: number;
+  profiles: { count: number; espWithin: number; espWithDesign: number };
+  traverses: { count: number; uneven: number };
+  balance: BuildingBalance;
+  /** the engineer's air balance table (Info → Design air balance) */
+  airBalance: { oa: number | null; exhaust: number | null; net: number | null };
+  pressures: { label: string; dp: number | string | null }[];
+}
+
 export interface GraphicsModel {
   projectName: string;
   figures: Figure[];
+  summary?: Summary;
 }
 
 const TABLE_LABEL: Record<string, string> = {
@@ -98,6 +129,7 @@ export function buildGraphicsModel(input: {
   rows: readonly AirflowRow[];
   completions: ReadonlyMap<string, Completion>;
   libraryPumps?: readonly LibraryPump[];
+  issues?: readonly Pick<Issue, 'kind' | 'status'>[];
 }): GraphicsModel {
   const { project, rows, completions } = input;
   const order = (e: Equipment) => EQUIPMENT_TYPES.findIndex((t) => t.key === e.type);
@@ -196,5 +228,72 @@ export function buildGraphicsModel(input: {
         });
     }
   }
-  return { projectName: project.name, figures };
+  return { projectName: project.name, figures, summary: buildSummary(input, units, figures) };
+}
+
+function buildSummary(
+  input: Parameters<typeof buildGraphicsModel>[0],
+  units: readonly Equipment[],
+  figures: readonly Figure[],
+): Summary {
+  const { project, completions } = input;
+  const tol = project.tolerance;
+  const inTol = (b: BarRow) =>
+    b.design !== null && b.design > 0 && b.actual !== null && Math.abs(b.actual / b.design - 1) <= tol + 1e-9;
+  const measured = (b: BarRow) => b.design !== null && b.design > 0 && b.actual !== null;
+  const types: SummaryTypeRow[] = [];
+  for (const t of EQUIPMENT_TYPES) {
+    const us = units.filter((e) => e.type === t.key);
+    if (!us.length) continue;
+    const names = new Set(us.map((e) => e.designation));
+    const bars = figures.flatMap((f) =>
+      (f.kind === 'outlets' || f.kind === 'valves') && names.has(f.unit) ? f.rows : [],
+    );
+    types.push({
+      label: t.plural,
+      units: us.length,
+      complete: us.filter((e) => ['green', 'blue'].includes(completions.get(e.id)?.color ?? '')).length,
+      lines: bars.filter(measured).length,
+      within: bars.filter(inTol).length,
+    });
+  }
+  const profiles = figures.filter((f): f is ProfileFigure => f.kind === 'profile');
+  const withDesign = profiles.filter((f) => f.designEsp && f.profile.esp !== null);
+  const traverses = figures.filter((f): f is TraverseFigure => f.kind === 'traverse');
+  const info = project.info;
+  const numOrNull = (v: unknown) => (typeof v === 'number' ? v : null);
+  const issues = input.issues ?? [];
+  return {
+    units: units.length,
+    complete: types.reduce((n, t) => n + t.complete, 0),
+    lines: types.reduce((n, t) => n + t.lines, 0),
+    within: types.reduce((n, t) => n + t.within, 0),
+    tolerance: tol,
+    types,
+    openIssues: {
+      new: issues.filter((i) => i.status === 'Open' && i.kind === 'new').length,
+      existing: issues.filter((i) => i.status === 'Open' && i.kind !== 'new').length,
+    },
+    closedIssues: issues.filter((i) => i.status !== 'Open').length,
+    profiles: {
+      count: profiles.length,
+      espWithDesign: withDesign.length,
+      espWithin: withDesign.filter((f) => Math.abs(f.profile.esp! / f.designEsp! - 1) <= 0.1).length,
+    },
+    traverses: { count: traverses.length, uneven: traverses.filter((t) => t.cov !== null && t.cov > 0.2).length },
+    balance: buildingBalance(
+      units.map((e) => ({ id: e.id, type: e.type, slot: e.slot, data: e.data })),
+      input.rows,
+      spareOaTotals(project),
+    ),
+    airBalance: {
+      oa: numOrNull(info[AIR_BALANCE_KEYS.oa]),
+      exhaust: numOrNull(info[AIR_BALANCE_KEYS.exhaust]),
+      net: numOrNull(info[AIR_BALANCE_KEYS.net]),
+    },
+    pressures: [
+      { label: 'Building vs outdoors', dp: (info[PRESSURE_KEYS.buildingDp] as number | string | null) ?? null },
+      { label: 'Kitchen vs dining', dp: (info[PRESSURE_KEYS.kitchenDp] as number | string | null) ?? null },
+    ].filter((p) => p.dp !== null && p.dp !== ''),
+  };
 }

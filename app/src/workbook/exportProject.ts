@@ -82,7 +82,14 @@ export async function exportProject(projectId: string, opts: ExportOptions = {})
   const marker: RevisionMarker = { projectId, revisionId, label, exportedAt: new Date().toISOString() };
   // the certification profile's stamp and signature, on every export
   const certImages = certImagesOf(await getCertProfile());
-  const common = { coverPhoto, cropCoverPhoto: cropCoverPhotoBrowser, marker, certImages };
+  // tolerance colours on the % of design cells (green within the project's tolerance, red outside)
+  const common = {
+    coverPhoto,
+    cropCoverPhoto: cropCoverPhotoBrowser,
+    marker,
+    certImages,
+    toleranceColors: bundle.project.tolerance,
+  };
 
   let out: { bytes: Uint8Array; report: ExportReport } | undefined;
   let baseFileName: string | undefined;
@@ -161,6 +168,7 @@ export async function exportHydronic(
     coverPhoto,
     cropCoverPhoto: cropCoverPhotoBrowser,
     certImages,
+    toleranceColors: bundle.project.tolerance,
   });
   for (const sk of out.report.certImages?.skipped ?? [])
     warnings.push(`The ${sk.kind} from the certification profile was not placed: ${sk.reason}.`);
