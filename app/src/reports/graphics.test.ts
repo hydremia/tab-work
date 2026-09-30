@@ -29,7 +29,12 @@ function bundle() {
   [900, 950, 1010, 980, 1200, 1250, 1180, 1100, 700, 820, 860, 900].forEach(
     (v, i) => (readings[seqKey('readings', i + 1)] = v),
   );
+  const roundReadings: Record<string, number> = {};
+  [820, 900, 960, 1010, 1040, 1050, 1020, 980, 910, 780, 760, 880, 950, 1000, 1030, 1060, 1040, 990, 930, 850].forEach(
+    (v, i) => (roundReadings[seqKey('readings', i + 1)] = v),
+  );
   b.equipment.push(
+    mk('traverse', 'T-20', { shape: 'Round', width: 20, designCfm: 2200, ...roundReadings }),
     mk('traverse', 'T-9', { shape: 'Rectangular', width: 24, height: 12, designCfm: 2000, ...readings }),
     mk('pump', 'P-1', {
       designGpm: 200,
@@ -115,6 +120,21 @@ describe('graphics appendix', () => {
     expect(p.impeller).toBeCloseTo(8 + 9.3 / 16, 3);
     expect(p.curve?.[0].head).toBeCloseTo(69.3, 3);
     expect(p.curveName).toBe('Test TP 2x2x9');
+  });
+
+  it('the summary counts units, lines within tolerance, deficiencies and the building balance', () => {
+    const b = bundle();
+    const m = buildGraphicsModel({ ...b, completions: completions(b) });
+    const sm = m.summary!;
+    expect(sm.units).toBe(b.equipment.length);
+    expect(sm.lines).toBeGreaterThan(0);
+    expect(sm.within).toBeLessThanOrEqual(sm.lines);
+    expect(sm.types.map((t) => t.units).reduce((a, x) => a + x, 0)).toBe(sm.units);
+    expect(sm.openIssues.new + sm.openIssues.existing).toBe(b.issues.filter((i) => i.status === 'Open').length);
+    expect(sm.traverses.count).toBe(m.figures.filter((f) => f.kind === 'traverse').length);
+    expect(sm.balance.oaDesign).not.toBeNull();
+    const round = m.figures.find((f) => f.kind === 'traverse' && f.unit === 'T-20');
+    expect(round?.kind === 'traverse' && round.round && round.readings[0].length).toBe(10);
   });
 
   it('long tables split into page-sized figures', () => {
