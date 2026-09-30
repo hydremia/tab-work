@@ -11,7 +11,9 @@
  * `deploy/hosting.test.ts` fails when a written file is out of date.
  *
  * Content-Security-Policy, what the app needs and why:
- * - script-src 'self': Vite emits module scripts only (no inline script); the service worker and workbox are files.
+ * - script-src 'self' 'wasm-unsafe-eval': Vite emits module scripts only (no inline script); the service worker and
+ *   workbox are files. 'wasm-unsafe-eval' lets the schedule import's text recognition (tesseract.js, served from
+ *   /ocr) compile its WebAssembly; it does not allow eval() or new Function().
  * - style-src 'self': one stylesheet; React sets `style` props through the CSSOM, which CSP does not restrict.
  * - img-src 'self' blob: data:: photo thumbnails / viewer are blob: URLs; data: for small inline images.
  * - connect-src 'self' + Supabase (REST / auth / storage over https, realtime over wss). A build with
@@ -57,7 +59,7 @@ export function cspMetaTag(supabase: string[]): string {
 export function contentSecurityPolicy(supabase = supabaseOrigins()): string {
   const d: [string, string[]][] = [
     ['default-src', ["'self'"]],
-    ['script-src', ["'self'"]],
+    ['script-src', ["'self'", "'wasm-unsafe-eval'"]],
     ['style-src', ["'self'"]],
     ['img-src', ["'self'", 'blob:', 'data:']],
     ['font-src', ["'self'"]],

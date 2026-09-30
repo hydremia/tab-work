@@ -67,6 +67,16 @@ export default defineConfig({
       workbox: {
         // app shell (with the pdf.js worker, .mjs) + the workbook template, so export and PDF schedules work offline
         globPatterns: ['**/*.{js,mjs,css,html,svg,png,ico,webmanifest}', 'templates/*.xlsm'],
+        // text recognition (about 7 MB, only for drawings without text and photos): cached on first use and fetched
+        // in the background once online (src/ocrPrefetch.ts), not on install
+        globIgnores: ['ocr/**'],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith('/ocr/'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'a2b-ocr', expiration: { maxEntries: 10 } },
+          },
+        ],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallback: '/index.html',
         cleanupOutdatedCaches: true,

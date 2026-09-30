@@ -88,6 +88,14 @@ export async function rowLinksFlow(browser: Browser, base: string, docShots: str
 
     // Photos tab: the photo is labelled with the line
     await page.goto(`${projectUrl}/photos`);
+    // the line names load just after the photos: wait for the label to include the line
+    await page
+      .waitForFunction(
+        () => document.querySelector('[data-testid="photo-card"]')?.getAttribute('data-label')?.endsWith('S-1'),
+        undefined,
+        { timeout: 5000 },
+      )
+      .catch(() => undefined);
     const label = await page.getByTestId('photo-card').first().getAttribute('data-label');
     check('line links: the Photos tab labels the photo with its line', label === 'RTU-1 · Other · S-1', String(label));
 
