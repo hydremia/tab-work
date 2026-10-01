@@ -6,7 +6,7 @@ Restyle (xl/styles.xml only):
   layout:
     NEBB Cert: 3 certificate(s) upright, two a page, 2 page(s), print area A1:N104, scale 94 %
     NEBB Frm Cert: 1 certificate(s) upright, two a page, 1 page(s), print area A1:N52, scale 94 %
-    Cover Page: contractor / engineer / architect blank (not 0) when not entered
+    Cover Page: 3 plain Project Information link(s) blank when not entered
     Narrative: set-up blurb rows 9-10 -> 28 pt (the whole text shows)
     Building Balance: notes as one box across B:M (band + 3 lines, B102:B104 kept)
     RTUs: tallest page 734 pt, print scale 93 % -> 89 %
@@ -17,6 +17,9 @@ Restyle (xl/styles.xml only):
     Hoods: 9 page breaks (two hoods a page)
     Hoods: tallest page 694 pt, print scale 99 % -> 94 %
     Traverses: tallest page 696 pt, print scale 97 % -> 94 %
+    Certification: 2 plain Project Information link(s) blank when not entered
+    Abbreviations: 4 plain Project Information link(s) blank when not entered
+    Calibration: 4 plain Project Information link(s) blank when not entered
     Cover Page: a2b logo -> steel blue, green 2
-  print headers: page titles near-black on 11 sheets; Page Break Preview on 21 sheets
+  print headers: page titles near-black on 11 sheets; Page Break Preview on 21 sheets; footer Page x of N on 23 sheets
   stamp: NEBB stamp (tools/assets/nebb-stamp.png) in the Certification stamp box, picture 'a2b NEBB Stamp'
