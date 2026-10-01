@@ -1038,6 +1038,8 @@ A unit the app can't find in the PDF (renamed in Excel, for example) gets its fi
 one with no sheet at all, at the end. The note under the button says how many were placed and lists any at the end.
 Re-run Print Report after editing the workbook, then make the final report again.
 
+![Final report](../screenshots/52-final-report.png)
+
 ### Graphics appendix
 
 **Export → Graphics appendix** downloads a PDF of figures drawn from the project, to send with the report. Units
