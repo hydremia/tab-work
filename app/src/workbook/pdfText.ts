@@ -8,7 +8,10 @@ import type { PdfPageText } from '../domain/pdfTables';
 /** Drawing sets can be long: the pages read at most. */
 export const MAX_PDF_PAGES = 200;
 
-export async function readPdfText(bytes: Uint8Array): Promise<{ pages: PdfPageText[]; pageCount: number }> {
+export async function readPdfText(
+  bytes: Uint8Array,
+  maxPages = MAX_PDF_PAGES,
+): Promise<{ pages: PdfPageText[]; pageCount: number }> {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
   if (typeof window !== 'undefined' && !pdfjs.GlobalWorkerOptions.workerSrc) {
     const { default: workerUrl } = await import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url');
@@ -18,7 +21,7 @@ export async function readPdfText(bytes: Uint8Array): Promise<{ pages: PdfPageTe
   const doc = await task.promise;
   try {
     const pages: PdfPageText[] = [];
-    for (let n = 1; n <= Math.min(doc.numPages, MAX_PDF_PAGES); n++) {
+    for (let n = 1; n <= Math.min(doc.numPages, maxPages); n++) {
       const page = await doc.getPage(n);
       const view = page.getViewport({ scale: 1 });
       const content = await page.getTextContent();

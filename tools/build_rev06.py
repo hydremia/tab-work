@@ -298,13 +298,18 @@ def balance_notes(x):
     return x
 
 
-def cover_blanks(x):
-    """Cover contractor / engineer / architect show blank, not 0, when Project Information leaves them empty (the
-    same guard the name / address / date lines have)."""
-    for cell in ("$E$8", "$E$5", "$E$4"):
-        ref = "'{Project Information}'!" + cell
-        x = x.replace(f"<f>{ref}</f>", f'<f>IF({ref}="","",{ref})</f>', 1)
-    return x
+LINK = re.compile(r"<f>('\{Project Information\}'!\$?[A-Z]+\$?\d+)</f>")
+
+
+def blank_links(x):
+    """Plain links to {Project Information} (cover contractor / engineer / architect, the Abbreviations and Calibration
+    page heads) show blank, not 0 or 12/30/1899, when the entry is empty: the guard the other page heads have."""
+    return LINK.subn(lambda m: f'<f>IF({m.group(1)}="","",{m.group(1)})</f>', x)
+
+
+def page_of_total(x):
+    """Footer "Page 7" -> "Page 7 of 55" (Excel numbers a multi-sheet print / PDF export straight through)."""
+    return re.subn(r"(<oddFooter>[^<]*?Page &amp;P)(?! of)", r"\1 of &amp;N", x)
 
 
 def recolour_logo(png_bytes):
@@ -414,7 +419,7 @@ def rewrite(src, out, log):
         wb = zin.read("xl/workbook.xml").decode("utf-8")
         order = [part for part in titles]  # workbook order (localSheetId)
         printable = {int(i) for i in re.findall(r'<definedName name="_xlnm.Print_Area" localSheetId="(\d+)"', wb)}
-        n_headers = n_views = 0
+        n_headers = n_views = n_footers = 0
         log.append("  layout:")
         # certificates: sheet + drawing rewritten together, print areas fitted to the pages
         certs = {}
@@ -458,9 +463,11 @@ def rewrite(src, out, log):
                         y = add_breaks(y, ids)
                         log.append(f"    Hoods: {len(ids)} page breaks (two hoods a page)")
                     y = fit_scale(y, name, log)
-                    if name == "Cover Page":
-                        y = cover_blanks(y)
-                        log.append("    Cover Page: contractor / engineer / architect blank (not 0) when not entered")
+                    y, n = blank_links(y)
+                    if n:
+                        log.append(f"    {name}: {n} plain Project Information link(s) blank when not entered")
+                    y, n = page_of_total(y)
+                    n_footers += n
                     if name == "Narrative":
                         y = narrative_rows(y)
                         log.append("    Narrative: set-up blurb rows 9-10 -> 28 pt (the whole text shows)")
@@ -469,7 +476,8 @@ def rewrite(src, out, log):
                         log.append("    Building Balance: notes as one box across B:M (band + 3 lines, B102:B104 kept)")
                     data = y.encode("utf-8")
                 zout.writestr(item, data)
-    log.append(f"  print headers: page titles near-black on {n_headers} sheets; Page Break Preview on {n_views} sheets")
+    log.append(f"  print headers: page titles near-black on {n_headers} sheets; Page Break Preview on {n_views} sheets; "
+               f"footer Page x of N on {n_footers} sheets")
 
 
 STAMP_PNG = os.path.join(ROOT, "tools", "assets", "nebb-stamp.png")
