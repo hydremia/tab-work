@@ -249,6 +249,14 @@ export async function reimportFlow(
     check('Apply is enabled once every collision is resolved', await apply.isEnabled());
     await apply.click();
     await page.getByTestId('reimport-applied').waitFor({ timeout: 30_000 });
+    // the base line follows the applied re-import a moment later (live query)
+    await page
+      .waitForFunction(
+        () => document.querySelector('[data-testid="export-base"]')?.textContent?.includes('edited in Excel'),
+        undefined,
+        { timeout: 10_000 },
+      )
+      .catch(() => undefined);
     const baseAfter = await page.getByTestId('export-base').innerText();
     check('the re-imported file is the base of the next export', baseAfter.includes('edited in Excel'), baseAfter);
 
