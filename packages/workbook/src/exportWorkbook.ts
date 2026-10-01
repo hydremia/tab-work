@@ -12,6 +12,7 @@ import {
   anchorRow, blockLayout, ColumnDef, FieldDef, Layout, NOTATIONS, sequenceCells, tableRows, TEMPLATE_MAP, TemplateMap,
 } from './templateMap.js';
 import { inputCells } from './inputCells.js';
+import { fitPrintAreas } from './printAreas.js';
 import { applyToleranceColors } from './toleranceColors.js';
 import { APP_INFO_PROP, EXISTING_UNITS_PROP, type RevisionMarker, writeCustomProperties, writeRevisionMarker } from './docProps.js';
 import { anchorSizeEmu, type CoverPhotoCropper, drawingPictures } from './coverPhoto.js';
@@ -302,7 +303,7 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
   };
   const sheets = await listSheets(zip);
   const wbPart = await workbookPart(zip);
-  const wbXml = await readText(zip, wbPart);
+  let wbXml = await readText(zip, wbPart);
   // an issued workbook saved by Excel keeps its text in shared strings (the blank template uses inline strings)
   const sst = await loadSharedStrings(zip);
   const stylesRel = parseRels(await readText(zip, relsPathFor(wbPart))).find((r) => r.type.endsWith('/styles'));
@@ -556,6 +557,13 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
     });
     if (n) { zip.file(s.part, fixed); report.cachedValuesStripped += n; }
   }
+  // ---- print areas: each unit sheet prints through the page of its last unit
+  const fitted = await fitPrintAreas(zip, sheets, wbXml, map, project.equipment);
+  if (fitted.changed.length) {
+    wbXml = fitted.xml;
+    zip.file(wbPart, wbXml);
+  }
+
   const calcPr = /<calcPr\b[^>]*\/?>/.exec(wbXml);
   if (!calcPr || attr(calcPr[0], 'fullCalcOnLoad') !== '1') {
     const newCalc = calcPr

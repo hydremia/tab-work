@@ -31,7 +31,8 @@ const project: ProjectData = {
 describe('workbook library round trip (Node)', () => {
   it('export -> import returns the same project, only input cells written', async () => {
     const { bytes, report } = await exportWorkbookWithReport(templateBytes(), project);
-    expect(report.changedParts.every((p) => p.startsWith('xl/worksheets/'))).toBe(true);
+    // sheets, and workbook.xml for the print areas fitted to the units (printAreas.ts)
+    expect(report.changedParts.every((p) => p.startsWith('xl/worksheets/') || p === 'xl/workbook.xml')).toBe(true);
     const back = await importWorkbook(bytes);
     // the template's pre-loaded calibration instruments and building pressures come back too; compare what we wrote
     const { calibration: _c, buildingBalance: _b, certification: _z, ...sections } = back.sections;
