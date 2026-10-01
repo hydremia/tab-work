@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const TEMPLATES = [
-  ['06 - a2b_Blank_TAB_Workbook 9-30-26.xlsm', 'tab-template-rev06.xlsm'],
+  ['06 - a2b_Blank_TAB_Workbook 10-1-26.xlsm', 'tab-template-rev06.xlsm'],
   ['H01 - a2b_Blank_Hydronic_Workbook 9-29-26.xlsm', 'tab-hydronic-h01.xlsm'],
 ];
 
