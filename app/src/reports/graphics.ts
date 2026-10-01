@@ -3,6 +3,7 @@
  * print sharp), a title block and page numbers like the Issues / Photo reports. Delivered next to the workbook.
  */
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from 'pdf-lib';
+import type { EquipmentTypeKey } from '../domain/equipmentTypes';
 import type { XCell } from '../domain/staticProfile';
 import { sanitizer } from './pdf';
 import type {
@@ -76,11 +77,34 @@ export function paginateFigures(figs: readonly Figure[], rowsPerFigure = 38): Fi
   return out;
 }
 
+/** A run of pages about one thing: the summary, or one unit's (or traverse's) figures. */
+export interface FigureGroup {
+  /** 'summary', or the unit's type and designation */
+  key: string;
+  unit: string | null;
+  type: EquipmentTypeKey | null;
+  /** 0-based first page and page count in the rendered PDF */
+  firstPage: number;
+  pageCount: number;
+}
+
+export interface GraphicsOptions {
+  /**
+   * For the final report (reports/assemble.ts): the summary and each unit's figures start on a page of their own, with
+   * a slim running head instead of the title block and no page numbers (the assembled report numbers its pages).
+   */
+  inline?: boolean;
+  /** Outlet / valve charts (inline only; the appendix always has them). */
+  outletCharts?: boolean;
+}
+
 export async function renderGraphicsPdf(
   model: GraphicsModel,
   header: GraphicsHeader,
   now = new Date(),
-): Promise<{ bytes: Uint8Array; pages: number }> {
+  opts: GraphicsOptions = {},
+): Promise<{ bytes: Uint8Array; pages: number; groups: FigureGroup[] }> {
+  const inline = Boolean(opts.inline);
   const doc = await PDFDocument.create();
   doc.setTitle(`Graphics Appendix${header.label ? ` ${header.label}` : ''} - ${model.projectName}`, {
     showInWindowTitleBar: true,
@@ -101,13 +125,20 @@ export async function renderGraphicsPdf(
 
   const pages: PDFPage[] = [];
   let page!: PDFPage;
+  let groupTitle = '';
   let y = 0; // current top (from the top edge)
   const Y = (top: number) => H - top;
   const newPage = () => {
     page = doc.addPage([W, H]);
     pages.push(page);
     y = TOP;
-    if (pages.length === 1) {
+    if (inline) {
+      text(page, model.projectName, MX, Y(y + 8), 8, regular, MUTED);
+      const head = `Graphics · ${groupTitle}`;
+      text(page, head, W - MX - tw(head, 8, bold), Y(y + 8), 8, bold, BRAND);
+      page.drawLine({ start: { x: MX, y: Y(y + 13) }, end: { x: W - MX, y: Y(y + 13) }, thickness: 0.8, color: BRAND });
+      y += 24;
+    } else if (pages.length === 1) {
       text(page, header.firm, MX, Y(y + 12), 11, bold, BRAND);
       page.drawLine({ start: { x: MX, y: Y(y + 18) }, end: { x: W - MX, y: Y(y + 18) }, thickness: 1.2, color: BRAND });
       text(page, 'Graphics Appendix', MX, Y(y + 44), 20, bold);
@@ -1028,6 +1059,49 @@ export async function renderGraphicsPdf(
     }
   };
 
+  const draw = (f: Figure) => {
+    const h = figureHeight(f);
+    if (y + h > H - BOTTOM) newPage();
+    if (f.kind === 'profile') drawProfile(f, y);
+    else if (f.kind === 'traverse') drawTraverse(f, y);
+    else if (f.kind === 'pump') drawPump(f, y);
+    else drawBars(f, y);
+    y += h + 12;
+  };
+
+  if (inline) {
+    const groups: FigureGroup[] = [];
+    const start = (key: string, title: string, unit: string | null, type: EquipmentTypeKey | null) => {
+      groupTitle = title;
+      newPage();
+      groups.push({ key, unit, type, firstPage: pages.length - 1, pageCount: 0 });
+    };
+    const close = () => {
+      const g = groups[groups.length - 1];
+      if (g) g.pageCount = pages.length - g.firstPage;
+    };
+    if (model.summary && model.summary.units) {
+      start('summary', 'Summary', null, null);
+      drawSummary(model.summary, y);
+      close();
+    }
+    const figs = paginateFigures(
+      model.figures.filter((f) => opts.outletCharts || (f.kind !== 'outlets' && f.kind !== 'valves')),
+    );
+    let key = '';
+    for (const f of figs) {
+      const k = `${f.type ?? ''}|${f.unit}`;
+      if (k !== key) {
+        close();
+        key = k;
+        start(k, f.unit, f.unit, f.type ?? null);
+      }
+      draw(f);
+    }
+    close();
+    return { bytes: pages.length ? await doc.save() : new Uint8Array(), pages: pages.length, groups };
+  }
+
   newPage();
   if (model.summary && model.summary.units) y += drawSummary(model.summary, y) + 14;
   const figs = paginateFigures(model.figures);
@@ -1041,18 +1115,10 @@ export async function renderGraphicsPdf(
       regular,
       MUTED,
     );
-  for (const f of figs) {
-    const h = figureHeight(f);
-    if (y + h > H - BOTTOM) newPage();
-    if (f.kind === 'profile') drawProfile(f, y);
-    else if (f.kind === 'traverse') drawTraverse(f, y);
-    else if (f.kind === 'pump') drawPump(f, y);
-    else drawBars(f, y);
-    y += h + 12;
-  }
+  for (const f of figs) draw(f);
   pages.forEach((p, i) => {
     const s = `${model.projectName} · Graphics Appendix · Page ${i + 1} of ${pages.length}`;
     p.drawText(clean(s), { x: W / 2 - tw(s, 7.5) / 2, y: 22, size: 7.5, font: regular, color: MUTED });
   });
-  return { bytes: await doc.save(), pages: pages.length };
+  return { bytes: await doc.save(), pages: pages.length, groups: [] };
 }

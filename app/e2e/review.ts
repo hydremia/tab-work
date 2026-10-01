@@ -3,8 +3,10 @@
  * reads it in memory), then imported, and the project's Export tab shows the same checklist; a finding links to the
  * page that fixes it. Screenshot 41.
  */
-import { join } from 'node:path';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { basename, join } from 'node:path';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { PDFDocument } from 'pdf-lib';
 import type { Browser } from 'playwright-core';
 
@@ -65,6 +67,35 @@ export async function reviewFlow(
       pdf.getPageCount() >= 2 && /Graphics Appendix/.test(dl.suggestedFilename()),
       `${dl.suggestedFilename()} · ${pdf.getPageCount()} pages`,
     );
+    // final report: the workbook printed to PDF (LibreOffice here, Excel's Print Report in the field), figures placed
+    // after their unit's pages, every page numbered
+    if (spawnSync('sh', ['-c', 'command -v soffice']).status === 0) {
+      const pdfDir = mkdtempSync(join(tmpdir(), 'e2e-report-pdf-'));
+      const profile = mkdtempSync(join(tmpdir(), 'lo-profile-'));
+      spawnSync(
+        'soffice',
+        [`-env:UserInstallation=file://${profile}`, '--headless', '--convert-to', 'pdf', '--outdir', pdfDir, workbookFile],
+        { encoding: 'utf8', timeout: 600_000 },
+      );
+      const reportPdf = join(pdfDir, basename(workbookFile).replace(/\.xlsm$/i, '.pdf'));
+      const reportPages = (await PDFDocument.load(new Uint8Array(readFileSync(reportPdf)))).getPageCount();
+      await page.getByTestId('final-outlet-charts').check();
+      const [dl2] = await Promise.all([
+        page.waitForEvent('download', { timeout: 180_000 }),
+        page.locator('input[aria-label="Report PDF from Excel"]').setInputFiles(reportPdf),
+      ]);
+      const finalPath = join(outDir, 'final-report.pdf');
+      await dl2.saveAs(finalPath);
+      const finalPages = (await PDFDocument.load(new Uint8Array(readFileSync(finalPath)))).getPageCount();
+      const note = await page.getByTestId('final-note').innerText();
+      check(
+        'final report: the workbook PDF with the figures after their units, every page numbered, ToC kept in step',
+        finalPages > reportPages && /[1-9]\d* figure groups? placed/.test(note) && /TAB Report/.test(dl2.suggestedFilename()),
+        `${dl2.suggestedFilename()} · ${reportPages} -> ${finalPages} pages · ${note}`,
+      );
+      await page.getByTestId('report-final').scrollIntoViewIfNeeded();
+      await page.screenshot({ path: join(docShots, '52-final-report.png') });
+    } else check('LibreOffice available for the final report check', false, 'soffice not on PATH');
     const complete = page.getByTestId('check-complete');
     const status = await complete.getAttribute('data-status');
     await complete.locator('summary').click();

@@ -119,8 +119,7 @@ export async function generatePhotoZip(
   return { bytes, fileName: reportFileName(input.project.name, 'zip', label), pages: 0, photos: ids.length };
 }
 
-/** The graphics appendix PDF (reports/graphics.ts): figures drawn from the project's values. */
-export async function generateGraphics(projectId: string, label: string): Promise<ReportResult> {
+async function graphicsInput(projectId: string) {
   const [{ loadBundle }, { computeCompletion }, { getSpec }, { buildGraphicsModel }, { renderGraphicsPdf }] =
     await Promise.all([
       import('../workbook/bundle'),
@@ -148,11 +147,67 @@ export async function generateGraphics(projectId: string, label: string): Promis
   const reportDate =
     typeof b.project.info.reportDate === 'string' ? b.project.info.reportDate : new Date().toISOString().slice(0, 10);
   const address = typeof b.project.info.address === 'string' ? b.project.info.address : undefined;
-  const { bytes, pages } = await renderGraphicsPdf(model, { firm: FIRM_NAME, label, reportDate, address });
   const d = new Date();
   const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const safe = b.project.name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'Project';
-  return { bytes, fileName: `${safe} - Graphics Appendix ${label ? `${label} ` : ''}${date}.pdf`, pages, photos: 0 };
+  return { model, reportDate, address, date, safe, projectName: b.project.name, renderGraphicsPdf };
+}
+
+/** The graphics appendix PDF (reports/graphics.ts): figures drawn from the project's values. */
+export async function generateGraphics(projectId: string, label: string): Promise<ReportResult> {
+  const g = await graphicsInput(projectId);
+  const { bytes, pages } = await g.renderGraphicsPdf(g.model, {
+    firm: FIRM_NAME,
+    label,
+    reportDate: g.reportDate,
+    address: g.address,
+  });
+  return { bytes, fileName: `${g.safe} - Graphics Appendix ${label ? `${label} ` : ''}${g.date}.pdf`, pages, photos: 0 };
+}
+
+export interface FinalReportResult extends ReportResult {
+  /** figures placed with their unit / sheet, and those added at the end */
+  placed: number;
+  atEnd: string[];
+  numbered: number;
+  tocFixed: number;
+}
+
+/**
+ * The final report (reports/assemble.ts): the report PDF made in Excel with the figures after the pages they support,
+ * every page numbered "Page x of N" and the table of contents updated.
+ */
+export async function generateFinalReport(
+  projectId: string,
+  label: string,
+  reportPdf: Uint8Array,
+  opts: { outletCharts: boolean },
+): Promise<FinalReportResult> {
+  const [g, { assembleReport }, { readPdfText }] = await Promise.all([
+    graphicsInput(projectId),
+    import('./assemble'),
+    import('../workbook/pdfText'),
+  ]);
+  const fig = await g.renderGraphicsPdf(
+    g.model,
+    { firm: FIRM_NAME, label, reportDate: g.reportDate, address: g.address },
+    new Date(),
+    { inline: true, outletCharts: opts.outletCharts },
+  );
+  const r = await assembleReport(reportPdf, fig, (b) => readPdfText(b, 2000), {
+    title: `TAB Report${label ? ` ${label}` : ''} - ${g.projectName}`,
+    author: FIRM_NAME,
+  });
+  return {
+    bytes: r.bytes,
+    fileName: `${g.safe} - TAB Report ${label ? `${label} ` : ''}${g.date}.pdf`,
+    pages: r.pages,
+    photos: 0,
+    placed: r.plan.placed.filter((p) => p.how !== 'end').length,
+    atEnd: r.plan.placed.filter((p) => p.how === 'end').map((p) => p.unit ?? p.key),
+    numbered: r.plan.footers.size + fig.pages,
+    tocFixed: r.plan.toc.length,
+  };
 }
 
 export function downloadFile(bytes: Uint8Array, fileName: string, mime: string): void {

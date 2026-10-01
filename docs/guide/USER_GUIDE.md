@@ -817,7 +817,8 @@ Formulas, macros, formatting and print setup are left as they are.
 **Pages and page breaks.** Every sheet opens in **Page Break Preview**. Each unit starts on its own page, and the
 print scale leaves a little room on every page, so the breaks land in the same place on every laptop and printer
 (Excel adds its own break when a page is a hair too tall for a printer, which used to shift everything after it by a
-row). Don't drag the blue break lines; if a page looks off, tell us which sheet.
+row). Don't drag the blue break lines; if a page looks off, tell us which sheet. Footers read **Page x of N**,
+counted over the whole printed report (Print Report prints every sheet in one go).
 
 **The NEBB stamp** is part of the template (the Certification sheet's stamp box). If a stamp image is set on the
 **Certification profile**, exports use that one instead (when the stamp is renewed each year, update it there).
@@ -1014,6 +1015,30 @@ runs the same check on any a2b revision 05 or 06 workbook (another tech's report
 (unit completeness is left out there: photos are not in a workbook).
 
 ![Report check](../screenshots/41-report-check.png)
+
+### Final report with the figures
+
+The figures can go **into** the report, each one next to what it supports:
+
+1. In Excel, run **Print Report** and save the PDF (it hides unused units, updates the table of contents and prints
+   every page; footers read *Page x of N*).
+2. In the app, **Export → Final report (pick the Excel PDF)** and pick that PDF.
+
+The app adds its figures and downloads *<project> - TAB Report <label> <date>.pdf*:
+
+- each unit's **static pressure profile** right after that unit's pages (after the continuation page when it prints
+  one), each **traverse**'s figure after the Traverses page that holds it, pump curves after the pump's page;
+- the **summary** page after the Building Balance;
+- every page numbered **Page x of N** over the whole report (the cover stays unnumbered), and the **table of contents**
+  page numbers moved to match;
+- **Include outlet / valve charts** adds the design-vs-actual bar charts to each unit's figures (off by default: the
+  unit page already lists the outlets, coloured by tolerance).
+
+A unit the app can't find in the PDF (renamed in Excel, for example) gets its figures after the last page of its sheet;
+one with no sheet at all, at the end. The note under the button says how many were placed and lists any at the end.
+Re-run Print Report after editing the workbook, then make the final report again.
+
+![Final report](../screenshots/52-final-report.png)
 
 ### Graphics appendix
 

@@ -57,6 +57,7 @@ export async function rowLinksFlow(browser: Browser, base: string, docShots: str
       .innerText();
     await card.getByLabel('Remark').fill('Balancing damper stuck closed above the ceiling');
     await card.getByLabel('Remark').blur();
+    await page.waitForTimeout(400); // the remark saves on blur: let it land before leaving the page
     check(
       'line links: "Add issue for this line" opens the new issue with the unit and the line set',
       /S-1 /.test(`${lineValue} `) && (await card.locator('select').first().inputValue()) !== '',
