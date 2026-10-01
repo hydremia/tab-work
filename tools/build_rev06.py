@@ -258,6 +258,8 @@ def narrative_rows(x):
     """The set-up blurb (C9:L10) gets room for its four lines."""
     for r in (9, 10):
         x = re.sub(rf'(<row r="{r}"[^>]*?\bht=")[\d.]+(")', r"\g<1>28\2", x, count=1)
+    # one page: the sheet was fitted to one page wide only, and the taller blurb rows tipped it onto a second page
+    x = re.sub(r'(<pageSetup\b[^>]*?)\sfitToHeight="0"', r'\1 fitToHeight="1"', x, count=1)
     return x
 
 
@@ -339,7 +341,7 @@ def recolour_logo(png_bytes):
 
 # NEBB certificates (landscape scans): upright, two a page, 52 rows a page (26 a certificate) at a fixed scale
 CERT_SHEETS = ("NEBB Cert ", "NEBB Frm Cert")
-CERT_PAGE_ROWS, CERT_SCALE, CERT_HEIGHT_PT = 52, 94, 330
+CERT_PAGE_ROWS, CERT_SCALE, CERT_HEIGHT_PT = 52, 92, 300
 EMU_PT = 12700
 
 
@@ -355,7 +357,7 @@ def _col_widths_pt(x, ncols):
 
 def cert_layout(sheet_xml, drawing_xml, sizes):
     """The certificates stood upright (the template had them turned 90 degrees, one a page), two a page, centred
-    across A:N, each 330 pt tall at its own aspect. Returns (sheet xml, drawing xml, rows printed)."""
+    across A:N, each 300 pt tall at its own aspect (a margin above and below: Excel draws rows a pixel taller than their points). Returns (sheet xml, drawing xml, rows printed)."""
     widths = _col_widths_pt(sheet_xml, 14)
     row_h = float(re.search(r'<sheetFormatPr[^>]*defaultRowHeight="([\d.]+)"', sheet_xml).group(1))
     slot = CERT_PAGE_ROWS // 2
@@ -470,7 +472,7 @@ def rewrite(src, out, log):
                     n_footers += n
                     if name == "Narrative":
                         y = narrative_rows(y)
-                        log.append("    Narrative: set-up blurb rows 9-10 -> 28 pt (the whole text shows)")
+                        log.append("    Narrative: set-up blurb rows 9-10 -> 28 pt (the whole text shows), fitted to one page")
                     if name == "Building Balance":
                         y = balance_notes(y)
                         log.append("    Building Balance: notes as one box across B:M (band + 3 lines, B102:B104 kept)")

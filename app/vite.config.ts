@@ -1,4 +1,5 @@
 /// <reference types="vitest/config" />
+import { execSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
@@ -31,7 +32,23 @@ function pinCsp(): Plugin {
   };
 }
 
+/** Shown under the project list ("Version 2026-10-01 · 85591b8"): the build date and commit, so a device can be checked. */
+function buildId(): string {
+  const date = new Date().toISOString().slice(0, 10);
+  let sha = (process.env.VERCEL_GIT_COMMIT_SHA ?? '').slice(0, 7);
+  if (!sha)
+    try {
+      sha = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+        .toString()
+        .trim();
+    } catch {
+      sha = '';
+    }
+  return sha ? `${date} · ${sha}` : date;
+}
+
 export default defineConfig({
+  define: { __APP_BUILD__: JSON.stringify(buildId()) },
   plugins: [
     react(),
     pinCsp(),
