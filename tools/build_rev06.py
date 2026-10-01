@@ -1,6 +1,6 @@
 """Revision 06 = revision 05 with a2b's own report look in the e2s website's colours (styles only).
 
-Only xl/styles.xml and the print-header colour change: every cell, formula, name, validation, VBA module, drawing and print setting is copied
+Styles, print headers and page layout change (never a cell's address, formula or value): every cell, formula, name, validation and VBA module is copied
 byte-for-byte from revision 05, so the app's template map (cell positions) is the same and a rev 05 workbook's data
 reads the same. The look is changed where Excel keeps it, in the shared cell formats:
 
@@ -43,6 +43,9 @@ INK = BAND_STRONG
 HEADER_FILL = re.compile(r'<fgColor theme="4" tint="0\.39\d*"\s*/>')
 GREY_FILL = re.compile(r'<fgColor theme="0" tint="-0\.24\d*"\s*/>')
 YELLOW_FILL = re.compile(r'<fgColor rgb="FFFFFFE0"\s*/>')
+
+
+EXTRA = {}
 
 
 def _block(xml, tag):
@@ -130,10 +133,22 @@ def restyle(styles, log):
             n_title += 1
         if 'applyFont="' not in xfs[i] and xfs[i] != x:
             xfs[i] = xfs[i].replace("<xf ", '<xf applyFont="1" ', 1)
+    # two formats for the Building Balance notes box: a band across the top and the note lines
+    EXTRA["notes_head"] = len(xfs)
+    xfs.append(
+        f'<xf numFmtId="0" fontId="{white(1)}" fillId="{navy_fill}" borderId="1" applyFont="1" applyFill="1" applyBorder="1"'
+        ' applyAlignment="1" xfId="0"><alignment horizontal="left" vertical="center" indent="1"/></xf>'
+    )
+    EXTRA["notes_line"] = len(xfs)
+    xfs.append(
+        '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" applyBorder="1" applyAlignment="1" xfId="0">'
+        '<alignment horizontal="left" vertical="center" wrapText="1" indent="1"/></xf>'
+    )
     new_fonts = "".join(fonts)
     styles = styles.replace(fo.group(0), re.sub(r'count="\d+"', f'count="{len(fonts)}"', fo.group(0).split(">", 1)[0] + ">", 1) + new_fonts + "</fonts>", 1)
     xb = _block(styles, "cellXfs")
-    styles = styles.replace(xb.group(1), "".join(xfs), 1)
+    head = re.sub(r'count="\d+"', f'count="{len(xfs)}"', xb.group(0).split(">", 1)[0] + ">", 1)
+    styles = styles.replace(xb.group(0), head + "".join(xfs) + "</cellXfs>", 1)
     log.append(
         f"  headers: {n_strong} centred header formats -> steel-blue band / white text, {n_band_text} label formats -> pale blue /"
         f" deep-blue text, {n_title} title formats -> deep blue ({len(navy_font) + len(white_font)} new fonts, 1 new fill)"
@@ -147,7 +162,8 @@ def restyle(styles, log):
         nonlocal n_thin, n_heavy
         tag, style, body = m.group(1), m.group(2), m.group(3) or ""
         if style in ("thin", "hair", "dotted", "dashed"):
-            if not re.search(r'rgb="(?!FF000000)[0-9A-F]{8}"|theme="(?!1")', body):
+            # black, automatic or the template's grey (theme background, darker): the light grid colour
+            if not re.search(r'rgb="(?!FF000000)[0-9A-F]{8}"', body):
                 n_thin += 1
                 return f'<{tag} style="{style}"><color rgb="{RULE}"/></{tag}>'
         elif style in ("medium", "thick", "double", "mediumDashed"):
@@ -172,21 +188,295 @@ def header_colour(sheet_xml):
     return re.sub(r"<(oddHeader|evenHeader|firstHeader)>(.*?)</\1>", fix, sheet_xml, flags=re.S)
 
 
+# ------------------------------------------------------------------------------------------ sheet-level polish
+SLACK = 1.04          # pages fit the printable height with 4 % to spare (printer drivers measure rows differently)
+HOOD_FIRST, HOOD_PAGE = 52, 49   # Hoods: two hoods per page, first page rows 1-52, then 49 rows a page
+
+
+def page_break_view(x):
+    """Every printable sheet opens in Page Break Preview."""
+    m = re.search(r"<sheetView\b[^>]*?(/?)>", x)
+    if not m:
+        return x
+    tag = re.sub(r'\sview="\w+"', "", m.group(0))
+    tag = tag.replace("<sheetView", '<sheetView view="pageBreakPreview"', 1)
+    if "zoomScaleSheetLayoutView" not in tag:
+        tag = tag.replace("<sheetView", '<sheetView zoomScaleSheetLayoutView="100"', 1)
+    return x.replace(m.group(0), tag, 1)
+
+
+def _row_heights(x):
+    dflt = float(re.search(r'<sheetFormatPr[^>]*defaultRowHeight="([\d.]+)"', x).group(1))
+    hts = {int(r): float(h) for r, h in re.findall(r'<row r="(\d+)"[^>]*?\bht="([\d.]+)"', x)}
+    hidden = {int(r) for r in re.findall(r'<row r="(\d+)"[^>]*\bhidden="1"', x)}
+    return lambda r: 0.0 if r in hidden else hts.get(r, dflt)
+
+
+def add_breaks(x, ids):
+    """Manual page breaks after the given rows (kept with any already there)."""
+    old = sorted({int(b) for b in re.findall(r'<brk id="(\d+)"', x)} | set(ids))
+    rb = f'<rowBreaks count="{len(old)}" manualBreakCount="{len(old)}">' + "".join(
+        f'<brk id="{b}" max="16383" man="1"/>' for b in old) + "</rowBreaks>"
+    if re.search(r"<rowBreaks\b", x):
+        return re.sub(r"<rowBreaks\b.*?</rowBreaks>|<rowBreaks\b[^>]*/>", rb, x, count=1, flags=re.S)
+    for after in (r"</headerFooter>", r"<headerFooter\b[^>]*/>", r"<pageSetup\b[^>]*/>"):
+        m = re.search(after, x)
+        if m:
+            return x[: m.end()] + rb + x[m.end():]
+    return x
+
+
+def fit_scale(x, name, log):
+    """Lower a fixed print scale until every manual page fits with SLACK (no extra automatic break on any laptop)."""
+    ps = re.search(r"<pageSetup\b[^>]*/>", x)
+    if not ps or re.search(r'<pageSetUpPr\b[^>]*fitToPage="1"', x):
+        return x
+    brks = sorted(int(b) for b in re.findall(r'<brk id="(\d+)"', x))
+    if not brks:
+        return x
+    dim = re.search(r'<dimension ref="[A-Z]+\d+:[A-Z]+(\d+)"', x)
+    last = int(dim.group(1)) if dim else brks[-1] + 60
+    h = _row_heights(x)
+    starts = [1] + [b + 1 for b in brks]
+    ends = [b for b in brks] + [last]
+    tallest = max(sum(h(r) for r in range(a, e + 1)) for a, e in zip(starts, ends) if e >= a)
+    pm = re.search(r"<pageMargins\b[^>]*/>", x).group(0)
+    top = float(re.search(r'\btop="([\d.]+)"', pm).group(1))
+    bot = float(re.search(r'\bbottom="([\d.]+)"', pm).group(1))
+    land = 'orientation="landscape"' in ps.group(0)
+    usable = ((8.5 if land else 11.0) - top - bot) * 72
+    cur = int(re.search(r'scale="(\d+)"', ps.group(0)).group(1)) if "scale=" in ps.group(0) else 100
+    need = int(usable / (tallest * SLACK) * 100)
+    if need >= cur:
+        return x
+    tag = re.sub(r'\sscale="\d+"', "", ps.group(0)).replace("<pageSetup", f'<pageSetup scale="{need}"', 1)
+    log.append(f"    {name}: tallest page {tallest:.0f} pt, print scale {cur} % -> {need} %")
+    return x.replace(ps.group(0), tag, 1)
+
+
+def narrative_rows(x):
+    """The set-up blurb (C9:L10) gets room for its four lines."""
+    for r in (9, 10):
+        x = re.sub(rf'(<row r="{r}"[^>]*?\bht=")[\d.]+(")', r"\g<1>28\2", x, count=1)
+    return x
+
+
+def balance_notes(x):
+    """Building Balance notes: one box across B:M (a band "Notes" and three lines), B102:B104 stay the note cells."""
+    head, line = EXTRA["notes_head"], EXTRA["notes_line"]
+    cols = "BCDEFGHIJKLM"
+
+    def row_cells(r, style, first=None):
+        cells = "".join(
+            f'<c r="{c}{r}" s="{style}" t="inlineStr"><is><t>{first}</t></is></c>' if (c == "B" and first) else f'<c r="{c}{r}" s="{style}"/>'
+            for c in cols)
+        return cells
+
+    def set_row(xml, r, cells, ht):
+        m = re.search(rf'<row r="{r}"[^>]*?(?:/>|>.*?</row>)', xml, re.S)
+        tag = re.search(rf'<row r="{r}"[^>]*?(/?)>', m.group(0)).group(0).rstrip("/>").rstrip("/") + ">"
+        tag = re.sub(r'\bht="[\d.]+"', f'ht="{ht}"', tag)
+        tag = re.sub(r'\sspans="[^"]*"', "", tag)
+        return xml.replace(m.group(0), f"{tag}{cells}</row>", 1)
+
+    # row 100: a plain spacer (the old bordered B100 goes)
+    x = re.sub(r'(<row r="100"[^>]*>)<c r="B100"[^>]*?(?:/>|>.*?</c>)', r"\1", x, count=1, flags=re.S)
+    x = set_row(x, 101, row_cells(101, head, "Notes"), 16)
+    for r in (102, 103, 104):
+        # keep a note the B cell may hold (restyling a filled-in workbook)
+        b = re.search(rf'<c r="B{r}"[^>]*?(?:/>|>(.*?)</c>)', x, re.S)
+        cells = row_cells(r, line)
+        if b and b.group(1):
+            t = re.search(r'\bt="(\w+)"', b.group(0))
+            tt = ' t="%s"' % t.group(1) if t else ""
+            cells = cells.replace(f'<c r="B{r}" s="{line}"/>', f'<c r="B{r}" s="{line}"{tt}>{b.group(1)}</c>', 1)
+        x = set_row(x, r, cells, 18)
+    merges = [f"B{r}:M{r}" for r in (101, 102, 103, 104)]
+    mc = re.search(r'<mergeCells count="(\d+)">', x)
+    x = x.replace(mc.group(0), f'<mergeCells count="{int(mc.group(1)) + len(merges)}">', 1)
+    x = x.replace("</mergeCells>", "".join(f'<mergeCell ref="{m}"/>' for m in merges) + "</mergeCells>", 1)
+    return x
+
+
+def recolour_logo(png_bytes):
+    """Cover logo a²b: purple letters -> steel blue, blue superscript -> e2s green (anti-aliasing kept)."""
+    import io
+    from PIL import Image
+
+    im = Image.open(io.BytesIO(png_bytes)).convert("RGBA")
+    px = im.load()
+    blue = tuple(int(BAND_STRONG[i:i + 2], 16) for i in (2, 4, 6))
+    green = tuple(int(OUTLINE[i:i + 2], 16) for i in (2, 4, 6))
+    for y in range(im.height):
+        for x in range(im.width):
+            r, g, b, a = px[x, y]
+            if a == 0 or min(r, g, b) > 245:
+                continue
+            if g > r:  # blue source (0, 112, 192): coverage from the red channel
+                k, tgt = (255 - r) / 255, green
+            else:  # purple source (112, 48, 160): coverage from the green channel
+                k, tgt = (255 - g) / 207, blue
+            k = max(0.0, min(1.0, k))
+            px[x, y] = tuple(int(round(255 * (1 - k) + c * k)) for c in tgt) + (a,)
+    out = io.BytesIO()
+    im.save(out, "PNG", optimize=True)
+    return out.getvalue()
+
+
+# NEBB certificates (landscape scans): upright, two a page, 52 rows a page (26 a certificate) at a fixed scale
+CERT_SHEETS = ("NEBB Cert ", "NEBB Frm Cert")
+CERT_PAGE_ROWS, CERT_SCALE, CERT_HEIGHT_PT = 52, 94, 330
+EMU_PT = 12700
+
+
+def _col_widths_pt(x, ncols):
+    """Column widths in points (Excel's pixel rounding at the default font: width w -> trunc(w*7 + 5) px)."""
+    dflt = float(re.search(r'<sheetFormatPr[^>]*defaultColWidth="([\d.]+)"', x).group(1))
+    w = [dflt] * ncols
+    for a, b, cw in re.findall(r'<col\b(?=[^>]*\bmin="(\d+)")(?=[^>]*\bmax="(\d+)")(?=[^>]*\bwidth="([\d.]+)")[^>]*/>', x):
+        for c in range(int(a), min(int(b), ncols) + 1):
+            w[c - 1] = float(cw)
+    return [int(v * 7 + 5) * 0.75 for v in w]
+
+
+def cert_layout(sheet_xml, drawing_xml, sizes):
+    """The certificates stood upright (the template had them turned 90 degrees, one a page), two a page, centred
+    across A:N, each 330 pt tall at its own aspect. Returns (sheet xml, drawing xml, rows printed)."""
+    widths = _col_widths_pt(sheet_xml, 14)
+    row_h = float(re.search(r'<sheetFormatPr[^>]*defaultRowHeight="([\d.]+)"', sheet_xml).group(1))
+    slot = CERT_PAGE_ROWS // 2
+    anchors = list(re.finditer(r"<xdr:(oneCellAnchor|twoCellAnchor|absoluteAnchor)\b[\s\S]*?</xdr:\1>", drawing_xml))
+    out = []
+    for i, m in enumerate(anchors):
+        a = m.group(0)
+        pic = re.search(r"<xdr:pic>[\s\S]*?</xdr:pic>", a).group(0)
+        rid = re.search(r'r:embed="(\w+)"', pic).group(1)
+        pw, ph = sizes[rid]
+        h = CERT_HEIGHT_PT
+        w = h * pw / ph
+        left = (sum(widths) - w) / 2
+        col = 0
+        while col < 13 and left >= widths[col]:
+            left -= widths[col]
+            col += 1
+        row = (i // 2) * CERT_PAGE_ROWS + (i % 2) * slot
+        top = (slot * row_h - h) / 2
+        cx, cy = int(w * EMU_PT), int(h * EMU_PT)
+        pic = re.sub(r'<a:xfrm\b[^>]*>[\s\S]*?</a:xfrm>',
+                     f'<a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>', pic, count=1)
+        out.append(f"<xdr:oneCellAnchor><xdr:from><xdr:col>{col}</xdr:col><xdr:colOff>{int(left * EMU_PT)}</xdr:colOff>"
+                   f"<xdr:row>{row}</xdr:row><xdr:rowOff>{int(top * EMU_PT)}</xdr:rowOff></xdr:from>"
+                   f'<xdr:ext cx="{cx}" cy="{cy}"/>{pic}<xdr:clientData/></xdr:oneCellAnchor>')
+    head = drawing_xml[: anchors[0].start()]
+    tail = drawing_xml[anchors[-1].end():]
+    pages = (len(anchors) + 1) // 2
+    ps = re.search(r"<pageSetup\b[^>]*/>", sheet_xml).group(0)
+    tag = re.sub(r'\s(scale|horizontalDpi|verticalDpi)="\d+"', "", ps).replace(
+        "<pageSetup", f'<pageSetup scale="{CERT_SCALE}"', 1)
+    sheet_xml = sheet_xml.replace(ps, tag, 1)
+    sheet_xml = re.sub(r"<rowBreaks\b.*?</rowBreaks>|<rowBreaks\b[^>]*/>", "", sheet_xml, flags=re.S)
+    sheet_xml = add_breaks(sheet_xml, [CERT_PAGE_ROWS * p for p in range(1, pages)])
+    return sheet_xml, head + "".join(out) + tail, pages * CERT_PAGE_ROWS
+
+
+def _image_sizes(zin, drawing_part):
+    """rId -> (width, height) in pixels of a drawing's pictures."""
+    import io
+    from PIL import Image
+
+    rels = zin.read(drawing_part.replace("drawings/", "drawings/_rels/") + ".rels").decode("utf-8")
+    sizes = {}
+    for rel in re.findall(r"<Relationship\b[^>]*/>", rels):
+        rid = re.search(r'Id="(\w+)"', rel).group(1)
+        target = re.search(r'Target="([^"]+)"', rel).group(1)
+        if "/image" not in rel:
+            continue
+        sizes[rid] = Image.open(io.BytesIO(zin.read(os.path.normpath("xl/drawings/" + target)))).size
+    return sizes
+
+
 def rewrite(src, out, log):
-    n_headers = 0
-    with zipfile.ZipFile(src) as zin, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zout:
-        for item in zin.infolist():
-            data = zin.read(item.filename)
-            if item.filename == "xl/styles.xml":
-                data = restyle(data.decode("utf-8"), log).encode("utf-8")
-            elif re.match(r"xl/worksheets/sheet\d+\.xml$", item.filename):
-                x = data.decode("utf-8")
-                y = header_colour(x)
-                if y != x:
-                    n_headers += 1
+    sys.path.insert(0, os.path.dirname(__file__))
+    from xlsm_parts import _sheet_files
+
+    with zipfile.ZipFile(src) as zin:
+        styles = restyle(zin.read("xl/styles.xml").decode("utf-8"), log)
+        titles = {part: title for title, (part, _) in _sheet_files(zin).items()}
+        wb = zin.read("xl/workbook.xml").decode("utf-8")
+        order = [part for part in titles]  # workbook order (localSheetId)
+        printable = {int(i) for i in re.findall(r'<definedName name="_xlnm.Print_Area" localSheetId="(\d+)"', wb)}
+        n_headers = n_views = 0
+        log.append("  layout:")
+        # certificates: sheet + drawing rewritten together, print areas fitted to the pages
+        certs = {}
+        for part, name in titles.items():
+            if name not in CERT_SHEETS:
+                continue
+            rels = zin.read(part.replace("worksheets/", "worksheets/_rels/") + ".rels").decode("utf-8")
+            dpart = os.path.normpath("xl/worksheets/" + re.search(r'Target="([^"]*drawing\d+\.xml)"', rels).group(1))
+            sx, dx, rows = cert_layout(zin.read(part).decode("utf-8"), zin.read(dpart).decode("utf-8"),
+                                       _image_sizes(zin, dpart))
+            certs[part], certs[dpart] = sx, dx
+            sid = order.index(part)
+            wb = re.sub(rf'(<definedName name="_xlnm.Print_Area" localSheetId="{sid}">[^<!]*!\$A\$1:\$)[A-Z]+\$\d+',
+                        rf"\g<1>N${rows}", wb, count=1)
+            n = dx.count("<xdr:oneCellAnchor>")
+            log.append(f"    {name.strip()}: {n} certificate(s) upright, two a page, {rows // CERT_PAGE_ROWS} page(s), "
+                       f"print area A1:N{rows}, scale {CERT_SCALE} %")
+        with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zout:
+            for item in zin.infolist():
+                data = zin.read(item.filename)
+                if item.filename == "xl/styles.xml":
+                    data = styles.encode("utf-8")
+                elif item.filename == "xl/workbook.xml":
+                    data = wb.encode("utf-8")
+                elif item.filename in certs and item.filename not in titles:
+                    data = certs[item.filename].encode("utf-8")
+                elif item.filename == "xl/media/image1.png":
+                    data = recolour_logo(data)
+                    log.append("    Cover Page: a2b logo -> steel blue, green 2")
+                elif item.filename in titles:
+                    name = titles[item.filename]
+                    x = certs.get(item.filename) or data.decode("utf-8")
+                    y = header_colour(x)
+                    n_headers += y != x
+                    if order.index(item.filename) in printable:
+                        y = page_break_view(y)
+                        n_views += 1
+                    if name == "Hoods":
+                        dim = int(re.search(r'<dimension ref="[A-Z]+\d+:[A-Z]+(\d+)"', y).group(1))
+                        ids = list(range(HOOD_FIRST, dim, HOOD_PAGE))
+                        y = add_breaks(y, ids)
+                        log.append(f"    Hoods: {len(ids)} page breaks (two hoods a page)")
+                    y = fit_scale(y, name, log)
+                    if name == "Narrative":
+                        y = narrative_rows(y)
+                        log.append("    Narrative: set-up blurb rows 9-10 -> 28 pt (the whole text shows)")
+                    if name == "Building Balance":
+                        y = balance_notes(y)
+                        log.append("    Building Balance: notes as one box across B:M (band + 3 lines, B102:B104 kept)")
                     data = y.encode("utf-8")
-            zout.writestr(item, data)
-    log.append(f"  print headers: page titles near-black on {n_headers} sheets")
+                zout.writestr(item, data)
+    log.append(f"  print headers: page titles near-black on {n_headers} sheets; Page Break Preview on {n_views} sheets")
+
+
+STAMP_PNG = os.path.join(ROOT, "tools", "assets", "nebb-stamp.png")
+
+
+def place_stamp(path, log):
+    """The certified professional's NEBB stamp in the Certification stamp box (C51:G56), placed by the app's own
+    exporter code (tools/place_template_stamp.mts) as the picture "a2b NEBB Stamp". An export replaces it with the
+    certification profile's stamp when the profile has one."""
+    import subprocess
+
+    if not os.path.exists(STAMP_PNG):
+        log.append("  stamp: tools/assets/nebb-stamp.png missing, no stamp placed")
+        return
+    subprocess.run(
+        ["npx", "tsx", os.path.join(ROOT, "tools", "place_template_stamp.mts"), path, STAMP_PNG],
+        check=True, cwd=ROOT,
+    )
+    log.append("  stamp: NEBB stamp (tools/assets/nebb-stamp.png) in the Certification stamp box, picture 'a2b NEBB Stamp'")
 
 
 def newest_rev05():
@@ -205,6 +495,7 @@ if __name__ == "__main__":
         log.append(f"Source: {os.path.basename(src)}")
         log.append("Restyle (xl/styles.xml only):")
         rewrite(src, OUT, log)
+        place_stamp(OUT, log)
         with open(os.path.join(ROOT, "docs", "build-log-rev06.txt"), "w") as fh:
             fh.write("\n".join(log) + "\n")
     print("\n".join(log))

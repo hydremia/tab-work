@@ -814,6 +814,18 @@ Formulas, macros, formatting and print setup are left as they are.
 - Let Excel recalculate on open. If it asks to save changes when you close, that's normal.
 - Excel on a phone can show the workbook but won't run macros.
 
+**Pages and page breaks.** Every sheet opens in **Page Break Preview**. Each unit starts on its own page, and the
+print scale leaves a little room on every page, so the breaks land in the same place on every laptop and printer
+(Excel adds its own break when a page is a hair too tall for a printer, which used to shift everything after it by a
+row). Don't drag the blue break lines; if a page looks off, tell us which sheet.
+
+**The NEBB stamp** is part of the template (the Certification sheet's stamp box). If a stamp image is set on the
+**Certification profile**, exports use that one instead (when the stamp is renewed each year, update it there).
+
+**NEBB certificates** (the *NEBB Cert* and *NEBB Frm Cert* sheets) print upright, two to a page: the three individual
+certificates on two pages and the firm certificate on its own page. When a certificate is renewed, replace its picture
+in Excel (right-click → *Change Picture* → *From a File*) so it keeps its place and size.
+
 **Linked cells look blank?** The workbook is saved without calculated values, so Excel works them all out when it
 opens the file. Everything the report pages take from **{Equipment Data Entry}** (designations, design data,
 Building Balance) is a formula. Until Excel calculates, those cells are empty. Excel doesn't calculate in:

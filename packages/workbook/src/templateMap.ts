@@ -1,5 +1,5 @@
 /**
- * Template map for the a2b TAB workbook, revision 06 (`06 - a2b_Blank_TAB_Workbook 9-30-26.xlsm`: revision 05's
+ * Template map for the a2b TAB workbook, revision 06 (`06 - a2b_Blank_TAB_Workbook 10-1-26.xlsm`: revision 05's
  * layout in the a2b / e2s colours, so revision 05 workbooks read and write with it too).
  *
  * Everything the exporter and importer know about the template lives here as DATA:
