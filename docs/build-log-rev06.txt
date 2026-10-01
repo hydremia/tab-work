@@ -2,5 +2,18 @@ Source: 05 - a2b_Blank_TAB_Workbook 9-23-26.xlsm
 Restyle (xl/styles.xml only):
   fills: 1 header band(s) -> FFE3ECF7, 1 grey -> FFEEF2F7, 1 input yellow -> white
   headers: 53 centred header formats -> steel-blue band / white text, 8 label formats -> pale blue / deep-blue text, 12 title formats -> deep blue (15 new fonts, 1 new fill)
-  borders: 81 thin edges -> FFBFCCDB, 17 heavy edges -> FF6AB23E
-  print headers: page titles near-black on 11 sheets
+  borders: 221 thin edges -> FFBFCCDB, 17 heavy edges -> FF6AB23E
+  layout:
+    Narrative: set-up blurb rows 9-10 -> 28 pt (the whole text shows)
+    Building Balance: notes as one box across B:M (band + 3 lines, B102:B104 kept)
+    RTUs: tallest page 734 pt, print scale 93 % -> 89 %
+    MAUs: tallest page 734 pt, print scale 93 % -> 89 %
+    ERVs: tallest page 734 pt, print scale 93 % -> 89 %
+    Fans: tallest page 734 pt, print scale 93 % -> 89 %
+    VAVs: tallest page 734 pt, print scale 93 % -> 89 %
+    Hoods: 9 page breaks (two hoods a page)
+    Hoods: tallest page 694 pt, print scale 99 % -> 94 %
+    Traverses: tallest page 696 pt, print scale 97 % -> 94 %
+    Cover Page: a2b logo -> steel blue, green 2
+  print headers: page titles near-black on 11 sheets; Page Break Preview on 21 sheets
+  stamp: NEBB stamp (tools/assets/nebb-stamp.png) in the Certification stamp box, picture 'a2b NEBB Stamp'

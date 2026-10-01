@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { deflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { CERT_PICTURE_NAMES, fitInBox, type CertImage } from './certImages.js';
+import { CERT_PICTURE_NAMES, fitInBox, TEMPLATE_STAMP_NAME, type CertImage } from './certImages.js';
 import { drawingPictures } from './coverPhoto.js';
 import { exportWorkbookWithReport } from './exportWorkbook.js';
 import { importWorkbook } from './importWorkbook.js';
@@ -75,11 +75,12 @@ async function certParts(bytes: Uint8Array) {
 }
 
 describe('stamp and signature on the Certification sheet', () => {
-  it('adds a drawing with both pictures inside their boxes and clears the placeholder note', async () => {
+  it('places both pictures inside their boxes (the template stamp is replaced by the profile stamp)', async () => {
     const { bytes, report } = await exportWorkbookWithReport(templateBytes(), project, {
       certImages: { stamp: png(400, 400), signature: png(600, 150, [0, 0, 120, 255]) },
     });
-    expect(report.certImages).toMatchObject({ placed: ['stamp', 'signature'], removed: 0, createdDrawing: true });
+    // revision 06 has its own stamp ("a2b NEBB Stamp") in the box: the profile's stamp replaces it
+    expect(report.certImages).toMatchObject({ placed: ['stamp', 'signature'], removed: 1, createdDrawing: false });
     const c = await certParts(bytes);
     expect(c.pictures.map((p) => p.name)).toEqual([CERT_PICTURE_NAMES.stamp, CERT_PICTURE_NAMES.signature]);
     for (const m of c.media) expect(c.zip.file(m)).toBeTruthy();
@@ -120,12 +121,12 @@ describe('stamp and signature on the Certification sheet', () => {
     expect((after.drawingXml!.match(/<xdr:twoCellAnchor/g) ?? []).length).toBe(1);
   });
 
-  it('without images the sheet is left alone; with certImages {} an earlier picture is removed', async () => {
+  it('without images the template stamp stays; with certImages {} an earlier picture is removed', async () => {
     const plain = await exportWorkbookWithReport(templateBytes(), project, {});
     expect(plain.report.certImages).toBeUndefined();
     const none = await exportWorkbookWithReport(templateBytes(), project, { certImages: {} });
-    expect(none.report.certImages).toMatchObject({ placed: [], drawingPart: null });
-    expect((await certParts(none.bytes)).drawingXml).toBeNull();
+    expect(none.report.certImages).toMatchObject({ placed: [], removed: 0 });
+    expect((await certParts(none.bytes)).pictures.map((p) => p.name)).toEqual([TEMPLATE_STAMP_NAME]);
     const stamped = await exportWorkbookWithReport(templateBytes(), project, { certImages: { stamp: png(10, 10) } });
     const cleared = await exportWorkbookWithReport(stamped.bytes, project, { certImages: {} });
     expect(cleared.report.certImages).toMatchObject({ removed: 1, placed: [] });

@@ -48,7 +48,7 @@ as well: `VITE_SUPABASE_URL=https://<ref>.supabase.co npm run hosting-config -w 
 
 ### How the workbook template gets into the build
 
-The template lives once in git, at the repository root (`06 - a2b_Blank_TAB_Workbook 9-30-26.xlsm`). Before every
+The template lives once in git, at the repository root (`06 - a2b_Blank_TAB_Workbook 10-1-26.xlsm`). Before every
 build, `app/scripts/copy-template.mjs` copies it to `app/public/templates/tab-template-rev06.xlsm` (git-ignored), so
 Vite puts it in `app/dist/templates/` and the service worker precaches it: exports work offline from the first visit.
 The host therefore has to build from the **repository root** (the npm workspace), not from `app/`. When the template

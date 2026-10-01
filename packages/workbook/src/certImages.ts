@@ -7,6 +7,7 @@
  *  - "TAB App Signature": fitted into the area above the signature line right of the "Signature:" label, sitting on
  *    the line (bottom aligned), aspect kept.
  * Pictures of these names from an earlier export are replaced (never duplicated) or removed when the image is gone.
+ * The template's own stamp ("a2b NEBB Stamp", revision 06) stays unless a stamp image is given.
  * The placeholder note is cleared when an image is placed. The images come in encoded (PNG or JPEG) with their pixel
  * size; nothing is decoded here.
  */
@@ -38,6 +39,11 @@ export interface CertImagesDef {
 }
 
 export const CERT_PICTURE_NAMES = { stamp: 'TAB App Stamp', signature: 'TAB App Signature' } as const;
+/**
+ * The stamp built into the template (revision 06, tools/place_template_stamp.mts). Kept on export, unless the
+ * certification profile has a stamp: then it is replaced by that one.
+ */
+export const TEMPLATE_STAMP_NAME = 'a2b NEBB Stamp';
 
 export interface CertImagesReport {
   placed: ('stamp' | 'signature')[];
@@ -201,7 +207,7 @@ export async function placeCertImages(
   const ours = new Set<string>(Object.values(CERT_PICTURE_NAMES));
   const oldMedia: string[] = [];
   for (const pic of drawingPictures(drawingXml)) {
-    if (!ours.has(pic.name)) continue;
+    if (!ours.has(pic.name) && !(pic.name === TEMPLATE_STAMP_NAME && want.includes('stamp'))) continue;
     drawingXml = drawingXml.replace(pic.xml, '');
     report.removed++;
     const rel = parseRels(drawingRels).find((r) => r.id === pic.embed);

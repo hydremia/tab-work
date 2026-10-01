@@ -1,7 +1,7 @@
 # TAB App — Plan & Roadmap
 
 **Goal:** One data-entry interface for live TAB projects that works well on a phone and moves data cleanly
-into and out of the a2b TAB Workbook, **revision 06** (`06 - a2b_Blank_TAB_Workbook 9-30-26.xlsm`: revision 05's
+into and out of the a2b TAB Workbook, **revision 06** (`06 - a2b_Blank_TAB_Workbook 10-1-26.xlsm`: revision 05's
 layout and N/A-safe formulas in a2b's own look).
 
 **Status:** Phase 0 (Discovery). Progress is tracked in [`TRACKER.md`](./TRACKER.md). What we learned about
