@@ -298,6 +298,15 @@ def balance_notes(x):
     return x
 
 
+def cover_blanks(x):
+    """Cover contractor / engineer / architect show blank, not 0, when Project Information leaves them empty (the
+    same guard the name / address / date lines have)."""
+    for cell in ("$E$8", "$E$5", "$E$4"):
+        ref = "'{Project Information}'!" + cell
+        x = x.replace(f"<f>{ref}</f>", f'<f>IF({ref}="","",{ref})</f>', 1)
+    return x
+
+
 def recolour_logo(png_bytes):
     """Cover logo a²b: purple letters -> steel blue, blue superscript -> e2s green (anti-aliasing kept)."""
     import io
@@ -449,6 +458,9 @@ def rewrite(src, out, log):
                         y = add_breaks(y, ids)
                         log.append(f"    Hoods: {len(ids)} page breaks (two hoods a page)")
                     y = fit_scale(y, name, log)
+                    if name == "Cover Page":
+                        y = cover_blanks(y)
+                        log.append("    Cover Page: contractor / engineer / architect blank (not 0) when not entered")
                     if name == "Narrative":
                         y = narrative_rows(y)
                         log.append("    Narrative: set-up blurb rows 9-10 -> 28 pt (the whole text shows)")
