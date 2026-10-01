@@ -74,7 +74,15 @@ export async function reviewFlow(
       const profile = mkdtempSync(join(tmpdir(), 'lo-profile-'));
       spawnSync(
         'soffice',
-        [`-env:UserInstallation=file://${profile}`, '--headless', '--convert-to', 'pdf', '--outdir', pdfDir, workbookFile],
+        [
+          `-env:UserInstallation=file://${profile}`,
+          '--headless',
+          '--convert-to',
+          'pdf',
+          '--outdir',
+          pdfDir,
+          workbookFile,
+        ],
         { encoding: 'utf8', timeout: 600_000 },
       );
       const reportPdf = join(pdfDir, basename(workbookFile).replace(/\.xlsm$/i, '.pdf'));
@@ -90,7 +98,9 @@ export async function reviewFlow(
       const note = await page.getByTestId('final-note').innerText();
       check(
         'final report: the workbook PDF with the figures after their units, every page numbered, ToC kept in step',
-        finalPages > reportPages && /[1-9]\d* figure groups? placed/.test(note) && /TAB Report/.test(dl2.suggestedFilename()),
+        finalPages > reportPages &&
+          /[1-9]\d* figure groups? placed/.test(note) &&
+          /TAB Report/.test(dl2.suggestedFilename()),
         `${dl2.suggestedFilename()} · ${reportPages} -> ${finalPages} pages · ${note}`,
       );
       await page.getByTestId('report-final').scrollIntoViewIfNeeded();

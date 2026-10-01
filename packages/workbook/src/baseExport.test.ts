@@ -146,10 +146,10 @@ describe('revision marker (custom document properties)', () => {
     const marker = { projectId: 'p-1', revisionId: 'r-1', label: 'Prelim', exportedAt: '2026-09-24T10:00:00Z' };
     const { bytes, report } = await exportWorkbookWithReport(templateBytes(), full(), { marker });
     expect(report.addedParts).toEqual(['docProps/custom.xml']);
-    expect(report.changedParts.filter((p) => !p.startsWith('xl/worksheets/')).sort()).toEqual([
-      '[Content_Types].xml',
-      '_rels/.rels',
-    ]);
+    // (xl/workbook.xml: the print areas fitted to the units, printAreas.ts; with or without the marker)
+    expect(
+      report.changedParts.filter((p) => !p.startsWith('xl/worksheets/') && p !== 'xl/workbook.xml').sort(),
+    ).toEqual(['[Content_Types].xml', '_rels/.rels']);
     const back = await importWorkbookWithReport(bytes);
     expect(back.marker).toEqual(marker);
     const vba = async (b: Uint8Array) => (await JSZip.loadAsync(b)).file('xl/vbaProject.bin')!.async('uint8array');

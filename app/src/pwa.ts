@@ -1,6 +1,6 @@
 import { registerSW } from 'virtual:pwa-register';
 import { prefetchOcr } from './ocrPrefetch';
-import { captureInstallPrompt, markInstalled, setUpdateAvailable } from './pwaState';
+import { captureInstallPrompt, markInstalled, setUpdateAvailable, setUpdateChecker } from './pwaState';
 
 /** How often a long-running app (left open all day on a laptop) checks for a new version. */
 const UPDATE_CHECK_MS = 60 * 60 * 1000;
@@ -22,6 +22,21 @@ export function registerPwa(): void {
       onNeedRefresh: () => setUpdateAvailable(() => updateSW(true)),
       onRegisteredSW: (_url, registration) => {
         if (!registration) return;
+        setUpdateChecker(async () => {
+          await registration.update();
+          const w = registration.installing;
+          if (w)
+            await new Promise<void>((done) => {
+              const t = setTimeout(done, 30_000);
+              w.addEventListener('statechange', () => {
+                if (w.state === 'installed' || w.state === 'redundant') {
+                  clearTimeout(t);
+                  done();
+                }
+              });
+            });
+          return Boolean(registration.waiting);
+        });
         setInterval(() => {
           if (navigator.onLine && !registration.installing) void registration.update().catch(() => undefined);
         }, UPDATE_CHECK_MS);

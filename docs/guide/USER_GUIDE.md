@@ -102,8 +102,12 @@ bar at the bottom says **Update available. Reload to use the new version; your e
 - **Reload** switches to the new version right away. Everything you entered stays.
 - **Later** hides the bar. The new version starts the next time you open the app after closing it fully.
 
-It never reloads by itself, so a half-typed reading isn't lost. If something looks out of date, close the app fully
-(swipe it away) and reopen it.
+It never reloads by itself, so a half-typed reading isn't lost. The app looks for a new version when it opens and
+every hour while it's open.
+
+**Check for updates** (bottom of the project list) looks right away: it says *This is the latest version*, or brings
+up the *Update available* bar. Above it, **version** shows the build date and code (for example *2026-10-01 ·
+85591b8*); two devices showing the same version run the same app.
 
 ---
 
@@ -1228,8 +1232,9 @@ The device may clear app data when it runs low on space. Install the app to the 
 and export the photos regularly.
 
 **The app looks old / a fix isn't showing up.**
-Tap **Reload** on the *Update available* bar if it's showing. Otherwise close the app fully (swipe it away) and open it
-again.
+Tap **Check for updates** at the bottom of the project list, then **Reload** on the *Update available* bar. If it says
+it's the latest version, compare the **version** line with another device; close the app fully (swipe it away) and
+open it again if they differ.
 
 **I can't edit anything, and there's a blue "Issued as …" banner.**
 The report was issued, so the project is locked. Tap **Unlock** in the banner when you start follow-up work.
