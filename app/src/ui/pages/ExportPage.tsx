@@ -75,9 +75,14 @@ export function ExportPage() {
     setFinalNote(null);
     try {
       const gen = await import('../../reports/generate');
-      const r = await gen.generateFinalReport(project.id, reportLabel.trim(), new Uint8Array(await file.arrayBuffer()), {
-        outletCharts,
-      });
+      const r = await gen.generateFinalReport(
+        project.id,
+        reportLabel.trim(),
+        new Uint8Array(await file.arrayBuffer()),
+        {
+          outletCharts,
+        },
+      );
       gen.downloadFile(r.bytes, r.fileName, 'application/pdf');
       setReportResult({ ...r, mime: 'application/pdf' });
       setFinalNote(

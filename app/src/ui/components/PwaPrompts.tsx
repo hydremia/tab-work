@@ -1,6 +1,9 @@
 import { useState } from 'react';
+import { APP_BUILD } from '../../buildInfo';
 import {
   applyUpdate,
+  checkForUpdate,
+  type UpdateCheck,
   dismissInstallHint,
   dismissUpdate,
   installHintDismissed,
@@ -93,6 +96,51 @@ export function UpdateToast() {
           {busy ? 'Reloading…' : 'Reload'}
         </button>
       </span>
+    </div>
+  );
+}
+
+const CHECK_TEXT: Record<UpdateCheck, string> = {
+  available: 'A new version is ready: tap Reload in the message at the bottom.',
+  current: 'This is the latest version.',
+  offline: 'Offline: connect to check for updates.',
+  unsupported: 'Updates are checked when the app is opened from its web address.',
+};
+
+/** The app's version and "Check for updates" (project list). */
+export function AppVersion() {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<UpdateCheck | null>(null);
+  const check = async () => {
+    setBusy(true);
+    setResult(null);
+    try {
+      setResult(await checkForUpdate());
+    } catch {
+      setResult('offline');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="small muted stack" style={{ alignItems: 'center', gap: 6, marginTop: 8 }} data-testid="app-version">
+      <span>
+        a2b TAB · version <span data-testid="app-build">{APP_BUILD}</span>
+      </span>
+      <button
+        type="button"
+        className="btn btn-ghost"
+        disabled={busy}
+        onClick={() => void check()}
+        data-testid="check-update"
+      >
+        <IconRefresh size={16} /> {busy ? 'Checking…' : 'Check for updates'}
+      </button>
+      {result && (
+        <span role="status" data-testid="check-update-result">
+          {CHECK_TEXT[result]}
+        </span>
+      )}
     </div>
   );
 }

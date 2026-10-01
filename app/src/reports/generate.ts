@@ -162,7 +162,12 @@ export async function generateGraphics(projectId: string, label: string): Promis
     reportDate: g.reportDate,
     address: g.address,
   });
-  return { bytes, fileName: `${g.safe} - Graphics Appendix ${label ? `${label} ` : ''}${g.date}.pdf`, pages, photos: 0 };
+  return {
+    bytes,
+    fileName: `${g.safe} - Graphics Appendix ${label ? `${label} ` : ''}${g.date}.pdf`,
+    pages,
+    photos: 0,
+  };
 }
 
 export interface FinalReportResult extends ReportResult {
