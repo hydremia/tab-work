@@ -1,6 +1,6 @@
 """Revision 06 = revision 05 with a2b's own report look in the e2s website's colours (styles only).
 
-Styles, print headers and page layout change (never a cell's address, formula or value): every cell, formula, name, validation, VBA module, drawing and print setting is copied
+Styles, print headers and page layout change (never a cell's address, formula or value): every cell, formula, name, validation and VBA module is copied
 byte-for-byte from revision 05, so the app's template map (cell positions) is the same and a rev 05 workbook's data
 reads the same. The look is changed where Excel keeps it, in the shared cell formats:
 
@@ -323,6 +323,78 @@ def recolour_logo(png_bytes):
     return out.getvalue()
 
 
+# NEBB certificates (landscape scans): upright, two a page, 52 rows a page (26 a certificate) at a fixed scale
+CERT_SHEETS = ("NEBB Cert ", "NEBB Frm Cert")
+CERT_PAGE_ROWS, CERT_SCALE, CERT_HEIGHT_PT = 52, 94, 330
+EMU_PT = 12700
+
+
+def _col_widths_pt(x, ncols):
+    """Column widths in points (Excel's pixel rounding at the default font: width w -> trunc(w*7 + 5) px)."""
+    dflt = float(re.search(r'<sheetFormatPr[^>]*defaultColWidth="([\d.]+)"', x).group(1))
+    w = [dflt] * ncols
+    for a, b, cw in re.findall(r'<col\b(?=[^>]*\bmin="(\d+)")(?=[^>]*\bmax="(\d+)")(?=[^>]*\bwidth="([\d.]+)")[^>]*/>', x):
+        for c in range(int(a), min(int(b), ncols) + 1):
+            w[c - 1] = float(cw)
+    return [int(v * 7 + 5) * 0.75 for v in w]
+
+
+def cert_layout(sheet_xml, drawing_xml, sizes):
+    """The certificates stood upright (the template had them turned 90 degrees, one a page), two a page, centred
+    across A:N, each 330 pt tall at its own aspect. Returns (sheet xml, drawing xml, rows printed)."""
+    widths = _col_widths_pt(sheet_xml, 14)
+    row_h = float(re.search(r'<sheetFormatPr[^>]*defaultRowHeight="([\d.]+)"', sheet_xml).group(1))
+    slot = CERT_PAGE_ROWS // 2
+    anchors = list(re.finditer(r"<xdr:(oneCellAnchor|twoCellAnchor|absoluteAnchor)\b[\s\S]*?</xdr:\1>", drawing_xml))
+    out = []
+    for i, m in enumerate(anchors):
+        a = m.group(0)
+        pic = re.search(r"<xdr:pic>[\s\S]*?</xdr:pic>", a).group(0)
+        rid = re.search(r'r:embed="(\w+)"', pic).group(1)
+        pw, ph = sizes[rid]
+        h = CERT_HEIGHT_PT
+        w = h * pw / ph
+        left = (sum(widths) - w) / 2
+        col = 0
+        while col < 13 and left >= widths[col]:
+            left -= widths[col]
+            col += 1
+        row = (i // 2) * CERT_PAGE_ROWS + (i % 2) * slot
+        top = (slot * row_h - h) / 2
+        cx, cy = int(w * EMU_PT), int(h * EMU_PT)
+        pic = re.sub(r'<a:xfrm\b[^>]*>[\s\S]*?</a:xfrm>',
+                     f'<a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>', pic, count=1)
+        out.append(f"<xdr:oneCellAnchor><xdr:from><xdr:col>{col}</xdr:col><xdr:colOff>{int(left * EMU_PT)}</xdr:colOff>"
+                   f"<xdr:row>{row}</xdr:row><xdr:rowOff>{int(top * EMU_PT)}</xdr:rowOff></xdr:from>"
+                   f'<xdr:ext cx="{cx}" cy="{cy}"/>{pic}<xdr:clientData/></xdr:oneCellAnchor>')
+    head = drawing_xml[: anchors[0].start()]
+    tail = drawing_xml[anchors[-1].end():]
+    pages = (len(anchors) + 1) // 2
+    ps = re.search(r"<pageSetup\b[^>]*/>", sheet_xml).group(0)
+    tag = re.sub(r'\s(scale|horizontalDpi|verticalDpi)="\d+"', "", ps).replace(
+        "<pageSetup", f'<pageSetup scale="{CERT_SCALE}"', 1)
+    sheet_xml = sheet_xml.replace(ps, tag, 1)
+    sheet_xml = re.sub(r"<rowBreaks\b.*?</rowBreaks>|<rowBreaks\b[^>]*/>", "", sheet_xml, flags=re.S)
+    sheet_xml = add_breaks(sheet_xml, [CERT_PAGE_ROWS * p for p in range(1, pages)])
+    return sheet_xml, head + "".join(out) + tail, pages * CERT_PAGE_ROWS
+
+
+def _image_sizes(zin, drawing_part):
+    """rId -> (width, height) in pixels of a drawing's pictures."""
+    import io
+    from PIL import Image
+
+    rels = zin.read(drawing_part.replace("drawings/", "drawings/_rels/") + ".rels").decode("utf-8")
+    sizes = {}
+    for rel in re.findall(r"<Relationship\b[^>]*/>", rels):
+        rid = re.search(r'Id="(\w+)"', rel).group(1)
+        target = re.search(r'Target="([^"]+)"', rel).group(1)
+        if "/image" not in rel:
+            continue
+        sizes[rid] = Image.open(io.BytesIO(zin.read(os.path.normpath("xl/drawings/" + target)))).size
+    return sizes
+
+
 def rewrite(src, out, log):
     sys.path.insert(0, os.path.dirname(__file__))
     from xlsm_parts import _sheet_files
@@ -335,17 +407,37 @@ def rewrite(src, out, log):
         printable = {int(i) for i in re.findall(r'<definedName name="_xlnm.Print_Area" localSheetId="(\d+)"', wb)}
         n_headers = n_views = 0
         log.append("  layout:")
+        # certificates: sheet + drawing rewritten together, print areas fitted to the pages
+        certs = {}
+        for part, name in titles.items():
+            if name not in CERT_SHEETS:
+                continue
+            rels = zin.read(part.replace("worksheets/", "worksheets/_rels/") + ".rels").decode("utf-8")
+            dpart = os.path.normpath("xl/worksheets/" + re.search(r'Target="([^"]*drawing\d+\.xml)"', rels).group(1))
+            sx, dx, rows = cert_layout(zin.read(part).decode("utf-8"), zin.read(dpart).decode("utf-8"),
+                                       _image_sizes(zin, dpart))
+            certs[part], certs[dpart] = sx, dx
+            sid = order.index(part)
+            wb = re.sub(rf'(<definedName name="_xlnm.Print_Area" localSheetId="{sid}">[^<!]*!\$A\$1:\$)[A-Z]+\$\d+',
+                        rf"\g<1>N${rows}", wb, count=1)
+            n = dx.count("<xdr:oneCellAnchor>")
+            log.append(f"    {name.strip()}: {n} certificate(s) upright, two a page, {rows // CERT_PAGE_ROWS} page(s), "
+                       f"print area A1:N{rows}, scale {CERT_SCALE} %")
         with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zout:
             for item in zin.infolist():
                 data = zin.read(item.filename)
                 if item.filename == "xl/styles.xml":
                     data = styles.encode("utf-8")
+                elif item.filename == "xl/workbook.xml":
+                    data = wb.encode("utf-8")
+                elif item.filename in certs and item.filename not in titles:
+                    data = certs[item.filename].encode("utf-8")
                 elif item.filename == "xl/media/image1.png":
                     data = recolour_logo(data)
                     log.append("    Cover Page: a2b logo -> steel blue, green 2")
                 elif item.filename in titles:
                     name = titles[item.filename]
-                    x = data.decode("utf-8")
+                    x = certs.get(item.filename) or data.decode("utf-8")
                     y = header_colour(x)
                     n_headers += y != x
                     if order.index(item.filename) in printable:

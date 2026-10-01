@@ -397,13 +397,15 @@ for ws in wbA.worksheets:
         for c in row:
             if ws.title == "Cover Page" and c.coordinate in ("G32", "G34", "G36"):
                 continue
+            if ws.title == "Certification" and c.coordinate == "C50" and c.value is None:
+                continue                                  # rev 06: the built-in NEBB stamp cleared the "insert" note
             if ws.title == "Building Balance" and c.coordinate[0] in "HIKM" and 47 <= c.row <= 56:
                 continue                                  # new Small Fans 21-30 rows (checked in section E)
             a, b = c.value, ws4[c.coordinate].value
             same = a == b or (isinstance(a, (int, float)) and isinstance(b, (int, float)) and abs(a - b) < 1e-9)
             if not same:
                 diffs.append((ws.title, c.coordinate, a, b))
-check("A same as rev04", "cells differing from revision 04 with the same data (excl. fixed cover links, {Dropdowns}, Building Balance small fans 21-30)",
+check("A same as rev04", "cells differing from revision 04 with the same data (excl. fixed cover links, {Dropdowns}, Building Balance small fans 21-30, rev 06 stamp note)",
       len(diffs), 0)
 
 # ----------------------------------------------------------------------------------------- B. N/A notations
