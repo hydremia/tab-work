@@ -341,7 +341,7 @@ def recolour_logo(png_bytes):
 
 # NEBB certificates (landscape scans): upright, two a page, 52 rows a page (26 a certificate) at a fixed scale
 CERT_SHEETS = ("NEBB Cert ", "NEBB Frm Cert")
-CERT_PAGE_ROWS, CERT_SCALE, CERT_HEIGHT_PT = 52, 94, 330
+CERT_PAGE_ROWS, CERT_SCALE, CERT_HEIGHT_PT = 52, 92, 300
 EMU_PT = 12700
 
 
@@ -357,7 +357,7 @@ def _col_widths_pt(x, ncols):
 
 def cert_layout(sheet_xml, drawing_xml, sizes):
     """The certificates stood upright (the template had them turned 90 degrees, one a page), two a page, centred
-    across A:N, each 330 pt tall at its own aspect. Returns (sheet xml, drawing xml, rows printed)."""
+    across A:N, each 300 pt tall at its own aspect (a margin above and below: Excel draws rows a pixel taller than their points). Returns (sheet xml, drawing xml, rows printed)."""
     widths = _col_widths_pt(sheet_xml, 14)
     row_h = float(re.search(r'<sheetFormatPr[^>]*defaultRowHeight="([\d.]+)"', sheet_xml).group(1))
     slot = CERT_PAGE_ROWS // 2
