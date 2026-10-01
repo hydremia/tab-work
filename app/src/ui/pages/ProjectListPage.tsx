@@ -13,7 +13,7 @@ import { IconFolder, IconLock, IconPlus, IconUpload } from '../components/Icons'
 import { Screen } from '../components/Screen';
 import { ProgressBar, RollupCounts } from '../components/Status';
 import { ExportStateLine } from '../components/ExportReminder';
-import { InstallPrompt } from '../components/PwaPrompts';
+import { AppVersion, InstallPrompt } from '../components/PwaPrompts';
 
 const SCOPE: Record<Project['scopeProfile'], string> = {
   full: 'Full TAB',
@@ -126,6 +126,7 @@ export function ProjectListPage() {
           )}
         </Link>
       </p>
+      <AppVersion />
     </Screen>
   );
 }

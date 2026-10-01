@@ -110,7 +110,11 @@ function lines(items: readonly Item[]): { s: string; box: Box; size: number }[] 
     const x = r[0].x;
     const x2 = Math.max(...r.map((i) => i.x + i.w));
     const size = Math.max(...r.map((i) => i.size));
-    return { s: norm(r.map((i) => i.s).join(' ')), box: { x, y: Math.min(...r.map((i) => i.y)), w: x2 - x, h: size }, size };
+    return {
+      s: norm(r.map((i) => i.s).join(' ')),
+      box: { x, y: Math.min(...r.map((i) => i.y)), w: x2 - x, h: size },
+      size,
+    };
   });
 }
 
@@ -253,7 +257,13 @@ export async function assembleReport(
     if (!upright) return;
     const foot = plan.footers.get(o.page);
     if (foot) {
-      page.drawRectangle({ x: ox + foot.x - 2, y: oy + foot.y - foot.size * 0.3, width: foot.w + 4, height: foot.size * 1.3, color: white });
+      page.drawRectangle({
+        x: ox + foot.x - 2,
+        y: oy + foot.y - foot.size * 0.3,
+        width: foot.w + 4,
+        height: foot.size * 1.3,
+        color: white,
+      });
       const size = Math.max(6, Math.min(10, foot.size));
       const cx = ox + foot.x + foot.w / 2;
       page.drawText(label, { x: cx - font.widthOfTextAtSize(label, size) / 2, y: oy + foot.y, size, font, color: ink });
@@ -263,7 +273,13 @@ export async function assembleReport(
       if (!n) continue;
       const s = `page ${n}`;
       const size = Math.max(6, Math.min(12, t.size));
-      page.drawRectangle({ x: ox + t.box.x - 1, y: oy + t.box.y - t.size * 0.3, width: Math.max(t.box.w, font.widthOfTextAtSize(s, size)) + 3, height: t.size * 1.3, color: white });
+      page.drawRectangle({
+        x: ox + t.box.x - 1,
+        y: oy + t.box.y - t.size * 0.3,
+        width: Math.max(t.box.w, font.widthOfTextAtSize(s, size)) + 3,
+        height: t.size * 1.3,
+        color: white,
+      });
       page.drawText(s, { x: ox + t.box.x, y: oy + t.box.y, size, font, color: ink });
     }
   });

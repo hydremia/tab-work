@@ -56,6 +56,31 @@ export async function applyUpdate(): Promise<void> {
   else window.location.reload();
 }
 
+let checkFn: (() => Promise<boolean>) | null = null;
+
+/** src/pwa.ts: asks the server for a newer version; resolves true when one is downloaded and waiting. */
+export function setUpdateChecker(fn: () => Promise<boolean>): void {
+  checkFn = fn;
+}
+
+export type UpdateCheck = 'available' | 'current' | 'offline' | 'unsupported';
+
+/** "Check for updates": a newer version shows the update toast again (even after "Later"). */
+export async function checkForUpdate(): Promise<UpdateCheck> {
+  if (state.needRefresh) {
+    set({ updateDismissed: false });
+    return 'available';
+  }
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return 'offline';
+  if (!checkFn) return 'unsupported';
+  const waiting = await checkFn();
+  if (waiting || state.needRefresh) {
+    set({ updateDismissed: false });
+    return 'available';
+  }
+  return 'current';
+}
+
 export function dismissUpdate(): void {
   set({ updateDismissed: true });
 }
@@ -118,5 +143,6 @@ export function dismissInstallHint(): void {
 export function resetPwaState(): void {
   state = { installEvent: null, installed: false, needRefresh: false, updateDismissed: false };
   applyUpdateFn = null;
+  checkFn = null;
   listeners.forEach((l) => l());
 }

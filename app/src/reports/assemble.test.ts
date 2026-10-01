@@ -51,7 +51,13 @@ const group = (key: string, unit: string | null, type: FigureGroup['type'], firs
 
 const SPECS: Spec[] = [
   { footer: false, lines: ['CERTIFIED'] }, // 1 cover
-  { toc: [['Building Balance', 3], ['Rooftop Units', 4], ['Traverses', 7]] }, // 2
+  {
+    toc: [
+      ['Building Balance', 3],
+      ['Rooftop Units', 4],
+      ['Traverses', 7],
+    ],
+  }, // 2
   { title: 'Building Balance Report', lines: ['RTU-1|9,860'] }, // 3 (mentions RTU-1: not its page)
   { title: 'Rooftop Unit Report', lines: ['System|RTU-1', 'Remarks|see RTU-10'] }, // 4
   { title: 'Rooftop Unit Report', lines: ['System (cont.)|RTU-1'] }, // 5
@@ -92,7 +98,11 @@ describe('final report assembly', () => {
       await report(SPECS),
       {
         bytes: await figures(3),
-        groups: [group('summary', null, null, 0), group('rtu|RTU-1', 'RTU-1', 'rtu', 1), group('traverse|T-1', 'T-1', 'traverse', 2)],
+        groups: [
+          group('summary', null, null, 0),
+          group('rtu|RTU-1', 'RTU-1', 'rtu', 1),
+          group('traverse|T-1', 'T-1', 'traverse', 2),
+        ],
       },
       (b) => readPdfText(b),
       { title: 'TAB Report', author: 'a2b', now: new Date('2026-10-01T00:00:00Z') },

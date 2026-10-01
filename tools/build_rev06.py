@@ -258,6 +258,8 @@ def narrative_rows(x):
     """The set-up blurb (C9:L10) gets room for its four lines."""
     for r in (9, 10):
         x = re.sub(rf'(<row r="{r}"[^>]*?\bht=")[\d.]+(")', r"\g<1>28\2", x, count=1)
+    # one page: the sheet was fitted to one page wide only, and the taller blurb rows tipped it onto a second page
+    x = re.sub(r'(<pageSetup\b[^>]*?)\sfitToHeight="0"', r'\1 fitToHeight="1"', x, count=1)
     return x
 
 
@@ -470,7 +472,7 @@ def rewrite(src, out, log):
                     n_footers += n
                     if name == "Narrative":
                         y = narrative_rows(y)
-                        log.append("    Narrative: set-up blurb rows 9-10 -> 28 pt (the whole text shows)")
+                        log.append("    Narrative: set-up blurb rows 9-10 -> 28 pt (the whole text shows), fitted to one page")
                     if name == "Building Balance":
                         y = balance_notes(y)
                         log.append("    Building Balance: notes as one box across B:M (band + 3 lines, B102:B104 kept)")

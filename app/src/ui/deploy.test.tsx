@@ -11,7 +11,7 @@ import { db } from '../data/db';
 import { exportStatus } from '../data/exportStatus';
 import { addEquipment, createProject, setField } from '../data/repo';
 import type { Revision } from '../data/types';
-import { captureInstallPrompt, resetPwaState, setUpdateAvailable } from '../pwaState';
+import { captureInstallPrompt, resetPwaState, setUpdateAvailable, setUpdateChecker } from '../pwaState';
 import { SyncProvider } from '../sync/SyncProvider';
 import { newRevisionBase, saveRevision } from '../workbook/revisions';
 import { exportStateText } from './components/ExportReminder';
@@ -107,6 +107,32 @@ describe('update toast', () => {
     act(() => setUpdateAvailable(apply));
     await user.click(await screen.findByTestId('update-later'));
     expect(screen.queryByTestId('update-toast')).toBeNull();
+  });
+});
+
+describe('version and Check for updates', () => {
+  it('shows the build; "Check for updates" says latest, or brings the update toast back', async () => {
+    const user = userEvent.setup();
+    let next = false;
+    const apply = vi.fn(async () => undefined);
+    setUpdateChecker(async () => {
+      if (next) setUpdateAvailable(apply);
+      return next;
+    });
+    renderAt('/');
+    expect(await screen.findByTestId('app-build')).toHaveTextContent(/\S/);
+    await user.click(screen.getByTestId('check-update'));
+    expect(await screen.findByTestId('check-update-result')).toHaveTextContent('latest version');
+    expect(screen.queryByTestId('update-toast')).toBeNull();
+    next = true;
+    await user.click(screen.getByTestId('check-update'));
+    expect(await screen.findByTestId('check-update-result')).toHaveTextContent('new version is ready');
+    expect(await screen.findByTestId('update-toast')).toHaveTextContent('Update available');
+    // "Later", then checking again shows the waiting update again
+    await user.click(screen.getByTestId('update-later'));
+    expect(screen.queryByTestId('update-toast')).toBeNull();
+    await user.click(screen.getByTestId('check-update'));
+    expect(await screen.findByTestId('update-toast')).toBeInTheDocument();
   });
 });
 
