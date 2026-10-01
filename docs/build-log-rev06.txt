@@ -4,6 +4,8 @@ Restyle (xl/styles.xml only):
   headers: 53 centred header formats -> steel-blue band / white text, 8 label formats -> pale blue / deep-blue text, 12 title formats -> deep blue (15 new fonts, 1 new fill)
   borders: 221 thin edges -> FFBFCCDB, 17 heavy edges -> FF6AB23E
   layout:
+    NEBB Cert: 3 certificate(s) upright, two a page, 2 page(s), print area A1:N104, scale 94 %
+    NEBB Frm Cert: 1 certificate(s) upright, two a page, 1 page(s), print area A1:N52, scale 94 %
     Narrative: set-up blurb rows 9-10 -> 28 pt (the whole text shows)
     Building Balance: notes as one box across B:M (band + 3 lines, B102:B104 kept)
     RTUs: tallest page 734 pt, print scale 93 % -> 89 %
