@@ -43,6 +43,8 @@ export function ExportPage() {
   const [reportBusy, setReportBusy] = useState<string | null>(null);
   const [reportResult, setReportResult] = useState<(ReportResult & { mime: string }) | null>(null);
   const [reportError, setReportError] = useState<string | null>(null);
+  const [outletCharts, setOutletCharts] = useState(false);
+  const [finalNote, setFinalNote] = useState<string | null>(null);
   const smallFans = equipment.filter((e) => e.type === 'smallFan').length;
   const suggested = revisions ? suggestLabel(revisions) : '';
   const label = typed ?? suggested;
@@ -59,6 +61,30 @@ export function ExportPage() {
       const r = await gen.generateGraphics(project.id, reportLabel.trim());
       gen.downloadFile(r.bytes, r.fileName, 'application/pdf');
       setReportResult({ ...r, mime: 'application/pdf' });
+    } catch (e) {
+      setReportError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setReportBusy(null);
+    }
+  }
+
+  async function makeFinal(file: File) {
+    setReportBusy('Reading the report PDF and placing the figures…');
+    setReportError(null);
+    setReportResult(null);
+    setFinalNote(null);
+    try {
+      const gen = await import('../../reports/generate');
+      const r = await gen.generateFinalReport(project.id, reportLabel.trim(), new Uint8Array(await file.arrayBuffer()), {
+        outletCharts,
+      });
+      gen.downloadFile(r.bytes, r.fileName, 'application/pdf');
+      setReportResult({ ...r, mime: 'application/pdf' });
+      setFinalNote(
+        `${r.placed} figure group${r.placed === 1 ? '' : 's'} placed with their pages; ${r.numbered} pages numbered` +
+          (r.tocFixed ? `; ${r.tocFixed} table of contents entries updated` : '') +
+          (r.atEnd.length ? `. Not found in the report, added at the end: ${r.atEnd.join(', ')}.` : '.'),
+      );
     } catch (e) {
       setReportError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -433,6 +459,44 @@ export function ExportPage() {
           >
             <IconDownload size={18} /> Graphics appendix
           </button>
+        </div>
+        <div className="stack" style={{ gap: 6 }}>
+          <h3 style={{ margin: 0 }}>Final report with the figures</h3>
+          <p className="small muted" style={{ margin: 0 }}>
+            In Excel, run <b>Print Report</b> (PDF). Pick that PDF here: each static profile and traverse figure goes
+            right after its unit's pages, the summary after the Building Balance, every page is numbered "Page x of N"
+            and the table of contents follows.
+          </p>
+          <label className="row small" style={{ gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={outletCharts}
+              onChange={(e) => setOutletCharts(e.target.checked)}
+              data-testid="final-outlet-charts"
+            />
+            Include outlet / valve charts
+          </label>
+          <div className="report-grid">
+            <label className="btn btn-primary file-btn" aria-disabled={Boolean(reportBusy)} data-testid="report-final">
+              <IconDownload size={18} /> Final report (pick the Excel PDF)
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                aria-label="Report PDF from Excel"
+                disabled={Boolean(reportBusy)}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (f) void makeFinal(f);
+                }}
+              />
+            </label>
+          </div>
+          {finalNote && (
+            <div className="small" role="status" data-testid="final-note">
+              {finalNote}
+            </div>
+          )}
         </div>
         {reportBusy && (
           <div className="small muted" role="status" data-testid="report-busy">

@@ -17,7 +17,7 @@ import { PRESSURE_KEYS } from '../domain/projectCompletion';
 import { spareOaTotals } from '../domain/spareOa';
 import { rowCfm } from '../domain/calc';
 import type { Completion } from '../domain/completion';
-import { EQUIPMENT_TYPES, equipmentType } from '../domain/equipmentTypes';
+import { EQUIPMENT_TYPES, equipmentType, type EquipmentTypeKey } from '../domain/equipmentTypes';
 import { buildingBalance, sequenceValues, traverseLayout, type BuildingBalance } from '../domain/equipmentCalcs';
 import { pumpTest } from '../domain/hydronicCalcs';
 import { pumpCurveResult, pumpName } from '../domain/pumpCurves';
@@ -79,7 +79,8 @@ export interface PumpFigure {
   curveNote: string | null;
 }
 
-export type Figure = ProfileFigure | TraverseFigure | BarsFigure | PumpFigure;
+/** Every figure: the equipment type of the unit it belongs to (where its pages are in the report). */
+export type Figure = (ProfileFigure | TraverseFigure | BarsFigure | PumpFigure) & { type?: EquipmentTypeKey };
 
 export interface SummaryTypeRow {
   label: string;
@@ -147,6 +148,7 @@ export function buildGraphicsModel(input: {
         figures.push({
           kind: 'profile',
           unit: e.designation,
+          type: e.type,
           typeLabel: equipmentType(e.type).label,
           profile,
           designEsp: xlNum(cells.unitEsp),
@@ -170,6 +172,7 @@ export function buildGraphicsModel(input: {
           figures.push({
             kind: 'traverse',
             unit: e.designation,
+            type: e.type,
             round: e.data.shape === 'Round',
             sizeText: layout.sizeText ?? '',
             readings: grid,
@@ -199,6 +202,7 @@ export function buildGraphicsModel(input: {
         figures.push({
           kind: valve ? 'valves' : 'outlets',
           unit: e.designation,
+          type: e.type,
           table: TABLE_LABEL[t.key] ?? t.label,
           unitLabel: valve ? 'GPM' : 'CFM',
           rows: bars,
@@ -216,6 +220,7 @@ export function buildGraphicsModel(input: {
         figures.push({
           kind: 'pump',
           unit: e.designation,
+          type: e.type,
           designGpm: p.designGpm,
           designHead: p.designHead,
           actualGpm: p.actualGpm,
