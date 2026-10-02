@@ -4,7 +4,7 @@
 
 The **TAB App** ([`app/`](app/README.md)) is an offline-first, installable web app (PWA) for entering TAB field data
 on a phone, tablet or laptop and exporting it into the revision 05 workbook below. It runs in local-only mode until
-Supabase is configured.
+Supabase is configured. Pilot: **https://tab-work-app.vercel.app**.
 
 ```
 npm install          # repository root (npm workspaces: app, packages/workbook, spike/export)

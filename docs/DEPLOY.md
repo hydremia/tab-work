@@ -5,6 +5,8 @@ and the bundled workbook template), and any static host can serve it. There is n
 **Vercel** (recommended), with **Netlify** and **Cloudflare Pages** as alternatives. Nothing here is set up yet: the
 steps are for whoever creates the hosting account ([SETUP_ACCOUNTS.md §3](./SETUP_ACCOUNTS.md#3-web-hosting-vercel-netlify-or-cloudflare-pages)).
 
+**Live (pilot):** https://tab-work-app.vercel.app (Vercel, production branch `main`; every merge redeploys it).
+
 **Time needed:** about 20 minutes for the first deploy, plus 5 minutes of DNS for a custom address.
 
 ## What's already in the repository
