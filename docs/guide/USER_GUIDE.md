@@ -30,7 +30,7 @@ print layout stay as they are.
 ### Install it as an app
 
 There's no App Store or Play Store listing. You add the web app to your home screen instead. Open the app link
-your office sent you.
+your office sent you (pilot: **https://tab-work-app.vercel.app**).
 
 ![Install card](../screenshots/26-install-prompt.png)
 
