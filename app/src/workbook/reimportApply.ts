@@ -22,6 +22,7 @@ import { getPath, setPath } from '../data/paths';
 import { uuid } from '../data/uuid';
 import { toProjectData, type ProjectBundle } from './adapter';
 import type { Choice, DiffItem, FlatRec, FullDiff, Val } from './reimportDiff';
+import { isObservation } from '../domain/issues';
 
 type AnyRecord = { id: string; projectId?: string; updatedAt: number };
 
@@ -164,7 +165,9 @@ export function planApply(
         break;
       }
       case 'issue': {
-        const target = real.issues.find((i) => i.kind === ref.issueKind && i.number === ref.number);
+        const target = real.issues.find(
+          (i) => i.kind === ref.issueKind && i.number === ref.number && !isObservation(i),
+        );
         if (it.change === 'field' && target) {
           if (it.cell === 'unit') set('issues', target.id, 'equipmentId', unitIdByWbDesignation(it.wb));
           else if (it.cell === 'line') {

@@ -122,6 +122,19 @@ describe('needsAttention', () => {
         updatedAt: 0,
       },
       {
+        id: 'o',
+        projectId: 'p',
+        kind: 'new',
+        number: 1,
+        remark: 'Filters recently changed',
+        status: 'Open',
+        comments: '',
+        equipmentId: rtu.id,
+        issueType: 'observation',
+        createdAt: 0,
+        updatedAt: 0,
+      },
+      {
         id: 'y',
         projectId: 'p',
         kind: 'existing',
@@ -160,6 +173,7 @@ describe('needsAttention', () => {
     );
     // closed issues, units not started (the MAUs) and in-date meters (tachometer, multimeter, manometer) are not listed
     expect(brief.some((b) => b.includes('Closed one'))).toBe(false);
+    expect(brief.some((b) => b.includes('Filters recently changed'))).toBe(false); // observations never flag
     expect(items.some((i) => i.group === 'photos' && i.subject.startsWith('MAU'))).toBe(false);
     expect(brief.filter((b) => b.startsWith('calibration'))).toHaveLength(2);
     // links

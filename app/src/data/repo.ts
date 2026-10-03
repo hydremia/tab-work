@@ -29,6 +29,7 @@ import { designationKey } from '../domain/scheduleImport';
 import { SPARE_OA_ROWS, spareOaKey } from '../domain/spareOa';
 import { splitSheaveBore } from '../domain/sheaveBore';
 import { isBlank } from '../domain/conditions';
+import { isObservation, openDeficiencies } from '../domain/issues';
 import { db } from './db';
 import { appendHistory, currentActor } from './history';
 import { uuid } from './uuid';
@@ -125,7 +126,7 @@ export function describeRecord(name: TableName, rec: AnyRecord): string {
     case 'equipment':
       return String(r.designation ?? '');
     case 'issues':
-      return `Issue ${r.kind === 'existing' ? 'E' : 'N'}-${String(r.number ?? '')}`;
+      return `${r.issueType === 'observation' ? 'Observation' : 'Issue'} ${r.kind === 'existing' ? 'E' : 'N'}-${String(r.number ?? '')}`;
     case 'airflowRows': {
       const no = (r.data as Record<string, unknown> | undefined)?.no;
       return `${String(r.table ?? '')} row${no ? ` ${String(no)}` : ''}`;
@@ -476,7 +477,7 @@ export async function isUnitGreen(equipmentId: string): Promise<boolean> {
       rows,
       photos,
       project,
-      openIssues: issues.filter((i) => i.status === 'Open').length,
+      openIssues: openDeficiencies(issues).length,
       hoodLinked: hoodLinks(units).has(unit.id),
     }).color === 'green'
   );
@@ -846,11 +847,17 @@ export async function duplicateEquipment(
 // ------------------------------------------------------------------------------------------ issues
 export async function addIssue(
   projectId: string,
-  input: Partial<Pick<Issue, 'kind' | 'remark' | 'status' | 'comments' | 'equipmentId' | 'airflowRowId'>> = {},
+  input: Partial<
+    Pick<Issue, 'kind' | 'remark' | 'status' | 'comments' | 'equipmentId' | 'airflowRowId' | 'issueType'>
+  > = {},
 ): Promise<Issue> {
   return db.transaction('rw', writeTables(), async () => {
     const kind: IssueKind = input.kind ?? 'new';
-    const same = await db.issues.where('[projectId+kind]').equals([projectId, kind]).toArray();
+    const observation = input.issueType === 'observation';
+    // deficiencies and observations are numbered separately within New / Existing
+    const same = (await db.issues.where('[projectId+kind]').equals([projectId, kind]).toArray()).filter(
+      (i) => isObservation(i) === observation,
+    );
     const now = Date.now();
     return createRecord<Issue>('issues', {
       id: uuid(),
@@ -861,6 +868,8 @@ export async function addIssue(
       status: input.status ?? 'Open',
       comments: input.comments ?? '',
       equipmentId: input.equipmentId ?? null,
+      // only for observations: a deficiency keeps the record shape every server knows
+      ...(observation ? { issueType: 'observation' as const } : {}),
       // only when set: a project whose server has no 0011 yet keeps syncing issues without lines
       ...(input.airflowRowId && input.equipmentId ? { airflowRowId: input.airflowRowId } : {}),
       createdAt: now,
@@ -1013,14 +1022,32 @@ export async function reassignPhoto(photoId: string, target: PhotoTarget): Promi
   });
 }
 
+/**
+ * Deficiency <-> observation: the issue takes the next number of its new list (Obs. N-4 -> N-7); the old list keeps
+ * its numbers (a gap, as after a delete).
+ */
+export async function setIssueType(issueId: string, type: 'deficiency' | 'observation'): Promise<void> {
+  await db.transaction('rw', writeTables(), async () => {
+    const issue = await db.issues.get(issueId);
+    if (!issue || (type === 'observation') === isObservation(issue)) return;
+    const same = (await db.issues.where('[projectId+kind]').equals([issue.projectId, issue.kind]).toArray()).filter(
+      (x) => x.id !== issueId && isObservation(x) === (type === 'observation'),
+    );
+    await setFields('issues', issueId, {
+      issueType: type,
+      number: same.reduce((m, x) => Math.max(m, x.number), 0) + 1,
+    });
+  });
+}
+
 /** Swap an issue with its neighbour of the same kind (their numbers swap; deficiency photo labels follow). */
 export async function moveIssue(issueId: string, dir: -1 | 1): Promise<void> {
   await db.transaction('rw', writeTables(), async () => {
     const issue = await db.issues.get(issueId);
     if (!issue) return;
-    const same = (await db.issues.where('[projectId+kind]').equals([issue.projectId, issue.kind]).toArray()).sort(
-      (a, b) => a.number - b.number,
-    );
+    const same = (await db.issues.where('[projectId+kind]').equals([issue.projectId, issue.kind]).toArray())
+      .filter((x) => isObservation(x) === isObservation(issue))
+      .sort((a, b) => a.number - b.number);
     const i = same.findIndex((x) => x.id === issueId);
     const other = same[i + dir];
     if (!other) return;

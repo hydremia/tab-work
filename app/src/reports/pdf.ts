@@ -247,11 +247,20 @@ export async function renderReportPdf(
       draw: async (page, top) => {
         const y0 = yOf(top);
         page.drawRectangle({ x: MARGIN_X, y: y0 - bandH, width: CONTENT_W, height: bandH, color: BAND });
-        const title = `Issue ${i.label}`;
+        const title = `${i.observation ? 'Observation' : 'Issue'} ${i.label}`;
         text(page, title, MARGIN_X + 8, y0 - 15, 11, bold);
         const status = i.status.toUpperCase();
         const sw = width(status, 9.5, bold);
-        text(page, status, PAGE_W - MARGIN_X - 8 - sw, y0 - 15, 9.5, bold, i.status === 'Open' ? RED : GREEN);
+        // an observation does not flag anything: its status in plain ink
+        text(
+          page,
+          status,
+          PAGE_W - MARGIN_X - 8 - sw,
+          y0 - 15,
+          9.5,
+          bold,
+          i.observation ? MUTED : i.status === 'Open' ? RED : GREEN,
+        );
         const ex = MARGIN_X + 8 + width(title, 11, bold) + 12;
         text(page, fitLine(i.equipment, 10, PAGE_W - MARGIN_X - 20 - sw - ex), ex, y0 - 15, 10, regular, INK);
         let y = y0 - bandH - 8 - ISSUE_TEXT + 1;

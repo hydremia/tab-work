@@ -129,6 +129,17 @@ describe('toProjectData', () => {
     });
   });
 
+  it('leaves observations off the Summary pages (rev 06) with a warning', () => {
+    const b = sampleBundle();
+    const first = b.issues.find((i) => i.kind === 'new')!;
+    b.issues.push({ ...first, id: 'obs-1', number: 1, remark: 'Filters recently changed', issueType: 'observation' });
+    const { data, warnings } = toProjectData(b);
+    expect(data.sections.issuesNew.tables?.issues?.map((r) => r.remark)).not.toContain(
+      expect.stringContaining('Filters recently changed'),
+    );
+    expect(warnings.join('\n')).toMatch(/Summary - New: 1 observation not in this workbook/);
+  });
+
   it('coerces numeric text and warns about text in number fields', () => {
     const b = sampleBundle();
     b.equipment[0].data.hp = '5';

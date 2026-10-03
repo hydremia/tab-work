@@ -28,6 +28,7 @@ import { PRESSURE_KEYS, PRESSURE_ROWS } from '../domain/projectCompletion';
 import { findRow, rowNames } from '../domain/rowLabels';
 import { joinSheaveBore, splitSheaveBore } from '../domain/sheaveBore';
 import { fanAtHood, hoodLinks, hoodTotals } from '../domain/equipmentCalcs';
+import { isObservation } from '../domain/issues';
 import { SPARE_OA_ROWS, spareOaKey, type SpareOaColumn } from '../domain/spareOa';
 import { getSpec, seqKey, tableColumns, type EquipmentSpec, type RowTableSpec } from '../domain/specs';
 import {
@@ -262,7 +263,16 @@ export function toProjectData(
       const eq = i.equipmentId ? byId.get(i.equipmentId) : undefined;
       return !eq || equipmentType(eq.type).discipline === discipline;
     };
-    const list = b.issues.filter((i) => i.kind === kind && ofReport(i)).sort((a, c) => a.number - c.number);
+    // observations: the Summary pages list them from template revision 07 (until then they stay in the app and the
+    // Issues report)
+    const obs = b.issues.filter((i) => i.kind === kind && ofReport(i) && isObservation(i));
+    if (obs.length)
+      warnings.push(
+        `${kind === 'new' ? 'Summary - New' : 'Summary - (E)'}: ${obs.length} observation${obs.length === 1 ? '' : 's'} not in this workbook (template revision 07 lists them; they are in the Issues report)`,
+      );
+    const list = b.issues
+      .filter((i) => i.kind === kind && ofReport(i) && !isObservation(i))
+      .sort((a, c) => a.number - c.number);
     if (!list.length) continue;
     if (list.length > 50)
       warnings.push(`${kind === 'new' ? 'Summary - New' : 'Summary - (E)'}: ${list.length} issues, room for 50`);

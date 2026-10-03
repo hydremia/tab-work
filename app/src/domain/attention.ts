@@ -28,6 +28,7 @@ import { getSpec } from './specs';
 import { espDiscrepancy, staticInputs, staticProfile } from './staticProfile';
 import { unitCells } from '../workbook/adapter';
 import { hoodLinks } from './equipmentCalcs';
+import { openDeficiencies } from './issues';
 
 export type AttentionGroup = 'design' | 'motor' | 'tolerance' | 'photos' | 'issues' | 'capacity' | 'calibration';
 
@@ -76,7 +77,7 @@ export function needsAttention(input: AttentionInput): AttentionItem[] {
       EQUIPMENT_TYPES.findIndex((t) => t.key === a.type) - EQUIPMENT_TYPES.findIndex((t) => t.key === b.type) ||
       a.slot - b.slot,
   );
-  const openIssues = input.issues.filter((i) => i.status === 'Open');
+  const openIssues = openDeficiencies(input.issues);
   const used = new Map<string, { need: InstrumentNeed; units: string[]; to: string }>();
   const markUsed = (need: InstrumentNeed, e: Equipment, section: string | undefined) => {
     const k = need.meter;

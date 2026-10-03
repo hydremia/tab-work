@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router';
 import { db } from '../../data/db';
 import { usePhotos } from '../../data/hooks';
-import { addIssue, deleteRecord, moveIssue, setField, setFields } from '../../data/repo';
+import { addIssue, deleteRecord, moveIssue, setField, setFields, setIssueType } from '../../data/repo';
+import { isObservation } from '../../domain/issues';
 import { rowNames } from '../../domain/rowLabels';
 import type { Equipment, Issue, IssueKind, Photo } from '../../data/types';
 import { deficiencyLabels, issueLabel, issuePhotos } from '../../photos/labels';
@@ -33,6 +34,8 @@ function IssueCard({
 }) {
   const id = `iss-${issue.id.slice(0, 8)}`;
   const label = issueLabel(issue);
+  const obs = isObservation(issue);
+  const noun = obs ? 'Observation' : 'Issue';
   const saver = usePhotoSaver(issue.projectId);
   const save = (files: File[]) => void saver.save(files, { category: 'deficiency', issueId: issue.id });
   const unit = equipment.find((e) => e.id === issue.equipmentId);
@@ -48,10 +51,11 @@ function IssueCard({
       className="card issue-card"
       id={`issue-${issue.id}`}
       tabIndex={-1}
-      data-testid={`issue-${issue.kind}-${issue.number}`}
+      data-testid={`issue-${issue.kind}-${obs ? 'obs-' : ''}${issue.number}`}
+      data-observation={obs || undefined}
     >
       <div className="row" style={{ flexWrap: 'nowrap' }}>
-        <span className="issue-num" title={`Issue ${label}`}>
+        <span className="issue-num" title={`${noun} ${label}`}>
           {label}
         </span>
         <select
@@ -85,6 +89,30 @@ function IssueCard({
           ))}
         </div>
       </div>
+      <div className="segmented" role="group" aria-label={`${noun} ${label} type`}>
+        {(
+          [
+            ['deficiency', 'Deficiency'],
+            ['observation', 'Observation'],
+          ] as const
+        ).map(([t, text]) => (
+          <button
+            key={t}
+            type="button"
+            aria-pressed={(t === 'observation') === obs}
+            data-testid={`issue-type-${t}`}
+            onClick={() => void setIssueType(issue.id, t)}
+          >
+            {text}
+          </button>
+        ))}
+      </div>
+      {obs && (
+        <p className="small muted" style={{ margin: 0 }}>
+          Recorded without flagging the unit; listed under Observations in the Issues report (and on the Summary page
+          from template rev 07).
+        </p>
+      )}
       {unit && lines && lines.length > 0 && (
         <div className="field">
           <label className="field-label" htmlFor={`${id}-line`}>
@@ -127,7 +155,9 @@ function IssueCard({
         />
       </div>
       <div className="field" data-testid={`issue-photos-${label}`}>
-        <span className="field-label">Deficiency photos {photos.length ? `(${photos.length})` : ''}</span>
+        <span className="field-label">
+          {obs ? 'Photos' : 'Deficiency photos'} {photos.length ? `(${photos.length})` : ''}
+        </span>
         {photos.length > 0 && (
           <div className="photo-grid-sm">
             {photos.map((p) => {
@@ -229,37 +259,61 @@ export function IssuesPage() {
           <h1>Issues</h1>
           <p>
             Numbered separately: N-1, N-2 … (New) and E-1, E-2 … (Existing). Deficiency photos are numbered to their
-            issue (Photo N-3.1). An open issue turns its unit red.
+            issue (Photo N-3.1). An open issue turns its unit red. <b>Observations</b> (Obs. N-1 …) are recorded without
+            flagging the unit.
           </p>
         </div>
       </div>
       <fieldset className="lockable" disabled={locked}>
         <legend className="visually-hidden">Issues</legend>
         {groups.map((g) => {
-          const list = issues.filter((i) => i.kind === g.kind);
+          const all = issues.filter((i) => i.kind === g.kind);
+          const lists = [
+            { obs: false, list: all.filter((i) => !isObservation(i)) },
+            { obs: true, list: all.filter((i) => isObservation(i)) },
+          ];
           return (
             <section key={g.kind} className="stack" aria-labelledby={`ig-${g.kind}`}>
               <div className="type-head">
                 <h2 id={`ig-${g.kind}`}>{g.title}</h2>
                 <span className="rollup small muted">
-                  {list.filter((i) => i.status === 'Open').length} open · {g.sheet}
+                  {lists[0].list.filter((i) => i.status === 'Open').length} open · {g.sheet}
                 </span>
               </div>
-              {list.map((i, k) => (
-                <IssueCard
-                  key={i.id}
-                  issue={i}
-                  equipment={sorted}
-                  photos={issuePhotos(deficiency, i.id)}
-                  labels={labels}
-                  first={k === 0}
-                  last={k === list.length - 1}
-                  onOpenPhoto={setViewing}
-                />
+              {lists.map(({ obs, list }) => (
+                <div
+                  key={String(obs)}
+                  className="stack"
+                  data-testid={`issues-${g.kind}-${obs ? 'observations' : 'deficiencies'}`}
+                >
+                  {obs && list.length > 0 && <h3 className="issues-sub">Observations</h3>}
+                  {list.map((i, k) => (
+                    <IssueCard
+                      key={i.id}
+                      issue={i}
+                      equipment={sorted}
+                      photos={issuePhotos(deficiency, i.id)}
+                      labels={labels}
+                      first={k === 0}
+                      last={k === list.length - 1}
+                      onOpenPhoto={setViewing}
+                    />
+                  ))}
+                </div>
               ))}
-              <button type="button" className="btn" onClick={() => void addIssue(project.id, { kind: g.kind })}>
-                <IconPlus size={18} /> Add {g.kind} issue
-              </button>
+              <div className="row" style={{ gap: 8 }}>
+                <button type="button" className="btn" onClick={() => void addIssue(project.id, { kind: g.kind })}>
+                  <IconPlus size={18} /> Add {g.kind} issue
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  data-testid={`add-observation-${g.kind}`}
+                  onClick={() => void addIssue(project.id, { kind: g.kind, issueType: 'observation' })}
+                >
+                  <IconPlus size={18} /> Add observation
+                </button>
+              </div>
             </section>
           );
         })}

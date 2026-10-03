@@ -51,6 +51,7 @@ import { Screen } from '../components/Screen';
 import { SpecField } from '../components/SpecField';
 import { StatusBadge, StatusIcon } from '../components/Status';
 import type { AirflowRow, Instrument, Issue, Photo } from '../../data/types';
+import { openDeficiencies } from '../../domain/issues';
 
 function fieldLabel(f: FieldSpec, data: Equipment['data']): string {
   if (!f.component) return f.label;
@@ -610,7 +611,7 @@ export function EquipmentPage() {
 
   const spec = getSpec(equipment.type);
   const info = equipmentType(equipment.type);
-  const unitIssues = issues.filter((i) => i.equipmentId === equipment.id && i.status === 'Open');
+  const unitIssues = openDeficiencies(issues.filter((i) => i.equipmentId === equipment.id));
   const c = computeCompletion({
     spec,
     unit: equipment,

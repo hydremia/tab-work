@@ -3,7 +3,7 @@
  * Runs on the main e2e project (after its workbook export) in the same page:
  *   - RTU-1: clear the tag / OA damper N/A marks -> amber; attach an EXIF-rotated JPEG (orientation 6, capture time,
  *     GPS) as the tag photo and a PNG as the OA damper photo -> green again; the stored tag photo is upright
- *   - issues: New N-1 (RTU-1) with 2 deficiency photos, New N-2 (General), Existing E-1 with 1 photo
+ *   - issues: New N-1 (RTU-1) with 2 deficiency photos, New N-2 (General), Existing E-1 with 1 photo, observation Obs. N-1
  *   - Photos tab: groups, labels, viewer (caption, reorder), missing-photo list, storage
  *   - Export: Photo Report, Issues Report (All / New / Existing), combined, zip -> verified in Node with pdf-lib,
  *     pdftotext and JSZip; page 1 of the Photo and Issues reports rendered with pdftoppm into docs/screenshots.
@@ -172,6 +172,22 @@ export async function photosFlow(page: Page, projectUrl: string, out: string, do
   await page.waitForTimeout(300);
   await page.screenshot({ path: join(docShots, '17-issue-photos.png') });
 
+  // an observation: numbered on its own (Obs. N-1), never counted as an open issue
+  const openBefore = await page.getByTestId('tab-count-issues').innerText();
+  await page.getByTestId('add-observation-new').click();
+  const o1 = page.getByTestId('issue-new-obs-1');
+  await o1.waitFor();
+  await o1.getByLabel('Issue Obs. N-1 equipment').selectOption({ label: 'RTU-1' });
+  await o1.locator('textarea').first().fill('Filters recently changed by owner.');
+  await o1.locator('textarea').first().blur();
+  await page.waitForTimeout(300);
+  const openAfter = await page.getByTestId('tab-count-issues').innerText();
+  check(
+    'an observation (Obs. N-1) does not count as an open issue',
+    openBefore === '2' && openAfter === '2' && (await o1.locator('.issue-num').innerText()) === 'Obs. N-1',
+    `${openBefore} -> ${openAfter}`,
+  );
+
   // reorder: N-1.2 becomes N-1.1
   await n1.getByRole('button', { name: 'Open Photo N-1.2' }).click();
   await page.getByTestId('photo-move-up').click();
@@ -268,6 +284,9 @@ export async function photosFlow(page: Page, projectUrl: string, out: string, do
       'General',
       'Photo N-1.2',
       'Photo E-1.1',
+      'New Equipment – Observations',
+      'Observation Obs. N-1',
+      'Filters recently changed by owner.',
     ].every((s) => it.includes(s)),
     `${await pageCount(issuesPdf)} pages`,
   );

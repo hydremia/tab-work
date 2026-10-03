@@ -7,6 +7,8 @@ import {
   CapacityError,
   createProject,
   deleteRecord,
+  moveIssue,
+  setIssueType,
   setField,
   splitLegacySheaveBore,
 } from './repo';
@@ -119,6 +121,27 @@ describe('records', () => {
     const n2 = await addIssue(p.id, { kind: 'new' });
     const e1 = await addIssue(p.id, { kind: 'existing' });
     expect([n1.number, n2.number, e1.number]).toEqual([1, 2, 1]);
+  });
+
+  it('observations are numbered on their own, move among themselves and can switch type', async () => {
+    const p = await createProject({ name: 'Job' });
+    const d1 = await addIssue(p.id, { kind: 'new' });
+    const o1 = await addIssue(p.id, { kind: 'new', issueType: 'observation' });
+    const o2 = await addIssue(p.id, { kind: 'new', issueType: 'observation' });
+    expect([d1.number, o1.number, o2.number]).toEqual([1, 1, 2]);
+    // a deficiency carries no type field (servers without 0013 keep syncing it)
+    expect('issueType' in d1).toBe(false);
+    expect(o1.issueType).toBe('observation');
+
+    await moveIssue(d1.id, 1); // no deficiency after it: the observations are not its neighbours
+    expect((await db.issues.get(d1.id))?.number).toBe(1);
+    await moveIssue(o1.id, 1);
+    expect([(await db.issues.get(o1.id))?.number, (await db.issues.get(o2.id))?.number]).toEqual([2, 1]);
+
+    await setIssueType(d1.id, 'observation'); // takes the next observation number
+    expect(await db.issues.get(d1.id)).toMatchObject({ issueType: 'observation', number: 3 });
+    await setIssueType(o2.id, 'deficiency');
+    expect(await db.issues.get(o2.id)).toMatchObject({ issueType: 'deficiency', number: 1 });
   });
 
   it('deleting equipment deletes its rows and unlinks its issues (logged)', async () => {
