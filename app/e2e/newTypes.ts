@@ -111,7 +111,8 @@ async function fillUnitBasics(page: Page, schedule: Record<string, string | numb
   await fill(page, {
     filters: '2" pleated 20x20 x 6',
     finalSettings: 'ECM dial 7',
-    motorRpmFinal: 1748,
+    // direct drive: the fan RPM is recorded (initial and final), the motor RPM row is N/A
+    fanRpmInitial: 1748,
     fanRpmFinal: 1748,
   });
   await yesNo(page, 'hasVfd', 'No');

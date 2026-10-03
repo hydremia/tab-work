@@ -26,6 +26,7 @@ import { equipmentType, mapOf, workbookDef, type Discipline, type EquipmentTypeK
 import { CERT_KEYS, CERT_PRELIM_REASON, certValue } from '../domain/certification';
 import { PRESSURE_KEYS, PRESSURE_ROWS } from '../domain/projectCompletion';
 import { findRow, rowNames } from '../domain/rowLabels';
+import { joinSheaveBore, splitSheaveBore } from '../domain/sheaveBore';
 import { SPARE_OA_ROWS, spareOaKey, type SpareOaColumn } from '../domain/spareOa';
 import { getSpec, seqKey, tableColumns, type EquipmentSpec, type RowTableSpec } from '../domain/specs';
 import {
@@ -314,7 +315,13 @@ export function toProjectData(
     for (const t of specTables(spec)) {
       const td = layout.tables?.find((x) => x.key === t.key);
       const cd = layout.columnTables?.find((x) => x.key === t.key);
-      if (!td && !cd) continue;
+      if (!td && !cd) {
+        if (t.key === 'intake' && unitRows.some((r) => r.table === 'intake'))
+          warnings.push(
+            `${path}: intake screen readings need template revision 07; not in this workbook (the app keeps them)`,
+          );
+        continue;
+      }
       const tr = c.tables[t.key];
       const rows = unitRows.filter((r) => r.table === t.key).sort((a, c2) => a.order - c2.order);
       const naNotation = tr && isNaState(tr.state) ? (tr.notation ?? 'N/A') : undefined;
@@ -447,10 +454,32 @@ export function unitFieldCells(
     // automatic N/A that overrides an entered value (MAU: a method that is not the chosen one) exports as N/A
     const raw = st?.state === 'auto-na' ? 'N/A' : out(e.data[key], e.naState.fields[key] ?? levelMark);
     if (raw === undefined) continue;
+    // MAU method "Intake": not in the template's method list before revision 07 (no cells for the screens yet)
+    if (key === 'method' && raw === 'Intake' && blockDef?.type === 'list') {
+      warnings.push(
+        `${path}: the Intake method needs template revision 07; the method and its screens are not in this workbook (the app keeps them)`,
+      );
+      continue;
+    }
     const v = coerce(edeDef ?? blockDef, raw, `${path}.${key}`, warnings);
     if (v === undefined) continue;
     if (edeDef) schedule[key] = v;
     else fields[key] = v;
+  }
+  // revisions 05 / 06 have one "Shv Bore M/F" cell: the motor and fan bores go there as "motor / fan"
+  const boreCell = layout.fields?.find((f) => f.key === 'sheaveBore');
+  if (boreCell && !layout.fields?.some((f) => f.key === 'motorBore')) {
+    const side = (k: string): string | null => {
+      const st = c.fields[k];
+      if (st && isNaState(st.state)) return st.notation ?? 'N/A';
+      const v = e.data[k];
+      return v === null || v === undefined || v === '' ? null : String(v);
+    };
+    const joined = joinSheaveBore(side('motorBore'), side('fanBore'));
+    if (joined !== null) {
+      const v = coerce(boreCell, joined, `${path}.sheaveBore`, warnings);
+      if (v !== undefined) fields.sheaveBore = v;
+    }
   }
   return { schedule, fields };
 }
@@ -598,6 +627,20 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
           .map((l) => l ?? '')
           .join('\n')
           .replace(/\n+$/, '');
+      // one "Shv Bore M/F" cell (revisions 05 / 06): the app keeps the motor and fan bores apart
+      if ('sheaveBore' in data || na.fields.sheaveBore) {
+        const mark = na.fields.sheaveBore;
+        const split = splitSheaveBore(data.sheaveBore);
+        if (mark) {
+          na.fields.motorBore = mark;
+          na.fields.fanBore = mark;
+        } else if (split) {
+          data.motorBore = split.motorBore;
+          if (split.fanBore !== null) data.fanBore = split.fanBore;
+        }
+        delete data.sheaveBore;
+        delete na.fields.sheaveBore;
+      }
       // app-only answers, derived from the data
       if (typeof data.vsdFinal === 'number' || typeof data.vsdInitial === 'number') data.hasVfd = 'Yes';
       if (!isBlank(data.filters)) data.hasFilters = 'Yes';

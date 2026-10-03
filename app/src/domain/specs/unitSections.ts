@@ -8,6 +8,10 @@ import type { AutoNa, FieldSpec, PhotoSpec, SectionSpec } from './types';
 
 export const ONE_PHASE: AutoNa = { when: { field: 'phase', eq: '1-phase' }, reason: '1-phase' };
 export const NOT_BELT: AutoNa = { when: { field: 'driveType', in: ['Direct', 'ECM'] }, reason: 'direct / ECM drive' };
+export const DIRECT_RPM: AutoNa = {
+  when: { field: 'driveType', in: ['Direct', 'ECM'] },
+  reason: 'direct / ECM drive: the fan RPM is the motor RPM',
+};
 export const NO_VFD: AutoNa = { when: { field: 'hasVfd', notIn: ['Yes'] }, reason: 'no VFD' };
 export const NO_FILTERS: AutoNa = { when: { field: 'hasFilters', eq: 'No' }, reason: 'no filters' };
 /**
@@ -102,11 +106,12 @@ export const driveSection: SectionSpec = {
   airflow: false,
   fields: [
     { key: 'driveType', label: 'Drive type', input: 'select', options: TEMPLATE_LISTS['Drive.Type'] },
-    { key: 'motorSheave', label: 'Motor sheave', input: 'text', autoNa: [NOT_BELT] },
+    { key: 'motorSheave', label: 'Motor sheave', input: 'text', autoNa: [NOT_BELT], hint: 'e.g. 2VP60' },
+    { key: 'motorBore', label: 'Motor bore (shaft)', input: 'text', autoNa: [NOT_BELT], hint: 'e.g. 1-3/8' },
     { key: 'fanPulley', label: 'Fan pulley', input: 'text', autoNa: [NOT_BELT] },
+    { key: 'fanBore', label: 'Fan bore (shaft)', input: 'text', autoNa: [NOT_BELT] },
     { key: 'belts', label: 'Belt(s)', input: 'text', autoNa: [NOT_BELT] },
     { key: 'cToC', label: 'C to C', input: 'text', autoNa: [NOT_BELT] },
-    { key: 'sheaveBore', label: 'Sheave bore M/F', input: 'text', autoNa: [NOT_BELT] },
   ],
 };
 
@@ -128,9 +133,11 @@ export const rpmSection: SectionSpec = {
   label: 'RPM data',
   airflow: false,
   fields: [
-    { key: 'motorRpmInitial', label: 'Motor RPM (initial)', input: 'number', unit: 'rpm', required: false },
-    { key: 'motorRpmFinal', label: 'Motor RPM (final)', input: 'number', unit: 'rpm' },
-    { key: 'fanRpmInitial', label: 'Fan RPM (initial)', input: 'number', unit: 'rpm', required: false },
+    // initial and final both required (the same value when nothing was changed); on a direct / ECM drive the fan
+    // turns at motor speed, so the fan RPM is recorded and the motor RPM row is N/A
+    { key: 'motorRpmInitial', label: 'Motor RPM (initial)', input: 'number', unit: 'rpm', autoNa: [DIRECT_RPM] },
+    { key: 'motorRpmFinal', label: 'Motor RPM (final)', input: 'number', unit: 'rpm', autoNa: [DIRECT_RPM] },
+    { key: 'fanRpmInitial', label: 'Fan RPM (initial)', input: 'number', unit: 'rpm' },
     { key: 'fanRpmFinal', label: 'Fan RPM (final)', input: 'number', unit: 'rpm' },
     { key: 'hasVfd', label: 'VFD on the unit?', input: 'yesno', appOnly: true },
     {

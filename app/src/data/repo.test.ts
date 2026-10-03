@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { db } from './db';
-import { addAirflowRow, addEquipment, addIssue, CapacityError, createProject, deleteRecord, setField } from './repo';
+import {
+  addAirflowRow,
+  addEquipment,
+  addIssue,
+  CapacityError,
+  createProject,
+  deleteRecord,
+  setField,
+  splitLegacySheaveBore,
+} from './repo';
 import { countPending, markSynced, pendingChanges } from '../sync/outbox';
 
 describe('setField + outbox', () => {
@@ -132,5 +141,28 @@ describe('records', () => {
     await deleteRecord('projects', p.id);
     for (const t of [db.projects, db.equipment, db.airflowRows, db.issues, db.instruments])
       expect(await t.count()).toBe(0);
+  });
+});
+
+describe('old "Sheave bore M/F" values', () => {
+  it('are split once into the motor and fan bores, as synced edits; a bore already entered wins', async () => {
+    const p = await createProject({ name: 'Bores', address: '1 Main' });
+    const u = await addEquipment(p.id, 'rtu', 'RTU-1');
+    await setField('equipment', u.id, 'data.sheaveBore', '1-1/8 / 1-7/16');
+    expect(await splitLegacySheaveBore((await db.equipment.get(u.id))!)).toBe(true);
+    const after = (await db.equipment.get(u.id))!;
+    expect(after.data).toMatchObject({ motorBore: '1-1/8', fanBore: '1-7/16', sheaveBore: null });
+    expect((await pendingChanges()).some((c) => c.recordId === u.id && c.field === 'data.motorBore')).toBe(true);
+    expect(await splitLegacySheaveBore(after)).toBe(false); // nothing left to split
+
+    const v = await addEquipment(p.id, 'rtu', 'RTU-2');
+    await setField('equipment', v.id, 'data.motorBore', '7/8');
+    await setField('equipment', v.id, 'data.sheaveBore', '1 / 1-3/16');
+    await splitLegacySheaveBore((await db.equipment.get(v.id))!);
+    expect((await db.equipment.get(v.id))!.data).toMatchObject({
+      motorBore: '7/8',
+      fanBore: '1-3/16',
+      sheaveBore: null,
+    });
   });
 });

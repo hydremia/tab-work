@@ -530,7 +530,13 @@ damper · Static pressure profile · Airflow · Photos · Remarks.
 
 - **Unit type** (RTU or DOAS) sets which static-pressure components exist. RTU has no wheel, so *Leaving component
   2* shows *Auto N/A · not on this unit type*.
-- **Drive type**: when it's Direct or ECM, the sheave / pulley / belt / C to C / bore fields are N/A for you.
+- **Drive data**: **Motor sheave** with **Motor bore (shaft)** next to it, then **Fan pulley** with **Fan bore
+  (shaft)** (e.g. *2VP60* and *1-3/8*). A value entered earlier in the old *Sheave bore M/F* box (*motor / fan*) is
+  split into the two bores the first time the unit is opened. Until template revision 07 the workbook shows both
+  bores in its *Shv Bore M/F* box as *motor / fan*.
+- **Drive type**: when it's Direct or ECM, the sheave / pulley / bore / belt / C to C fields are N/A for you.
+- **RPM data**: initial and final are both required (the same value when nothing was changed). On a Direct or ECM
+  drive the fan turns at motor speed: enter the **fan RPM** (initial and final); the motor RPM row is N/A.
 - **VFD on the unit?**: when the answer is No, the VSD frequency fields are N/A.
 - **Unit has filters?**: when the answer is No, the filter fields and filter static are N/A.
 - **Design OA CFM** of 0 or blank makes the OA damper, the OA row and the OA damper photo N/A.
@@ -568,6 +574,11 @@ Same as RTU, but there's no OA damper and no OA / return rows. The **Supply airf
 | **PSP** (perforated supply plenum) | Length, width (6–24 in.), number of blanks, up to 20 velocity readings | K-factor, average velocity, PSP CFM, CFM / ft |
 | **Filter Grid** | Filter size and velocity for each filter (up to 11) | CFM (velocity × free area × 1.35) |
 | **Profile Pressure** | Housing size (1–5), burner profile pressure (0.15–0.65 in. w.g.) | CFM from the manufacturer's curve |
+| **Intake** | One row per intake screen: size, Ak, velocity against the screen (initial / final) | CFM per screen (VEL × Ak), total |
+
+**Intake screens** can also be read as a **check** next to another method: fill the rows and the totals line shows
+*Intake check* with its % of the actual. Until template revision 07 the workbook has no intake cells: the Intake
+method and the screens stay in the app, and the export says so.
 
 Only the chosen method's inputs are required. The others become N/A. If you switch methods, your earlier entries are
 kept in the app and come back when you switch back, but only the chosen method is exported. **Method total** is
