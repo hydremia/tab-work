@@ -24,13 +24,7 @@ import {
   certValue,
 } from '../../domain/certification';
 import { calibrationExpired } from '../../domain/instruments';
-import {
-  AIR_BALANCE_KEYS,
-  designFieldOf,
-  excludedIds,
-  excludedUnits,
-  unitDesignBalance,
-} from '../../domain/airBalance';
+import { AIR_BALANCE_KEYS, designFieldOf, excludedIds, excludedUnits } from '../../domain/airBalance';
 import { balanceLines, buildingBalance } from '../../domain/equipmentCalcs';
 import {
   SPARE_OA_ROWS,
@@ -269,16 +263,17 @@ function BuildingBalanceCard({ project, equipment }: { project: Project; equipme
     data: e.data,
     designation: e.designation,
   }));
-  const lines = rows ? balanceLines(units, rows) : [];
+  const order = (t: string) => EQUIPMENT_TYPES.findIndex((x) => x.key === t);
+  const lines = (rows ? balanceLines(units, rows) : []).sort(
+    (a, b) => order(a.type) - order(b.type) || a.designation.localeCompare(b.designation, undefined, { numeric: true }),
+  );
   const actual = rows ? buildingBalance(units, rows, spare, ids) : null;
-  const design = unitDesignBalance(equipment, spare.design, excluded);
   const ab = {
     oa: project.info[AIR_BALANCE_KEYS.oa],
     exhaust: project.info[AIR_BALANCE_KEYS.exhaust],
     net: project.info[AIR_BALANCE_KEYS.net],
   };
   const has = typeof ab.oa === 'number' || typeof ab.exhaust === 'number';
-  if (!lines.length && !has && !design.oa && !design.exhaust) return null;
   const byId = new Map(equipment.map((e) => [e.id, e]));
   // the schedule's design when there are no readings rows yet (the prep-time design)
   const scheduled = (e: Equipment | undefined, side: 'oa' | 'exhaust') => {
@@ -286,6 +281,16 @@ function BuildingBalanceCard({ project, equipment }: { project: Project; equipme
     const f = designFieldOf(e.type, side, e.data);
     return f && typeof e.data[f] === 'number' ? e.data[f] : null;
   };
+  // design totals: each included unit's readings design, else its scheduled design (as the rows show it)
+  const design = { oa: spare.design, exhaust: 0, net: 0 };
+  for (const l of lines) {
+    if (ids.has(l.id)) continue;
+    const e = byId.get(l.id);
+    design.oa += l.oaDesign ?? scheduled(e, 'oa') ?? 0;
+    design.exhaust += l.exhaustDesign ?? scheduled(e, 'exhaust') ?? 0;
+  }
+  design.net = design.oa - design.exhaust;
+  if (!lines.length && !has && !design.oa) return null;
   const setExcluded = (designation: string, out: boolean) => {
     const key = designation.trim().toUpperCase();
     const next = out ? [...excluded, designation] : excluded.filter((d) => d.trim().toUpperCase() !== key);
@@ -313,7 +318,7 @@ function BuildingBalanceCard({ project, equipment }: { project: Project; equipme
             <th>Side</th>
             <th>Design</th>
             <th>Actual</th>
-            <th>In balance</th>
+            <th title="In the building balance">Incl.</th>
           </tr>
         </thead>
         <tbody>
@@ -411,7 +416,7 @@ function BuildingBalanceCard({ project, equipment }: { project: Project; equipme
         </tbody>
       </table>
       <p className="small muted" style={{ margin: 0 }}>
-        Design: the units&apos; scheduled design
+        Design: the units&apos; design (from the readings, or the schedule before there are readings)
         {has && project.info[AIR_BALANCE_KEYS.source]
           ? `; air balance: ${String(project.info[AIR_BALANCE_KEYS.source])}`
           : ''}
