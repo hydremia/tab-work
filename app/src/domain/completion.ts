@@ -136,6 +136,8 @@ export interface CompletionInput {
   photos: readonly { category: string }[];
   project: Pick<Project, 'scopeProfile' | 'customScope' | 'tolerance'>;
   openIssues: number;
+  /** A hood of the project names this fan as its exhaust fan (equipmentCalcs.hoodLinks): conditions see it as `_hoodLinked`. */
+  hoodLinked?: boolean;
 }
 
 /** naState.fields key used for a photo slot's N/A mark. */
@@ -155,7 +157,11 @@ function forcedAuto(auto: readonly AutoNa[] | undefined, values: Readonly<Record
 
 export function computeCompletion(input: CompletionInput): Completion {
   const { spec, unit, project } = input;
-  const values: Record<string, FieldValue> = { ...unit.data, designation: unit.designation };
+  const values: Record<string, FieldValue> = {
+    ...unit.data,
+    designation: unit.designation,
+    _hoodLinked: input.hoodLinked ? 'Yes' : 'No',
+  };
   const na = unit.naState;
   const res: Completion = {
     color: 'gray',

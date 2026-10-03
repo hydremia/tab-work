@@ -409,6 +409,84 @@ export interface BalanceLine {
   exhaustActual: number | null;
 }
 
+// ------------------------------------------------------------------------------------------ hood ↔ exhaust fan
+const tagKey = (d: string) => d.trim().toLowerCase().replace(/\s+/g, '');
+
+/** The fans a hood names in "Associated exhaust fan": one or several ("EF-1", "EF-1 & EF-2", "EF-1, EF-2"). */
+export function hoodFanTags(v: FieldValue | undefined): string[] {
+  if (typeof v !== 'string') return [];
+  return v
+    .split(/\s*(?:,|&|\/|;|\band\b)\s*/i)
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+interface LinkUnit {
+  id: string;
+  type: string;
+  designation?: string;
+  data: Readonly<Record<string, FieldValue>>;
+}
+
+/** Fan id -> the hoods that name it (by designation, case and spaces ignored). */
+export function hoodLinks<T extends LinkUnit>(units: readonly T[]): Map<string, T[]> {
+  const fans = new Map<string, string>();
+  for (const u of units)
+    if ((u.type === 'fan' || u.type === 'smallFan') && u.designation) fans.set(tagKey(u.designation), u.id);
+  const out = new Map<string, T[]>();
+  for (const h of units) {
+    if (h.type !== 'hood') continue;
+    for (const tag of hoodFanTags(h.data.associatedFan)) {
+      const fan = fans.get(tagKey(tag));
+      if (fan) out.set(fan, [...(out.get(fan) ?? []), h]);
+    }
+  }
+  return out;
+}
+
+/**
+ * A fan whose airflow is measured at its hood(s): "Measured at" Hood, or left blank while a hood names the fan
+ * ("Grilles" keeps the grille readings even when a hood names it).
+ */
+export function fanAtHood(fan: { data: Readonly<Record<string, FieldValue>> }, linked: boolean): boolean {
+  const m = fan.data.measuredAt;
+  return m === 'Hood' || ((m === null || m === undefined || m === '') && linked);
+}
+
+/** The hoods' totals as one fan airflow: design, initial, final (sums of the hood totals). */
+export function hoodsAirflow(
+  hoods: readonly LinkUnit[],
+  rows: readonly (Row & { equipmentId: string })[],
+): { design: number | null; initial: number | null; final: number | null; actual: number | null } {
+  let d = 0,
+    i = 0,
+    f = 0,
+    anyI = false,
+    anyF = false,
+    anyD = false;
+  for (const h of hoods) {
+    const t = hoodTotals(
+      h.data,
+      rows.filter((r) => r.equipmentId === h.id),
+    );
+    if (t.design !== null) {
+      d += t.design;
+      anyD = true;
+    }
+    if (t.initial !== null) {
+      i += t.initial;
+      anyI = true;
+    }
+    if (t.final !== null) {
+      f += t.final;
+      anyF = true;
+    }
+  }
+  const final = anyF ? f : null;
+  const initial = anyI ? i : null;
+  return { design: anyD ? d : null, initial, final, actual: final ?? initial };
+}
+
 /**
  * The units on the Building Balance (rows 7-66): RTU OA rows, MAU totals, ERV supply on the OA side; fans, ERV exhaust
  * and small fans 1-30 on the exhaust side. Design is the readings' design (as the sheet sums it).
@@ -418,6 +496,7 @@ export function balanceLines(
   rows: readonly (Row & { equipmentId: string })[],
 ): BalanceLine[] {
   const out: BalanceLine[] = [];
+  const links = hoodLinks(units);
   for (const u of units) {
     const ur = rows.filter((r) => r.equipmentId === u.id);
     const line: BalanceLine = {
@@ -445,9 +524,17 @@ export function balanceLines(
       line.exhaustDesign = t.exhaust.design;
       line.exhaustActual = t.exhaust.actual;
     } else if (u.type === 'fan' || (u.type === 'smallFan' && u.slot <= 30)) {
-      const t = outletSheetTotals(rowsOf(ur, 'outlets'));
-      line.exhaustDesign = t.design;
-      line.exhaustActual = t.actual;
+      const hoods = links.get(u.id) ?? [];
+      if (fanAtHood(u, hoods.length > 0)) {
+        // measured at its hood(s): the hoods' totals are the fan's airflow
+        const h = hoodsAirflow(hoods, rows);
+        line.exhaustDesign = h.design;
+        line.exhaustActual = h.actual;
+      } else {
+        const t = outletSheetTotals(rowsOf(ur, 'outlets'));
+        line.exhaustDesign = t.design;
+        line.exhaustActual = t.actual;
+      }
     } else continue;
     out.push(line);
   }

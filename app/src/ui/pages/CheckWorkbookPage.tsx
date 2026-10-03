@@ -10,6 +10,7 @@ import { reviewProject, type ReviewResult } from '../../domain/review';
 import { getSpec } from '../../domain/specs';
 import { ReportCheck } from '../components/ReportCheck';
 import { Screen } from '../components/Screen';
+import { hoodLinks } from '../../domain/equipmentCalcs';
 
 export function CheckWorkbookPage() {
   const [busy, setBusy] = useState(false);
@@ -24,6 +25,7 @@ export function CheckWorkbookPage() {
       const { readWorkbookFile, parseWorkbook } = await import('../../workbook/importProject');
       const parsed = await parseWorkbook(await readWorkbookFile(file), file.name);
       const b = parsed.bundle;
+      const linked = hoodLinks(b.equipment);
       const completions = new Map(
         b.equipment.map((e) => [
           e.id,
@@ -34,6 +36,7 @@ export function CheckWorkbookPage() {
             photos: [],
             project: b.project,
             openIssues: b.issues.filter((i) => i.equipmentId === e.id && i.status === 'Open').length,
+            hoodLinked: linked.has(e.id),
           }),
         ]),
       );
