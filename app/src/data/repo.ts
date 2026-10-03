@@ -61,6 +61,7 @@ import {
   type StoredImage,
   type TableName,
 } from './types';
+import { hoodLinks } from '../domain/equipmentCalcs';
 
 type AnyRecord = { id: string; projectId?: string; updatedAt: number };
 
@@ -460,11 +461,12 @@ export class NotCompleteError extends Error {
 export async function isUnitGreen(equipmentId: string): Promise<boolean> {
   const unit = await db.equipment.get(equipmentId);
   if (!unit) return false;
-  const [project, rows, photos, issues] = await Promise.all([
+  const [project, rows, photos, issues, units] = await Promise.all([
     db.projects.get(unit.projectId),
     db.airflowRows.where('equipmentId').equals(equipmentId).toArray(),
     db.photos.where('equipmentId').equals(equipmentId).toArray(),
     db.issues.where('equipmentId').equals(equipmentId).toArray(),
+    unit.type === 'fan' ? db.equipment.where('projectId').equals(unit.projectId).toArray() : Promise.resolve([]),
   ]);
   if (!project) return false;
   return (
@@ -475,6 +477,7 @@ export async function isUnitGreen(equipmentId: string): Promise<boolean> {
       photos,
       project,
       openIssues: issues.filter((i) => i.status === 'Open').length,
+      hoodLinked: hoodLinks(units).has(unit.id),
     }).color === 'green'
   );
 }

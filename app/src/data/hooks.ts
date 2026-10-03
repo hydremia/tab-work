@@ -32,6 +32,7 @@ import type {
   Revision,
   SyncConflict,
 } from './types';
+import { hoodLinks } from '../domain/equipmentCalcs';
 
 export function useProjects(): Project[] | undefined {
   return useLiveQuery(() => db.projects.orderBy('updatedAt').reverse().toArray(), []);
@@ -110,6 +111,7 @@ interface StatusInputs {
 export function projectStatus({ project, equipment, rows, photos, issues }: StatusInputs): ProjectStatus {
   const byEquipment = new Map<string, Completion>();
   const display = new Map<string, DisplayColor>();
+  const linked = hoodLinks(equipment);
   for (const e of equipment) {
     byEquipment.set(
       e.id,
@@ -120,6 +122,7 @@ export function projectStatus({ project, equipment, rows, photos, issues }: Stat
         photos: photos.filter((p) => p.equipmentId === e.id),
         project,
         openIssues: issues.filter((i) => i.equipmentId === e.id && i.status === 'Open').length,
+        hoodLinked: linked.has(e.id),
       }),
     );
     display.set(e.id, displayColor(byEquipment.get(e.id)!.color, Boolean(e.review)));

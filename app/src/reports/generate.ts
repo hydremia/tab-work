@@ -19,6 +19,7 @@ import {
   type ReportPhotoMeta,
 } from './model';
 import { renderReportPdf, type ImageLoader } from './pdf';
+import { hoodLinks } from '../domain/equipmentCalcs';
 
 export interface ReportRequest {
   kind: ReportKind;
@@ -130,6 +131,7 @@ async function graphicsInput(projectId: string) {
     ]);
   const b = await loadBundle(projectId);
   const libraryPumps = await db.libraryPumps.toArray();
+  const linked = hoodLinks(b.equipment);
   const completions = new Map(
     b.equipment.map((e) => [
       e.id,
@@ -140,6 +142,7 @@ async function graphicsInput(projectId: string) {
         photos: [],
         project: b.project,
         openIssues: 0,
+        hoodLinked: linked.has(e.id),
       }),
     ]),
   );

@@ -38,7 +38,7 @@ import {
   type SectionResult,
 } from '../../domain/completion';
 import { evalCond } from '../../domain/conditions';
-import { traverseLayout } from '../../domain/equipmentCalcs';
+import { hoodFanTags, hoodLinks, traverseLayout } from '../../domain/equipmentCalcs';
 import { equipmentType, nextDesignation } from '../../domain/equipmentTypes';
 import { getSpec, type FieldSpec, type SectionSpec, type SequenceSpec } from '../../domain/specs';
 import { airflowOnlySections } from '../../domain/unitScope';
@@ -118,6 +118,7 @@ function SectionCard({
   rows,
   photos,
   instruments,
+  all,
 }: {
   section: SectionSpec;
   equipment: Equipment;
@@ -126,6 +127,8 @@ function SectionCard({
   rows: AirflowRow[];
   photos: Photo[];
   instruments: Instrument[];
+  /** The project's units (a hood's exhaust fan is picked from its fans). */
+  all: Equipment[];
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [unfolded, setUnfolded] = useState(false);
@@ -134,6 +137,19 @@ function SectionCard({
   const folded = !unfolded && section.foldWhen !== undefined && evalCond(section.foldWhen, values);
   const mark = equipment.naState.sections[section.key];
   const bodyId = `sec-${section.key}-body`;
+  // a hood's exhaust fan: the project's fans to pick from, and a note when a named fan is not in the project
+  const fans = all.filter((x) => x.type === 'fan' || x.type === 'smallFan');
+  const fanTags = fans.map((x) => x.designation);
+  const unknownFans =
+    equipment.type === 'hood'
+      ? hoodFanTags(equipment.data.associatedFan).filter(
+          (t) =>
+            !fans.some((x) => x.designation.replace(/\s+/g, '').toLowerCase() === t.replace(/\s+/g, '').toLowerCase()),
+        )
+      : [];
+  const fanLinkWarning = unknownFans.length
+    ? `No fan ${unknownFans.join(', ')} in this project: add it (or fix the tag) to read its airflow at this hood`
+    : null;
 
   const onField = (f: FieldSpec) => (v: FieldValue) => {
     if (f.recordField)
@@ -215,7 +231,13 @@ function SectionCard({
                 <SpecField
                   key={f.key}
                   idPrefix={equipment.id.slice(0, 8)}
-                  field={f.key === 'remarks' ? { ...f, hint: remarkRoom(equipment) } : f}
+                  field={
+                    f.key === 'remarks'
+                      ? { ...f, hint: remarkRoom(equipment) }
+                      : f.key === 'associatedFan'
+                        ? { ...f, suggestions: fanTags }
+                        : f
+                  }
                   label={fieldLabel(f, equipment.data)}
                   value={f.recordField ? equipment.designation : equipment.data[f.key]}
                   state={completion.fields[f.key]}
@@ -225,7 +247,9 @@ function SectionCard({
                   warning={
                     (INSTRUMENT_FIELDS as readonly string[]).includes(f.key)
                       ? pickerWarning(equipment.data[f.key], instruments)
-                      : null
+                      : f.key === 'associatedFan'
+                        ? fanLinkWarning
+                        : null
                   }
                 />
               ))}
@@ -587,7 +611,15 @@ export function EquipmentPage() {
   const spec = getSpec(equipment.type);
   const info = equipmentType(equipment.type);
   const unitIssues = issues.filter((i) => i.equipmentId === equipment.id && i.status === 'Open');
-  const c = computeCompletion({ spec, unit: equipment, rows, photos, project, openIssues: unitIssues.length });
+  const c = computeCompletion({
+    spec,
+    unit: equipment,
+    rows,
+    photos,
+    project,
+    openIssues: unitIssues.length,
+    hoodLinked: hoodLinks(all).has(equipment.id),
+  });
   const pct = c.required ? Math.round((c.satisfied / c.required) * 100) : 0;
   const values = { ...equipment.data, designation: equipment.designation };
   const sections = spec.sections.filter((s) => !s.showWhen || evalCond(s.showWhen, values));
@@ -759,6 +791,7 @@ export function EquipmentPage() {
               rows={rows}
               photos={photos}
               instruments={instruments}
+              all={all}
             />
           ))}
 

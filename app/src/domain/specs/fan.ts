@@ -1,6 +1,6 @@
 /** Exhaust / transfer / kitchen exhaust fans: docs/REQUIRED_FIELDS.md "Fans: EF, TF, KEF (Fans sheet)". */
 import { identitySection, remarksSection } from './common';
-import type { EquipmentSpec } from './types';
+import type { AutoNa, EquipmentSpec } from './types';
 import {
   akNotesField,
   designSection,
@@ -16,6 +16,22 @@ import {
   MOTOR_PHOTO,
   unitDataSection,
 } from './unitSections';
+
+/** Airflow measured at the hood(s) that name this fan (equipmentCalcs.fanAtHood): no grilles, the hood's instrument. */
+const AT_HOOD: AutoNa = {
+  when: {
+    any: [
+      { field: 'measuredAt', eq: 'Hood' },
+      {
+        all: [
+          { field: 'measuredAt', blank: true },
+          { field: '_hoodLinked', eq: 'Yes' },
+        ],
+      },
+    ],
+  },
+  reason: 'measured at the hood',
+};
 
 export const FAN_SPEC: EquipmentSpec = {
   type: 'fan',
@@ -35,8 +51,30 @@ export const FAN_SPEC: EquipmentSpec = {
       key: 'airflow',
       label: 'Airflow',
       airflow: true,
-      fields: [instrumentField, akNotesField],
-      tables: [{ key: 'outlets', label: 'Registers / grilles', required: true, minRows: 1, tolerance: true }],
+      calc: 'fanHood',
+      fields: [
+        {
+          key: 'measuredAt',
+          label: 'Measured at',
+          input: 'select',
+          options: ['Grilles', 'Hood'],
+          required: false,
+          appOnly: true,
+          hint: 'Hood: the airflow is read at the kitchen hood(s) that name this fan (automatic when a hood names it)',
+        },
+        { ...instrumentField, autoNa: [AT_HOOD] },
+        akNotesField,
+      ],
+      tables: [
+        {
+          key: 'outlets',
+          label: 'Registers / grilles',
+          required: true,
+          minRows: 1,
+          tolerance: true,
+          autoNa: [AT_HOOD],
+        },
+      ],
     },
     photosSection([...UNIT_TAG_PHOTOS, MOTOR_PHOTO]),
     remarksSection,

@@ -161,7 +161,9 @@ export type CalcPanel =
   /** Pump head at each test condition from the gauges, actual vs design head and flow (hydronicCalcs.ts). */
   | 'pumpTest'
   /** Balancing assistant for a valve system: NEBB proportional method, targets and progress (balancing.ts). */
-  | 'balancing';
+  | 'balancing'
+  /** Fan airflow measured at its hood(s): the linked hoods and their totals as the fan's airflow (hood ↔ fan link). */
+  | 'fanHood';
 
 export interface SectionSpec {
   key: string;

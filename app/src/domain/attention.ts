@@ -27,6 +27,7 @@ import { motorCalc, motorInputs, motorWarnings } from './motorCalcs';
 import { getSpec } from './specs';
 import { espDiscrepancy, staticInputs, staticProfile } from './staticProfile';
 import { unitCells } from '../workbook/adapter';
+import { hoodLinks } from './equipmentCalcs';
 
 export type AttentionGroup = 'design' | 'motor' | 'tolerance' | 'photos' | 'issues' | 'capacity' | 'calibration';
 
@@ -84,6 +85,7 @@ export function needsAttention(input: AttentionInput): AttentionItem[] {
     used.set(k, u);
   };
 
+  const linked = hoodLinks(byOrder);
   for (const e of byOrder) {
     const unitPath = (section?: string) => `e/${e.id}${section ? `#sec-${section}` : ''}`;
     const c =
@@ -95,6 +97,7 @@ export function needsAttention(input: AttentionInput): AttentionItem[] {
         photos: input.photos.filter((p) => p.equipmentId === e.id),
         project,
         openIssues: openIssues.filter((i) => i.equipmentId === e.id).length,
+        hoodLinked: linked.has(e.id),
       });
     const add = (group: AttentionGroup, key: string, text: string, section?: string) =>
       items.push({

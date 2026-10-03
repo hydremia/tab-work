@@ -2,7 +2,19 @@
 import type { AirflowRow, Equipment } from '../../data/types';
 import { formatNumber, formatPercent } from '../../domain/calc';
 import type { Completion } from '../../domain/completion';
-import { ervTotals, filterGridCfm, hoodTotals, mauTotals, traverseTotals } from '../../domain/equipmentCalcs';
+import {
+  ervTotals,
+  fanAtHood,
+  filterGridCfm,
+  hoodLinks,
+  hoodsAirflow,
+  hoodTotals,
+  mauTotals,
+  traverseTotals,
+} from '../../domain/equipmentCalcs';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { Link } from 'react-router';
+import { db } from '../../data/db';
 import { balancingPlan } from '../../domain/balancing';
 import { pumpTest } from '../../domain/hydronicCalcs';
 import { motorCalc, motorInputs, motorWarnings } from '../../domain/motorCalcs';
@@ -125,6 +137,7 @@ export function CalcPanel({
   completion?: Completion;
 }) {
   const d = equipment.data;
+  if (panel === 'fanHood') return <FanHoodPanel equipment={equipment} tolerance={tolerance} />;
   let body: React.ReactNode = null;
   if ((panel === 'staticProfile' || panel === 'motor' || panel === 'unitEsp') && !completion) return null;
   if (panel === 'staticProfile') {
@@ -471,6 +484,70 @@ export function CalcPanel({
   return (
     <div className="calc-panel" data-testid={`calc-${panel}`}>
       {body}
+    </div>
+  );
+}
+
+/**
+ * A fan measured at its kitchen hood(s): the hoods that name it (Associated exhaust fan), their design / initial /
+ * final totals as the fan's airflow, and the fan's scheduled CFM against them. Nothing shows for a fan read at its
+ * grilles with no hood naming it.
+ */
+function FanHoodPanel({ equipment, tolerance }: { equipment: Equipment; tolerance: number }) {
+  const units = useLiveQuery(
+    () => db.equipment.where('projectId').equals(equipment.projectId).toArray(),
+    [equipment.projectId],
+  );
+  const hoods = (units ? hoodLinks(units).get(equipment.id) : undefined) ?? [];
+  const rows = useLiveQuery(
+    () =>
+      hoods.length
+        ? db.airflowRows
+            .where('equipmentId')
+            .anyOf(hoods.map((h) => h.id))
+            .toArray()
+        : [],
+    [hoods.map((h) => h.id).join(',')],
+  );
+  if (!units) return null;
+  const atHood = fanAtHood(equipment, hoods.length > 0);
+  if (!hoods.length && !atHood) return null;
+  const a = hoodsAirflow(hoods, rows ?? []);
+  const design = typeof equipment.data.designTotalCfm === 'number' ? equipment.data.designTotalCfm : a.design;
+  return (
+    <div className="calc-panel" data-testid="calc-fanHood">
+      {!hoods.length ? (
+        <p className="small" style={{ margin: 0 }}>
+          Measured at the hood, but no hood names {equipment.designation}: set <b>Associated exhaust fan</b> on its
+          hood.
+        </p>
+      ) : (
+        <>
+          <p className="small" style={{ margin: 0 }}>
+            {atHood ? 'Airflow measured at ' : 'Hood(s) on this fan (read at the grilles here): '}
+            {hoods.map((h, i) => (
+              <span key={h.id}>
+                {i ? ', ' : ''}
+                <Link to={`/p/${h.projectId}/e/${h.id}`}>{h.designation}</Link>
+              </span>
+            ))}
+          </p>
+          {atHood && (
+            <div className="totals" aria-label="Fan airflow from the hood(s)">
+              <span>
+                Design <b>{formatNumber(design)}</b>
+              </span>
+              <span>
+                Initial <b>{formatNumber(a.initial)}</b>
+              </span>
+              <span>
+                Final <b data-testid="fan-hood-final">{formatNumber(a.final)}</b>
+              </span>
+              <Pct ratio={design && a.actual !== null ? a.actual / design : null} tolerance={tolerance} />
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
