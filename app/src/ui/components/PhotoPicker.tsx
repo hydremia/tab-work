@@ -40,8 +40,11 @@ export function PhotoPicker({
   chooseText = 'Choose',
   disabled = false,
   compact = false,
+  badge,
 }: {
   label: string;
+  /** A mark shown on both buttons even when compact (a filled photo slot: "+", they add a photo). */
+  badge?: string;
   /** Icon-only buttons (narrow photo slots); the text stays for screen readers and as a tooltip. */
   compact?: boolean;
   onFiles: (files: File[]) => void;
@@ -53,7 +56,15 @@ export function PhotoPicker({
   return (
     <div className="photo-picker">
       <label className="btn file-btn picker-camera" aria-disabled={disabled} title={takeText}>
-        <IconCamera size={18} /> {compact ? <span className="visually-hidden">{takeText}</span> : takeText}
+        <IconCamera size={18} />{' '}
+        {compact ? (
+          <>
+            {badge && <span aria-hidden>{badge}</span>}
+            <span className="visually-hidden">{takeText}</span>
+          </>
+        ) : (
+          takeText
+        )}
         <input
           type="file"
           accept="image/*"
@@ -67,7 +78,15 @@ export function PhotoPicker({
         />
       </label>
       <label className="btn file-btn" aria-disabled={disabled} title={chooseText}>
-        <IconUpload size={18} /> {compact ? <span className="visually-hidden">{chooseText}</span> : chooseText}
+        <IconUpload size={18} />{' '}
+        {compact ? (
+          <>
+            {badge && <span aria-hidden>{badge}</span>}
+            <span className="visually-hidden">{chooseText}</span>
+          </>
+        ) : (
+          chooseText
+        )}
         <input
           type="file"
           accept="image/*"

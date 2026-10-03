@@ -104,12 +104,18 @@ export function PhotoSlots({
                   ))}
                 </div>
               )}
+              {photo && (
+                <span className="small muted" data-testid={`photo-${p.category}-add-hint`}>
+                  Add more: camera or library
+                </span>
+              )}
               <div className="row" style={{ flexWrap: 'nowrap', gap: 6 }}>
                 <PhotoPicker
                   label={`${p.label} photo`}
                   compact
                   multiple
                   takeText={photo ? 'Add another photo' : 'Take photo'}
+                  badge={photo ? '+' : undefined}
                   chooseText={photo ? 'Add from library' : 'Choose from library'}
                   disabled={Boolean(saver.busy)}
                   onFiles={(files) => void saver.save(files, { category: p.category, equipmentId: equipment.id })}
