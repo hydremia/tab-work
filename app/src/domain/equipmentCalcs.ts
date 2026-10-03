@@ -385,6 +385,7 @@ export interface BalanceUnit {
   type: string;
   slot: number;
   data: Readonly<Record<string, FieldValue>>;
+  designation?: string;
 }
 export interface BuildingBalance {
   oaDesign: number | null;
@@ -397,43 +398,83 @@ export interface BuildingBalance {
   actualBalance: number | null;
 }
 
+/** One unit's share of the Building Balance (null: nothing on that side yet). */
+export interface BalanceLine {
+  id: string;
+  type: string;
+  designation: string;
+  oaDesign: number | null;
+  oaActual: number | null;
+  exhaustDesign: number | null;
+  exhaustActual: number | null;
+}
+
 /**
- * Building Balance totals (rows 7-87, 89, 91) from the units the app manages: RTU OA rows, MAU totals, ERV supply
- * on the OA side; fans, ERV exhaust and small fans 1-30 on the exhaust side; plus the sheet's 20 spare manual OA
- * rows (`spareOa`: their numeric sums, domain/spareOa.ts spareOaTotals).
+ * The units on the Building Balance (rows 7-66): RTU OA rows, MAU totals, ERV supply on the OA side; fans, ERV exhaust
+ * and small fans 1-30 on the exhaust side. Design is the readings' design (as the sheet sums it).
+ */
+export function balanceLines(
+  units: readonly BalanceUnit[],
+  rows: readonly (Row & { equipmentId: string })[],
+): BalanceLine[] {
+  const out: BalanceLine[] = [];
+  for (const u of units) {
+    const ur = rows.filter((r) => r.equipmentId === u.id);
+    const line: BalanceLine = {
+      id: u.id,
+      type: u.type,
+      designation: u.designation ?? '',
+      oaDesign: null,
+      oaActual: null,
+      exhaustDesign: null,
+      exhaustActual: null,
+    };
+    if (u.type === 'rtu') {
+      const oa = rowsOf(ur, 'oa')[0];
+      if (!oa) continue;
+      line.oaDesign = num(oa.data.designCfm ?? null);
+      line.oaActual = rowCfm(oa, 'final');
+    } else if (u.type === 'mau') {
+      const t = mauTotals(u.data, ur);
+      line.oaDesign = t.design;
+      line.oaActual = t.actual;
+    } else if (u.type === 'erv') {
+      const t = ervTotals(ur);
+      line.oaDesign = t.supply.design;
+      line.oaActual = t.supply.actual;
+      line.exhaustDesign = t.exhaust.design;
+      line.exhaustActual = t.exhaust.actual;
+    } else if (u.type === 'fan' || (u.type === 'smallFan' && u.slot <= 30)) {
+      const t = outletSheetTotals(rowsOf(ur, 'outlets'));
+      line.exhaustDesign = t.design;
+      line.exhaustActual = t.actual;
+    } else continue;
+    out.push(line);
+  }
+  return out;
+}
+
+/**
+ * Building Balance totals (rows 7-87, 89, 91) from the units the app manages (balanceLines), plus the sheet's 20 spare
+ * manual OA rows (`spareOa`: their numeric sums, domain/spareOa.ts spareOaTotals). Units in `excluded` (designations:
+ * isolated spaces the ventilation calculation leaves out, info.abExcluded) are not counted.
  */
 export function buildingBalance(
   units: readonly BalanceUnit[],
   rows: readonly (Row & { equipmentId: string })[],
   spareOa: { design: number; actual: number } = { design: 0, actual: 0 },
+  excluded: ReadonlySet<string> = new Set(),
 ): BuildingBalance {
   let oaD = spareOa.design,
     oaA = spareOa.actual,
     exD = 0,
     exA = 0;
-  for (const u of units) {
-    const ur = rows.filter((r) => r.equipmentId === u.id);
-    if (u.type === 'rtu') {
-      const oa = rowsOf(ur, 'oa')[0];
-      if (oa) {
-        oaD += num(oa.data.designCfm ?? null) ?? 0;
-        oaA += rowCfm(oa, 'final') ?? 0;
-      }
-    } else if (u.type === 'mau') {
-      const t = mauTotals(u.data, ur);
-      oaD += t.design ?? 0;
-      oaA += t.actual ?? 0;
-    } else if (u.type === 'erv') {
-      const t = ervTotals(ur);
-      oaD += t.supply.design ?? 0;
-      oaA += t.supply.actual ?? 0;
-      exD += t.exhaust.design ?? 0;
-      exA += t.exhaust.actual ?? 0;
-    } else if (u.type === 'fan' || (u.type === 'smallFan' && u.slot <= 30)) {
-      const t = outletSheetTotals(rowsOf(ur, 'outlets'));
-      exD += t.design ?? 0;
-      exA += t.actual ?? 0;
-    }
+  for (const l of balanceLines(units, rows)) {
+    if (excluded.has(l.id)) continue;
+    oaD += l.oaDesign ?? 0;
+    oaA += l.oaActual ?? 0;
+    exD += l.exhaustDesign ?? 0;
+    exA += l.exhaustActual ?? 0;
   }
   const oaDesign = blankZero(oaD),
     oaActual = blankZero(oaA),
