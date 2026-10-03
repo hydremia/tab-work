@@ -702,8 +702,8 @@ async function main() {
     // photos (and photo N/A marks) live in the app, not in the workbook: after a re-import exactly those 3 items are
     // open ("VFD on the unit? No" comes back from the VSD frequency written as automatic "N/A")
     check(
-      'import: exported workbook re-imports as a new project (RTU-1 amber: the 3 photos are open)',
-      imported === 'amber' && importedSub.includes('3 required items missing'),
+      'import: exported workbook re-imports as a new project (RTU-1 amber: the 4 photos are open: unit, tag, motor, OA damper)',
+      imported === 'amber' && importedSub.includes('4 required items missing'),
       `RTU-1 ${imported}: ${importedSub.replace(/\s+/g, ' ')}`,
     );
     await shot(dp, '10-equipment-dark');
