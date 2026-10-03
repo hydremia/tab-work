@@ -79,6 +79,15 @@ export async function photosFlow(page: Page, projectUrl: string, out: string, do
     green,
   );
 
+  // a second unit photo (the opposite corner) is added to the slot, not swapped for the first
+  await libraryInput(page, 'photo-unit').setInputFiles(photoFile('corner2.jpg', [40, 90, 160]));
+  await page.getByTestId('photo-unit-more').locator('img').waitFor();
+  check(
+    'unit photo slot: a second photo is added next to the first (both kept)',
+    (await page.getByTestId('photo-unit').getAttribute('data-count')) === '2',
+    String(await page.getByTestId('photo-unit').getAttribute('data-count')),
+  );
+
   await page.getByTestId('photo-tag').scrollIntoViewIfNeeded();
   await page.screenshot({ path: join(out, 'unit-photos.png') });
   // the stored tag photo: processed upright (EXIF orientation applied), capture time + GPS kept

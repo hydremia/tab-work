@@ -145,6 +145,7 @@ export async function fillNewTypes(
   await byId(page, Object.fromEntries(psp.map((v, i) => [`pspVelocities-${i + 1}`, v])));
   await photo(page, 'Unit', photoFile);
   await photo(page, 'Unit label / tag', photoFile);
+  await photo(page, 'Motor / nameplate', photoFile);
   await page.waitForTimeout(600);
   const mauBadge = await badge(page);
   await readLivePanels(page, 'mau', ui);
@@ -205,6 +206,7 @@ export async function fillNewTypes(
   await row(page, 'exhaust', 1, { designCfm: 450, finalVel: 460 });
   await photo(page, 'Unit', photoFile);
   await photo(page, 'Unit label / tag', photoFile);
+  await photo(page, 'Motor / nameplate', photoFile);
   await page.waitForTimeout(600);
   await readLivePanels(page, 'erv', ui);
   ui.ervSupply = await page.getByTestId('erv-supply').innerText();
@@ -228,6 +230,7 @@ export async function fillNewTypes(
   await row(page, 'outlets', 2, { designCfm: 200, finalVel: 350 });
   await photo(page, 'Unit', photoFile);
   await photo(page, 'Unit label / tag', photoFile);
+  await photo(page, 'Motor / nameplate', photoFile);
   await page.waitForTimeout(600);
   await readLivePanels(page, 'fan', ui);
   const fanStatic = await page.locator('#sec-static').innerText();

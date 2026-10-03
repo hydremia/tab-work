@@ -20,6 +20,7 @@ import {
   SCHEDULE_FIELDS as F,
   staticSection,
   UNIT_TAG_PHOTOS,
+  MOTOR_PHOTO,
   unitDataSection,
 } from './unitSections';
 
@@ -213,7 +214,7 @@ export const MAU_SPEC: EquipmentSpec = {
         },
       ],
     },
-    photosSection(UNIT_TAG_PHOTOS),
+    photosSection([...UNIT_TAG_PHOTOS, MOTOR_PHOTO]),
     remarksSection,
   ],
 };

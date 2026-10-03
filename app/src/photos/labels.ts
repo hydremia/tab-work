@@ -16,6 +16,7 @@ export const CATEGORY_LABEL: Record<PhotoCategory, string> = {
   unit: 'Unit',
   tag: 'Tag / label',
   oa_damper: 'OA damper',
+  motor: 'Motor',
   deficiency: 'Deficiency',
   other: 'Other',
 };
@@ -26,6 +27,7 @@ const CATEGORY_FILE: Record<PhotoCategory, string> = {
   unit: 'Unit',
   tag: 'Tag',
   oa_damper: 'OA Damper',
+  motor: 'Motor',
   deficiency: 'Deficiency',
   other: 'Other',
 };
@@ -35,9 +37,10 @@ export const CATEGORY_RANK: Record<PhotoCategory, number> = {
   cover: 0,
   unit: 1,
   tag: 2,
-  oa_damper: 3,
-  other: 4,
-  deficiency: 5,
+  motor: 3,
+  oa_damper: 4,
+  other: 5,
+  deficiency: 6,
 };
 
 export type PhotoMeta = Pick<

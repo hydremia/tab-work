@@ -165,6 +165,13 @@ lookup is not there), so a line of another project is refused and a line another
 0005. Rollback: `rollback/0011_row_links_down.sql`. `row_links_test.sql` 9 PASS; rollback → re-apply → re-run clean;
 the earlier suites pass on 0001 – 0011 and the smoke test output is unchanged.
 
+### 0012: motor photos
+
+`0012_motor_photos.sql` replaces the photo category check so a unit's **motor** photo (category `motor`) is accepted.
+Apply it before the app version with motor photos is used (until then the server refuses a motor photo and that
+device's pending changes wait). Rollback: `rollback/0012_motor_photos_down.sql` (motor photos become `other`).
+`motor_photos_test.sql` 3 PASS; rollback → re-apply clean; the sync rule and 0011 suites pass on 0001 – 0012.
+
 ## Checking the migrations locally (no Supabase needed)
 
 `tests/` holds a stand-in for Supabase's `auth` / `storage` schemas and two tests. On an empty PostgreSQL 15+ database:
@@ -176,7 +183,7 @@ psql -d <empty db> -v ON_ERROR_STOP=1 -f supabase/tests/supabase_stub.sql \
      -f supabase/migrations/0005_review_deletes.sql -f supabase/migrations/0006_cert_profile.sql \
      -f supabase/migrations/0007_change_labels.sql -f supabase/migrations/0008_hydronic_types.sql \
      -f supabase/migrations/0009_valve_library.sql -f supabase/migrations/0010_pump_library.sql \
-     -f supabase/migrations/0011_row_links.sql \
+     -f supabase/migrations/0011_row_links.sql -f supabase/migrations/0012_motor_photos.sql \
      -f supabase/tests/grants_for_stub.sql
 psql -d <empty db> -f supabase/tests/sync_rules_test.sql    # ends with "ALL SYNC RULE TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/library_links_test.sql   # "ALL 0004 TESTS PASSED"

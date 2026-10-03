@@ -13,6 +13,7 @@ import {
   SCHEDULE_FIELDS as F,
   staticSection,
   UNIT_TAG_PHOTOS,
+  MOTOR_PHOTO,
   unitDataSection,
 } from './unitSections';
 
@@ -37,7 +38,7 @@ export const FAN_SPEC: EquipmentSpec = {
       fields: [instrumentField, akNotesField],
       tables: [{ key: 'outlets', label: 'Registers / grilles', required: true, minRows: 1, tolerance: true }],
     },
-    photosSection(UNIT_TAG_PHOTOS),
+    photosSection([...UNIT_TAG_PHOTOS, MOTOR_PHOTO]),
     remarksSection,
   ],
 };

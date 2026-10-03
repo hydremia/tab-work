@@ -8,9 +8,9 @@ import { mauTotals } from './equipmentCalcs';
 
 const project = { scopeProfile: 'full' as const, customScope: {}, tolerance: 0.1 };
 const PHOTOS: Record<string, { category: string }[]> = {
-  mau: [{ category: 'unit' }, { category: 'tag' }],
-  erv: [{ category: 'unit' }, { category: 'tag' }],
-  fan: [{ category: 'unit' }, { category: 'tag' }],
+  mau: [{ category: 'unit' }, { category: 'tag' }, { category: 'motor' }],
+  erv: [{ category: 'unit' }, { category: 'tag' }, { category: 'motor' }],
+  fan: [{ category: 'unit' }, { category: 'tag' }, { category: 'motor' }],
   smallFan: [{ category: 'unit' }],
   hood: [{ category: 'unit' }, { category: 'tag' }],
   traverse: [],
