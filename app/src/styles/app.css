@@ -2992,3 +2992,10 @@ fieldset.viewer-edit {
   width: 20px;
   height: 20px;
 }
+
+/* outlet rows: the design velocity next to the Initial / Final VEL labels */
+.target-vel {
+  font-weight: 600;
+  color: var(--primary);
+  white-space: nowrap;
+}

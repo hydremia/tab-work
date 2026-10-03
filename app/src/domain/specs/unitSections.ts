@@ -87,6 +87,8 @@ export const motorSection: SectionSpec = {
   calc: 'motor',
   fields: [
     { key: 'motorManufacturer', label: 'Motor manufacturer', input: 'text' },
+    // the nameplate HP, checked against the scheduled HP (Design data); app-only until template revision 07
+    { key: 'motorHp', label: 'Motor HP (nameplate)', input: 'number', unit: 'hp' },
     { key: 'motorRpm', label: 'Motor RPM', input: 'number', unit: 'rpm' },
     { key: 'serviceFactor', label: 'Service factor', input: 'select', options: TEMPLATE_LISTS['Service.Factors2'] },
     { key: 'fla', label: 'FLA', input: 'number', unit: 'A' },

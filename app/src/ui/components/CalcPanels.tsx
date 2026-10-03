@@ -156,7 +156,15 @@ export function CalcPanel({
     const { cells } = unitLive(equipment, completion!);
     const inp = motorInputs(cells);
     const m = motorCalc(inp);
-    const warnings = motorWarnings(m, inp, cells.serviceFactor, cells.hp);
+    const plate = equipment.data.motorHp;
+    const hasPlate = typeof plate === 'number';
+    const warnings = motorWarnings(
+      m,
+      inp,
+      cells.serviceFactor,
+      hasPlate ? plate : cells.hp,
+      hasPlate ? cells.hp : undefined,
+    );
     const legs = (n: number) => (n ? ` (${n} leg${n > 1 ? 's' : ''})` : '');
     body = (
       <>
