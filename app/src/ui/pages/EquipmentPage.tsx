@@ -13,7 +13,15 @@ import {
   useProject,
   useUserName,
 } from '../../data/hooks';
-import { clearReview, deleteRecord, duplicateEquipment, markReviewed, setField, setFields } from '../../data/repo';
+import {
+  clearReview,
+  deleteRecord,
+  duplicateEquipment,
+  markReviewed,
+  setField,
+  setFields,
+  splitLegacySheaveBore,
+} from '../../data/repo';
 import { makeContext } from '../../domain/historyView';
 import { HistoryList } from '../components/HistoryList';
 import { ConflictKeysContext, conflictKeys } from '../components/ConflictFlag';
@@ -550,6 +558,11 @@ export function EquipmentPage() {
   const { hash } = useLocation();
   const back = `/p/${projectId}/equipment`;
   const ready = Boolean(project && equipment && rows && photos && issues && instruments && all);
+  // a "Sheave bore M/F" entered before the motor / fan bores were separate fields: split it once
+  useEffect(() => {
+    if (equipment && (equipment.data.sheaveBore !== undefined || equipment.naState.fields.sheaveBore))
+      void splitLegacySheaveBore(equipment);
+  }, [equipment]);
   // a link to a section (needs-attention list, "Show missing"): scroll there once the form is rendered
   useEffect(() => {
     if (!ready || !hash) return;

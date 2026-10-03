@@ -106,19 +106,26 @@ describe('RTU completion colors', () => {
 });
 
 describe('automatic N/A rules', () => {
-  it('direct / ECM drive -> sheave, pulley, belts, C to C, bore', () => {
+  it('direct / ECM drive -> sheave, pulley, belts, C to C, bores; motor RPM (the fan RPM stays required)', () => {
     const c = computeCompletion(
       withData(fullRtu(), {
         driveType: 'Direct',
         motorSheave: null,
+        motorBore: null,
         fanPulley: null,
+        fanBore: null,
         belts: null,
         cToC: null,
-        sheaveBore: null,
+        motorRpmInitial: null,
+        motorRpmFinal: null,
       }),
     );
-    for (const k of ['motorSheave', 'fanPulley', 'belts', 'cToC', 'sheaveBore'])
+    for (const k of ['motorSheave', 'motorBore', 'fanPulley', 'fanBore', 'belts', 'cToC'])
       expect(c.fields[k]).toMatchObject({ state: 'auto-na', reason: 'direct / ECM drive' });
+    for (const k of ['motorRpmInitial', 'motorRpmFinal']) expect(c.fields[k].state).toBe('auto-na');
+    expect(c.color).toBe('green');
+    const noFanRpm = computeCompletion(withData(fullRtu(), { driveType: 'Direct', fanRpmInitial: null }));
+    expect(noFanRpm.fields.fanRpmInitial.state).toBe('missing');
     expect(c.color).toBe('green');
     const belt = computeCompletion(withData(fullRtu(), { driveType: 'Belt', belts: null }));
     expect(belt.fields.belts.state).toBe('missing');

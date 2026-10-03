@@ -4,6 +4,7 @@ import { emptyNaState, type Equipment, type NaState } from '../data/types';
 import { sampleBundle } from '../test/fixtures';
 import { computeCompletion, seqNaKey, tableNaKey, type CompletionInput } from './completion';
 import { getSpec } from './specs';
+import { mauTotals } from './equipmentCalcs';
 
 const project = { scopeProfile: 'full' as const, customScope: {}, tolerance: 0.1 };
 const PHOTOS: Record<string, { category: string }[]> = {
@@ -98,6 +99,31 @@ describe('MAU supply airflow method', () => {
     expect(missingKeys(i)).toEqual(['profileHousing', 'profilePressure']);
     const c = computeCompletion(i);
     expect(c.tables.filterGrid).toMatchObject({ state: 'auto-na', forced: true });
+  });
+
+  it('Intake: the screens are required and give the method total; other methods N/A', () => {
+    const base = withData(unit('MAU-1'), { method: 'Intake' });
+    const none = computeCompletion({ ...base, rows: base.rows.filter((r) => r.table !== 'intake') });
+    expect(none.missing.map((m) => m.key)).toEqual(['intake']);
+    expect(none.fields.pspLength).toMatchObject({ state: 'auto-na', reason: 'method is not PSP' });
+    const screen = (no: string, finalVel: number) => ({
+      ...base.rows[0],
+      id: `in-${no}`,
+      table: 'intake',
+      order: Number(no),
+      data: { no, size: '20x20', ak: 2.5, finalVel },
+      na: {},
+    });
+    const rows = [...base.rows.filter((r) => r.table !== 'intake'), screen('1', 400), screen('2', 420)];
+    const c = computeCompletion({ ...base, rows });
+    expect(c.tables.intake.state).not.toBe('missing');
+    const t = mauTotals(base.unit.data, rows);
+    expect(t.methodTotal).toBe(2050); // (400 + 420) x 2.5
+    expect(t.actual).toBe(2050);
+    // with another method the screens are an optional check
+    const check = mauTotals({ ...base.unit.data, method: 'PSP' }, rows);
+    expect(check.intake.total).toBe(2050);
+    expect(check.actual).toBe(check.psp.cfm);
   });
 
   it('no method chosen: the method is missing, the method inputs are neither required nor N/A', () => {
