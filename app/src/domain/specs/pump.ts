@@ -6,7 +6,7 @@
 import { HYDRONIC_LISTS, PHASES } from '@a2b/workbook/map';
 import { remarksSection } from './common';
 import type { AutoNa, Cond, EquipmentSpec } from './types';
-import { motorSection, photosSection, UNIT_TAG_PHOTOS } from './unitSections';
+import { MOTOR_PHOTO, motorSection, photosSection, UNIT_TAG_PHOTOS } from './unitSections';
 
 const INTEGRATED: Cond = { field: 'pumpType', eq: 'Integrated variable speed' };
 const NOT_INTEGRATED: Cond = { not: INTEGRATED };
@@ -128,7 +128,7 @@ export const PUMP_SPEC: EquipmentSpec = {
         },
       ],
     },
-    photosSection(UNIT_TAG_PHOTOS),
+    photosSection([...UNIT_TAG_PHOTOS, MOTOR_PHOTO]),
     remarksSection,
   ],
 };

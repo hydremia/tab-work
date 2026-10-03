@@ -1247,6 +1247,14 @@ textarea {
   border-radius: 6px;
   background: var(--gray-bg);
 }
+.photo-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.photo-strip img {
+  aspect-ratio: 1;
+}
 .photo-empty {
   aspect-ratio: 4 / 3;
   display: flex;

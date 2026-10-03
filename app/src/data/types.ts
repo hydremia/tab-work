@@ -147,7 +147,7 @@ export interface Issue {
   updatedAt: number;
 }
 
-export type PhotoCategory = 'cover' | 'unit' | 'tag' | 'oa_damper' | 'deficiency' | 'other';
+export type PhotoCategory = 'cover' | 'unit' | 'tag' | 'oa_damper' | 'motor' | 'deficiency' | 'other';
 export interface Photo {
   id: string;
   projectId: string;
