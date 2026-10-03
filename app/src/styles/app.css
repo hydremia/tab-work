@@ -2964,3 +2964,18 @@ fieldset.viewer-edit {
   outline: 1px dashed var(--amber, #b7791f);
   outline-offset: -2px;
 }
+
+/* Building balance: a unit left out of the balance is greyed and marked Excl. */
+.bb-table tr[data-excluded] td {
+  color: var(--text-3);
+  background: var(--gray-bg);
+}
+.bb-excl {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-2);
+}
+.bb-table input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+}

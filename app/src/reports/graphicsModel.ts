@@ -12,7 +12,7 @@
  *             (at the impeller the shut-off head gives) when the pump is picked from the pump-curve library
  */
 import type { AirflowRow, Equipment, Issue, LibraryPump, Project, PumpCurvePoint } from '../data/types';
-import { AIR_BALANCE_KEYS } from '../domain/airBalance';
+import { AIR_BALANCE_KEYS, excludedIds } from '../domain/airBalance';
 import { PRESSURE_KEYS } from '../domain/projectCompletion';
 import { spareOaTotals } from '../domain/spareOa';
 import { rowCfm } from '../domain/calc';
@@ -104,7 +104,7 @@ export interface Summary {
   profiles: { count: number; espWithin: number; espWithDesign: number };
   traverses: { count: number; uneven: number };
   balance: BuildingBalance;
-  /** the engineer's air balance table (Info → Design air balance) */
+  /** the engineer's air balance table (Info → Building balance) */
   airBalance: { oa: number | null; exhaust: number | null; net: number | null };
   pressures: { label: string; dp: number | string | null }[];
 }
@@ -290,6 +290,7 @@ function buildSummary(
       units.map((e) => ({ id: e.id, type: e.type, slot: e.slot, data: e.data })),
       input.rows,
       spareOaTotals(project),
+      excludedIds(info, units),
     ),
     airBalance: {
       oa: numOrNull(info[AIR_BALANCE_KEYS.oa]),

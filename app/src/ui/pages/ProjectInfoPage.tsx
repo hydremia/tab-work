@@ -24,7 +24,14 @@ import {
   certValue,
 } from '../../domain/certification';
 import { calibrationExpired } from '../../domain/instruments';
-import { AIR_BALANCE_KEYS, unitDesignBalance } from '../../domain/airBalance';
+import {
+  AIR_BALANCE_KEYS,
+  designFieldOf,
+  excludedIds,
+  excludedUnits,
+  unitDesignBalance,
+} from '../../domain/airBalance';
+import { balanceLines, buildingBalance } from '../../domain/equipmentCalcs';
 import {
   SPARE_OA_ROWS,
   spareOaCell,
@@ -243,54 +250,147 @@ const OA_FIELD: Record<SpareOaColumn, (n: number) => FieldSpec> = {
 };
 
 /**
- * Building Balance design side: the engineer's air balance table (kept by the schedule import: info.abOaDesign /
- * abExhaustDesign / abNet) next to the design OA and exhaust of the project's units, so the prep can be checked.
+ * Building Balance: every unit that feeds it (RTU OA rows, MAUs, ERVs, fans, small fans 1-30) with its design and
+ * actual CFM and an "In balance" switch. A switched-off unit (an isolated room with its own intake louver that the
+ * ventilation calculation leaves out) is greyed, marked Excl. and left out of the totals; it is still tested and
+ * reported on its own sheet. The excluded designations are info.abExcluded (also filled by the schedule import from
+ * the air balance table's noted rows), the reason info.abExcludedNote. The totals stand next to the engineer's air
+ * balance when it was imported.
  */
-function DesignAirBalance({ project, equipment }: { project: Project; equipment: readonly Equipment[] }) {
-  const excludedText = project.info[AIR_BALANCE_KEYS.excluded];
-  const excluded = typeof excludedText === 'string' && excludedText ? excludedText.split(/\s*,\s*/) : [];
-  const units = unitDesignBalance(equipment, spareOaTotals(project).design, excluded);
+function BuildingBalanceCard({ project, equipment }: { project: Project; equipment: readonly Equipment[] }) {
+  const rows = useLiveQuery(() => db.airflowRows.where('projectId').equals(project.id).toArray(), [project.id]);
+  const excluded = excludedUnits(project.info);
+  const ids = excludedIds(project.info, equipment);
+  const spare = spareOaTotals(project);
+  const units = equipment.map((e) => ({
+    id: e.id,
+    type: e.type,
+    slot: e.slot,
+    data: e.data,
+    designation: e.designation,
+  }));
+  const lines = rows ? balanceLines(units, rows) : [];
+  const actual = rows ? buildingBalance(units, rows, spare, ids) : null;
+  const design = unitDesignBalance(equipment, spare.design, excluded);
   const ab = {
     oa: project.info[AIR_BALANCE_KEYS.oa],
     exhaust: project.info[AIR_BALANCE_KEYS.exhaust],
     net: project.info[AIR_BALANCE_KEYS.net],
   };
   const has = typeof ab.oa === 'number' || typeof ab.exhaust === 'number';
-  if (!has && !units.oa && !units.exhaust) return null;
-  const rows: [string, number, FieldValue][] = [
-    ['Outside air', units.oa, ab.oa],
-    ['Exhaust', units.exhaust, ab.exhaust],
-    ['Net (OA − exhaust)', units.net, ab.net],
+  if (!lines.length && !has && !design.oa && !design.exhaust) return null;
+  const byId = new Map(equipment.map((e) => [e.id, e]));
+  // the schedule's design when there are no readings rows yet (the prep-time design)
+  const scheduled = (e: Equipment | undefined, side: 'oa' | 'exhaust') => {
+    if (!e) return null;
+    const f = designFieldOf(e.type, side, e.data);
+    return f && typeof e.data[f] === 'number' ? e.data[f] : null;
+  };
+  const setExcluded = (designation: string, out: boolean) => {
+    const key = designation.trim().toUpperCase();
+    const next = out ? [...excluded, designation] : excluded.filter((d) => d.trim().toUpperCase() !== key);
+    void setField('projects', project.id, `info.${AIR_BALANCE_KEYS.excluded}`, next.length ? next.join(', ') : null);
+  };
+  const totals: [string, number, FieldValue, number | null][] = [
+    ['Outside air', design.oa, ab.oa, actual?.oaActual ?? null],
+    ['Exhaust', design.exhaust, ab.exhaust, actual?.exhaustActual ?? null],
+    ['Net (OA − exhaust)', design.net, ab.net, actual?.actualBalance ?? null],
   ];
   const off = (u: number, e: FieldValue) => typeof e === 'number' && Math.abs(u - e) >= 1;
+  const cfm = (x: number | null) => (x === null ? '—' : formatNumber(x));
   return (
-    <section className="card card-pad stack" aria-labelledby="dab-h" data-testid="design-air-balance">
-      <h2 id="dab-h">Design air balance (Building Balance)</h2>
+    <section className="card card-pad stack" aria-labelledby="bb-h" data-testid="building-balance">
+      <h2 id="bb-h">Building balance</h2>
       <p className="small muted" style={{ margin: 0 }}>
-        The units&apos; design OA (RTU OA, MAU, ERV supply, other OA rows) and exhaust (fans, small fans 1–30, ERV
-        exhaust)
-        {has ? (
-          <>
-            {' '}
-            against the engineer&apos;s air balance
-            {project.info[AIR_BALANCE_KEYS.source] ? ` (${String(project.info[AIR_BALANCE_KEYS.source])})` : ''}
-            {excluded.length ? `; like it, the units leave out ${excluded.join(', ')}` : ''}
-          </>
-        ) : (
-          '. Import the schedule’s air balance / ventilation table to check them against it'
-        )}
-        .
+        Outside air (RTU OA, MAU, ERV supply, other OA rows) against exhaust (fans, small fans 1–30, ERV exhaust).
+        Switch a unit off when the ventilation calculation leaves it out (an isolated room with its own intake): it
+        stays tested and reported on its own page, greyed and marked <b>Excl.</b>, and is not counted here.
       </p>
-      <table className="preview-table">
+      <table className="preview-table bb-table">
         <thead>
           <tr>
-            <th>CFM</th>
-            <th>Units</th>
-            {has && <th>Air balance</th>}
+            <th>Unit</th>
+            <th>Side</th>
+            <th>Design</th>
+            <th>Actual</th>
+            <th>In balance</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map(([label, u, e]) => (
+          {lines.map((l) => {
+            const e = byId.get(l.id);
+            const out = ids.has(l.id);
+            const sides: ['oa' | 'exhaust', string][] = [];
+            if (l.type !== 'fan' && l.type !== 'smallFan') sides.push(['oa', 'OA']);
+            if (l.type === 'erv' || l.type === 'fan' || l.type === 'smallFan') sides.push(['exhaust', 'Exh.']);
+            return sides.map(([side, label], k) => {
+              const d = side === 'oa' ? l.oaDesign : l.exhaustDesign;
+              const a = side === 'oa' ? l.oaActual : l.exhaustActual;
+              const sched = d === null ? scheduled(e, side) : null;
+              return (
+                <tr
+                  key={`${l.id}-${side}`}
+                  data-excluded={out || undefined}
+                  data-testid={`bb-${l.designation}-${side}`}
+                >
+                  <td>
+                    {k === 0 ? l.designation : ''}
+                    {k === 0 && out && <span className="bb-excl"> Excl.</span>}
+                  </td>
+                  <td>{label}</td>
+                  <td>
+                    {d !== null ? (
+                      formatNumber(d)
+                    ) : sched !== null ? (
+                      <span className="muted">{formatNumber(sched)} sched.</span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td>{cfm(a)}</td>
+                  <td>
+                    {k === 0 && (
+                      <input
+                        type="checkbox"
+                        checked={!out}
+                        aria-label={`${l.designation} in the building balance`}
+                        data-testid={`bb-include-${l.designation}`}
+                        onChange={(ev) => setExcluded(l.designation, !ev.target.checked)}
+                      />
+                    )}
+                  </td>
+                </tr>
+              );
+            });
+          })}
+        </tbody>
+      </table>
+      {excluded.length > 0 && (
+        <div className="field">
+          <label className="field-label" htmlFor="bb-excl-note">
+            Why {excluded.join(', ')} {excluded.length === 1 ? 'is' : 'are'} left out
+          </label>
+          <TextInput
+            id="bb-excl-note"
+            value={(project.info[AIR_BALANCE_KEYS.excludedNote] as string | null) ?? ''}
+            placeholder="e.g. isolated rooms with dedicated intake louvers (ventilation calc Note 1)"
+            onCommit={(v) =>
+              void setField('projects', project.id, `info.${AIR_BALANCE_KEYS.excludedNote}`, v.trim() ? v : null)
+            }
+          />
+        </div>
+      )}
+      <table className="preview-table" data-testid="bb-totals">
+        <thead>
+          <tr>
+            <th>CFM</th>
+            <th>Design</th>
+            {has && <th>Air balance</th>}
+            <th>Actual</th>
+          </tr>
+        </thead>
+        <tbody>
+          {totals.map(([label, u, e, a]) => (
             <tr key={label} data-off={(has && off(u, e)) || undefined}>
               <td>{label}</td>
               <td>{formatNumber(u)}</td>
@@ -305,10 +405,20 @@ function DesignAirBalance({ project, equipment }: { project: Project; equipment:
                   )}
                 </td>
               )}
+              <td>{cfm(a)}</td>
             </tr>
           ))}
         </tbody>
       </table>
+      <p className="small muted" style={{ margin: 0 }}>
+        Design: the units&apos; scheduled design
+        {has && project.info[AIR_BALANCE_KEYS.source]
+          ? `; air balance: ${String(project.info[AIR_BALANCE_KEYS.source])}`
+          : ''}
+        . Actual: the measured readings.
+        {excluded.length > 0 &&
+          ' The workbook greys and skips excluded units from template revision 07; on revision 06 its Building Balance sheet still counts them.'}
+      </p>
     </section>
   );
 }
@@ -771,7 +881,7 @@ export function ProjectInfoPage() {
           <HydronicHeaders project={project} />
         )}
 
-        <DesignAirBalance project={project} equipment={equipment} />
+        <BuildingBalanceCard project={project} equipment={equipment} />
 
         <OtherOutsideAir project={project} />
 

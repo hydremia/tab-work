@@ -244,13 +244,23 @@ grille or a relief opening. Tap **Add OA row** for each (up to 20). Each row has
 They go into the spare outside-air rows on the workbook's Building Balance sheet, so they count in the building's OA
 totals. The trash button removes a row (the rows below move up).
 
-### Design air balance
+### Building balance
 
-**Info → Design air balance (Building Balance)**: the design outside air (RTU OA, MAUs, ERV supply, Other outside air
-rows) and exhaust (fans, small fans 1–30, ERV exhaust) of the project's units, and the net. When the schedule's air
-balance was imported, its totals are shown next to them, with the difference in amber. If they differ, a unit is
-missing or its design CFM differs from the engineer's table. The air balance totals travel with the exported
-workbook (as a file property), so they come back when the workbook is imported on another device.
+**Info → Building balance** lists every unit that feeds the Building Balance: RTU OA, MAUs and ERV supply on the
+outside-air side; fans, small fans 1–30 and ERV exhaust on the exhaust side, with each one's design and actual CFM
+(*sched.* = the schedule's design before readings exist). Below it, the outside air, exhaust and net totals: design,
+actual and, when the schedule's air balance was imported, the engineer's totals with the difference in amber (a unit
+missing, or a design CFM that differs from the engineer's table).
+
+**In balance**: switch a unit off when the ventilation calculation leaves it out, e.g. an isolated room with its own
+intake louver paired with its fan (*Note 1: EF-22 and EF-23 excluded*). It is greyed, marked **Excl.** and left out of
+every total (and the graphics summary); it is still tested and reported on its own page. Say why in the line that
+appears (*isolated rooms with dedicated intake louvers, ventilation calc Note 1*). Units the imported air balance
+table marks with a note start switched off. Until template revision 07 the workbook's Building Balance sheet still
+counts excluded units.
+
+The air balance totals and the exclusions travel with the exported workbook (as a file property), so they come back
+when the workbook is imported on another device.
 
 ### Certification
 
@@ -399,7 +409,7 @@ or **Import** next to a type heading (that picks the type for you).
    - if its totals leave out some rows with a note mark (*(1) EF-22 & EF-23 serve mechanical spaces, not part of the
      air balance*), the app says so and compares the same way.
 
-   Its totals are kept on the project: **Info → Design air balance** (below).
+   Its totals are kept on the project: **Info → Building balance** (below).
 
    ![Air balance check](../screenshots/47-air-balance.png)
 7. Tap **Import N units** (**+ air balance** when there is one).

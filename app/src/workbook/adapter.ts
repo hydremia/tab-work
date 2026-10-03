@@ -142,7 +142,13 @@ export function toProjectData(
   for (const k of Object.values(AIR_BALANCE_KEYS)) {
     const v = project.info[k];
     if (typeof v === 'number' || (typeof v === 'string' && v))
-      appInfo[k] = k === AIR_BALANCE_KEYS.source ? String(v).slice(0, 80) : v;
+      // the property holds 255 characters: the free texts are capped
+      appInfo[k] =
+        k === AIR_BALANCE_KEYS.source
+          ? String(v).slice(0, 80)
+          : k === AIR_BALANCE_KEYS.excludedNote
+            ? String(v).slice(0, 90)
+            : v;
   }
   if (Object.keys(appInfo).length) pd.appInfo = appInfo;
   const pn = project.naState.fields;
