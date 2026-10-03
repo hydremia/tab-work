@@ -46,6 +46,8 @@ export const AIR_BALANCE_KEYS = {
   source: 'abSource',
   /** The designations the table's totals leave out (comma-separated). */
   excluded: 'abExcluded',
+  /** Why the excluded units are left out (e.g. isolated rooms with their own intake louvers, ventilation calc Note 1). */
+  excludedNote: 'abExcludedNote',
 } as const;
 
 const SPACE_WORDS =
@@ -299,4 +301,19 @@ export function unitDesignBalance(
     if (x && typeof u.data[x] === 'number') exhaust += u.data[x];
   }
   return { oa, exhaust, net: oa - exhaust };
+}
+
+/** The units left out of the building balance (info.abExcluded: designations, comma-separated). */
+export function excludedUnits(info: Readonly<Record<string, FieldValue>>): string[] {
+  const t = info[AIR_BALANCE_KEYS.excluded];
+  return typeof t === 'string' && t.trim() ? t.split(/\s*,\s*/).filter(Boolean) : [];
+}
+
+/** Ids of the excluded units (matched by designation, as the schedule import does). */
+export function excludedIds(
+  info: Readonly<Record<string, FieldValue>>,
+  units: readonly { id: string; designation: string }[],
+): Set<string> {
+  const keys = new Set(excludedUnits(info).map(designationKey));
+  return new Set(units.filter((u) => keys.has(designationKey(u.designation))).map((u) => u.id));
 }

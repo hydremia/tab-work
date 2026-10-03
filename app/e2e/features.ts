@@ -79,6 +79,31 @@ export async function pressuresAndAttention(page: Page, projectUrl: string, docS
     (await oa.innerText()).replace(/\s+/g, ' ').slice(0, 200),
   );
 
+  // ------------------------------------------------ building balance: a unit switched off is greyed, Excl., not counted
+  const bb = page.getByTestId('building-balance');
+  if ((await bb.count()) > 0) {
+    const box = bb.locator('[data-testid^="bb-include-"]').first();
+    const name = ((await box.getAttribute('data-testid')) ?? '').replace('bb-include-', '');
+    const before = await bb.getByTestId('bb-totals').innerText();
+    await box.uncheck();
+    await page.waitForTimeout(500);
+    const after = await bb.getByTestId('bb-totals').innerText();
+    const greyed = (await bb.locator(`tr[data-excluded][data-testid^="bb-${name}-"]`).count()) > 0;
+    const marked = (await bb.innerText()).includes('Excl.');
+    await bb.locator('#bb-excl-note').fill('isolated room with a dedicated intake louver (ventilation calc Note 1)');
+    await bb.locator('#bb-excl-note').blur();
+    await page.waitForTimeout(300);
+    await bb.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: join(docShots, '53-building-balance.png') });
+    check(
+      'building balance: a unit switched off is greyed, marked Excl. and left out of the totals',
+      greyed && marked && after !== before,
+      `${name}: ${before.replace(/\s+/g, ' ')} -> ${after.replace(/\s+/g, ' ')}`,
+    );
+    await box.check();
+    await page.waitForTimeout(300);
+  } else check('building balance card shown on Info', false, 'no building-balance card');
+
   // ------------------------------------------------ certification (Certification sheet)
   const cert = page.getByTestId('certification');
   const cp = await cert.locator('[data-field="certCpName"] input').inputValue();
