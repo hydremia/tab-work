@@ -4,7 +4,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import { sampleBundle } from '../test/fixtures';
+import { AIR_BALANCE_KEYS, excludedIds, excludedUnits } from './airBalance';
 import {
+  balanceLines,
   buildingBalance,
   filterCfm,
   filterGridCfm,
@@ -218,5 +220,22 @@ describe('Building Balance', () => {
     // EF-2 600 + ERV exhaust 950 + EF-S1 110 + EF-S21 90 (EF-1 has no rows)
     expect(bb.exhaustDesign).toBe(600 + 950 + 110 + 90);
     expect(bb.designBalance).toBe(bb.oaDesign! - bb.exhaustDesign!);
+  });
+
+  it('an excluded unit (isolated room, ventilation calc note) is listed but left out of every total', () => {
+    const b = sampleBundle();
+    const units = b.equipment.map((e) => ({ ...e }));
+    const lines = balanceLines(units, b.rows);
+    const ef2 = lines.find((l) => l.designation === 'EF-2')!;
+    expect(ef2).toMatchObject({ exhaustDesign: 600, oaDesign: null });
+    const all = buildingBalance(units, b.rows);
+    const info = { [AIR_BALANCE_KEYS.excluded]: 'EF-2, ef-s1' };
+    expect(excludedUnits(info)).toEqual(['EF-2', 'ef-s1']);
+    const ids = excludedIds(info, units);
+    expect(ids.size).toBe(2); // matched regardless of case
+    const out = buildingBalance(units, b.rows, undefined, ids);
+    expect(out.exhaustDesign).toBe(all.exhaustDesign! - 600 - 110);
+    expect(out.oaDesign).toBe(all.oaDesign);
+    expect(out.designBalance).toBe(all.designBalance! + 600 + 110);
   });
 });
