@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { designVel } from './calc';
 import { motorCalc, motorWarnings, serviceFactor, type MotorInputs } from './motorCalcs';
 
 const m = (x: Partial<MotorInputs>): MotorInputs => ({
@@ -97,5 +98,25 @@ describe('motor field checks', () => {
     // no corrected FLA (rated voltage N/A): falls back to the nameplate FLA
     const nv = { ...inp, voltage: 'N/A' };
     expect(motorWarnings(motorCalc(nv), nv, 'SF 1.0', 5)[0].text).toContain('above FLA × SF');
+  });
+
+  it('a nameplate HP that differs from the schedule is flagged; BHP is checked against the nameplate', () => {
+    const inp = m({});
+    const c = motorCalc(inp);
+    expect(motorWarnings(c, inp, 'SF 1.25', 5, 5)).toEqual([]);
+    const w = motorWarnings(c, inp, 'SF 1.25', 3, 5);
+    expect(w.map((x) => x.key)).toEqual(['hp', 'bhp']);
+    expect(w[0].text).toBe('Motor nameplate 3 HP vs. scheduled 5 HP.');
+    expect(w[1].text).toContain('above the nameplate 3 HP');
+    expect(motorWarnings(c, inp, 'SF 1.25', 3)[0].text).toContain('above the scheduled 3 HP');
+  });
+});
+
+describe('design velocity of a line', () => {
+  it('design CFM ÷ Ak, before any reading', () => {
+    expect(designVel({ data: { designCfm: 500, ak: 1.25 } })).toBe(400);
+    expect(designVel({ data: { designCfm: 500, ak: null } })).toBeNull();
+    expect(designVel({ data: { designCfm: null, ak: 1 } })).toBeNull();
+    expect(designVel({ data: { ak: 0.5 } }, 300)).toBe(600); // first return row: the computed design
   });
 });

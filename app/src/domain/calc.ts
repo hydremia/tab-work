@@ -18,6 +18,16 @@ export function rowCfm(row: RowLike, reading: 'initial' | 'final'): number | nul
   return vel === null || ak === null ? null : vel * ak;
 }
 
+/**
+ * Design velocity of a row (the workbook's Design VEL column, design CFM ÷ Ak): the velocity to look for before the
+ * first reading. `design` overrides the row's design CFM (the first return row's computed design).
+ */
+export function designVel(row: RowLike, design?: number | null): number | null {
+  const cfm = design !== undefined ? design : num(row.data.designCfm);
+  const ak = num(row.data.ak);
+  return cfm === null || ak === null || ak <= 0 ? null : cfm / ak;
+}
+
 /** Actual CFM of a row: Final when present, otherwise Initial (as the workbook's % column). */
 export function rowActualCfm(row: RowLike): number | null {
   return rowCfm(row, 'final') ?? rowCfm(row, 'initial');

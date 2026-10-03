@@ -3,7 +3,7 @@
  * grouped, each item linked to the unit (and section) or page it concerns.
  *
  *   design       R8 schedule design CFM vs. the outlet design sum; unit ESP actual vs. design (± tolerance)
- *   motor        measured amps above corrected FLA × SF; estimated BHP above the nameplate HP
+ *   motor        measured amps above corrected FLA × SF; estimated BHP above the motor HP; nameplate vs. scheduled HP
  *   tolerance    readings / unit totals outside ± the project tolerance
  *   photos       started units still missing a required photo
  *   issues       open issues
@@ -139,7 +139,15 @@ export function needsAttention(input: AttentionInput): AttentionItem[] {
     // motor
     if (hasSectionCalc(e, 'motor')) {
       const inp = motorInputs(cells);
-      for (const w of motorWarnings(motorCalc(inp), inp, cells.serviceFactor, cells.hp))
+      const plate = e.data.motorHp;
+      const hasPlate = typeof plate === 'number';
+      for (const w of motorWarnings(
+        motorCalc(inp),
+        inp,
+        cells.serviceFactor,
+        hasPlate ? plate : cells.hp,
+        hasPlate ? cells.hp : undefined,
+      ))
         add('motor', w.key, w.text, 'motor');
     }
     // photos (started units only: a unit not started yet is simply "to do")

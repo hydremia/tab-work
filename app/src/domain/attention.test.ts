@@ -148,7 +148,7 @@ describe('needsAttention', () => {
         'design|RTU-1|Schedule 1,200 CFM vs. outlets 1,000 CFM',
         'design|RTU-1|Unit ESP: design 0.80 vs. actual 1.07 in. w.g. (134 %)',
         expect.stringMatching(/^motor\|RTU-1\|Measured amps above corrected FLA × SF .* L1 5\.2 A/),
-        'motor|RTU-1|Estimated BHP 3.47 is above the nameplate 3 HP.',
+        'motor|RTU-1|Estimated BHP 3.47 is above the scheduled 3 HP.',
         'tolerance|VAV-1|Outlets S-1: 67 % of design (±10 %)',
         'photos|RTU-1|Missing: Unit, Unit label / tag, Motor / nameplate',
         'issues|Issue N-1 · RTU-1|Damper stuck',

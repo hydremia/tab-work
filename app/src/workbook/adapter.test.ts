@@ -249,9 +249,9 @@ describe('round trip: app project -> export (rev 05 template) -> import -> app p
     );
     for (const [a, b] of original.equipment.map((e, k) => [e, back.equipment[k]] as const)) {
       // app-only answers are not in the workbook: "Has filters?" is derived back from the filter text,
-      // "Has VFD?" = Yes only when a VSD frequency was recorded
-      const { hasVfd: _v1, ...bd } = b.data;
-      const { hasVfd: _v2, ...ad } = a.data;
+      // "Has VFD?" = Yes only when a VSD frequency was recorded; the nameplate motor HP has no cell before rev 07
+      const { hasVfd: _v1, motorHp: _h1, ...bd } = b.data;
+      const { hasVfd: _v2, motorHp: _h2, ...ad } = a.data;
       expect(bd).toEqual(ad);
       expect(b.naState.fields).toEqual(a.naState.fields);
       const rowsOf = (bundle: ProjectBundle, id: string) =>
