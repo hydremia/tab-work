@@ -150,7 +150,7 @@ describe('needsAttention', () => {
         expect.stringMatching(/^motor\|RTU-1\|Measured amps above corrected FLA × SF .* L1 5\.2 A/),
         'motor|RTU-1|Estimated BHP 3.47 is above the nameplate 3 HP.',
         'tolerance|VAV-1|Outlets S-1: 67 % of design (±10 %)',
-        'photos|RTU-1|Missing: Unit, Unit label / tag',
+        'photos|RTU-1|Missing: Unit, Unit label / tag, Motor / nameplate',
         'issues|Issue N-1 · RTU-1|Damper stuck',
         'capacity|MAUs|10 of 10 MAUs: the workbook has no room for more',
         'capacity|Small fans|EF-S31 past slot 30: not on Building Balance (left out of the exhaust total)',

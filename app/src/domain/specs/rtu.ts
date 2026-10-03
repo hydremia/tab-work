@@ -13,6 +13,7 @@ import {
   SCHEDULE_FIELDS as F,
   staticSection,
   UNIT_TAG_PHOTOS,
+  MOTOR_PHOTO,
   unitDataSection,
 } from './unitSections';
 
@@ -64,7 +65,7 @@ export const RTU_SPEC: EquipmentSpec = {
         { key: 'oa', label: 'Outside air', required: true, minRows: 1, tolerance: true, autoNa: [NO_OA] },
       ],
     },
-    photosSection([...UNIT_TAG_PHOTOS, { category: 'oa_damper', label: 'OA damper', autoNa: [NO_OA] }]),
+    photosSection([...UNIT_TAG_PHOTOS, MOTOR_PHOTO, { category: 'oa_damper', label: 'OA damper', autoNa: [NO_OA] }]),
     remarksSection,
   ],
 };

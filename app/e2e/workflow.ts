@@ -55,7 +55,7 @@ export async function workflowFlow(
     await page.getByTestId('equip-RTU-1').click();
     await page.waitForURL(/\/e\//);
     const unitUrl = page.url();
-    for (const cat of ['unit', 'tag', 'oa_damper'])
+    for (const cat of ['unit', 'tag', 'motor', 'oa_damper'])
       await page.getByTestId(`photo-${cat}`).locator('select.na-select').selectOption('N/A');
     await page.waitForTimeout(400);
     check('workflow: RTU-1 green (photos marked N/A)', (await badge(page)).color === 'green', (await badge(page)).text);

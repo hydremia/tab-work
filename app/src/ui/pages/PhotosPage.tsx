@@ -20,7 +20,7 @@ import { useLineNames } from '../components/RowLinks';
 import { useProjectContext } from './ProjectLayout';
 
 type Filter = 'all' | PhotoCategory;
-const FILTERS: Filter[] = ['all', 'unit', 'tag', 'oa_damper', 'deficiency', 'other', 'cover'];
+const FILTERS: Filter[] = ['all', 'unit', 'tag', 'motor', 'oa_damper', 'deficiency', 'other', 'cover'];
 const TYPE_ORDER = EQUIPMENT_TYPES.map((t) => t.key);
 
 const PERSIST_TEXT: Record<PersistState, string> = {

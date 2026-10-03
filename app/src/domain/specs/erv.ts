@@ -14,6 +14,7 @@ import {
   SCHEDULE_FIELDS as F,
   staticSection,
   UNIT_TAG_PHOTOS,
+  MOTOR_PHOTO,
   unitDataSection,
 } from './unitSections';
 
@@ -76,7 +77,7 @@ export const ERV_SPEC: EquipmentSpec = {
       ],
       tables: [{ key: 'exhaust', label: 'Exhaust inlets', required: true, minRows: 1, tolerance: true, noun: 'inlet' }],
     },
-    photosSection(UNIT_TAG_PHOTOS),
+    photosSection([...UNIT_TAG_PHOTOS, MOTOR_PHOTO]),
     remarksSection,
   ],
 };
