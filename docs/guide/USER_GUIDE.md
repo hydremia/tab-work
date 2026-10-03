@@ -748,7 +748,7 @@ Every photo spot has **Take photo** (opens the camera) and **Choose** (camera ro
 it makes sense). On a laptop you can also drag photos in.
 
 A unit's photo slots take **more than one photo** (two corners of a unit, the label from two sides): once a slot has a
-photo its buttons read **Add another photo** / **Add from library** and add to it; the extra photos show as small
+photo, *Add more: camera or library* shows above its buttons (marked **+**) and both add to it; the extra photos show as small
 thumbnails under the first and are numbered in the reports (*RTU-1 · Unit 1*, *Unit 2*). To remove one of several,
 open it and tap **Delete**.
 
