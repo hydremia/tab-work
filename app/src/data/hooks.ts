@@ -33,6 +33,7 @@ import type {
   SyncConflict,
 } from './types';
 import { hoodLinks } from '../domain/equipmentCalcs';
+import { openDeficiencies } from '../domain/issues';
 
 export function useProjects(): Project[] | undefined {
   return useLiveQuery(() => db.projects.orderBy('updatedAt').reverse().toArray(), []);
@@ -121,7 +122,7 @@ export function projectStatus({ project, equipment, rows, photos, issues }: Stat
         rows: rows.filter((r) => r.equipmentId === e.id),
         photos: photos.filter((p) => p.equipmentId === e.id),
         project,
-        openIssues: issues.filter((i) => i.equipmentId === e.id && i.status === 'Open').length,
+        openIssues: openDeficiencies(issues.filter((i) => i.equipmentId === e.id)).length,
         hoodLinked: linked.has(e.id),
       }),
     );
@@ -453,7 +454,7 @@ export function useDashboard(): DashboardRow[] | undefined {
         issues: pick(data.issues),
       };
       const status = projectStatus(inputs);
-      const open = inputs.issues.filter((i) => i.status === 'Open');
+      const open = openDeficiencies(inputs.issues);
       const ex = data.exports.get(project.id)!;
       out.push(
         dashboardRow({

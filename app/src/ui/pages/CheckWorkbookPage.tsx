@@ -11,6 +11,7 @@ import { getSpec } from '../../domain/specs';
 import { ReportCheck } from '../components/ReportCheck';
 import { Screen } from '../components/Screen';
 import { hoodLinks } from '../../domain/equipmentCalcs';
+import { openDeficiencies } from '../../domain/issues';
 
 export function CheckWorkbookPage() {
   const [busy, setBusy] = useState(false);
@@ -35,7 +36,7 @@ export function CheckWorkbookPage() {
             rows: b.rows.filter((r) => r.equipmentId === e.id),
             photos: [],
             project: b.project,
-            openIssues: b.issues.filter((i) => i.equipmentId === e.id && i.status === 'Open').length,
+            openIssues: openDeficiencies(b.issues.filter((i) => i.equipmentId === e.id)).length,
             hoodLinked: linked.has(e.id),
           }),
         ]),

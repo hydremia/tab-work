@@ -131,6 +131,11 @@ export interface Issue {
   id: string;
   projectId: string;
   kind: IssueKind;
+  /**
+   * (0013) Deficiency (absent: every issue before observations) or observation (recorded without flagging the unit,
+   * numbered on its own: Obs. N-1).
+   */
+  issueType?: 'deficiency' | 'observation';
   /** Numbered separately for New and Existing (Summary - New / Summary - (E)). */
   number: number;
   remark: string;

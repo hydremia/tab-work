@@ -45,6 +45,7 @@ Eleven files, **in this order**. Each can be run again safely only where noted, 
 | `supabase/migrations/0010_pump_library.sql` | the shared pump-curve library (curves per impeller from curve sheets, picked on pumps) (re-runnable; needs 0009) |
 | `supabase/migrations/0011_row_links.sql` | issues and photos of one airflow line (outlet, grille, valve row). **Apply before anyone links one**: until then the server refuses those changes (re-runnable) |
 | `supabase/migrations/0012_motor_photos.sql` | the unit **motor** photo category. **Apply before the app with motor photos is used**: until then the server refuses a motor photo (re-runnable) |
+| `supabase/migrations/0013_issue_types.sql` | **observations** (issues that don't flag their unit). **Apply before the app with observations is used**: until then an observation reaches the server as a deficiency (re-runnable) |
 
 **Option A — in the browser (simplest):**
 
@@ -52,7 +53,7 @@ Eleven files, **in this order**. Each can be run again safely only where noted, 
 2. Open `supabase/migrations/0001_init.sql` on GitHub (Raw), copy everything, paste, **Run**. It should end with
    "Success. No rows returned".
 3. New query → the same with `0002_review_lock.sql`, then with `0003_sync_rules.sql`, then `0004_library_links.sql`, then
-   `0005_review_deletes.sql`, then `0006_cert_profile.sql`, then `0007_change_labels.sql`, then `0008_hydronic_types.sql`, then `0009_valve_library.sql`, then `0010_pump_library.sql`, then `0011_row_links.sql`, then `0012_motor_photos.sql`.
+   `0005_review_deletes.sql`, then `0006_cert_profile.sql`, then `0007_change_labels.sql`, then `0008_hydronic_types.sql`, then `0009_valve_library.sql`, then `0010_pump_library.sql`, then `0011_row_links.sql`, then `0012_motor_photos.sql`, then `0013_issue_types.sql`.
 
 **Option B — command line** (from a checkout of the repository, Node installed):
 

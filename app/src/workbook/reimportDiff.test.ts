@@ -218,6 +218,14 @@ describe('reimportDiff: rows, units, N/A marks, issues, remarks', () => {
     expect(d.counts.remarks).toBe(1);
   });
 
+  it('observations (not on the rev 06 Summary pages) are never compared or mistaken for a deficiency', () => {
+    const app = sampleBundle();
+    const first = app.issues.find((i) => i.kind === 'new')!;
+    app.issues.push({ ...first, id: 'obs-1', number: 1, remark: 'Filters recently changed', issueType: 'observation' });
+    const base = exported(app);
+    expect(reimportDiff({ base, app, wb: exported(app) }).items).toEqual([]);
+  });
+
   it('unit remarks and the narrative', () => {
     const app = sampleBundle();
     const base = exported(app);

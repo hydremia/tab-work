@@ -10,6 +10,7 @@
  * Combined: the Issues Report followed by the Photo Report without deficiency photos (they are with their issue).
  */
 import type { Equipment, Issue, IssueKind, Photo } from '../data/types';
+import { isObservation } from '../domain/issues';
 import {
   CATEGORY_LABEL,
   comparePhotos,
@@ -59,6 +60,8 @@ export interface PhotoGroup {
 export interface IssueEntry {
   id: string;
   label: string;
+  /** an observation (recorded without flagging the unit) */
+  observation?: boolean;
   kind: IssueKind;
   number: number;
   equipment: string;
@@ -70,6 +73,8 @@ export interface IssueEntry {
 
 export interface IssueSection {
   kind: IssueKind;
+  /** the observations of New / Existing equipment (after the deficiencies) */
+  observations?: boolean;
   title: string;
   sheet: string;
   issues: IssueEntry[];
@@ -159,7 +164,8 @@ export function buildReportModel(input: ReportInput, opts: ReportOptions): Repor
     let caption = p.caption.trim();
     if (!caption && p.category === 'deficiency') {
       const issue = p.issueId ? issueById.get(p.issueId) : undefined;
-      if (issue?.remark) caption = `Issue ${issueLabel(issue)}: ${issue.remark}`;
+      if (issue?.remark)
+        caption = `${isObservation(issue) ? 'Observation' : 'Issue'} ${issueLabel(issue)}: ${issue.remark}`;
     }
     return { id: p.id, label, caption, width: p.width, height: p.height };
   };
@@ -169,18 +175,21 @@ export function buildReportModel(input: ReportInput, opts: ReportOptions): Repor
   // ---- issues
   const issueSections: IssueSection[] = [];
   if (opts.kind !== 'photos') {
-    for (const kind of issueKinds) {
-      issueSections.push({
-        kind,
-        title: kind === 'new' ? 'New Equipment' : 'Existing Equipment',
-        sheet: kind === 'new' ? 'Summary - New' : 'Summary - (E)',
-        issues: sortedIssues
-          .filter((i) => i.kind === kind)
-          .map((i) => {
+    for (const kind of issueKinds)
+      for (const observations of [false, true]) {
+        const list = sortedIssues.filter((i) => i.kind === kind && isObservation(i) === observations);
+        if (observations && !list.length) continue; // an Observations section only when there are some
+        issueSections.push({
+          kind,
+          ...(observations ? { observations: true } : {}),
+          title: `${kind === 'new' ? 'New Equipment' : 'Existing Equipment'}${observations ? ' – Observations' : ''}`,
+          sheet: kind === 'new' ? 'Summary - New' : 'Summary - (E)',
+          issues: list.map((i) => {
             const e = i.equipmentId ? eqById.get(i.equipmentId) : undefined;
             return {
               id: i.id,
               label: issueLabel(i),
+              ...(observations ? { observation: true } : {}),
               kind: i.kind,
               number: i.number,
               equipment: e ? `${unitName(e)}${lineOf(i) ? ` · ${lineOf(i)}` : ''}` : 'General',
@@ -190,8 +199,8 @@ export function buildReportModel(input: ReportInput, opts: ReportOptions): Repor
               photos: deficiencyOf(i),
             };
           }),
-      });
-    }
+        });
+      }
   }
 
   // ---- photo groups
@@ -228,7 +237,11 @@ export function buildReportModel(input: ReportInput, opts: ReportOptions): Repor
   if (issueSections.length) {
     for (const s of issueSections) {
       const open = s.issues.filter((i) => i.status === 'Open').length;
-      summary.push(`${s.title}: ${plural(s.issues.length, 'issue')} (${open} open)`);
+      summary.push(
+        s.observations
+          ? `${s.title}: ${plural(s.issues.length, 'observation')}`
+          : `${s.title}: ${plural(s.issues.length, 'issue')} (${open} open)`,
+      );
     }
   }
   if (photoGroups.length || opts.kind === 'photos') {

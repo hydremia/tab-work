@@ -130,6 +130,20 @@ describe('report model', () => {
     expect(all.issueSections[0].issues[0].photos.map((p) => p.label)).toEqual(['Photo N-1.1', 'Photo N-1.2']);
     expect(all.issueSections[0].issues[1].equipment).toBe('General');
     expect(all.photoGroups).toEqual([]);
+    const withObs = {
+      ...input,
+      issues: [...input.issues, { ...input.issues[0], id: 'o1', issueType: 'observation' as const }],
+    };
+    expect(
+      buildReportModel(withObs, { kind: 'issues', label: '' }).issueSections.map((s) => [
+        s.title,
+        s.issues.map((i) => i.label),
+      ]),
+    ).toEqual([
+      ['New Equipment', ['N-1', 'N-2']],
+      ['New Equipment – Observations', ['Obs. N-1']],
+      ['Existing Equipment', ['E-1']],
+    ]);
     const onlyNew = buildReportModel(input, { kind: 'issues', label: '', issueKinds: ['new'] });
     expect(onlyNew.issueSections.map((s) => s.kind)).toEqual(['new']);
     expect(onlyNew.title).toBe('Issues Report - New Equipment');
