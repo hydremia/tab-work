@@ -21,7 +21,7 @@ function fullRtu(): CompletionInput {
     spec: getSpec('rtu'),
     unit: { designation: rtu.designation, data: { ...rtu.data }, naState: structuredClone(rtu.naState) },
     rows: b.rows.filter((r) => r.equipmentId === rtu.id),
-    photos: [{ category: 'unit' }, { category: 'tag' }, { category: 'oa_damper' }],
+    photos: [{ category: 'unit' }, { category: 'tag' }, { category: 'motor' }, { category: 'oa_damper' }],
     project,
     openIssues: 0,
   };
@@ -80,13 +80,23 @@ describe('RTU completion colors', () => {
   it('photos are required unless N/A (R2)', () => {
     const c = computeCompletion({ ...fullRtu(), photos: [] });
     expect(c.color).toBe('amber');
-    expect(c.missing.map((m) => m.label)).toEqual(['Unit photo', 'Unit label / tag photo', 'OA damper photo']);
+    expect(c.missing.map((m) => m.label)).toEqual([
+      'Unit photo',
+      'Unit label / tag photo',
+      'Motor / nameplate photo',
+      'OA damper photo',
+    ]);
+    // the motor photo is N/A with the motor data (e.g. an existing unit taken for airflow only)
+    const motorNa = computeCompletion(
+      withNa({ ...fullRtu(), photos: [] }, { sections: { motor: { notation: 'N/A' } } }),
+    );
+    expect(motorNa.photos.motor).toMatchObject({ state: 'section-na' });
     const na = computeCompletion(withNa({ ...fullRtu(), photos: [] }, { sections: { photos: { notation: 'N/A' } } }));
     expect(na.color).toBe('green');
     expect(na.sections.photos).toMatchObject({ state: 'na', naSource: 'section' });
     const one = computeCompletion(
       withNa(
-        { ...fullRtu(), photos: [{ category: 'unit' }, { category: 'tag' }] },
+        { ...fullRtu(), photos: [{ category: 'unit' }, { category: 'tag' }, { category: 'motor' }] },
         { fields: { [photoNaKey('oa_damper')]: { notation: 'Not Acc.' } } },
       ),
     );
@@ -136,7 +146,7 @@ describe('automatic N/A rules', () => {
     const c = computeCompletion({
       ...i,
       rows: i.rows.filter((r) => r.table !== 'oa'),
-      photos: [{ category: 'unit' }, { category: 'tag' }],
+      photos: [{ category: 'unit' }, { category: 'tag' }, { category: 'motor' }],
     });
     expect(c.fields.oaDamper.state).toBe('auto-na');
     expect(c.tables.oa.state).toBe('auto-na');

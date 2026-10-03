@@ -360,6 +360,7 @@ async function main() {
     // photos: one real photo, one N/A, one Not Acc.
     await page.locator('input[aria-label="Unit photo"]').setInputFiles(join(APP, 'public', 'icons', 'icon-512.png'));
     await page.getByTestId('photo-tag').locator('select.na-select').selectOption('N/A');
+    await page.getByTestId('photo-motor').locator('select.na-select').selectOption('N/A');
     await page.getByTestId('photo-oa_damper').locator('select.na-select').selectOption('Not Acc.');
     await page.waitForTimeout(800);
     await page.locator('#sec-remarks textarea').fill('Belt replaced during TAB.');

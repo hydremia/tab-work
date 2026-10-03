@@ -737,10 +737,15 @@ line** of a unit.
 Every photo spot has **Take photo** (opens the camera) and **Choose** (camera roll or files; several at once where
 it makes sense). On a laptop you can also drag photos in.
 
+A unit's photo slots take **more than one photo** (two corners of a unit, the label from two sides): once a slot has a
+photo its buttons read **Add another photo** / **Add from library** and add to it; the extra photos show as small
+thumbnails under the first and are numbered in the reports (*RTU-1 · Unit 1*, *Unit 2*). To remove one of several,
+open it and tap **Delete**.
+
 | Photo | Where | Required? |
 |---|---|---|
 | Cover | Info → Cover photo | Yes, or mark N/A |
-| **Unit**, **Unit label / tag**, **OA damper** | Each unit → Photos section | Yes, unless marked N/A. OA damper only on units with OA. Small fans and VAVs: **Unit / tag**. Hoods: **Hood**, **Hood tag**. |
+| **Unit**, **Unit label / tag**, **Motor / nameplate**, **OA damper** | Each unit → Photos section | Yes, unless marked N/A. Motor / nameplate on RTUs, MAUs, ERVs, fans and pumps (the motor label, or the motor itself when it has no visible label); N/A with the motor data. OA damper only on units with OA. Small fans and VAVs: **Unit / tag**. Hoods: **Hood**, **Hood tag**. |
 | Deficiency | Issues → the issue | Optional |
 | Other / general | Photos tab → **Add photos** | Optional |
 

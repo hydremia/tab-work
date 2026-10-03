@@ -139,6 +139,8 @@ export interface PhotoSpec {
   category: Exclude<PhotoCategory, 'cover' | 'deficiency' | 'other'>;
   label: string;
   autoNa?: readonly AutoNa[];
+  /** N/A with this section (marked N/A, unit N/A or out of the scope profile): the motor photo with Motor data. */
+  section?: string;
 }
 
 /** Live-calculation panel shown at the end of a section (rendered by ui/components/CalcPanels.tsx). */

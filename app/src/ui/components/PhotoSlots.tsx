@@ -16,7 +16,11 @@ const NA_TEXT: Record<string, string> = {
   'scope-na': 'N/A for this scope',
 };
 
-/** The unit form's required photo slots (unit, tag, OA damper ...): one photo each, or an N/A mark. */
+/**
+ * The unit form's required photo slots (unit, tag, motor, OA damper ...): one photo or more each (two corners of a
+ * unit ...), or an N/A mark. Taking or choosing a photo adds it; a photo is removed from the slot (one photo) or
+ * from the viewer (several).
+ */
 export function PhotoSlots({
   equipment,
   specs,
@@ -35,9 +39,11 @@ export function PhotoSlots({
       <SaverStatus busy={saver.busy} error={saver.error} onDismiss={saver.clearError} />
       <div className="photo-grid">
         {specs.map((p) => {
-          const photo = photos
+          const slot = photos
             .filter((x) => x.category === p.category)
-            .sort((a, b) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt))[0];
+            .sort((a, b) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt));
+          const photo = slot[0];
+          const more = slot.slice(1);
           const r = results[p.category];
           const mark = equipment.naState.fields[photoNaKey(p.category)];
           return (
@@ -46,9 +52,13 @@ export function PhotoSlots({
               className="photo-slot"
               data-testid={`photo-${p.category}`}
               data-has-photo={Boolean(photo)}
+              data-count={slot.length}
             >
               <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
-                <b className="small">{p.label}</b>
+                <b className="small">
+                  {p.label}
+                  {slot.length > 1 ? ` (${slot.length})` : ''}
+                </b>
                 {!photo && (
                   <NaSelect
                     label={`${p.label} photo`}
@@ -79,22 +89,32 @@ export function PhotoSlots({
                   )}
                 </div>
               )}
+              {more.length > 0 && (
+                <div className="photo-strip" data-testid={`photo-${p.category}-more`}>
+                  {more.map((m, i) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      className="thumb-btn"
+                      onClick={() => setViewing(m.id)}
+                      aria-label={`View ${p.label} photo ${i + 2}`}
+                    >
+                      <PhotoThumb blob={m.thumb ?? m.blob} alt={`${equipment.designation} ${p.label} ${i + 2}`} />
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="row" style={{ flexWrap: 'nowrap', gap: 6 }}>
                 <PhotoPicker
                   label={`${p.label} photo`}
                   compact
-                  takeText={photo ? 'Retake photo' : 'Take photo'}
-                  chooseText="Choose from library"
+                  multiple
+                  takeText={photo ? 'Add another photo' : 'Take photo'}
+                  chooseText={photo ? 'Add from library' : 'Choose from library'}
                   disabled={Boolean(saver.busy)}
-                  onFiles={(files) =>
-                    void saver.save(
-                      files.slice(0, 1),
-                      { category: p.category, equipmentId: equipment.id },
-                      { replace: true },
-                    )
-                  }
+                  onFiles={(files) => void saver.save(files, { category: p.category, equipmentId: equipment.id })}
                 />
-                {photo && (
+                {slot.length === 1 && (
                   <button
                     type="button"
                     className="btn btn-danger icon-only"

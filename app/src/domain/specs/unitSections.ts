@@ -182,6 +182,9 @@ export const UNIT_TAG_PHOTOS: readonly PhotoSpec[] = [
   { category: 'tag', label: 'Unit label / tag' },
 ];
 
+/** The motor nameplate / label (or the motor itself when it has no visible label, e.g. a direct-drive motor). */
+export const MOTOR_PHOTO: PhotoSpec = { category: 'motor', label: 'Motor / nameplate', section: 'motor' };
+
 export const photosSection = (photos: readonly PhotoSpec[]): SectionSpec => ({
   key: 'photos',
   label: 'Photos',

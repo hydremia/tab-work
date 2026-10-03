@@ -298,7 +298,8 @@ export function computeCompletion(input: CompletionInput): Completion {
       let r: ItemResult;
       const mark = na.fields[photoNaKey(p.category)];
       const auto = firstAuto(p.autoNa, values);
-      const sn = sectionNa(s, s.airflow);
+      const owner = p.section ? spec.sections.find((x) => x.key === p.section) : undefined;
+      const sn = sectionNa(s, s.airflow) ?? (owner ? sectionNa(owner, Boolean(owner.airflow)) : null);
       if (input.photos.some((x) => x.category === p.category)) r = { state: 'value' };
       else if (mark) r = { state: 'na', notation: mark.notation, reason: mark.reason };
       else if (auto) r = { state: 'auto-na', notation: 'N/A', reason: auto.reason };

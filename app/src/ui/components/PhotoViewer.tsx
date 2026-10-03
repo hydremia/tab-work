@@ -9,7 +9,7 @@ import { TextArea } from './inputs';
 import { PhotoThumb } from './PhotoThumb';
 import { useLineNames } from './RowLinks';
 
-const CATEGORIES: PhotoCategory[] = ['unit', 'tag', 'oa_damper', 'other', 'deficiency', 'cover'];
+const CATEGORIES: PhotoCategory[] = ['unit', 'tag', 'motor', 'oa_damper', 'other', 'deficiency', 'cover'];
 
 const when = (t: number) => new Date(t).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
@@ -61,7 +61,11 @@ export function PhotoViewer({ photoId, onClose }: { photoId: string; onClose: ()
   const line = photo.airflowRowId ? lineNames?.get(photo.airflowRowId) : undefined;
   const label = `${labels.get(photo.id) ?? CATEGORY_LABEL[photo.category]}${line ? ` · ${line.short}` : ''}`;
   const unitLines = [...(lineNames?.values() ?? [])].filter((l) => l.equipmentId === photo.equipmentId);
-  const needsEquipment = photo.category === 'unit' || photo.category === 'tag' || photo.category === 'oa_damper';
+  const needsEquipment =
+    photo.category === 'unit' ||
+    photo.category === 'tag' ||
+    photo.category === 'motor' ||
+    photo.category === 'oa_damper';
 
   return (
     <div className="viewer-backdrop" onClick={onClose}>
@@ -127,7 +131,7 @@ export function PhotoViewer({ photoId, onClose }: { photoId: string; onClose: ()
                     value={c}
                     disabled={
                       (c === 'deficiency' && !issues.length) ||
-                      ((c === 'unit' || c === 'tag' || c === 'oa_damper') && !equipment.length)
+                      ((c === 'unit' || c === 'tag' || c === 'motor' || c === 'oa_damper') && !equipment.length)
                     }
                   >
                     {CATEGORY_LABEL[c]}
