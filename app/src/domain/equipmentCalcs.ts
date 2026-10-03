@@ -144,6 +144,8 @@ export interface MauTotals {
   filterGrid: ReturnType<typeof filterGridCfm>;
   profile: ReturnType<typeof profileCfm>;
   outlets: ReturnType<typeof outletSheetTotals>;
+  /** Intake screens (app-only until template rev 07): the method total when Intake is chosen, else a check */
+  intake: ReturnType<typeof outletSheetTotals> & { total: number | null };
 }
 
 export function mauTotals(values: Values, rows: readonly Row[]): MauTotals {
@@ -152,18 +154,35 @@ export function mauTotals(values: Values, rows: readonly Row[]): MauTotals {
   const filterGrid = filterGridCfm(rows);
   const profile = profileCfm(values.profileHousing, values.profilePressure);
   const outlets = outletSheetTotals(rowsOf(rows, 'supply'));
+  const intakeRows = rowsOf(rows, 'intake');
+  const intake = outletSheetTotals(intakeRows);
+  // screens read once (initial only) still give the total
+  const intakeTotal = intake.actual ?? blankZero(sum(intakeRows.map((r) => rowCfm(r, 'initial'))));
   const methodTotal =
-    method === 'PSP'
-      ? psp.cfm
-      : method === 'Filter Grid'
-        ? filterGrid.total
-        : method === 'Profile Pressure'
-          ? profile.cfm
-          : null;
+    method === 'Intake'
+      ? intakeTotal
+      : method === 'PSP'
+        ? psp.cfm
+        : method === 'Filter Grid'
+          ? filterGrid.total
+          : method === 'Profile Pressure'
+            ? profile.cfm
+            : null;
   const override = num(values.designCfmOverride ?? null);
   const design = override ?? outlets.design;
   const actual = method === null || method === 'Outlets' ? outlets.actual : methodTotal;
-  return { method, methodTotal, design, actual, ratio: ratio(actual, design), psp, filterGrid, profile, outlets };
+  return {
+    method,
+    methodTotal,
+    design,
+    actual,
+    ratio: ratio(actual, design),
+    psp,
+    filterGrid,
+    profile,
+    outlets,
+    intake: { ...intake, total: intakeTotal },
+  };
 }
 
 // ------------------------------------------------------------------------------------------ ERV

@@ -27,6 +27,7 @@ import {
 } from '../domain/airBalance';
 import { designationKey } from '../domain/scheduleImport';
 import { SPARE_OA_ROWS, spareOaKey } from '../domain/spareOa';
+import { splitSheaveBore } from '../domain/sheaveBore';
 import { isBlank } from '../domain/conditions';
 import { db } from './db';
 import { appendHistory, currentActor } from './history';
@@ -1268,4 +1269,39 @@ export async function addLibraryPump(p: Partial<Omit<LibraryPump, 'id' | 'create
 
 export async function deleteLibraryPump(id: string): Promise<void> {
   await deleteRecord('libraryPumps', id);
+}
+
+/**
+ * A unit entered before the motor and fan bores were separate fields: its "Sheave bore M/F" (motor / fan) is split
+ * once into the two (domain/sheaveBore.ts), as ordinary synced edits. A bore already entered in the new fields wins;
+ * the old value is cleared either way. Not on an issued (locked) project.
+ */
+export async function splitLegacySheaveBore(unit: Equipment): Promise<boolean> {
+  const legacy = unit.data.sheaveBore;
+  const mark = unit.naState.fields.sheaveBore;
+  if ((legacy === undefined || legacy === null) && !mark) return false;
+  const opts: WriteOptions = {
+    source: 'auto',
+    note: 'Sheave bore M/F split into the motor and fan bores',
+    keepReview: true,
+  };
+  const values: Record<string, unknown> = {};
+  const free = (k: string) => isBlank(unit.data[k]) && !unit.naState.fields[k];
+  if (mark) {
+    if (free('motorBore')) values['naState.fields.motorBore'] = mark;
+    if (free('fanBore')) values['naState.fields.fanBore'] = mark;
+  } else {
+    const split = splitSheaveBore(legacy);
+    if (split && free('motorBore')) values['data.motorBore'] = split.motorBore;
+    if (split?.fanBore && free('fanBore')) values['data.fanBore'] = split.fanBore;
+  }
+  values['data.sheaveBore'] = null;
+  if (mark) values['naState.fields.sheaveBore'] = null;
+  try {
+    await setFields('equipment', unit.id, values, opts);
+    return true;
+  } catch (e) {
+    if (e instanceof LockedError) return false;
+    throw e;
+  }
 }

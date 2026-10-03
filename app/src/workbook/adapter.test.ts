@@ -44,14 +44,45 @@ describe('toProjectData', () => {
     expect(rtu.tables?.oa?.[0]).toMatchObject({ no: 'OA-1', finalVel: 'Not Acc.' });
   });
 
+  it('motor / fan bores go into the one "Shv Bore M/F" cell of rev 05 / 06 and come back apart', () => {
+    const b = sampleBundle();
+    const u = toProjectData(b).data.equipment.rtu[0];
+    expect(u.fields).toMatchObject({ sheaveBore: '7/8 / 1' });
+    expect(u.fields).not.toHaveProperty('motorBore');
+    const back = fromProjectData(toProjectData(b).data).equipment.find((e) => e.type === 'rtu')!;
+    expect(back.data).toMatchObject({ motorBore: '7/8', fanBore: '1' });
+    expect(back.data).not.toHaveProperty('sheaveBore');
+  });
+
+  it('MAU Intake method and intake screens: kept in the app, left out of a rev 06 workbook with a warning', () => {
+    const b = sampleBundle();
+    const mau = b.equipment.find((e) => e.type === 'mau')!;
+    mau.data.method = 'Intake';
+    b.rows.push({
+      ...b.rows[0],
+      equipmentId: mau.id,
+      id: 'intake-1',
+      table: 'intake',
+      order: 1,
+      data: { no: '1', size: '20x20', ak: 2.5, finalVel: 400 },
+      na: {},
+    });
+    const { data, warnings } = toProjectData(b);
+    const u = data.equipment.mau.find((x) => x.slot === mau.slot)!;
+    expect(u.fields ?? {}).not.toHaveProperty('method');
+    expect(u.tables ?? {}).not.toHaveProperty('intake');
+    expect(warnings.join('\n')).toMatch(/Intake method needs template revision 07/);
+    expect(warnings.join('\n')).toMatch(/intake screen readings need template revision 07/);
+  });
+
   it('writes section-level N/A marks as their notation and automatic N/A as "N/A"', () => {
     const b = sampleBundle();
     const unit = b.equipment[0];
     unit.naState.sections.drive = { notation: 'Not Acc.' };
-    for (const k of ['motorSheave', 'fanPulley', 'belts', 'cToC', 'sheaveBore']) delete unit.data[k];
+    for (const k of ['motorSheave', 'motorBore', 'fanPulley', 'fanBore', 'belts', 'cToC']) delete unit.data[k];
     const u = toProjectData(b).data.equipment.rtu[0];
     expect(u.schedule).toMatchObject({ motorSheave: 'Not Acc.', belts: 'Not Acc.' });
-    expect(u.fields).toMatchObject({ sheaveBore: 'Not Acc.' });
+    expect(u.fields).toMatchObject({ sheaveBore: 'Not Acc.' }); // both bores Not Acc.: one notation in the M/F cell
     unit.naState.sections = {};
     unit.data.driveType = 'Direct';
     const d = toProjectData(b).data.equipment.rtu[0];
