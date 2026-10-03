@@ -85,8 +85,13 @@ export async function pressuresAndAttention(page: Page, projectUrl: string, docS
     const box = bb.locator('[data-testid^="bb-include-"]').first();
     const name = ((await box.getAttribute('data-testid')) ?? '').replace('bb-include-', '');
     const before = await bb.getByTestId('bb-totals').innerText();
-    await box.uncheck();
-    await page.waitForTimeout(500);
+    // the switch shows the saved list: click, then wait for the row to grey
+    await box.click();
+    await bb
+      .locator(`tr[data-excluded][data-testid^="bb-${name}-"]`)
+      .first()
+      .waitFor({ timeout: 5000 })
+      .catch(() => undefined);
     const after = await bb.getByTestId('bb-totals').innerText();
     const greyed = (await bb.locator(`tr[data-excluded][data-testid^="bb-${name}-"]`).count()) > 0;
     const marked = (await bb.innerText()).includes('Excl.');
@@ -100,8 +105,8 @@ export async function pressuresAndAttention(page: Page, projectUrl: string, docS
       greyed && marked && after !== before,
       `${name}: ${before.replace(/\s+/g, ' ')} -> ${after.replace(/\s+/g, ' ')}`,
     );
-    await box.check();
-    await page.waitForTimeout(300);
+    await box.click();
+    await page.waitForTimeout(500);
   } else check('building balance card shown on Info', false, 'no building-balance card');
 
   // ------------------------------------------------ certification (Certification sheet)

@@ -2966,6 +2966,19 @@ fieldset.viewer-edit {
 }
 
 /* Building balance: a unit left out of the balance is greyed and marked Excl. */
+.bb-table {
+  width: 100%;
+  font-size: 0.875rem;
+}
+.bb-table th,
+.bb-table td {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+.bb-table th:last-child,
+.bb-table td:last-child {
+  text-align: center;
+}
 .bb-table tr[data-excluded] td {
   color: var(--text-3);
   background: var(--gray-bg);

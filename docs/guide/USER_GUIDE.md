@@ -252,7 +252,7 @@ outside-air side; fans, small fans 1–30 and ERV exhaust on the exhaust side, w
 actual and, when the schedule's air balance was imported, the engineer's totals with the difference in amber (a unit
 missing, or a design CFM that differs from the engineer's table).
 
-**In balance**: switch a unit off when the ventilation calculation leaves it out, e.g. an isolated room with its own
+**Incl.** (in balance): switch a unit off when the ventilation calculation leaves it out, e.g. an isolated room with its own
 intake louver paired with its fan (*Note 1: EF-22 and EF-23 excluded*). It is greyed, marked **Excl.** and left out of
 every total (and the graphics summary); it is still tested and reported on its own page. Say why in the line that
 appears (*isolated rooms with dedicated intake louvers, ventilation calc Note 1*). Units the imported air balance
