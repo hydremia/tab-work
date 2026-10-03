@@ -271,6 +271,12 @@ export function CalcPanel({
             Actual <b data-testid="unit-actual">{formatNumber(t.actual)}</b>
           </span>
           <Pct ratio={t.ratio} tolerance={tolerance} />
+          {t.method !== 'Intake' && t.intake.total !== null && (
+            <span data-testid="mau-intake-check">
+              Intake check <b>{formatNumber(t.intake.total)}</b>
+              {t.actual ? ` (${formatNumber((t.intake.total / t.actual) * 100)} % of actual)` : ''}
+            </span>
+          )}
         </div>
       );
     }

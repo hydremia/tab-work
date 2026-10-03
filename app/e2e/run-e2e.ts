@@ -282,16 +282,17 @@ async function main() {
     await fill(page, { volts1: 468, volts2: 465, volts3: 470, amps1: 3.9, amps2: 4.1, amps3: 4.0 });
     await select(page, { driveType: 'Belt' });
     await fill(page, {
-      motorSheave: '1VP44 x 7/8',
-      fanPulley: 'AK74 x 1',
+      motorSheave: '1VP44',
+      motorBore: '7/8',
+      fanPulley: 'AK74',
+      fanBore: '1',
       belts: 'A42',
       cToC: '14 1/4',
-      sheaveBore: '7/8 / 1',
     });
     await fill(page, { rotationDesign: 'CW', rotationActual: 'CW' });
     await yesNo(page, 'hasFilters', 'Yes');
     await fill(page, { filters: '2" pleated 16x20 x 4', finalSettings: 'Sheave 2.5 turns open' });
-    await fill(page, { motorRpmFinal: 1742, fanRpmFinal: 1105 });
+    await fill(page, { motorRpmInitial: 1742, motorRpmFinal: 1742, fanRpmInitial: 1105, fanRpmFinal: 1105 });
     await yesNo(page, 'hasVfd', 'No');
     await fill(page, {
       oaDamper: '35 % open',

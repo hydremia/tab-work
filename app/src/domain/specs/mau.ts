@@ -23,7 +23,12 @@ import {
   unitDataSection,
 } from './unitSections';
 
-type Method = (typeof TEMPLATE_LISTS)['Airflow.Method'][number];
+/**
+ * The workbook's methods, plus Intake (app-only until template revision 07): velocity readings at the unit's intake
+ * screens, one row per screen with its size and Ak, CFM per row. Also kept as a check next to another method.
+ */
+export const MAU_METHODS = [...TEMPLATE_LISTS['Airflow.Method'], 'Intake'] as const;
+type Method = (typeof MAU_METHODS)[number];
 const is = (m: Method): Cond => ({ field: 'method', eq: m });
 /** A method is chosen and it is not `m`. */
 const otherThan = (m: Method): Cond => ({ all: [{ not: { field: 'method', blank: true } }, { not: is(m) }] });
@@ -52,8 +57,8 @@ export const MAU_SPEC: EquipmentSpec = {
           key: 'method',
           label: 'Method used',
           input: 'select',
-          options: TEMPLATE_LISTS['Airflow.Method'],
-          hint: 'Only the chosen method’s readings are needed',
+          options: MAU_METHODS,
+          hint: 'Only the chosen method’s readings are needed (intake screens can also be read as a check)',
         },
         {
           key: 'designCfmOverride',
@@ -179,6 +184,32 @@ export const MAU_SPEC: EquipmentSpec = {
           unit: 'in. w.g.',
           requiredWhen: is('Profile Pressure'),
           autoNa: [notChosen('Profile Pressure')],
+        },
+      ],
+    },
+    {
+      key: 'intake',
+      label: 'Intake screens',
+      airflow: true,
+      hint: 'One row per intake screen: size, Ak and the velocity against the screen; CFM = VEL × Ak. The method when Intake is chosen, otherwise an optional check.',
+      fields: [],
+      tables: [
+        {
+          key: 'intake',
+          label: 'Intake screens',
+          required: false,
+          requiredWhen: is('Intake'),
+          minRows: 1,
+          tolerance: false,
+          noun: 'screen',
+          columns: [
+            { key: 'no', label: 'Screen', input: 'text' },
+            { key: 'size', label: 'Size', input: 'text' },
+            { key: 'ak', label: 'Ak', input: 'number', unit: 'ft²' },
+            { key: 'initialVel', label: 'Initial VEL', input: 'number', unit: 'fpm', naMenu: true },
+            { key: 'finalVel', label: 'Final VEL', input: 'number', unit: 'fpm', naMenu: true },
+          ],
+          fillDown: ['size', 'ak'],
         },
       ],
     },
