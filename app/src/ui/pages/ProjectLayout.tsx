@@ -17,6 +17,7 @@ import { AppHeader, ModeBanner } from '../components/AppHeader';
 import { ExportReminderGuard } from '../components/ExportReminder';
 import { LockBanner } from '../components/LockBanner';
 import { ProjectMenu } from '../components/DeleteProject';
+import { openDeficiencies } from '../../domain/issues';
 
 export interface ProjectContext {
   project: Project;
@@ -65,7 +66,7 @@ export function ProjectLayout() {
   }
   if (!project || !equipment || !issues) return <AppHeader title="Loading…" back="/" />;
 
-  const open = issues.filter((i) => i.status === 'Open').length;
+  const open = openDeficiencies(issues).length;
   const tabs: { to: string; label: string; count?: number; tone?: string }[] = [
     { to: 'info', label: 'Info' },
     { to: 'equipment', label: 'Equipment', count: equipment.length },

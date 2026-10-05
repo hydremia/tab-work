@@ -3,7 +3,7 @@
  * grouped, each item linked to the unit (and section) or page it concerns.
  *
  *   design       R8 schedule design CFM vs. the outlet design sum; unit ESP actual vs. design (± tolerance)
- *   motor        measured amps above corrected FLA × SF; estimated BHP above the nameplate HP
+ *   motor        measured amps above corrected FLA × SF; estimated BHP above the motor HP; nameplate vs. scheduled HP
  *   tolerance    readings / unit totals outside ± the project tolerance
  *   photos       started units still missing a required photo
  *   issues       open issues
@@ -27,6 +27,8 @@ import { motorCalc, motorInputs, motorWarnings } from './motorCalcs';
 import { getSpec } from './specs';
 import { espDiscrepancy, staticInputs, staticProfile } from './staticProfile';
 import { unitCells } from '../workbook/adapter';
+import { hoodLinks } from './equipmentCalcs';
+import { openDeficiencies } from './issues';
 
 export type AttentionGroup = 'design' | 'motor' | 'tolerance' | 'photos' | 'issues' | 'capacity' | 'calibration';
 
@@ -75,7 +77,7 @@ export function needsAttention(input: AttentionInput): AttentionItem[] {
       EQUIPMENT_TYPES.findIndex((t) => t.key === a.type) - EQUIPMENT_TYPES.findIndex((t) => t.key === b.type) ||
       a.slot - b.slot,
   );
-  const openIssues = input.issues.filter((i) => i.status === 'Open');
+  const openIssues = openDeficiencies(input.issues);
   const used = new Map<string, { need: InstrumentNeed; units: string[]; to: string }>();
   const markUsed = (need: InstrumentNeed, e: Equipment, section: string | undefined) => {
     const k = need.meter;
@@ -84,6 +86,7 @@ export function needsAttention(input: AttentionInput): AttentionItem[] {
     used.set(k, u);
   };
 
+  const linked = hoodLinks(byOrder);
   for (const e of byOrder) {
     const unitPath = (section?: string) => `e/${e.id}${section ? `#sec-${section}` : ''}`;
     const c =
@@ -95,6 +98,7 @@ export function needsAttention(input: AttentionInput): AttentionItem[] {
         photos: input.photos.filter((p) => p.equipmentId === e.id),
         project,
         openIssues: openIssues.filter((i) => i.equipmentId === e.id).length,
+        hoodLinked: linked.has(e.id),
       });
     const add = (group: AttentionGroup, key: string, text: string, section?: string) =>
       items.push({
@@ -139,7 +143,15 @@ export function needsAttention(input: AttentionInput): AttentionItem[] {
     // motor
     if (hasSectionCalc(e, 'motor')) {
       const inp = motorInputs(cells);
-      for (const w of motorWarnings(motorCalc(inp), inp, cells.serviceFactor, cells.hp))
+      const plate = e.data.motorHp;
+      const hasPlate = typeof plate === 'number';
+      for (const w of motorWarnings(
+        motorCalc(inp),
+        inp,
+        cells.serviceFactor,
+        hasPlate ? plate : cells.hp,
+        hasPlate ? cells.hp : undefined,
+      ))
         add('motor', w.key, w.text, 'motor');
     }
     // photos (started units only: a unit not started yet is simply "to do")

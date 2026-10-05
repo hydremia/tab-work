@@ -1518,6 +1518,12 @@ textarea {
   flex-direction: column;
   gap: 12px;
 }
+.issues-sub {
+  margin: 8px 0 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text-2);
+}
 .issue-num {
   font-weight: 800;
   font-size: 1.1rem;
@@ -2991,4 +2997,11 @@ fieldset.viewer-edit {
 .bb-table input[type='checkbox'] {
   width: 20px;
   height: 20px;
+}
+
+/* outlet rows: the design velocity next to the Initial / Final VEL labels */
+.target-vel {
+  font-weight: 600;
+  color: var(--primary);
+  white-space: nowrap;
 }

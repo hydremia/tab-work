@@ -24,6 +24,7 @@ import { pumpCurveResult, pumpName } from '../domain/pumpCurves';
 import { staticInputs, staticProfile, xlNum, type StaticProfile } from '../domain/staticProfile';
 import { getSpec } from '../domain/specs';
 import { unitCells } from '../workbook/adapter';
+import { openDeficiencies } from '../domain/issues';
 
 export interface ProfileFigure {
   kind: 'profile';
@@ -130,7 +131,7 @@ export function buildGraphicsModel(input: {
   rows: readonly AirflowRow[];
   completions: ReadonlyMap<string, Completion>;
   libraryPumps?: readonly LibraryPump[];
-  issues?: readonly Pick<Issue, 'kind' | 'status'>[];
+  issues?: readonly Pick<Issue, 'kind' | 'status' | 'issueType'>[];
 }): GraphicsModel {
   const { project, rows, completions } = input;
   const order = (e: Equipment) => EQUIPMENT_TYPES.findIndex((t) => t.key === e.type);
@@ -276,8 +277,8 @@ function buildSummary(
     tolerance: tol,
     types,
     openIssues: {
-      new: issues.filter((i) => i.status === 'Open' && i.kind === 'new').length,
-      existing: issues.filter((i) => i.status === 'Open' && i.kind !== 'new').length,
+      new: openDeficiencies(issues).filter((i) => i.kind === 'new').length,
+      existing: openDeficiencies(issues).filter((i) => i.kind !== 'new').length,
     },
     closedIssues: issues.filter((i) => i.status !== 'Open').length,
     profiles: {

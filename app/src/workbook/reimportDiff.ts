@@ -35,6 +35,7 @@ import { CERT_INFO_KEYS, CERT_LABELS } from '../domain/certification';
 import { PRESSURE_INFO_KEYS, PRESSURE_LABELS } from '../domain/projectCompletion';
 import { SPARE_OA_INFO_KEYS, SPARE_OA_LABELS } from '../domain/spareOa';
 import { fromProjectData, PROJECT_INFO_KEYS, toProjectData, type ProjectBundle } from './adapter';
+import { isObservation } from '../domain/issues';
 
 export type Val = string | number | null;
 
@@ -278,6 +279,8 @@ export function flatten(b: ProjectBundle, modes: Map<string, RowMode>): Map<stri
   const byId = new Map(b.equipment.map((e) => [e.id, e]));
   const lines = rowNames(b.equipment, b.rows);
   for (const i of b.issues) {
+    // observations are not on the rev 05 / 06 Summary pages: never compared (nor taken for a deficiency's number)
+    if (isObservation(i)) continue;
     const line = i.airflowRowId ? lines.get(i.airflowRowId) : undefined;
     add({
       key: `issue:${i.kind}#${i.number}`,
