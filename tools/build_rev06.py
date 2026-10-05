@@ -482,7 +482,8 @@ def rewrite(src, out, log):
                f"footer Page x of N on {n_footers} sheets")
 
 
-STAMP_PNG = os.path.join(ROOT, "tools", "assets", "nebb-stamp.png")
+# Kept out of the repo (a certification stamp): the local, git-ignored private/ folder, or TAB_STAMP_PNG.
+STAMP_PNG = os.environ.get("TAB_STAMP_PNG") or os.path.join(ROOT, "private", "nebb-stamp.png")
 
 
 def place_stamp(path, log):
@@ -492,13 +493,13 @@ def place_stamp(path, log):
     import subprocess
 
     if not os.path.exists(STAMP_PNG):
-        log.append("  stamp: tools/assets/nebb-stamp.png missing, no stamp placed")
+        log.append(f"  stamp: {STAMP_PNG} missing, no stamp placed")
         return
     subprocess.run(
         ["npx", "tsx", os.path.join(ROOT, "tools", "place_template_stamp.mts"), path, STAMP_PNG],
         check=True, cwd=ROOT,
     )
-    log.append("  stamp: NEBB stamp (tools/assets/nebb-stamp.png) in the Certification stamp box, picture 'a2b NEBB Stamp'")
+    log.append("  stamp: NEBB stamp (private/nebb-stamp.png) in the Certification stamp box, picture 'a2b NEBB Stamp'")
 
 
 def newest_rev05():
