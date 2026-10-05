@@ -396,7 +396,7 @@ async function main() {
     check(
       'amber field checks: ESP 1.07 vs design 0.80 (134 %), BHP 3.13 above 3 HP; ESP in the unit summary',
       /design 0\.80 vs\. actual 1\.07/.test(espWarn) &&
-        /3\.13 is above the nameplate 3 HP/.test(bhpWarn) &&
+        /3\.13 is above the scheduled 3 HP/.test(bhpWarn) &&
         (await page.getByTestId('summary-esp-warning').count()) === 1 &&
         (await page.getByTestId('motor-warning-amps').count()) === 0,
       `${espWarn} | ${bhpWarn}`,

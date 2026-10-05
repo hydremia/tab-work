@@ -172,6 +172,15 @@ Apply it before the app version with motor photos is used (until then the server
 device's pending changes wait). Rollback: `rollback/0012_motor_photos_down.sql` (motor photos become `other`).
 `motor_photos_test.sql` 3 PASS; rollback → re-apply clean; the sync rule and 0011 suites pass on 0001 – 0012.
 
+### 0013: observations
+
+`0013_issue_types.sql` adds `issues.issue_type` (`deficiency` by default, or `observation`), synced as `issueType`.
+An observation is recorded without flagging its unit and is numbered on its own ("Obs. N-1"). Apply it before the app
+version with observations is used (until then the server does not know `issueType`: an observation is stored as a
+deficiency and a type change is logged unapplied). Rollback: `rollback/0013_issue_types_down.sql` (no longer synced;
+the column stays). `issue_types_test.sql` 4 PASS; rollback → re-apply (twice) clean; the sync rule, 0011 and 0012
+suites pass on 0001 – 0013.
+
 ## Checking the migrations locally (no Supabase needed)
 
 `tests/` holds a stand-in for Supabase's `auth` / `storage` schemas and two tests. On an empty PostgreSQL 15+ database:
@@ -184,6 +193,7 @@ psql -d <empty db> -v ON_ERROR_STOP=1 -f supabase/tests/supabase_stub.sql \
      -f supabase/migrations/0007_change_labels.sql -f supabase/migrations/0008_hydronic_types.sql \
      -f supabase/migrations/0009_valve_library.sql -f supabase/migrations/0010_pump_library.sql \
      -f supabase/migrations/0011_row_links.sql -f supabase/migrations/0012_motor_photos.sql \
+     -f supabase/migrations/0013_issue_types.sql \
      -f supabase/tests/grants_for_stub.sql
 psql -d <empty db> -f supabase/tests/sync_rules_test.sql    # ends with "ALL SYNC RULE TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/library_links_test.sql   # "ALL 0004 TESTS PASSED"
@@ -194,6 +204,8 @@ psql -d <other empty db, same setup> -f supabase/tests/hydronic_types_test.sql  
 psql -d <other empty db, same setup> -f supabase/tests/valve_library_test.sql   # "ALL 0009 TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/pump_library_test.sql    # "ALL 0010 TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/row_links_test.sql       # "ALL 0011 TESTS PASSED"
+psql -d <other empty db, same setup> -f supabase/tests/motor_photos_test.sql    # "ALL 0012 TESTS PASSED"
+psql -d <other empty db, same setup> -f supabase/tests/issue_types_test.sql     # "ALL 0013 TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/smoke_test.sql
 ```
 

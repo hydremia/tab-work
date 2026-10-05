@@ -122,6 +122,19 @@ describe('needsAttention', () => {
         updatedAt: 0,
       },
       {
+        id: 'o',
+        projectId: 'p',
+        kind: 'new',
+        number: 1,
+        remark: 'Filters recently changed',
+        status: 'Open',
+        comments: '',
+        equipmentId: rtu.id,
+        issueType: 'observation',
+        createdAt: 0,
+        updatedAt: 0,
+      },
+      {
         id: 'y',
         projectId: 'p',
         kind: 'existing',
@@ -148,7 +161,7 @@ describe('needsAttention', () => {
         'design|RTU-1|Schedule 1,200 CFM vs. outlets 1,000 CFM',
         'design|RTU-1|Unit ESP: design 0.80 vs. actual 1.07 in. w.g. (134 %)',
         expect.stringMatching(/^motor\|RTU-1\|Measured amps above corrected FLA × SF .* L1 5\.2 A/),
-        'motor|RTU-1|Estimated BHP 3.47 is above the nameplate 3 HP.',
+        'motor|RTU-1|Estimated BHP 3.47 is above the scheduled 3 HP.',
         'tolerance|VAV-1|Outlets S-1: 67 % of design (±10 %)',
         'photos|RTU-1|Missing: Unit, Unit label / tag, Motor / nameplate',
         'issues|Issue N-1 · RTU-1|Damper stuck',
@@ -160,6 +173,7 @@ describe('needsAttention', () => {
     );
     // closed issues, units not started (the MAUs) and in-date meters (tachometer, multimeter, manometer) are not listed
     expect(brief.some((b) => b.includes('Closed one'))).toBe(false);
+    expect(brief.some((b) => b.includes('Filters recently changed'))).toBe(false); // observations never flag
     expect(items.some((i) => i.group === 'photos' && i.subject.startsWith('MAU'))).toBe(false);
     expect(brief.filter((b) => b.startsWith('calibration'))).toHaveLength(2);
     // links

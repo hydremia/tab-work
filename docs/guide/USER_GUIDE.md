@@ -525,7 +525,9 @@ otherwise the page says so.
 ![Airflow rows](../screenshots/04-rtu-airflow-rows.png)
 
 Each row has **No.**, **Area served**, **Type**, **Size**, **Ak**, **Design**, **Initial VEL** and **Final VEL**.
-Under the row you see the calculated **CFM** (VEL × Ak) and **% of design**, in green or red.
+Under the row you see the calculated **CFM** (VEL × Ak) and **% of design**, in green or red. Once the row has a
+design CFM and an Ak, it also shows the **Design VEL** (design CFM ÷ Ak, the workbook's Design VEL column): the
+velocity to look for before the first reading. The VEL boxes show it as a hint (*target 625*).
 
 - **Add outlet** (or *Add inlet*) copies area, type, size and Ak from the previous row, and numbers it S-1 → S-2.
 - **Row…** menu: mark a column N/A / Not Avail. / Not Acc., **Duplicate row**, **Delete row**.
@@ -571,6 +573,9 @@ damper · Static pressure profile · Airflow · Photos · Remarks.
 - **Amber warnings** (not errors, and they never change the color):
   - a measured amps leg above corrected FLA × service factor
   - *Estimated BHP … is above the nameplate … HP*
+  - *Motor nameplate … HP vs. scheduled … HP* when the **Motor HP (nameplate)** you read off the motor (under
+    *Motor data*) differs from the scheduled HP under *Design data*. The BHP check then uses the nameplate HP.
+    The nameplate HP stays in the app until template revision 07 has a cell for it.
   - *Unit ESP: design … vs. actual … Outside ±10 %*
 
 ### MAU / supply fan
@@ -609,6 +614,12 @@ No OA damper. Static profile: Filter, Core, Fan.
 Like an RTU without OA. The static profile is just fan inlet (entering) and fan discharge (leaving). Airflow is
 **Registers / grilles** (up to 56 rows).
 
+**Measured at the hood.** A kitchen exhaust fan read at its hood(s): set **Airflow measured at** to **Hood**. The
+fan's grille table and instrument become N/A, and its airflow is the total of every hood whose *Associated exhaust
+fan* names it (a panel lists the hoods, their CFM and the total vs. the fan's design). The Building Balance uses
+that total. In the rev 06 workbook each hood is written as one row of the fan's grilles ("Hood H-1 (measured at
+hood)", Ak 1, VEL = the hood CFM), so the sheet's totals work; a re-import turns those rows back into the hood link.
+
 ![Fan](../screenshots/09-fan.png)
 
 ### Small fans
@@ -637,6 +648,8 @@ N/A unless the terminal is fan-powered. Actual heating CFM is N/A unless heating
   - **Airfoil** types (Condensate Baffle, HVC / Slot): **3 readings** per filter. The workbook averages them.
 - **Filter size** only offers sizes that exist for the chosen filter type. **No Filter** makes that row N/A.
 - Up to 14 filters. The app shows VEL and CFM per filter, the **Hood total**, % of design and CFM per ft.
+- **Associated exhaust fan** suggests the project's fans; a tag that matches no fan gets a warning. That link feeds a
+  fan *measured at hood* (see Fans).
 
 ### Traverses
 
@@ -712,6 +725,13 @@ separately:
 
 **Add new issue** or **Add existing issue**, then:
 
+- **Deficiency / Observation**: a **deficiency** turns its unit red while open and goes on the Summary page. An
+  **observation** is a note for the report that doesn't flag anything (e.g. "filters recently changed by owner"):
+  numbered on its own (**Obs. N-1**, **Obs. E-1**), listed under each list's *Observations*, never counted as an
+  open issue. **Add observation** starts one; switching an issue's type gives it the next number in the other list.
+  Observations print in the Issues report (their own section); the rev 06 workbook leaves them out (export
+  warning), template revision 07 lists them on the Summary pages.
+
 - **Equipment**: pick the unit, or **General (N/A)** for a building-wide issue. In the workbook, a linked issue's
   remark starts with the unit, e.g. `RTU-1: Supply fan belt worn…`.
 - **Airflow line** (when the unit has outlets, grilles or valve rows): **Whole unit**, or the one line the issue is
@@ -725,7 +745,7 @@ separately:
 - **↑ / ↓** swaps an issue with its neighbor. Numbers and photo labels update everywhere.
 - **Delete** removes the issue and its deficiency photos (it asks first).
 
-The Issues tab count shows open issues.
+The Issues tab count shows open deficiencies.
 
 **Issues and photos of one airflow line.** Each outlet / grille / valve row has, in its **Row…** menu, **Add issue
 for this line** (the new issue opens on the Issues tab with the unit and the line already set) and **Add photo of

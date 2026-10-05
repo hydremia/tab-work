@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { addAirflowRow, airflowTableCapacity, CapacityError, deleteRecord, setField, setFields } from '../../data/repo';
 import { NOTATIONS, type AirflowRow, type Equipment, type NaMark, type Notation } from '../../data/types';
-import { formatNumber, formatPercent, rowCfm, tableTotals, withinTolerance } from '../../domain/calc';
+import { designVel, formatNumber, formatPercent, rowCfm, tableTotals, withinTolerance } from '../../domain/calc';
 import { valveTotals } from '../../domain/hydronicCalcs';
 import { ValvePick } from './ValvePick';
 import { LINE_OPTIONS, RowLinkChips, useLineActions, useRowLinks, type LineLinks } from './RowLinks';
@@ -40,6 +40,12 @@ export function Pct({ ratio, tolerance }: { ratio: number | null; tolerance: num
   );
 }
 
+/** Outlet-style tables (Ak, design CFM and velocity readings) show the design velocity of each row. */
+const hasDesignVel = (spec: RowTableSpec) => {
+  const keys = new Set(tableColumns(spec).map((c) => c.key));
+  return (spec.calc ?? 'outlet') === 'outlet' && keys.has('ak') && keys.has('designCfm') && keys.has('initialVel');
+};
+
 function optionsFor(col: RowColumnSpec, unitData: Equipment['data']): readonly (string | number)[] {
   if (col.optionsBy) {
     const v = unitData[col.optionsBy.field];
@@ -55,10 +61,13 @@ function RowCalcLine({
   row,
   unitData,
   compact = false,
+  target = null,
 }: {
   spec: RowTableSpec;
   row: AirflowRow;
   unitData: Equipment['data'];
+  /** Design velocity (design CFM ÷ Ak) shown before the CFM (outlet tables). */
+  target?: number | null;
   /** Grid cell: just "initial / final" CFM. */
   compact?: boolean;
 }) {
@@ -94,6 +103,11 @@ function RowCalcLine({
   }
   return (
     <span className="calc">
+      {target !== null && (
+        <>
+          Design VEL <b data-testid="row-design-vel">{formatNumber(target)}</b> fpm ·{' '}
+        </>
+      )}
       CFM init {formatNumber(rowCfm(row, 'initial'))} · final {formatNumber(rowCfm(row, 'final'))}
     </span>
   );
@@ -128,6 +142,7 @@ function OutletRow({
   const auto = result?.auto ?? {};
   const autoReasons = [...new Set(Object.values(auto))];
   const naCols = cols.filter((c) => c.naMenu && !(c.key in auto));
+  const target = hasDesignVel(spec) ? designVel(row, computedDesign ? (result?.design ?? null) : undefined) : null;
   return (
     <div
       className="outlet"
@@ -159,7 +174,12 @@ function OutletRow({
           const commit = (x: unknown) => void setField('airflowRows', row.id, `data.${col.key}`, x);
           return (
             <div className={`cell${col.wide ? ' wide' : ''}`} key={col.key}>
-              <label htmlFor={id}>{col.label}</label>
+              <label htmlFor={id}>
+                {col.label}
+                {target !== null && (col.key === 'initialVel' || col.key === 'finalVel') && (
+                  <span className="target-vel"> · target {formatNumber(target)}</span>
+                )}
+              </label>
               {mark && (v === null || v === undefined || v === '') ? (
                 <span className="na-value" id={id}>
                   {mark.notation}
@@ -203,7 +223,7 @@ function OutletRow({
       )}
       {spec.calc === 'valve' && <ValvePick row={row} unitData={unitData} label={label} />}
       <div className="outlet-foot">
-        <RowCalcLine spec={spec} row={row} unitData={unitData} />
+        <RowCalcLine spec={spec} row={row} unitData={unitData} target={target} />
         {spec.tolerance && <Pct ratio={result?.ratio ?? null} tolerance={tolerance} />}
         {result && result.missing.length > 0 && (
           <span className="small" style={{ color: 'var(--amber)' }}>
@@ -312,6 +332,7 @@ function GridTable({
 }) {
   const cols = tableColumns(spec);
   const noun = spec.noun ?? 'row';
+  const showVel = hasDesignVel(spec);
   return (
     <div className="grid-wrap">
       <table className="entry-grid" onKeyDown={gridKeys} data-testid={`grid-${spec.key}`}>
@@ -319,9 +340,14 @@ function GridTable({
           <tr>
             <th scope="col">#</th>
             {cols.map((c) => (
-              <th key={c.key} scope="col">
-                {c.label}
-              </th>
+              <Fragment key={c.key}>
+                {showVel && c.key === 'initialVel' && (
+                  <th scope="col" title="Design CFM ÷ Ak: the velocity to look for">
+                    Design VEL
+                  </th>
+                )}
+                <th scope="col">{c.label}</th>
+              </Fragment>
             ))}
             {spec.calc !== 'valve' && <th scope="col">{spec.calc === 'filterGrid' ? 'CFM' : 'CFM init / final'}</th>}
             {spec.tolerance && <th scope="col">%</th>}
@@ -337,6 +363,53 @@ function GridTable({
             const label = `${spec.label} ${noun} ${i + 1}`;
             const computedDesign = spec.firstRowDesignComputed && i === 0;
             const naCols = cols.filter((c) => c.naMenu && !(c.key in auto));
+            const gridCell = (col: RowColumnSpec, ci: number) => {
+              const id = `g-${spec.key}-${i}-${ci}`;
+              const aria = `${label} ${col.label}`;
+              if (col.key in auto)
+                return (
+                  <td key={col.key} className="grid-na" title={`Auto N/A: ${auto[col.key]}`}>
+                    N/A
+                  </td>
+                );
+              if (computedDesign && col.key === 'designCfm')
+                return (
+                  <td key={col.key} className="grid-calc" title="Total design − OA design (workbook formula)">
+                    {formatNumber(res?.design ?? null)}
+                  </td>
+                );
+              const mark = row.na[col.key];
+              const v = row.data[col.key];
+              const commit = (x: unknown) => void setField('airflowRows', row.id, `data.${col.key}`, x);
+              if (mark && (v === null || v === undefined || v === ''))
+                return (
+                  <td key={col.key} className="grid-na">
+                    {mark.notation}
+                  </td>
+                );
+              return (
+                <td key={col.key} className={col.wide ? 'grid-wide' : undefined}>
+                  {col.input === 'number' ? (
+                    <NumberInput id={id} aria-label={aria} value={typeof v === 'number' ? v : null} onCommit={commit} />
+                  ) : col.input === 'select' ? (
+                    <SelectInput
+                      id={id}
+                      aria-label={aria}
+                      value={v ?? null}
+                      options={optionsFor(col, unitData)}
+                      onCommit={commit}
+                    />
+                  ) : (
+                    <TextInput
+                      id={id}
+                      aria-label={aria}
+                      value={v === null || v === undefined ? '' : String(v)}
+                      onCommit={commit}
+                    />
+                  )}
+                </td>
+              );
+            };
             return (
               <tr key={row.id} data-out={res?.outOfTolerance ?? false} data-testid={`grid-row-${spec.key}-${i}`}>
                 <th scope="row" className="grid-n">
@@ -349,55 +422,16 @@ function GridTable({
                   <RowLinkChips links={links?.get(row.id)} projectId={row.projectId} />
                 </th>
                 {cols.map((col, ci) => {
-                  const id = `g-${spec.key}-${i}-${ci}`;
-                  const aria = `${label} ${col.label}`;
-                  if (col.key in auto)
-                    return (
-                      <td key={col.key} className="grid-na" title={`Auto N/A: ${auto[col.key]}`}>
-                        N/A
-                      </td>
-                    );
-                  if (computedDesign && col.key === 'designCfm')
-                    return (
-                      <td key={col.key} className="grid-calc" title="Total design − OA design (workbook formula)">
-                        {formatNumber(res?.design ?? null)}
-                      </td>
-                    );
-                  const mark = row.na[col.key];
-                  const v = row.data[col.key];
-                  const commit = (x: unknown) => void setField('airflowRows', row.id, `data.${col.key}`, x);
-                  if (mark && (v === null || v === undefined || v === ''))
-                    return (
-                      <td key={col.key} className="grid-na">
-                        {mark.notation}
-                      </td>
-                    );
+                  const cell = gridCell(col, ci);
+                  if (!(showVel && col.key === 'initialVel')) return cell;
+                  const t = designVel(row, computedDesign ? (res?.design ?? null) : undefined);
                   return (
-                    <td key={col.key} className={col.wide ? 'grid-wide' : undefined}>
-                      {col.input === 'number' ? (
-                        <NumberInput
-                          id={id}
-                          aria-label={aria}
-                          value={typeof v === 'number' ? v : null}
-                          onCommit={commit}
-                        />
-                      ) : col.input === 'select' ? (
-                        <SelectInput
-                          id={id}
-                          aria-label={aria}
-                          value={v ?? null}
-                          options={optionsFor(col, unitData)}
-                          onCommit={commit}
-                        />
-                      ) : (
-                        <TextInput
-                          id={id}
-                          aria-label={aria}
-                          value={v === null || v === undefined ? '' : String(v)}
-                          onCommit={commit}
-                        />
-                      )}
-                    </td>
+                    <Fragment key={col.key}>
+                      <td className="grid-calc" data-testid={`grid-design-vel-${spec.key}-${i}`}>
+                        {formatNumber(t)}
+                      </td>
+                      {cell}
+                    </Fragment>
                   );
                 })}
                 {spec.calc !== 'valve' && (

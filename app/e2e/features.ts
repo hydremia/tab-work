@@ -156,7 +156,7 @@ export async function pressuresAndAttention(page: Page, projectUrl: string, docS
   check(
     'needs attention: RTU-1 ESP (design 0.80 vs 1.07) and BHP 3.13 > 3 HP, old balometer calibration; counts match',
     has(/^design\|RTU-1 Unit ESP: design 0\.80 vs\. actual 1\.07/) &&
-      has(/^motor\|RTU-1 Estimated BHP 3\.13 is above the nameplate 3 HP/) &&
+      has(/^motor\|RTU-1 Estimated BHP 3\.13 is above the scheduled 3 HP/) &&
       has(/^calibration\|Flow Hood \(RTU-1.*calibrated 2024-03-14, more than 12 months before the TAB date/) &&
       count === items.length &&
       tab === items.length,

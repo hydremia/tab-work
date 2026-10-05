@@ -27,6 +27,8 @@ import { CERT_KEYS, CERT_PRELIM_REASON, certValue } from '../domain/certificatio
 import { PRESSURE_KEYS, PRESSURE_ROWS } from '../domain/projectCompletion';
 import { findRow, rowNames } from '../domain/rowLabels';
 import { joinSheaveBore, splitSheaveBore } from '../domain/sheaveBore';
+import { fanAtHood, hoodLinks, hoodTotals } from '../domain/equipmentCalcs';
+import { isObservation } from '../domain/issues';
 import { SPARE_OA_ROWS, spareOaKey, type SpareOaColumn } from '../domain/spareOa';
 import { getSpec, seqKey, tableColumns, type EquipmentSpec, type RowTableSpec } from '../domain/specs';
 import {
@@ -261,7 +263,16 @@ export function toProjectData(
       const eq = i.equipmentId ? byId.get(i.equipmentId) : undefined;
       return !eq || equipmentType(eq.type).discipline === discipline;
     };
-    const list = b.issues.filter((i) => i.kind === kind && ofReport(i)).sort((a, c) => a.number - c.number);
+    // observations: the Summary pages list them from template revision 07 (until then they stay in the app and the
+    // Issues report)
+    const obs = b.issues.filter((i) => i.kind === kind && ofReport(i) && isObservation(i));
+    if (obs.length)
+      warnings.push(
+        `${kind === 'new' ? 'Summary - New' : 'Summary - (E)'}: ${obs.length} observation${obs.length === 1 ? '' : 's'} not in this workbook (template revision 07 lists them; they are in the Issues report)`,
+      );
+    const list = b.issues
+      .filter((i) => i.kind === kind && ofReport(i) && !isObservation(i))
+      .sort((a, c) => a.number - c.number);
     if (!list.length) continue;
     if (list.length > 50)
       warnings.push(`${kind === 'new' ? 'Summary - New' : 'Summary - (E)'}: ${list.length} issues, room for 50`);
@@ -281,6 +292,7 @@ export function toProjectData(
 
   // ---- equipment (two units in one slot, which sync resolves when the type has a free slot: the earlier one is
   // exported, the later one left out with a warning; the Attention tab lists it)
+  const hoodLinked = hoodLinks(b.equipment);
   const slotOwner = new Map<string, Equipment>();
   for (const e of [...b.equipment].sort((x, y) => x.createdAt - y.createdAt || (x.id < y.id ? -1 : 1))) {
     const k = `${e.type}:${e.slot}`;
@@ -303,6 +315,7 @@ export function toProjectData(
       rows: unitRows,
       photos: [],
       project,
+      hoodLinked: hoodLinked.has(e.id),
       openIssues: 0,
     });
     const path = `${e.designation} (${e.type} slot ${e.slot})`;
@@ -329,6 +342,32 @@ export function toProjectData(
         continue;
       }
       const tr = c.tables[t.key];
+      // a fan measured at its hood(s): until template revision 07 (a "measured at hood" line) each hood is one
+      // grille row, Ak 1 with the hood's CFM as VEL, so the Fans sheet and the Building Balance get the right CFM
+      const hoods = e.type === 'fan' && t.key === 'outlets' ? (hoodLinked.get(e.id) ?? []) : [];
+      if (td && hoods.length && fanAtHood(e, true)) {
+        const recs = hoods.map((h) => {
+          const ht = hoodTotals(
+            h.data,
+            b.rows.filter((r) => r.equipmentId === h.id),
+          );
+          const rec: Record<string, Cell> = {
+            no: h.designation,
+            area: `Hood ${h.designation} (measured at hood)`,
+            type: 'Hood',
+            ak: 1,
+          };
+          if (ht.design !== null) rec.designCfm = Math.round(ht.design);
+          if (ht.initial !== null) rec.initialVel = Math.round(ht.initial);
+          if (ht.final !== null) rec.finalVel = Math.round(ht.final);
+          return rec;
+        });
+        (unit.tables ??= {})[t.key] = recs;
+        if (!e.data.akNotes && layout.fields?.some((f) => f.key === 'akNotes'))
+          (unit.fields ??= {}).akNotes =
+            `Measured at hood ${hoods.map((h) => h.designation).join(', ')} (VEL = hood CFM, Ak 1)`;
+        continue;
+      }
       const rows = unitRows.filter((r) => r.table === t.key).sort((a, c2) => a.order - c2.order);
       const naNotation = tr && isNaState(tr.state) ? (tr.notation ?? 'N/A') : undefined;
       const colDefs = td?.columns ?? cd!.fields;
@@ -716,6 +755,17 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
           const rna: Record<string, NaMark | null> = {};
           for (const [k, v] of Object.entries(tr)) take(k, v, rd, rna);
           if (!Object.keys(rd).length && !Object.keys(rna).length) continue;
+          // a fan measured at its hood: the export's hood lines (rev 05 / 06) are the hood's readings, not grilles
+          if (
+            type === 'fan' &&
+            table === 'outlets' &&
+            rd.type === 'Hood' &&
+            /^Hood .*\(measured at hood\)$/.test(String(rd.area ?? ''))
+          ) {
+            data.measuredAt = 'Hood';
+            if (typeof data.akNotes === 'string' && data.akNotes.startsWith('Measured at hood ')) delete data.akNotes;
+            continue;
+          }
           rows.push({
             id: newId(),
             projectId,
@@ -734,6 +784,7 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
 
   // A plain "N/A" that the app would set by itself anyway (automatic rule or scope profile) is imported as
   // automatic, not as an explicit mark, so a re-import does not turn automatic N/A into manual marks.
+  const importLinks = hoodLinks(equipment);
   for (const e of equipment) {
     const spec = getSpec(e.type);
     const unitRows = rows.filter((r) => r.equipmentId === e.id);
@@ -745,6 +796,7 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
         photos: [],
         project,
         openIssues: 0,
+        hoodLinked: importLinks.has(e.id),
       });
     const automatic = (st: string | undefined) => st === 'auto-na' || st === 'scope-na';
     for (const [k, mark] of Object.entries(e.naState.fields)) {

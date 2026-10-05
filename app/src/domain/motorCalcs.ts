@@ -106,19 +106,21 @@ export function serviceFactor(v: FieldValue | undefined): number | null {
 
 // ------------------------------------------------------------------------------------------ field checks (app only)
 export interface MotorWarning {
-  key: 'amps' | 'bhp';
+  key: 'amps' | 'bhp' | 'hp';
   text: string;
 }
 
 /**
  * Warnings (not blocking): a measured amps leg above corrected FLA x SF (nameplate FLA when the corrected FLA can't
- * be calculated; SF 1.0 when none is given), and an estimated BHP above the nameplate HP.
+ * be calculated; SF 1.0 when none is given), an estimated BHP above the motor HP (the nameplate HP when entered, else
+ * the scheduled HP), and a nameplate HP that differs from the scheduled one.
  */
 export function motorWarnings(
   calc: MotorCalc,
   m: MotorInputs,
   sf: FieldValue | undefined,
   hp: FieldValue | undefined,
+  designHp?: FieldValue,
 ): MotorWarning[] {
   const out: MotorWarning[] = [];
   const factor = serviceFactor(sf);
@@ -139,8 +141,15 @@ export function motorWarnings(
     }
   }
   const hpN = xlNum(hp ?? null);
+  const designN = xlNum(designHp ?? null);
+  if (designHp !== undefined && hpN !== null && designN !== null && Math.abs(hpN - designN) > 1e-9) {
+    out.push({ key: 'hp', text: `Motor nameplate ${fmt(hpN, 2)} HP vs. scheduled ${fmt(designN, 2)} HP.` });
+  }
   if (calc.bhp !== null && hpN !== null && hpN > 0 && calc.bhp > hpN + 1e-9) {
-    out.push({ key: 'bhp', text: `Estimated BHP ${fmt(calc.bhp, 2)} is above the nameplate ${fmt(hpN, 2)} HP.` });
+    out.push({
+      key: 'bhp',
+      text: `Estimated BHP ${fmt(calc.bhp, 2)} is above the ${designHp !== undefined ? 'nameplate' : 'scheduled'} ${fmt(hpN, 2)} HP.`,
+    });
   }
   return out;
 }

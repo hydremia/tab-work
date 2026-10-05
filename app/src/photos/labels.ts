@@ -64,9 +64,9 @@ export function comparePhotos(a: PhotoMeta, b: PhotoMeta): number {
 
 export const kindPrefix = (kind: IssueKind) => (kind === 'new' ? 'N' : 'E');
 
-/** "N-3" / "E-3". */
-export function issueLabel(issue: Pick<Issue, 'kind' | 'number'>): string {
-  return `${kindPrefix(issue.kind)}-${issue.number}`;
+/** "N-3" / "E-3"; an observation "Obs. N-1". */
+export function issueLabel(issue: Pick<Issue, 'kind' | 'number'> & { issueType?: Issue['issueType'] }): string {
+  return `${issue.issueType === 'observation' ? 'Obs. ' : ''}${kindPrefix(issue.kind)}-${issue.number}`;
 }
 
 /** Deficiency photos of one issue in order. */
