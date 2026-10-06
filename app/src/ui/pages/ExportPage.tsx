@@ -17,6 +17,7 @@ import { ExportStateLine } from '../components/ExportReminder';
 import { HydronicExport } from '../components/HydronicExport';
 import { ReportCheck, useReportCheck } from '../components/ReportCheck';
 import { ShareFile } from '../components/ShareFile';
+import { SpellingCheck } from '../components/SpellingCheck';
 import { useProjectContext } from './ProjectLayout';
 
 const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
@@ -193,6 +194,7 @@ export function ExportPage() {
       )}
 
       <ReportCheck result={check} base={`/p/${project.id}`} projectId={project.id} locked={Boolean(project.lock)} />
+      <SpellingCheck project={project} equipment={equipment} issues={issues} locked={Boolean(project.lock)} />
 
       <section className="card card-pad stack" aria-labelledby="ex-h">
         <h2 id="ex-h">TAB workbook (.xlsm)</h2>

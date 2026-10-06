@@ -6,6 +6,7 @@ coverage/
 public/templates/
 # copied from node_modules by scripts/copy-ocr.mjs
 public/ocr/
+public/spell/
 e2e-screenshots/
 e2e-output/
 .env
