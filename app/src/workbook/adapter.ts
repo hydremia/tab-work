@@ -8,16 +8,25 @@
  *    blank: explicit marks (field, section, equipment level) AND automatic / scope-profile N/A (written as "N/A").
  *    A blank cell never means N/A (user decision 2026-09-24);
  *  - app-only fields (Has VFD?, Has filters?) are not written; import derives them from the data.
+ *
+ * Two layouts: revision 07 (TEMPLATE_MAP) and revision 05 / 06 (TEMPLATE_MAP_06, for re-issuing onto an issued rev
+ * 05 / 06 workbook). toProjectData writes for the map it is given; what only revision 07 has a place for (the bores
+ * apart, nameplate HP, observations, exclusions, the hood line, intake screens, initial PSP / filter readings, flat
+ * oval traverses) goes into a rev 05 / 06 workbook the way it did before revision 07, or is left out with a warning.
+ * fromProjectData reads both layouts (pd.templateRevision).
  */
 import { AIR_BALANCE_KEYS } from '../domain/airBalance';
 import {
+  atLeastRevision,
   blockLayout,
+  mapForRevision,
   NOTATIONS as WB_NOTATIONS,
-  TEMPLATE_MAP,
+  tableRows,
   type Cell,
   type EquipmentDef,
   type FieldDef,
   type ProjectData,
+  type TemplateMap,
   type UnitData,
 } from '@a2b/workbook/map';
 import { computeCompletion, isNaState, seqNaKey, tableNaKey, type Completion } from '../domain/completion';
@@ -27,7 +36,7 @@ import { CERT_KEYS, CERT_PRELIM_REASON, certValue } from '../domain/certificatio
 import { PRESSURE_KEYS, PRESSURE_ROWS } from '../domain/projectCompletion';
 import { findRow, rowNames } from '../domain/rowLabels';
 import { joinSheaveBore, splitSheaveBore } from '../domain/sheaveBore';
-import { fanAtHood, hoodLinks, hoodTotals } from '../domain/equipmentCalcs';
+import { fanAtHood, hoodLinks, hoodsAirflow, hoodTotals } from '../domain/equipmentCalcs';
 import { isObservation } from '../domain/issues';
 import { SPARE_OA_ROWS, spareOaKey, type SpareOaColumn } from '../domain/spareOa';
 import { getSpec, seqKey, tableColumns, type EquipmentSpec, type RowTableSpec } from '../domain/specs';
@@ -127,17 +136,44 @@ export const HYDRONIC_APP_SECTIONS = [
 ] as const;
 
 /**
- * The project as ProjectData for one workbook: the airside TAB workbook (revision 05) or the hydronic one (H01).
- * Both carry the shared report pages (project information, narrative, remarks, calibration, certification); each gets
- * its own discipline's equipment.
+ * Building Balance rows (7-86, index 0-79) a unit feeds: outside air (RTUs 1-40, MAUs 1-10, ERVs 1-10) and exhaust
+ * (fans 1-40, small fans 21-30, ERVs 1-10, small fans 1-20).
+ */
+export function balanceRow(type: string, slot: number): { oa?: number; exhaust?: number } {
+  if (type === 'rtu' && slot <= 40) return { oa: slot - 1 };
+  if (type === 'mau' && slot <= 10) return { oa: 40 + slot - 1 };
+  if (type === 'erv' && slot <= 10) return { oa: 50 + slot - 1, exhaust: 50 + slot - 1 };
+  if (type === 'fan' && slot <= 40) return { exhaust: slot - 1 };
+  if (type === 'smallFan' && slot >= 21 && slot <= 30) return { exhaust: 40 + slot - 21 };
+  if (type === 'smallFan' && slot <= 20) return { exhaust: 60 + slot - 1 };
+  return {};
+}
+
+/** The Building Balance's excluded designations (info.abExcluded, comma-separated). */
+export const excludedDesignations = (v: FieldValue | undefined): string[] =>
+  typeof v === 'string'
+    ? v
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean)
+    : [];
+
+/** Revision 07's Building Balance exclusion line: "Excluded from the totals: EF-22, EF-23. <reason>". */
+const EXCLUDED_PREFIX = 'Excluded from the totals: ';
+
+/**
+ * The project as ProjectData for one workbook: the airside TAB workbook (revision 07, or `map` = TEMPLATE_MAP_06 for
+ * an issued rev 05 / 06 workbook) or the hydronic one (H01). Both carry the shared report pages (project information,
+ * narrative, remarks, calibration, certification); each gets its own discipline's equipment.
  */
 export function toProjectData(
   b: ProjectBundle,
   discipline: Discipline = 'air',
+  mapOverride?: TemplateMap,
 ): { data: ProjectData; warnings: string[] } {
   const warnings: string[] = [];
   const { project } = b;
-  const map = mapOf(discipline);
+  const map = mapOverride ?? mapOf(discipline);
   const pd: ProjectData = { templateRevision: map.revision, name: project.name, sections: {}, equipment: {} };
   // the engineer's air balance totals are not on the sheets: a custom document property
   const appInfo: Record<string, string | number> = {};
@@ -218,9 +254,31 @@ export function toProjectData(
     spareOa.push(row);
   }
   while (spareOa.length && !Object.keys(spareOa[spareOa.length - 1]).length) spareOa.pop();
+  // units left out of the building balance (rev 07: an Excl. flag on their rows and the reason under the notes; rev
+  // 05 / 06 count them, the app keeps the list in the appInfo property)
+  const excludedTables: Record<string, Record<string, Cell>[]> = {};
+  const excludedFields: Record<string, Cell> = {};
+  const excluded = excludedDesignations(project.info[AIR_BALANCE_KEYS.excluded]);
+  if (excluded.length && map.sections.some((sec) => sec.tables?.some((t) => t.key === 'excluded'))) {
+    const flags: Record<string, Cell>[] = Array.from({ length: 80 }, () => ({}));
+    const named: string[] = [];
+    for (const e of b.equipment) {
+      if (!excluded.some((x) => x.toLowerCase() === e.designation.trim().toLowerCase())) continue;
+      const at = balanceRow(e.type, e.slot);
+      if (at.oa !== undefined) flags[at.oa].oa = 'Excl.';
+      if (at.exhaust !== undefined) flags[at.exhaust].exhaust = 'Excl.';
+      if (at.oa !== undefined || at.exhaust !== undefined) named.push(e.designation);
+    }
+    while (flags.length && !Object.keys(flags[flags.length - 1]).length) flags.pop();
+    if (flags.length) excludedTables.excluded = flags;
+    const why = project.info[AIR_BALANCE_KEYS.excludedNote];
+    if (named.length)
+      excludedFields.excludedNote = `${EXCLUDED_PREFIX}${named.join(', ')}.${typeof why === 'string' && why.trim() ? ` ${why.trim()}` : ''}`;
+  }
   pd.sections.buildingBalance = {
-    tables: { pressures, ...(spareOa.length ? { spareOa } : {}) },
+    tables: { pressures, ...(spareOa.length ? { spareOa } : {}), ...excludedTables },
     ...(typeof notes === 'string' && notes.trim() ? { lines: { notes: splitLines(notes, 3) } } : {}),
+    ...(Object.keys(excludedFields).length ? { fields: excludedFields } : {}),
   };
 
   // ---- Certification: the certified professional's lines (template defaults when never set), signature and date
@@ -263,31 +321,48 @@ export function toProjectData(
       const eq = i.equipmentId ? byId.get(i.equipmentId) : undefined;
       return !eq || equipmentType(eq.type).discipline === discipline;
     };
-    // observations: the Summary pages list them from template revision 07 (until then they stay in the app and the
-    // Issues report)
-    const obs = b.issues.filter((i) => i.kind === kind && ofReport(i) && isObservation(i));
-    if (obs.length)
+    const page = kind === 'new' ? 'Summary - New' : 'Summary - (E)';
+    const sectionKey = kind === 'new' ? 'issuesNew' : 'issuesExisting';
+    // "RTU-1: …", or with the line: "RTU-1 · Supply outlets #12: …" (a re-import links both back)
+    const remarkOf = (i: Issue) => {
+      const eq = i.equipmentId ? byId.get(i.equipmentId) : undefined;
+      const line = eq && i.airflowRowId ? lines.get(i.airflowRowId) : undefined;
+      const owner = eq ? (line?.equipmentId === eq.id ? `${eq.designation} · ${line.short}` : eq.designation) : '';
+      return owner && !i.remark.startsWith(`${owner}:`) ? `${owner}: ${i.remark}` : i.remark;
+    };
+    const tables: Record<string, Record<string, Cell>[]> = {};
+    // observations: their own list on the Summary pages (revision 07; a rev 05 / 06 workbook has no place for them,
+    // they stay in the app and the Issues report)
+    const obs = b.issues
+      .filter((i) => i.kind === kind && ofReport(i) && isObservation(i))
+      .sort((a, c) => a.number - c.number);
+    const obsRoom = map.sections.find((sec) => sec.key === sectionKey)?.tables?.find((t) => t.key === 'observations');
+    if (obs.length && !obsRoom)
       warnings.push(
-        `${kind === 'new' ? 'Summary - New' : 'Summary - (E)'}: ${obs.length} observation${obs.length === 1 ? '' : 's'} not in this workbook (template revision 07 lists them; they are in the Issues report)`,
+        `${page}: ${obs.length} observation${obs.length === 1 ? '' : 's'} not in this revision ${map.revision} workbook (revision 07 lists them; they are in the Issues report)`,
       );
+    else if (obs.length && obsRoom) {
+      const room = tableRows(obsRoom).length;
+      if (obs.length > room) warnings.push(`${page}: ${obs.length} observations, room for ${room}`);
+      tables.observations = obs.slice(0, room).map((i) => {
+        const row: Record<string, Cell> = { no: i.number };
+        put(row, 'remark', out(remarkOf(i), null));
+        put(row, 'comments', out(i.comments, null));
+        return row;
+      });
+    }
     const list = b.issues
       .filter((i) => i.kind === kind && ofReport(i) && !isObservation(i))
       .sort((a, c) => a.number - c.number);
-    if (!list.length) continue;
-    if (list.length > 50)
-      warnings.push(`${kind === 'new' ? 'Summary - New' : 'Summary - (E)'}: ${list.length} issues, room for 50`);
-    const rows = list.slice(0, 50).map((i) => {
-      const eq = i.equipmentId ? byId.get(i.equipmentId) : undefined;
-      // "RTU-1: …", or with the line: "RTU-1 · Supply outlets #12: …" (a re-import links both back)
-      const line = eq && i.airflowRowId ? lines.get(i.airflowRowId) : undefined;
-      const owner = eq ? (line?.equipmentId === eq.id ? `${eq.designation} · ${line.short}` : eq.designation) : '';
-      const remark = owner && !i.remark.startsWith(`${owner}:`) ? `${owner}: ${i.remark}` : i.remark;
-      const row: Record<string, Cell> = { no: i.number, status: i.status };
-      put(row, 'remark', out(remark, null));
-      put(row, 'comments', out(i.comments, null));
-      return row;
-    });
-    pd.sections[kind === 'new' ? 'issuesNew' : 'issuesExisting'] = { tables: { issues: rows } };
+    if (list.length > 50) warnings.push(`${page}: ${list.length} issues, room for 50`);
+    if (list.length)
+      tables.issues = list.slice(0, 50).map((i) => {
+        const row: Record<string, Cell> = { no: i.number, status: i.status };
+        put(row, 'remark', out(remarkOf(i), null));
+        put(row, 'comments', out(i.comments, null));
+        return row;
+      });
+    if (Object.keys(tables).length) pd.sections[sectionKey] = { tables };
   }
 
   // ---- equipment (two units in one slot, which sync resolves when the type has a free slot: the earlier one is
@@ -324,7 +399,7 @@ export function toProjectData(
     const fields: Record<string, Cell> = {};
     if (def.ede) schedule.designation = e.designation;
     else if (layout.fields?.some((f) => f.key === 'designation')) fields.designation = e.designation;
-    const cells = unitFieldCells(e, c, warnings, path);
+    const cells = unitFieldCells(e, c, warnings, path, map);
     Object.assign(schedule, cells.schedule);
     Object.assign(fields, cells.fields);
     if (Object.keys(schedule).length) unit.schedule = schedule;
@@ -337,14 +412,27 @@ export function toProjectData(
       if (!td && !cd) {
         if (t.key === 'intake' && unitRows.some((r) => r.table === 'intake'))
           warnings.push(
-            `${path}: intake screen readings need template revision 07; not in this workbook (the app keeps them)`,
+            `${path}: intake screen readings need template revision 07; not in this revision ${map.revision} workbook (the app keeps them)`,
           );
         continue;
       }
       const tr = c.tables[t.key];
-      // a fan measured at its hood(s): until template revision 07 (a "measured at hood" line) each hood is one
-      // grille row, Ak 1 with the hood's CFM as VEL, so the Fans sheet and the Building Balance get the right CFM
+      // a fan measured at its hood(s): revision 07 has a "measured at hood" line (the hoods and their CFMs, in the
+      // fan's totals); in a rev 05 / 06 workbook each hood is one grille row, Ak 1 with the hood's CFM as VEL, so the
+      // Fans sheet and the Building Balance get the right CFM
       const hoods = e.type === 'fan' && t.key === 'outlets' ? (hoodLinked.get(e.id) ?? []) : [];
+      if (td && hoods.length && fanAtHood(e, true) && layout.fields?.some((f) => f.key === 'hoodLine')) {
+        const air = hoodsAirflow(
+          hoods,
+          b.rows.filter((r) => hoods.some((h) => h.id === r.equipmentId)),
+        );
+        const f: Record<string, Cell> = { hoodLine: `Measured at hood ${hoods.map((h) => h.designation).join(', ')}` };
+        if (air.design !== null) f.hoodDesignCfm = Math.round(air.design);
+        if (air.initial !== null) f.hoodInitialCfm = Math.round(air.initial);
+        if (air.final !== null) f.hoodFinalCfm = Math.round(air.final);
+        Object.assign((unit.fields ??= {}), f);
+        continue;
+      }
       if (td && hoods.length && fanAtHood(e, true)) {
         const recs = hoods.map((h) => {
           const ht = hoodTotals(
@@ -392,6 +480,14 @@ export function toProjectData(
         });
       }
       if (!recs.length) continue;
+      // revision 07 has fewer rows in some tables (MAU outlets 28, fan outlets 55): the rest is left out, with a warning
+      const room = td ? tableRows(td).length : cd!.cols.length;
+      if (recs.length > room) {
+        warnings.push(
+          `${path}: ${recs.length} ${t.label.toLowerCase()} rows, the revision ${map.revision} workbook has room for ${room}; the last ${recs.length - room} are left out`,
+        );
+        recs = recs.slice(0, room);
+      }
       if (td) (unit.tables ??= {})[t.key] = recs;
       else (unit.columnTables ??= {})[t.key] = recs;
     }
@@ -480,11 +576,14 @@ export function unitFieldCells(
   c: Completion,
   warnings: string[] = [],
   path = e.designation,
+  /** The workbook written (default: the current revision's layout). */
+  map?: TemplateMap,
 ): { schedule: Record<string, Cell>; fields: Record<string, Cell> } {
   const schedule: Record<string, Cell> = {};
   const fields: Record<string, Cell> = {};
-  const def = workbookDef(e.type);
+  const def = map ? map.equipment.find((d) => d.key === e.type) : workbookDef(e.type);
   if (!def) return { schedule, fields };
+  const rev07 = map ? atLeastRevision(map, '07') : true;
   const layout = blockLayout(def, e.slot);
   const keys = new Set([...Object.keys(e.data), ...Object.keys(e.naState.fields), ...Object.keys(c.fields)]);
   for (const key of keys) {
@@ -499,10 +598,16 @@ export function unitFieldCells(
     // automatic N/A that overrides an entered value (MAU: a method that is not the chosen one) exports as N/A
     const raw = st?.state === 'auto-na' ? 'N/A' : out(e.data[key], e.naState.fields[key] ?? levelMark);
     if (raw === undefined) continue;
-    // MAU method "Intake": not in the template's method list before revision 07 (no cells for the screens yet)
-    if (key === 'method' && raw === 'Intake' && blockDef?.type === 'list') {
+    // MAU method "Intake" and flat oval ducts: not in the revision 05 / 06 lists (no cells for the screens / the ends)
+    if (key === 'method' && raw === 'Intake' && !layout.tables?.some((t) => t.key === 'intake')) {
       warnings.push(
         `${path}: the Intake method needs template revision 07; the method and its screens are not in this workbook (the app keeps them)`,
+      );
+      continue;
+    }
+    if (key === 'shape' && raw === 'Flat Oval' && !rev07) {
+      warnings.push(
+        `${path}: flat oval ducts need template revision 07; the shape is left blank in this workbook (Ak and CFM not calculated there; the app keeps the readings)`,
       );
       continue;
     }
@@ -558,6 +663,8 @@ export interface FromOptions {
 }
 
 export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): ProjectBundle {
+  // the layout the values were read with (rev 05 / 06 or rev 07)
+  const map = mapForRevision(pd.templateRevision);
   const now = opts.now ?? Date.now();
   const newId = opts.newId ?? uuid;
   const projectId = newId();
@@ -611,6 +718,37 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
   for (const k of Object.values(AIR_BALANCE_KEYS)) {
     const v = pd.appInfo?.[k];
     if (v !== undefined) info[k] = v;
+  }
+  // rev 07: the Excl. flags on the Building Balance rows are the list (an Excel edit counts); the reason from the
+  // exclusion line when the app's property does not have it
+  if (map.sections.some((sec) => sec.tables?.some((t) => t.key === 'excluded'))) {
+    const flags = bb?.tables?.excluded ?? [];
+    const flagged = (side: 'oa' | 'exhaust', type: string, slot: number) => {
+      const at = balanceRow(type, slot)[side];
+      const v = at === undefined ? undefined : flags[at]?.[side];
+      return v !== undefined && v !== null && String(v).trim() !== '';
+    };
+    const names: string[] = [];
+    const onSheet = new Set<string>();
+    for (const [type, units] of Object.entries(pd.equipment))
+      for (const u of units) {
+        const d = u.schedule?.designation ?? u.fields?.designation;
+        const at = balanceRow(type, u.slot);
+        if (typeof d !== 'string' || !d.trim() || (at.oa === undefined && at.exhaust === undefined)) continue;
+        onSheet.add(d.trim().toLowerCase());
+        if (flagged('oa', type, u.slot) || flagged('exhaust', type, u.slot)) names.push(d.trim());
+      }
+    // names the sheet can't flag (no unit of that designation on a Building Balance row yet) stay as the app had them
+    for (const x of excludedDesignations(info[AIR_BALANCE_KEYS.excluded]))
+      if (!onSheet.has(x.toLowerCase()) && !names.some((n) => n.toLowerCase() === x.toLowerCase())) names.push(x);
+    if (names.length) info[AIR_BALANCE_KEYS.excluded] = names.join(', ');
+    else delete info[AIR_BALANCE_KEYS.excluded];
+    const line = bb?.fields?.excludedNote;
+    if (names.length && info[AIR_BALANCE_KEYS.excludedNote] === undefined && typeof line === 'string') {
+      const why = line.startsWith(EXCLUDED_PREFIX) ? line.replace(/^[^.]*\.\s*/, '') : line.trim();
+      if (why) info[AIR_BALANCE_KEYS.excludedNote] = why;
+    }
+    if (!names.length) delete info[AIR_BALANCE_KEYS.excludedNote];
   }
   const noteLines = bb?.lines?.notes ?? [];
   if (noteLines.some((l) => l !== null && String(l).trim() !== ''))
@@ -686,6 +824,12 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
         delete data.sheaveBore;
         delete na.fields.sheaveBore;
       }
+      // a fan measured at its hood(s) (rev 07 line): the hoods' CFMs are derived from the hoods, not stored
+      if (typeof data.hoodLine === 'string' && data.hoodLine.trim()) data.measuredAt = 'Hood';
+      for (const k of ['hoodLine', 'hoodDesignCfm', 'hoodInitialCfm', 'hoodFinalCfm']) {
+        delete data[k];
+        delete na.fields[k];
+      }
       // app-only answers, derived from the data
       if (typeof data.vsdFinal === 'number' || typeof data.vsdInitial === 'number') data.hasVfd = 'Yes';
       if (!isBlank(data.filters)) data.hasFilters = 'Yes';
@@ -717,7 +861,7 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
         createdAt: now,
         updatedAt: now,
       });
-      const def = TEMPLATE_MAP.equipment.find((d) => d.key === type) as EquipmentDef;
+      const def = map.equipment.find((d) => d.key === type) as EquipmentDef;
       const layout = blockLayout(def, u.slot);
       // other free-text lines (hood technician notes)
       for (const [k, lines] of Object.entries(u.lines ?? {})) {
@@ -822,11 +966,14 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
   const issues: Issue[] = [];
   const designations = new Map(equipment.map((e) => [e.designation.toLowerCase(), e.id]));
   const lines = rowNames(equipment, rows);
-  for (const [key, kind] of [
-    ['issuesNew', 'new'],
-    ['issuesExisting', 'existing'],
+  for (const [key, kind, table] of [
+    ['issuesNew', 'new', 'issues'],
+    ['issuesExisting', 'existing', 'issues'],
+    ['issuesNew', 'new', 'observations'],
+    ['issuesExisting', 'existing', 'observations'],
   ] as const) {
-    (pd.sections[key]?.tables?.issues ?? []).forEach((r, i) => {
+    const observation = table === 'observations';
+    (pd.sections[key]?.tables?.[table] ?? []).forEach((r, i) => {
       if (Object.values(r).every((v) => v === null || v === undefined || v === '')) return;
       let remark = r.remark === null || r.remark === undefined ? '' : String(r.remark);
       let equipmentId: string | null = null;
@@ -852,6 +999,7 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
         comments: r.comments === null || r.comments === undefined ? '' : String(r.comments),
         equipmentId,
         ...(airflowRowId ? { airflowRowId } : {}),
+        ...(observation ? { issueType: 'observation' as const } : {}),
         createdAt: now,
         updatedAt: now,
       });

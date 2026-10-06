@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { sampleBundle } from '../test/fixtures';
 import { fromProjectData, toProjectData } from '../workbook/adapter';
+import { TEMPLATE_MAP_06 } from '@a2b/workbook/map';
 import { computeCompletion } from './completion';
 import { balanceLines, fanAtHood, hoodFanTags, hoodLinks, hoodsAirflow, hoodTotals } from './equipmentCalcs';
 import { getSpec } from './specs';
@@ -78,9 +79,25 @@ describe('hood ↔ exhaust fan', () => {
     expect(line.exhaustDesign).toBe(a.design);
   });
 
-  it('export (until rev 07): one grille row per hood, Ak 1 with the hood CFM as VEL, and an Ak note', () => {
+  it('export (rev 07): the "measured at hood" line with the hoods and their CFMs, no grille rows', () => {
     const { b, fan } = linked();
-    const { data } = toProjectData(b);
+    const u = toProjectData(b).data.equipment.fan.find((x) => x.slot === fan.slot)!;
+    const hoods = b.equipment.filter((e) => e.type === 'hood');
+    const air = hoodsAirflow(hoods, b.rows);
+    expect(u.fields).toMatchObject({
+      hoodLine: 'Measured at hood H-1, H-2',
+      hoodDesignCfm: Math.round(air.design!),
+      hoodFinalCfm: Math.round(air.final!),
+    });
+    expect(u.tables?.outlets).toBeUndefined();
+    const back = fromProjectData(toProjectData(b).data).equipment.find((e) => e.type === 'fan' && e.slot === fan.slot)!;
+    expect(back.data.measuredAt).toBe('Hood');
+    expect(back.data).not.toHaveProperty('hoodLine');
+  });
+
+  it('export onto a rev 05 / 06 workbook: one grille row per hood, Ak 1 with the hood CFM as VEL, and an Ak note', () => {
+    const { b, fan } = linked();
+    const { data } = toProjectData(b, 'air', TEMPLATE_MAP_06);
     const u = data.equipment.fan.find((x) => x.slot === fan.slot)!;
     const hoods = b.equipment.filter((e) => e.type === 'hood');
     const t1 = hoodTotals(
@@ -98,9 +115,9 @@ describe('hood ↔ exhaust fan', () => {
     expect(String(u.fields?.akNotes)).toMatch(/^Measured at hood H-1, H-2/);
   });
 
-  it('re-import: the hood lines come back as "measured at hood", not as grilles', () => {
+  it('re-import of a rev 05 / 06 workbook: the hood lines come back as "measured at hood", not as grilles', () => {
     const { b, fan } = linked();
-    const back = fromProjectData(toProjectData(b).data);
+    const back = fromProjectData(toProjectData(b, 'air', TEMPLATE_MAP_06).data);
     const f = back.equipment.find((e) => e.type === 'fan' && e.slot === fan.slot)!;
     expect(f.data.measuredAt).toBe('Hood');
     expect(f.data.akNotes).toBeUndefined();

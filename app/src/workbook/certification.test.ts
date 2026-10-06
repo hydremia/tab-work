@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { ProjectData } from '@a2b/workbook/map';
-import { exportWorkbook, importWorkbook } from '@a2b/workbook';
+import { exportWorkbook, importWorkbook, TEMPLATE_FILE_NAME } from '@a2b/workbook';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CERT_KEYS, certificationExpired, certificationStates } from '../domain/certification';
@@ -167,9 +167,7 @@ describe('Building Balance: other outside air (spare OA rows)', () => {
   });
 
   it('round trip through the real template (Certification sheet texts, Building Balance rows 67-86)', async () => {
-    const template = new Uint8Array(
-      readFileSync(join(__dirname, '..', '..', '..', '06 - a2b_Blank_TAB_Workbook 10-1-26.xlsm')),
-    );
+    const template = new Uint8Array(readFileSync(join(__dirname, '..', '..', '..', TEMPLATE_FILE_NAME)));
     const b = signed();
     Object.assign(b.project.info, withOa().project.info);
     b.project.naState.fields = { ...b.project.naState.fields, ...withOa().project.naState.fields };

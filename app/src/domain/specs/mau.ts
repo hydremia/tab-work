@@ -25,10 +25,10 @@ import {
 } from './unitSections';
 
 /**
- * The workbook's methods, plus Intake (app-only until template revision 07): velocity readings at the unit's intake
- * screens, one row per screen with its size and Ak, CFM per row. Also kept as a check next to another method.
+ * The workbook's methods (Airflow.Method). Intake (revision 07): velocity readings at the unit's intake screens, one
+ * row per screen with its size and Ak, CFM per row; also kept as a check next to another method.
  */
-export const MAU_METHODS = [...TEMPLATE_LISTS['Airflow.Method'], 'Intake'] as const;
+export const MAU_METHODS = TEMPLATE_LISTS['Airflow.Method'];
 type Method = (typeof MAU_METHODS)[number];
 const is = (m: Method): Cond => ({ field: 'method', eq: m });
 /** A method is chosen and it is not `m`. */
@@ -123,10 +123,19 @@ export const MAU_SPEC: EquipmentSpec = {
           autoNa: [notChosen('PSP')],
         },
       ],
+      // initial readings optional (taken before adjusting); the final readings are the method's (rev 07: both rows)
       sequences: [
         {
+          key: 'pspVelocitiesInitial',
+          label: 'Initial velocity readings',
+          count: 20,
+          unit: 'fpm',
+          required: false,
+          autoNa: [notChosen('PSP')],
+        },
+        {
           key: 'pspVelocities',
-          label: 'Velocity readings',
+          label: 'Final velocity readings',
           count: 20,
           unit: 'fpm',
           requiredWhen: is('PSP'),
@@ -153,11 +162,13 @@ export const MAU_SPEC: EquipmentSpec = {
           tolerance: false,
           calc: 'filterGrid',
           noun: 'filter',
+          // `velocity` is the final reading (the one revisions 05 / 06 had)
           columns: [
             { key: 'size', label: 'Filter size', input: 'select', options: filterSizesFor(MAU_FILTER_GRID_TYPE) },
-            { key: 'velocity', label: 'Velocity', input: 'number', unit: 'fpm', naMenu: true },
+            { key: 'initialVelocity', label: 'Initial velocity', input: 'number', unit: 'fpm', naMenu: true },
+            { key: 'velocity', label: 'Final velocity', input: 'number', unit: 'fpm', naMenu: true },
           ],
-          readingGroups: [['velocity']],
+          readingGroups: [['initialVelocity'], ['velocity']],
           fillDown: ['size'],
         },
       ],

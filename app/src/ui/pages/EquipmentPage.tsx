@@ -75,11 +75,24 @@ function gridShape(q: SequenceSpec, e: Equipment): GridShape {
     const l = traverseLayout(e.data);
     if (l.nW && l.points) {
       const round = e.data.shape === 'Round';
+      // a flat oval: the rectangle row by row, then the end points (left end, then right end) on the rows below
+      const nRect = l.ends && l.nH ? l.nW * l.nH : null;
       return {
         across: l.nW,
         shown: l.points,
-        rowLabel: (r) => (round ? `Axis ${r + 1} (${r === 0 ? '0°' : '90°'})` : `Depth ${l.depths[r] ?? '—'}"`),
-        colLabel: (c) => `${l.positions[c] ?? '—'}"`,
+        rowLabel: (r) =>
+          round
+            ? `Axis ${r + 1} (${r === 0 ? '0°' : '90°'})`
+            : nRect !== null && r >= l.nH!
+              ? 'Ends'
+              : `Depth ${l.depths[r] ?? '—'}"`,
+        colLabel: (c, i) => {
+          if (nRect !== null && l.ends && i > nRect) {
+            const k = i - nRect - 1;
+            return `${k < l.ends.points / 2 ? 'L' : 'R'} end ${l.ends.positions[k] ?? '—'}"`;
+          }
+          return `${l.positions[c] ?? '—'}"`;
+        },
       };
     }
     return { across: 4, shown: 12 };

@@ -1,5 +1,5 @@
 /**
- * Copies the workbook templates (airside revision 06, hydronic H01) from the repository root into public/templates/
+ * Copies the workbook templates (airside revision 07, airside revision 06 for re-issuing rev 05 / 06 workbooks, hydronic H01) from the repository root into public/templates/
  * so Vite serves and bundles them (and the service worker precaches them for offline export). The copies are
  * git-ignored: each template is kept in git once, at the repository root.
  */
@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const TEMPLATES = [
+  ['07 - a2b_Blank_TAB_Workbook 10-6-26.xlsm', 'tab-template-rev07.xlsm'],
   ['06 - a2b_Blank_TAB_Workbook 10-1-26.xlsm', 'tab-template-rev06.xlsm'],
   ['H01 - a2b_Blank_Hydronic_Workbook 9-29-26.xlsm', 'tab-hydronic-h01.xlsm'],
 ];

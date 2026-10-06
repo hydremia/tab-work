@@ -205,7 +205,15 @@ export function ExportPage() {
             existing
           </dd>
           <dt>Template</dt>
-          <dd>Revision {project.templateRevision}</dd>
+          <dd>
+            Revision {TEMPLATE_REVISION}
+            {base ? (
+              <span className="muted small">
+                {' '}
+                (an issued revision 05 / 06 workbook is re-issued in its own revision)
+              </span>
+            ) : null}
+          </dd>
           <dt>Last export</dt>
           <dd>{exportState && <ExportStateLine status={exportState} />}</dd>
           <dt>Written into</dt>

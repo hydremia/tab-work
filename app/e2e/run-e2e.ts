@@ -385,21 +385,20 @@ async function main() {
       JSON.stringify(rtuUi),
     );
     check(
-      'RTU-1 motor: avg 467.7 V / 4.00 A, corrected FLA blank (FLA Not Avail.), BHP 3.13 (3-phase)',
+      'RTU-1 motor: avg 467.7 V / 4.00 A, corrected FLA blank (FLA Not Avail.), BHP blank (rev 07: HP × amps ÷ FLA needs an FLA)',
       rtuUi['rtu.motor-avg-volts'].startsWith('467.7 V') &&
         rtuUi['rtu.motor-avg-amps'].startsWith('4.00 A') &&
         rtuUi['rtu.motor-fla'] === '—' &&
-        rtuUi['rtu.motor-bhp'] === '3.13',
+        rtuUi['rtu.motor-bhp'] === '—',
     );
     const espWarn = await page.getByTestId('esp-warning').innerText();
-    const bhpWarn = await page.getByTestId('motor-warning-bhp').innerText();
     check(
-      'amber field checks: ESP 1.07 vs design 0.80 (134 %), BHP 3.13 above 3 HP; ESP in the unit summary',
+      'amber field checks: ESP 1.07 vs design 0.80 (134 %); ESP in the unit summary; no amps / BHP warning without an FLA',
       /design 0\.80 vs\. actual 1\.07/.test(espWarn) &&
-        /3\.13 is above the scheduled 3 HP/.test(bhpWarn) &&
         (await page.getByTestId('summary-esp-warning').count()) === 1 &&
-        (await page.getByTestId('motor-warning-amps').count()) === 0,
-      `${espWarn} | ${bhpWarn}`,
+        (await page.getByTestId('motor-warning-amps').count()) === 0 &&
+        (await page.getByTestId('motor-warning-bhp').count()) === 0,
+      espWarn,
     );
     // screenshot: motor and static panels together (the sections in between folded, a taller viewport)
     for (const key of ['drive', 'misc', 'rpm', 'oa'])

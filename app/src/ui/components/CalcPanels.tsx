@@ -216,12 +216,7 @@ export function CalcPanel({
               'D18',
               'motor-fla',
             ],
-            [
-              `BHP (${m.onePhase ? '1-phase' : '3-phase'})`,
-              m.bhp === null ? '—' : formatNumber(m.bhp, 2),
-              'G18',
-              'motor-bhp',
-            ],
+            ['Estimated BHP', m.bhp === null ? '—' : formatNumber(m.bhp, 2), 'G18', 'motor-bhp'],
           ]}
         />
         {warnings.map((w) => (
@@ -231,8 +226,11 @@ export function CalcPanel({
         ))}
         <ReportNote>
           {' '}
-          Corrected FLA = rated V ÷ average measured V × FLA (needs volts L1). BHP ={' '}
-          {m.onePhase ? 'V1 × A1 × 0.8 × 0.9 ÷ 746' : 'avg V × avg A × 0.8 × 0.9 × 1.732 ÷ 746'}.
+          Corrected FLA = rated V ÷ average measured V × FLA (needs volts L1). Estimated BHP = HP × average amps ÷ FLA
+          {m.bhpHp && m.bhpFla
+            ? ` (${m.bhpHp.nameplate ? 'nameplate' : 'scheduled'} ${formatNumber(m.bhpHp.value, 2)} HP, ${m.bhpFla.corrected ? 'corrected' : 'nameplate'} FLA ${formatNumber(m.bhpFla.value, 2)} A)`
+            : ' (the nameplate HP when entered, else the scheduled HP; the corrected FLA when it can be calculated, else the nameplate FLA)'}
+          .
         </ReportNote>
       </>
     );
@@ -271,9 +269,19 @@ export function CalcPanel({
         <Kv
           items={[
             ['K-factor', t.psp.k === null ? '—' : String(t.psp.k)],
-            ['Readings', String(t.psp.readings)],
-            ['Average VEL', t.psp.average === null ? '—' : `${formatNumber(t.psp.average, 1)} fpm`],
-            ['PSP CFM', cfm(t.psp.cfm)],
+            [
+              'Initial',
+              t.psp.initial.readings
+                ? `${t.psp.initial.readings} readings · avg ${formatNumber(t.psp.initial.average, 1)} fpm · ${cfm(t.psp.initial.cfm)}`
+                : '—',
+            ],
+            [
+              'Final',
+              t.psp.final.readings
+                ? `${t.psp.final.readings} readings · avg ${formatNumber(t.psp.final.average, 1)} fpm · ${cfm(t.psp.final.cfm)}`
+                : '—',
+            ],
+            [`PSP CFM (${t.psp.using})`, cfm(t.psp.cfm)],
             ['CFM / ft', t.psp.cfmPerFt === null ? '—' : formatNumber(t.psp.cfmPerFt, 1)],
           ]}
         />
@@ -318,7 +326,14 @@ export function CalcPanel({
     }
   } else if (panel === 'filterGrid') {
     const g = filterGridCfm(rows);
-    body = <Kv items={[['Filter grid total', cfm(g.total)]]} />;
+    body = (
+      <Kv
+        items={[
+          ['Initial total', cfm(g.initial.total)],
+          ['Final total', cfm(g.final.total)],
+        ]}
+      />
+    );
   } else if (panel === 'ervTotals') {
     const t = ervTotals(rows);
     const line = (label: string, x: { design: number | null; actual: number | null }, id: string) => (
@@ -364,6 +379,18 @@ export function CalcPanel({
             ['Positions across', t.positions.length ? t.positions.map((p) => `${p}"`).join(' · ') : '—'],
             ...(t.depths.length
               ? ([['Depths down', t.depths.map((p) => `${p}"`).join(' · ')]] as [string, string][])
+              : []),
+            ...(t.ends
+              ? ([
+                  [
+                    'Ends (on the horizontal axis)',
+                    `${t.ends.points} points, ${t.ends.points / 2} at each end, at ${t.ends.positions.map((p) => `${p}"`).join(' · ')} across the ${formatNumber(t.depths.length ? t.depths.at(-1)! + t.depths[0] : null, 1)}" diameter`,
+                  ],
+                  [
+                    'Averages',
+                    `rectangle ${formatNumber(t.rectAverage ?? null)} fpm × ${formatNumber(t.ends.rectAk, 3)} ft² · ends ${formatNumber(t.endsAverage ?? null)} fpm × ${formatNumber(t.ends.circleAk, 3)} ft²`,
+                  ],
+                ] as [string, string][])
               : []),
           ]}
         />

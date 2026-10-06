@@ -20,8 +20,8 @@
 import { rowNames } from '../domain/rowLabels';
 import {
   blockLayout,
+  mapForRevision,
   NOTATIONS,
-  TEMPLATE_MAP,
   type Cell,
   type FieldType,
   type Layout,
@@ -35,6 +35,7 @@ import { CERT_INFO_KEYS, CERT_LABELS } from '../domain/certification';
 import { PRESSURE_INFO_KEYS, PRESSURE_LABELS } from '../domain/projectCompletion';
 import { SPARE_OA_INFO_KEYS, SPARE_OA_LABELS } from '../domain/spareOa';
 import { fromProjectData, PROJECT_INFO_KEYS, toProjectData, type ProjectBundle } from './adapter';
+import { AIR_BALANCE_KEYS } from '../domain/airBalance';
 import { isObservation } from '../domain/issues';
 
 export type Val = string | number | null;
@@ -137,15 +138,21 @@ function canonicalLayout(layout: Layout, data: LayoutData): LayoutData {
   return out;
 }
 
-/** Canonical copy of workbook values (see canonicalCell), typed by the template map. */
+/** Canonical copy of workbook values (see canonicalCell), typed by the template map of their revision. */
 export function canonicalProjectData(pd: ProjectData): ProjectData {
-  const out: ProjectData = { templateRevision: pd.templateRevision, sections: {}, equipment: {} };
+  const map = mapForRevision(pd.templateRevision);
+  const out: ProjectData = {
+    templateRevision: pd.templateRevision,
+    sections: {},
+    equipment: {},
+    ...(pd.appInfo ? { appInfo: pd.appInfo } : {}),
+  };
   for (const [key, data] of Object.entries(pd.sections)) {
-    const sec = TEMPLATE_MAP.sections.find((s) => s.key === key);
+    const sec = map.sections.find((s) => s.key === key);
     if (sec) out.sections[key] = canonicalLayout(sec, data);
   }
   for (const [key, units] of Object.entries(pd.equipment)) {
-    const def = TEMPLATE_MAP.equipment.find((d) => d.key === key);
+    const def = map.equipment.find((d) => d.key === key);
     if (!def) continue;
     out.equipment[key] = units.map((u) => {
       const c = { ...canonicalLayout(blockLayout(def, u.slot), u), slot: u.slot } as typeof u;
@@ -168,9 +175,12 @@ export function readSide(pd: ProjectData): ProjectBundle {
   return fromProjectData(canonicalProjectData(pd), { now: 0, newId: () => `side-${++n}`, fallbackName: '' });
 }
 
-/** The app side: exported (as the workbook would hold it) and read back. */
-export function appSide(app: ProjectBundle): { side: ProjectBundle; data: ProjectData } {
-  const { data } = toProjectData(app);
+/**
+ * The app side: exported (as the workbook would hold it: in the re-imported workbook's own layout, so what a rev 05 /
+ * 06 workbook has no place for is not taken for a removal) and read back.
+ */
+export function appSide(app: ProjectBundle, revision?: string): { side: ProjectBundle; data: ProjectData } {
+  const { data } = toProjectData(app, 'air', revision ? mapForRevision(revision) : undefined);
   return { side: readSide(data), data };
 }
 
@@ -191,7 +201,8 @@ export type RecRef =
   | { kind: 'project' }
   | { kind: 'blueprint'; index: number }
   | { kind: 'instrument'; index: number }
-  | { kind: 'issue'; issueKind: 'new' | 'existing'; number: number }
+  /** observation: an observation (its own numbering) rather than a deficiency */
+  | { kind: 'issue'; issueKind: 'new' | 'existing'; number: number; observation?: boolean }
   | { kind: 'unit'; type: EquipmentTypeKey; slot: number }
   | { kind: 'row'; type: EquipmentTypeKey; slot: number; table: string; rowKey: string; index: number };
 
@@ -249,7 +260,14 @@ export function flatten(b: ProjectBundle, modes: Map<string, RowMode>): Map<stri
   const add = (r: FlatRec) => out.set(r.key, r);
   const p = b.project;
   const pc: Record<string, Val> = { name: p.name.trim() === '' ? null : p.name, tolerance: p.tolerance };
-  for (const k of [...PROJECT_INFO_KEYS, 'narrative', ...PRESSURE_INFO_KEYS, ...SPARE_OA_INFO_KEYS, ...CERT_INFO_KEYS])
+  for (const k of [
+    ...PROJECT_INFO_KEYS,
+    'narrative',
+    ...PRESSURE_INFO_KEYS,
+    ...SPARE_OA_INFO_KEYS,
+    ...CERT_INFO_KEYS,
+    AIR_BALANCE_KEYS.excluded,
+  ])
     pc[`info.${k}`] = valueOrMark(p.info[k], p.naState.fields[k]);
   add({ key: 'project', ref: { kind: 'project' }, cells: pc });
   p.blueprints
@@ -279,12 +297,12 @@ export function flatten(b: ProjectBundle, modes: Map<string, RowMode>): Map<stri
   const byId = new Map(b.equipment.map((e) => [e.id, e]));
   const lines = rowNames(b.equipment, b.rows);
   for (const i of b.issues) {
-    // observations are not on the rev 05 / 06 Summary pages: never compared (nor taken for a deficiency's number)
-    if (isObservation(i)) continue;
+    // observations: their own list (rev 07 Summary pages; rev 05 / 06 have none, so no side has them there)
+    const obs = isObservation(i);
     const line = i.airflowRowId ? lines.get(i.airflowRowId) : undefined;
     add({
-      key: `issue:${i.kind}#${i.number}`,
-      ref: { kind: 'issue', issueKind: i.kind, number: i.number },
+      key: `${obs ? 'obs' : 'issue'}:${i.kind}#${i.number}`,
+      ref: { kind: 'issue', issueKind: i.kind, number: i.number, ...(obs ? { observation: true } : {}) },
       cells: {
         remark: i.remark.trim() || null,
         status: i.status,
@@ -376,6 +394,7 @@ const PROJECT_LABELS: Record<string, string> = {
   ...Object.fromEntries(Object.entries(PRESSURE_LABELS).map(([k, v]) => [`info.${k}`, v])),
   ...Object.fromEntries(Object.entries(SPARE_OA_LABELS).map(([k, v]) => [`info.${k}`, v])),
   ...Object.fromEntries(Object.entries(CERT_LABELS).map(([k, v]) => [`info.${k}`, v])),
+  [`info.${AIR_BALANCE_KEYS.excluded}`]: 'Building balance: units left out (Excl.)',
 };
 /** Review group of a project cell (narrative, building pressures, other OA rows, certification). */
 function projectGroup(
@@ -389,6 +408,13 @@ function projectGroup(
     return { group: 'spareOa', groupTitle: 'Other outside air', groupOrder: 1, section: 'Building Balance' };
   if (CERT_INFO_KEYS.includes(k))
     return { group: 'certification', groupTitle: 'Certification', groupOrder: 1, section: 'Certification' };
+  if (k === AIR_BALANCE_KEYS.excluded)
+    return {
+      group: 'exclusions',
+      groupTitle: 'Building balance exclusions',
+      groupOrder: 1,
+      section: 'Building Balance',
+    };
   return null;
 }
 const INSTRUMENT_LABELS: Record<string, string> = {
@@ -477,7 +503,7 @@ export interface DiffFlats {
 export type FullDiff = DiffResult & { sides: DiffSides; flats: DiffFlats };
 
 export function reimportDiff(input: DiffInput): FullDiff {
-  const app = appSide(input.app).side;
+  const app = appSide(input.app, input.wb.templateRevision).side;
   const wb = readSide(input.wb);
   const base = input.base ? readSide(input.base) : app;
   const modes = rowModes([base, app, wb]);
@@ -508,7 +534,7 @@ export function reimportDiff(input: DiffInput): FullDiff {
           group: 'issues',
           groupTitle: 'Issues / remarks',
           groupOrder: 2,
-          section: `${ref.issueKind === 'new' ? 'Summary - New' : 'Summary - (E)'} #${ref.number}`,
+          section: `${ref.issueKind === 'new' ? 'Summary - New' : 'Summary - (E)'} ${ref.observation ? 'Obs. ' : '#'}${ref.number}`,
         };
       case 'instrument':
         return {

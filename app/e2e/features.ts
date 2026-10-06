@@ -154,22 +154,23 @@ export async function pressuresAndAttention(page: Page, projectUrl: string, docS
   const tab = Number((await page.getByTestId('tab-count-attention').innerText()).trim());
   const has = (re: RegExp) => items.some((i) => re.test(i));
   check(
-    'needs attention: RTU-1 ESP (design 0.80 vs 1.07) and BHP 3.13 > 3 HP, the 2024 balometer not flagged; counts match',
+    'needs attention: RTU-1 ESP (design 0.80 vs 1.07), no BHP item (rev 07: HP × amps ÷ FLA), the 2024 balometer not flagged; counts match',
     has(/^design\|RTU-1 Unit ESP: design 0\.80 vs\. actual 1\.07/) &&
-      has(/^motor\|RTU-1 Estimated BHP 3\.13 is above the scheduled 3 HP/) &&
+      !has(/^motor\|RTU-1 Estimated BHP/) &&
       !has(/^calibration\|Flow Hood/) &&
       count === items.length &&
       tab === items.length,
     `${count}/${tab}: ${items.join(' || ')}`,
   );
   await page.screenshot({ path: join(docShots, '21-needs-attention.png') });
-  await page.locator('[data-testid="attention-item"][data-group="motor"]').first().click();
-  await page.waitForURL(/\/e\/.+#sec-motor$/);
-  await page.locator('#sec-motor').waitFor();
-  const top = await page.evaluate(() => document.getElementById('sec-motor')!.getBoundingClientRect().top);
+  await page.locator('[data-testid="attention-item"][data-group="design"]').first().click();
+  await page.waitForURL(/\/e\/.+#sec-\w+$/);
+  const sec = new URL(page.url()).hash.slice(1);
+  await page.locator(`#${sec}`).waitFor();
+  const top = await page.evaluate((id) => document.getElementById(id)!.getBoundingClientRect().top, sec);
   check(
     'needs attention: an item opens its unit, scrolled to the section',
-    /#sec-motor$/.test(page.url()) && top < 300,
+    /#sec-\w+$/.test(page.url()) && top < 300,
     `${page.url()} (section top ${Math.round(top)} px)`,
   );
   await page.goto(`${projectUrl}/equipment`);

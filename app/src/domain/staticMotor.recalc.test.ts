@@ -75,6 +75,8 @@ function makeUnits(): Equipment[] {
       else if (phase < 0.93) mark('phase'); // blank / N/A phase: the 3-phase formula
       put('voltage', pick([115, 208, 230, 460, 480]), 0.08, 0.08);
       put('hp', pick([0.5, 1, 1.5, 2, 3, 5]), 0.05, 0.05);
+      // rev 07: the nameplate HP (blank / N/A half the time: the BHP falls back to the scheduled HP)
+      put('motorHp', pick([0.75, 1, 2, 3, 7.5]), 0.4, 0.1);
       put('unitEsp', round2(0.3 + r()), 0.1, 0.1);
       // motor
       const vBase = typeof data.voltage === 'number' ? data.voltage : 208;

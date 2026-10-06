@@ -1,5 +1,5 @@
 /**
- * Live calculations for MAUs, ERVs, hoods, traverses and the Building Balance. Each one mirrors the revision 05
+ * Live calculations for MAUs, ERVs, hoods, traverses and the Building Balance. Each one mirrors the revision 07
  * workbook formula it is named after (the workbook stays authoritative: the export writes inputs only), including
  * its edge cases: text / N/A inputs are skipped, a total of 0 shows blank, an unknown filter type | size pair
  * gives 0 CFM, and Excel's ROUND (half away from zero) is used where the sheet rounds.
@@ -56,13 +56,21 @@ export function pspK(width: number | null): number | null {
   return PSP_K.find(([w]) => w === width)?.[1] ?? null;
 }
 
-export interface PspResult {
-  k: number | null;
+export interface PspReadings {
   readings: number;
   average: number | null;
-  /** MAUs!E(Q+6): avg VEL x (L - 2 - 2 x blanks) x W x K / 144 */
+  /** avg VEL x (L - 2 - 2 x blanks) x W x K / 144 */
   cfm: number | null;
-  /** MAUs!K(Q+6): CFM / (L / 12) */
+}
+
+export interface PspResult extends PspReadings {
+  k: number | null;
+  /** MAUs!E(Q+8) / K(Q+8) (rev 07): the initial and final readings (`pspVelocitiesInitial`, `pspVelocities`). */
+  initial: PspReadings;
+  final: PspReadings;
+  /** The readings the Method Total uses: the final ones, else the initial ones (top-level readings / average / cfm). */
+  using: 'initial' | 'final';
+  /** CFM / (L / 12) */
   cfmPerFt: number | null;
 }
 
@@ -70,13 +78,19 @@ export function pspCfm(values: Values): PspResult {
   const L = num(values.pspLength ?? null);
   const W = num(values.pspWidth ?? null);
   const blanks = num(values.pspBlanks ?? null) ?? 0; // N(J): blank or text counts as 0
-  const vels = sequenceValues(values, 'pspVelocities', 20);
   const k = pspK(W);
-  const average = avg(vels);
-  const readings = vels.filter((v) => v !== null).length;
-  const cfm =
-    L === null || W === null || average === null ? null : (average * (L - 2 - 2 * blanks) * W * (k ?? 0)) / 144;
-  return { k, readings, average, cfm, cfmPerFt: cfm === null || !L ? null : cfm / (L / 12) };
+  const of = (key: string): PspReadings => {
+    const vels = sequenceValues(values, key, 20);
+    const average = avg(vels);
+    const cfm =
+      L === null || W === null || average === null ? null : (average * (L - 2 - 2 * blanks) * W * (k ?? 0)) / 144;
+    return { readings: vels.filter((v) => v !== null).length, average, cfm };
+  };
+  const initial = of('pspVelocitiesInitial');
+  const final = of('pspVelocities');
+  const using = final.cfm === null && initial.cfm !== null ? 'initial' : 'final';
+  const use = using === 'final' ? final : initial;
+  return { k, initial, final, using, ...use, cfmPerFt: use.cfm === null || !L ? null : use.cfm / (L / 12) };
 }
 
 // ------------------------------------------------------------------------------------------ filters
@@ -98,12 +112,29 @@ export function filterCfm(type: FieldValue | undefined, size: FieldValue | undef
   return velocity * (c?.area ?? 0) * (c?.k ?? 0);
 }
 
-/** MAU filter grid (Supply Filter (VelGrid), K 1.35): CFM per filter and the grid total (MAUs!E(Q+12)). */
-export function filterGridCfm(rows: readonly Row[]): { perFilter: (number | null)[]; total: number | null } {
-  const perFilter = rowsOf(rows, 'filterGrid').map((r) =>
-    filterCfm(MAU_FILTER_GRID_TYPE, r.data.size, num(r.data.velocity ?? null)),
-  );
-  return { perFilter, total: blankZero(sum(perFilter)) };
+export interface FilterGridResult {
+  /** CFM per filter of the readings the total uses */
+  perFilter: (number | null)[];
+  /** MAUs!E(Q+16) / K(Q+16) (rev 07): the final total, else the initial total (the Method Total) */
+  total: number | null;
+  initial: { perFilter: (number | null)[]; total: number | null };
+  final: { perFilter: (number | null)[]; total: number | null };
+}
+
+/**
+ * MAU filter grid (Supply Filter (VelGrid), K 1.35): CFM per filter from the initial (`initialVelocity`) and final
+ * (`velocity`) velocity, and the grid totals.
+ */
+export function filterGridCfm(rows: readonly Row[]): FilterGridResult {
+  const grid = rowsOf(rows, 'filterGrid');
+  const of = (key: string) => {
+    const perFilter = grid.map((r) => filterCfm(MAU_FILTER_GRID_TYPE, r.data.size, num(r.data[key] ?? null)));
+    return { perFilter, total: blankZero(sum(perFilter)) };
+  };
+  const initial = of('initialVelocity');
+  const final = of('velocity');
+  const use = final.total === null && initial.total !== null ? initial : final;
+  return { perFilter: use.perFilter, total: use.total, initial, final };
 }
 
 // ------------------------------------------------------------------------------------------ MAU: profile pressure
@@ -133,7 +164,7 @@ export function profileCfm(
 // ------------------------------------------------------------------------------------------ MAU totals
 export interface MauTotals {
   method: string | null;
-  /** MAUs!E(Q+19) */
+  /** MAUs!E(Q+31) */
   methodTotal: number | null;
   /** MAUs!K+5: design CFM override, else the outlet design total */
   design: number | null;
@@ -144,7 +175,7 @@ export interface MauTotals {
   filterGrid: ReturnType<typeof filterGridCfm>;
   profile: ReturnType<typeof profileCfm>;
   outlets: ReturnType<typeof outletSheetTotals>;
-  /** Intake screens (app-only until template rev 07): the method total when Intake is chosen, else a check */
+  /** Intake screens (MAUs Q+23..Q+27): the method total when Intake is chosen, else a check */
   intake: ReturnType<typeof outletSheetTotals> & { total: number | null };
 }
 
@@ -243,7 +274,7 @@ export function hoodTotals(values: Values, rows: readonly Row[]): HoodTotals {
 
 // ------------------------------------------------------------------------------------------ traverses
 export interface TraverseLayout {
-  /** Traverses!F+2, e.g. 24" x 12" or 10" dia */
+  /** Traverses!F+2, e.g. 24" x 12", 10" dia or 30" x 12" oval */
   sizeText: string | null;
   /** Traverses!H+2 (ft², 3 decimals), inside the liner */
   ak: number | null;
@@ -258,7 +289,30 @@ export interface TraverseLayout {
   positions: number[];
   /** Depths down (in) for rectangular ducts; empty for round */
   depths: number[];
+  /**
+   * Flat oval (NEBB 6.3.3h; Traverses!O+4..O+8): the flat part (W - H) x H is the rectangle above (positions across
+   * it, from where it starts), the two ends one round of diameter H read on the horizontal axis, half the points at
+   * each end; positions across that diameter (in, from the left end). Null for other shapes.
+   */
+  ends: { points: number; positions: number[]; rectAk: number; circleAk: number } | null;
 }
+
+const isFlatOval = (shape: FieldValue | undefined) => shape === 'Flat Oval';
+
+/** Equal-area positions across a round duct of diameter d (in, from the wall), n points per diameter. */
+function roundPositions(d: number, n: number): number[] {
+  return Array.from({ length: n }, (_, k) => {
+    const i = k + 1;
+    const p =
+      i <= n / 2
+        ? (d / 2) * (1 - Math.sqrt((n - 2 * i + 1) / n))
+        : d - (d / 2) * (1 - Math.sqrt((n - 2 * (n - i + 1) + 1) / n));
+    return roundXL(p, 1);
+  });
+}
+
+/** Round duct points per diameter (NEBB): up to 9" 6, up to 12" 8, else 10. */
+const roundPoints = (d: number) => (d <= 9 ? 6 : d <= 12 ? 8 : 10);
 
 /** NEBB equal-area traverse layout, replicating the Traverses sheet formulas (tools/build_rev03.py). */
 export function traverseLayout(values: Values): TraverseLayout {
@@ -276,7 +330,30 @@ export function traverseLayout(values: Values): TraverseLayout {
     layoutText: null,
     positions: [],
     depths: [],
+    ends: null,
   };
+  if (isFlatOval(shape)) {
+    if (W === null || H === null) return empty;
+    const Wi = W - 2 * liner;
+    const Hi = H - 2 * liner;
+    const flat = W - H;
+    const nW = flat < 12 ? 2 : Math.min(10, Math.max(3, Math.ceil(flat / 6)));
+    const nH = H < 12 ? 2 : Math.min(7, Math.max(3, Math.ceil(H / 6)));
+    const endPoints = roundPoints(H);
+    const rectAk = ((Wi - Hi) * Hi) / 144;
+    const circleAk = (Math.PI * (Hi / 2) ** 2) / 144;
+    return {
+      sizeText: `${W}" x ${H}" oval`,
+      ak: roundXL(((Wi - Hi) * Hi + Math.PI * (Hi / 2) ** 2) / 144, 3),
+      nW,
+      nH,
+      points: nW * nH + endPoints,
+      layoutText: `${nW}x${nH}+${endPoints} ends`,
+      positions: Array.from({ length: nW }, (_, k) => roundXL(((k + 0.5) * flat) / nW, 1)),
+      depths: Array.from({ length: nH }, (_, j) => roundXL(((j + 0.5) * H) / nH, 1)),
+      ends: { points: endPoints, positions: roundPositions(H, endPoints), rectAk, circleAk },
+    };
+  }
   if (typeof shape !== 'string' || !shape || W === null) {
     return { ...empty, sizeText: W === null ? null : round ? `${W}" dia` : `${W}" x ${H ?? ''}"` };
   }
@@ -286,17 +363,11 @@ export function traverseLayout(values: Values): TraverseLayout {
     : H === null
       ? null
       : roundXL(((W - 2 * liner) * (H - 2 * liner)) / 144, 3);
-  const nW = round ? (W <= 9 ? 6 : W <= 12 ? 8 : 10) : W < 12 ? 2 : Math.min(10, Math.max(3, Math.ceil(W / 6)));
+  const nW = round ? roundPoints(W) : W < 12 ? 2 : Math.min(10, Math.max(3, Math.ceil(W / 6)));
   const nH = round ? 2 : H === null ? null : H < 12 ? 2 : Math.min(8, Math.max(3, Math.ceil(H / 6)));
-  const positions = Array.from({ length: nW }, (_, k) => {
-    const i = k + 1;
-    if (!round) return roundXL(((i - 0.5) * W) / nW, 1);
-    const p =
-      i <= nW / 2
-        ? (W / 2) * (1 - Math.sqrt((nW - 2 * i + 1) / nW))
-        : W - (W / 2) * (1 - Math.sqrt((nW - 2 * (nW - i + 1) + 1) / nW));
-    return roundXL(p, 1);
-  });
+  const positions = round
+    ? roundPositions(W, nW)
+    : Array.from({ length: nW }, (_, k) => roundXL(((k + 0.5) * W) / nW, 1));
   const depths =
     !round && nH !== null && H !== null ? Array.from({ length: nH }, (_, j) => roundXL(((j + 0.5) * H) / nH, 1)) : [];
   return {
@@ -308,6 +379,7 @@ export function traverseLayout(values: Values): TraverseLayout {
     layoutText: nH === null ? null : round ? `${nW} x 2 axes` : `${nW} x ${nH}`,
     positions,
     depths,
+    ends: null,
   };
 }
 
@@ -315,8 +387,14 @@ export interface TraverseTotals extends TraverseLayout {
   /** Readings entered (numbers) and readings inside the point grid (the ones the sheet averages). */
   entered: number;
   used: number;
-  /** Traverses!L+2: ROUND(AVERAGE(grid), 0) */
+  /**
+   * Traverses!L+2: ROUND(AVERAGE(grid), 0); a flat oval: ROUND((rectangle average x its area + ends average x circle
+   * area) / (rectangle + circle area), 0), so VEL x Ak is the two parts' CFMs added
+   */
   finalVel: number | null;
+  /** Flat oval: the averages of the rectangle readings and of the end readings. */
+  rectAverage?: number | null;
+  endsAverage?: number | null;
   /** Traverses!M+2: ROUND(VEL x Ak, 0) */
   finalCfm: number | null;
   /** Traverses!K+2 */
@@ -329,10 +407,25 @@ export interface TraverseTotals extends TraverseLayout {
 export function traverseTotals(values: Values): TraverseTotals {
   const layout = traverseLayout(values);
   const all = sequenceValues(values, 'readings', 80);
-  // the grid (10 across x 8 down) shows reading k = (row - 1) x nW + col, for k <= nW x nH
+  // the grid (10 across x 8 down) shows reading k = (row - 1) x nW + col, for k <= nW x nH (a flat oval: then the
+  // end points, on the row below the rectangle)
   const inGrid = layout.points === null ? [] : all.slice(0, layout.points);
-  const average = avg(inGrid);
-  const finalVel = average === null ? null : roundXL(average, 0);
+  let finalVel: number | null;
+  let rectAverage: number | null | undefined;
+  let endsAverage: number | null | undefined;
+  if (layout.ends && layout.nW && layout.nH) {
+    const nRect = layout.nW * layout.nH;
+    rectAverage = avg(inGrid.slice(0, nRect));
+    endsAverage = avg(inGrid.slice(nRect));
+    const { rectAk, circleAk } = layout.ends;
+    finalVel =
+      rectAverage === null || endsAverage === null || rectAk + circleAk === 0
+        ? null
+        : roundXL((rectAverage * rectAk + endsAverage * circleAk) / (rectAk + circleAk), 0);
+  } else {
+    const average = avg(inGrid);
+    finalVel = average === null ? null : roundXL(average, 0);
+  }
   const cfmOf = (vel: number | null) => (vel === null || !layout.ak || vel === 0 ? null : roundXL(vel * layout.ak, 0)); // IF(N(v)*N(Ak)=0, "")
   const finalCfm = cfmOf(finalVel);
   const initialCfm = cfmOf(num(values.initialVel ?? null));
@@ -342,6 +435,7 @@ export function traverseTotals(values: Values): TraverseTotals {
     entered: all.filter((v) => v !== null).length,
     used: inGrid.filter((v) => v !== null).length,
     finalVel,
+    ...(layout.ends ? { rectAverage, endsAverage } : {}),
     finalCfm,
     initialCfm,
     design,

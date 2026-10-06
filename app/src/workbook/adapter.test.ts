@@ -1,7 +1,14 @@
 // @vitest-environment node
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { diff, exportWorkbookWithReport, importWorkbook, normalizeProject, TEMPLATE_FILE_NAME } from '@a2b/workbook';
+import {
+  diff,
+  exportWorkbookWithReport,
+  importWorkbook,
+  normalizeProject,
+  TEMPLATE_FILE_NAME,
+  TEMPLATE_MAP_06,
+} from '@a2b/workbook';
 import { describe, expect, it } from 'vitest';
 import { sampleBundle } from '../test/fixtures';
 import { fromProjectData, toProjectData, type ProjectBundle } from './adapter';
@@ -44,17 +51,19 @@ describe('toProjectData', () => {
     expect(rtu.tables?.oa?.[0]).toMatchObject({ no: 'OA-1', finalVel: 'Not Acc.' });
   });
 
-  it('motor / fan bores go into the one "Shv Bore M/F" cell of rev 05 / 06 and come back apart', () => {
+  it('motor / fan bores: their own cells in rev 07; the one "Shv Bore M/F" cell of rev 05 / 06, read back apart', () => {
     const b = sampleBundle();
-    const u = toProjectData(b).data.equipment.rtu[0];
+    expect(toProjectData(b).data.equipment.rtu[0].fields).toMatchObject({ motorBore: '7/8', fanBore: '1' });
+    const old = toProjectData(b, 'air', TEMPLATE_MAP_06).data;
+    const u = old.equipment.rtu[0];
     expect(u.fields).toMatchObject({ sheaveBore: '7/8 / 1' });
     expect(u.fields).not.toHaveProperty('motorBore');
-    const back = fromProjectData(toProjectData(b).data).equipment.find((e) => e.type === 'rtu')!;
+    const back = fromProjectData(old).equipment.find((e) => e.type === 'rtu')!;
     expect(back.data).toMatchObject({ motorBore: '7/8', fanBore: '1' });
     expect(back.data).not.toHaveProperty('sheaveBore');
   });
 
-  it('MAU Intake method and intake screens: kept in the app, left out of a rev 06 workbook with a warning', () => {
+  it('MAU Intake method and intake screens: kept in the app, left out of a rev 05 / 06 workbook with a warning', () => {
     const b = sampleBundle();
     const mau = b.equipment.find((e) => e.type === 'mau')!;
     mau.data.method = 'Intake';
@@ -67,7 +76,7 @@ describe('toProjectData', () => {
       data: { no: '1', size: '20x20', ak: 2.5, finalVel: 400 },
       na: {},
     });
-    const { data, warnings } = toProjectData(b);
+    const { data, warnings } = toProjectData(b, 'air', TEMPLATE_MAP_06);
     const u = data.equipment.mau.find((x) => x.slot === mau.slot)!;
     expect(u.fields ?? {}).not.toHaveProperty('method');
     expect(u.tables ?? {}).not.toHaveProperty('intake');
@@ -82,7 +91,11 @@ describe('toProjectData', () => {
     for (const k of ['motorSheave', 'motorBore', 'fanPulley', 'fanBore', 'belts', 'cToC']) delete unit.data[k];
     const u = toProjectData(b).data.equipment.rtu[0];
     expect(u.schedule).toMatchObject({ motorSheave: 'Not Acc.', belts: 'Not Acc.' });
-    expect(u.fields).toMatchObject({ sheaveBore: 'Not Acc.' }); // both bores Not Acc.: one notation in the M/F cell
+    expect(u.fields).toMatchObject({ motorBore: 'Not Acc.', fanBore: 'Not Acc.' });
+    // rev 05 / 06: both bores Not Acc.: one notation in the M/F cell
+    expect(toProjectData(b, 'air', TEMPLATE_MAP_06).data.equipment.rtu[0].fields).toMatchObject({
+      sheaveBore: 'Not Acc.',
+    });
     unit.naState.sections = {};
     unit.data.driveType = 'Direct';
     const d = toProjectData(b).data.equipment.rtu[0];
@@ -129,15 +142,19 @@ describe('toProjectData', () => {
     });
   });
 
-  it('leaves observations off the Summary pages (rev 06) with a warning', () => {
+  it('observations: their own list in rev 07; left off a rev 05 / 06 workbook with a warning', () => {
     const b = sampleBundle();
     const first = b.issues.find((i) => i.kind === 'new')!;
     b.issues.push({ ...first, id: 'obs-1', number: 1, remark: 'Filters recently changed', issueType: 'observation' });
-    const { data, warnings } = toProjectData(b);
+    const now = toProjectData(b).data.sections.issuesNew.tables;
+    expect(now?.observations?.map((r) => r.remark)).toEqual(['RTU-1: Filters recently changed']);
+    expect(now?.issues?.map((r) => r.remark)).not.toContain(expect.stringContaining('Filters recently changed'));
+    const { data, warnings } = toProjectData(b, 'air', TEMPLATE_MAP_06);
     expect(data.sections.issuesNew.tables?.issues?.map((r) => r.remark)).not.toContain(
       expect.stringContaining('Filters recently changed'),
     );
-    expect(warnings.join('\n')).toMatch(/Summary - New: 1 observation not in this workbook/);
+    expect(data.sections.issuesNew.tables).not.toHaveProperty('observations');
+    expect(warnings.join('\n')).toMatch(/Summary - New: 1 observation not in this revision 06 workbook/);
   });
 
   it('coerces numeric text and warns about text in number fields', () => {
