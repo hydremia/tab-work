@@ -5,6 +5,7 @@ import type { Completion } from '../../domain/completion';
 import {
   ervTotals,
   fanAtHood,
+  fanHoodIgnoredReadings,
   filterGridCfm,
   hoodLinks,
   hoodsAirflow,
@@ -551,10 +552,12 @@ function FanHoodPanel({ equipment, tolerance }: { equipment: Equipment; toleranc
         : [],
     [hoods.map((h) => h.id).join(',')],
   );
+  const own = useLiveQuery(() => db.airflowRows.where('equipmentId').equals(equipment.id).toArray(), [equipment.id]);
   if (!units) return null;
   const atHood = fanAtHood(equipment, hoods.length > 0);
   if (!hoods.length && !atHood) return null;
   const a = hoodsAirflow(hoods, rows ?? []);
+  const ignored = atHood && hoods.length ? fanHoodIgnoredReadings(own ?? []) : 0;
   const design = typeof equipment.data.designTotalCfm === 'number' ? equipment.data.designTotalCfm : a.design;
   return (
     <div className="calc-panel" data-testid="calc-fanHood">
@@ -587,6 +590,13 @@ function FanHoodPanel({ equipment, tolerance }: { equipment: Equipment; toleranc
               </span>
               <Pct ratio={design && a.actual !== null ? a.actual / design : null} tolerance={tolerance} />
             </div>
+          )}
+          {ignored > 0 && (
+            <p className="small" style={{ margin: 0, color: 'var(--red)' }} data-testid="fan-hood-ignored">
+              {ignored} grille reading{ignored === 1 ? '' : 's'} on this page {ignored === 1 ? 'is' : 'are'} not used
+              while the airflow is measured at the hood: set <b>Measured at</b> to Grilles to report{' '}
+              {ignored === 1 ? 'it' : 'them'}.
+            </p>
           )}
         </>
       )}

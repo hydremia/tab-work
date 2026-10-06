@@ -37,6 +37,21 @@ describe('report check', () => {
     expect(r.checks.every((c) => ['pass', 'warn', 'accepted', 'fail', 'na'].includes(c.status))).toBe(true);
   });
 
+  it('working math in a unit remark is flagged; the field notes are not looked at (they never print)', () => {
+    const r = reviewProject(
+      input((b) => {
+        b.equipment[0].data.remarks = 'Belt replaced.\n516 = 1484';
+        b.equipment[0].data.fieldNotes = '23x18 x2 = 2.875';
+      }),
+    );
+    const s = byKey(r, 'scratch');
+    expect(s.status).toBe('warn');
+    expect(s.findings).toHaveLength(1);
+    expect(s.findings[0].text).toMatch(/"516 = 1484"/);
+    expect(s.findings[0].to).toMatch(/#sec-remarks$/);
+    expect(byKey(reviewProject(input()), 'scratch').status).toBe('pass');
+  });
+
   it('report date before the TAB date, empty narrative, expired certification on a final report', () => {
     const r = reviewProject(
       input((b) => {

@@ -547,6 +547,16 @@ export function fanAtHood(fan: { data: Readonly<Record<string, FieldValue>> }, l
   return m === 'Hood' || ((m === null || m === undefined || m === '') && linked);
 }
 
+/**
+ * A fan measured at its hood(s) whose own grille table still has readings: those readings are not the fan's airflow
+ * (the hoods are), so the export leaves them out. The count of such rows, to warn about (0: nothing to say).
+ */
+export function fanHoodIgnoredReadings(rows: readonly Row[]): number {
+  return rows.filter(
+    (r) => r.table === 'outlets' && [r.data.initialVel, r.data.finalVel].some((v) => typeof v === 'number'),
+  ).length;
+}
+
 /** The hoods' totals as one fan airflow: design, initial, final (sums of the hood totals). */
 export function hoodsAirflow(
   hoods: readonly LinkUnit[],
