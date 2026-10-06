@@ -1,0 +1,15 @@
+Source: 06 - a2b_Blank_TAB_Workbook 10-1-26.xlsm
+Output: 07 - a2b_Blank_TAB_Workbook 10-6-26.xlsm
+  RTUs: 40 blocks: drive rows with motor / fan bore (M P+12 / M P+13), Shv Bore M/F box removed, Motor HP (nameplate) E P+17, Estimated BHP = HP x amps / FLA
+  MAUs: 10 blocks: drive rows with motor / fan bore (M P+12 / M P+13), Shv Bore M/F box removed, Motor HP (nameplate) E P+17, Estimated BHP = HP x amps / FLA
+  ERVs: 10 blocks: drive rows with motor / fan bore (M P+12 / M P+13), Shv Bore M/F box removed, Motor HP (nameplate) E P+17, Estimated BHP = HP x amps / FLA
+  Fans: 40 blocks: drive rows with motor / fan bore (M P+12 / M P+13), Shv Bore M/F box removed, Motor HP (nameplate) E P+17, Estimated BHP = HP x amps / FLA
+  MAUs: page 2 rebuilt: PSP initial / final (D:M Q+4..Q+7, CFMs E / K Q+8), Filter Grid size Q+11, initial / final velocity Q+12 / Q+13, CFMs Q+14 / Q+15, totals E / K Q+16, burner Q+19, Intake Screens Q+23..Q+26 (total Q+27), method E Q+30 (+ Intake), Method Total E Q+31, outlets Q+35..Q+46 (12)
+  Fans: P+44 is the 'measured at hood' line (hoods C:G, design H, initial J, final L CFM; % M), in the fan totals; 15 outlet rows on page 1
+  Building Balance: Excl. flags P7:P66 (outside air) / Q7:Q86 (exhaust); 'Excl.' in the row's %, greyed (dxf 714), totals row 87 without them; exclusion note B105
+  Summary - New: Observations B64 (Obs. B, observation C:J, comments K:L) rows 66-85, page break after row 62
+  Summary - (E): Observations B64 (Obs. B, observation C:J, comments K:L) rows 66-85, page break after row 62
+  Traverses: 48 blocks: Flat Oval branches in Ak, size, points (N), grid, positions; helpers O (end points, rectangle / ends averages, areas); Final VEL area-weighted
+  {Dropdowns}: Airflow.Method T2:T6 (+ Intake), Duct.Shape AF2:AF4 (+ Flat Oval); a2b.TemplateRevision = "07"
+  print areas: Summary - New / (E) A1:M85 (print titles rows 1-3), Building Balance A1:M105
+  parts rewritten: xl/styles.xml, xl/workbook.xml, xl/worksheets/sheet10.xml, xl/worksheets/sheet11.xml, xl/worksheets/sheet12.xml, xl/worksheets/sheet13.xml, xl/worksheets/sheet14.xml, xl/worksheets/sheet18.xml, xl/worksheets/sheet4.xml, xl/worksheets/sheet5.xml, xl/worksheets/sheet8.xml; every other part copied unchanged
