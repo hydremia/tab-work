@@ -119,6 +119,19 @@ describe('graphics appendix', () => {
     expect(p && p.kind === 'pump' && p.curve).toBeNull();
   });
 
+  it('a traverse figure carries the duct static pressure and air temperature (or their N/A notation)', () => {
+    const b = bundle();
+    const t9 = b.equipment.find((e) => e.designation === 'T-9')!;
+    t9.data.ductStatic = -0.42;
+    t9.data.temperature = 55;
+    const t20 = b.equipment.find((e) => e.designation === 'T-20')!;
+    t20.naState.fields.ductStatic = { notation: 'Not Acc.' };
+    const m = buildGraphicsModel({ ...b, completions: completions(b) });
+    const fig = (u: string) => m.figures.find((f) => f.kind === 'traverse' && f.unit === u);
+    expect(fig('T-9')).toMatchObject({ ductStatic: -0.42, temperature: 55 });
+    expect(fig('T-20')).toMatchObject({ ductStatic: 'Not Acc.', temperature: null });
+  });
+
   it('a pump picked from the pump-curve library carries its curve at the estimated impeller', () => {
     const b = bundle();
     const m = buildGraphicsModel({ ...b, completions: completions(b), libraryPumps: PUMP_LIB });

@@ -1156,6 +1156,8 @@ without readings are left out.
     design, the spread (coefficient of variation: 10 % or less is even, over 20 % uneven), and the location check:
     how many readings have a velocity pressure of at least 1/10 of the highest. Under 75 % marks a poor traverse
     location (the usual field-test criterion).
+  - the **conditions at the traverse**: duct static pressure (in. w.g.) and air temperature (°F), from the
+    traverse's *Conditions* section (its N/A notation when marked, *not recorded* when blank).
 - **Outlet / valve charts**: design vs. actual for every outlet table and valve system, with the tolerance band.
 - **Pumps**: design and operating point, and the pump curve with the pump-curve library.
 
