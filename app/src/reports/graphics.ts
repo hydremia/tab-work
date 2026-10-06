@@ -831,6 +831,19 @@ export async function renderGraphicsPdf(
           : `${above} of ${nums.length} (${num(share * 100)} %) ${share >= 0.75 ? '· OK' : '· under 75 %: poor location'}`,
         share !== null && share < 0.75 ? RED : GREEN,
       ],
+      // the conditions at the traverse point (NEBB: report the duct static pressure and the air temperature)
+      [
+        'Duct static pressure',
+        typeof f.ductStatic === 'number' ? `${num(f.ductStatic, 2)} in. w.g.` : (f.ductStatic ?? 'not recorded'),
+        f.ductStatic === null ? MUTED : INK,
+      ],
+      [
+        'Air temperature',
+        typeof f.temperature === 'number'
+          ? `${num(f.temperature, Number.isInteger(f.temperature) ? 0 : 1)} °F`
+          : (f.temperature ?? 'not recorded'),
+        f.temperature === null ? MUTED : INK,
+      ],
     ];
     const rTop = ptop + ph + 34;
     rows2.forEach(([k, v, c], i) => {

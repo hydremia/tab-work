@@ -60,6 +60,9 @@ export interface TraverseFigure {
    * `endPositions` (in. from the left end), half at each end. `average` is area-weighted (rectangle and circle).
    */
   flatOval?: { flat: number; height: number; ends: (number | null)[]; endPositions: number[] };
+  /** Conditions at the traverse: duct static pressure (in. w.g.) and air temperature (°F), or their N/A notation. */
+  ductStatic: number | string | null;
+  temperature: number | string | null;
 }
 
 export interface BarRow {
@@ -136,6 +139,13 @@ const TABLE_LABEL: Record<string, string> = {
   exhaust: 'Exhaust inlets',
   valves: 'Balancing valves',
 };
+
+/** A traverse condition as printed: the reading, its N/A notation, or null when not recorded. */
+function condition(e: Equipment, key: string): number | string | null {
+  const mark = e.naState.fields[key];
+  if (mark) return mark.notation;
+  return xlNum(e.data[key]);
+}
 
 export function buildGraphicsModel(input: {
   project: Project;
@@ -218,6 +228,8 @@ export function buildGraphicsModel(input: {
             cfm: avg !== null && layout.ak ? avg * layout.ak : null,
             design: xlNum(e.data.designCfm),
             ...(flatOval ? { flatOval } : {}),
+            ductStatic: condition(e, 'ductStatic'),
+            temperature: condition(e, 'temperature'),
           });
         }
       }
