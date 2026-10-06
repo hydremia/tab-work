@@ -24,3 +24,5 @@ export const TEMPLATE_FILE_NAME = '07 - a2b_Blank_TAB_Workbook 10-6-26.xlsm';
 export const TEMPLATE_06_FILE_NAME = '06 - a2b_Blank_TAB_Workbook 10-1-26.xlsm';
 export * from './toleranceColors.js';
 export * from './hideBlocks.js';
+export * from './calc.js';
+export { parseFormula, type Node as FormulaNode } from './formula.js';
