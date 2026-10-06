@@ -192,7 +192,7 @@ export function ExportPage() {
         </div>
       )}
 
-      <ReportCheck result={check} base={`/p/${project.id}`} />
+      <ReportCheck result={check} base={`/p/${project.id}`} projectId={project.id} locked={Boolean(project.lock)} />
 
       <section className="card card-pad stack" aria-labelledby="ex-h">
         <h2 id="ex-h">TAB workbook (.xlsm)</h2>

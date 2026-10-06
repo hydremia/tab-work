@@ -61,6 +61,22 @@ describe('review sign-off (jsdom)', () => {
     expect((await db.equipment.get(rtu2.id))?.review?.name).toBe('Dana');
   });
 
+  it('Export → Report check: a "Check" line is accepted (blue, by whom) and cleared', async () => {
+    const user = userEvent.setup();
+    const p = await createProject({ name: 'Riverside' });
+    await addEquipment(p.id, 'rtu', 'RTU-1'); // not started: "Every unit complete" is a Check on a prelim
+    renderAt(`/p/${p.id}/export`);
+    const line = await screen.findByTestId('check-complete');
+    await waitFor(() => expect(line).toHaveAttribute('data-status', 'warn'));
+    await user.type(within(line).getByLabelText('Reviewer name'), 'Isaac');
+    await user.click(within(line).getByTestId('accept-complete'));
+    await waitFor(() => expect(screen.getByTestId('check-complete')).toHaveAttribute('data-status', 'accepted'));
+    expect(screen.getByTestId('accepted-complete')).toHaveTextContent('Accepted by Isaac');
+    expect(screen.getByTestId('report-check-summary')).toHaveTextContent('1 accepted');
+    await user.click(within(screen.getByTestId('accepted-complete')).getByRole('button', { name: 'Clear' }));
+    await waitFor(() => expect(screen.getByTestId('check-complete')).toHaveAttribute('data-status', 'warn'));
+  });
+
   it('the equipment list shows blue cards and the reviewed rollup', async () => {
     const { p, rtu } = await greenUnit();
     await markReviewed(rtu.id, 'Dana');

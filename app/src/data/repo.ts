@@ -14,6 +14,7 @@ import type { Table } from 'dexie';
 import { CERT_DEFAULTS, CERT_KEYS } from '../domain/certification';
 import { computeCompletion } from '../domain/completion';
 import { duplicateData, duplicateRow } from '../domain/duplicate';
+import { acceptanceKey } from '../domain/review';
 import { equipmentType, nextFreeSlot, workbookDef, type EquipmentTypeKey } from '../domain/equipmentTypes';
 import type { PreviewRow } from '../domain/scheduleImport';
 import { getSpec } from '../domain/specs';
@@ -495,6 +496,20 @@ export async function markReviewed(equipmentId: string, name?: string): Promise<
 
 export async function clearReview(equipmentId: string): Promise<void> {
   await setField('equipment', equipmentId, 'review', null);
+}
+
+/**
+ * Accept a report check's findings (a "Check" line): project info `accept_<key>` holds who, when and the findings'
+ * fingerprint (domain/review.ts checkAcceptance), synced like any project field.
+ */
+export async function acceptCheck(projectId: string, checkKey: string, fp: string, name?: string): Promise<void> {
+  if (name !== undefined && name.trim()) await setUserName(name);
+  const { name: who, at } = await signature();
+  await setField('projects', projectId, `info.${acceptanceKey(checkKey)}`, JSON.stringify({ name: who, at, fp }));
+}
+
+export async function clearCheckAcceptance(projectId: string, checkKey: string): Promise<void> {
+  await setField('projects', projectId, `info.${acceptanceKey(checkKey)}`, null);
 }
 
 /** Lock the project at an issued revision (Export tab → Issue report). */

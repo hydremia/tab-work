@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { emptyNaState, type AirflowRow, type Equipment } from '../data/types';
 import { sampleBundle } from '../test/fixtures';
 import { computeCompletion } from './completion';
-import { reviewProject, type ReviewInput } from './review';
+import { acceptanceKey, findingsFingerprint, reviewProject, type ReviewInput } from './review';
 import { getSpec } from './specs';
 
 let n = 700;
@@ -34,7 +34,7 @@ describe('report check', () => {
     expect(byKey(r, 'narrative').status).toBe('pass');
     expect(byKey(r, 'dates').status).toBe('pass');
     expect(byKey(r, 'complete').status).toBe('warn');
-    expect(r.checks.every((c) => ['pass', 'warn', 'fail', 'na'].includes(c.status))).toBe(true);
+    expect(r.checks.every((c) => ['pass', 'warn', 'accepted', 'fail', 'na'].includes(c.status))).toBe(true);
   });
 
   it('report date before the TAB date, empty narrative, expired certification on a final report', () => {
@@ -141,5 +141,30 @@ describe('report check', () => {
     expect(h).toMatch(/CHW: memory stops/);
     expect(h).toMatch(/P-2: its system "HW" has no valve system page/);
     expect(h).toMatch(/VFD pump P-1, but no VFD/);
+  });
+});
+
+describe('accepting a "Check" line', () => {
+  it('holds while the findings are unchanged, shows Check again when they change; Must fix is never accepted', () => {
+    const before = reviewProject(input());
+    const complete = byKey(before, 'complete');
+    expect(complete.status).toBe('warn');
+    const accept = (fp: string) => (b: ReturnType<typeof sampleBundle>) => {
+      b.project.info[acceptanceKey('complete')] = JSON.stringify({ name: 'Isaac', at: 1, fp });
+    };
+    const r = reviewProject(input(accept(findingsFingerprint(complete))));
+    expect(byKey(r, 'complete')).toMatchObject({ status: 'accepted', accepted: { name: 'Isaac', at: 1 } });
+    expect(r.accepted).toBe(1);
+    expect(r.warn).toBe(before.warn - 1);
+    // the findings changed since (another fingerprint): Check again
+    expect(byKey(reviewProject(input(accept('0-0'))), 'complete').status).toBe('warn');
+    // a final report makes it Must fix: not accepted
+    const fin = reviewProject(
+      input((b) => {
+        accept(findingsFingerprint(complete))(b);
+        b.project.reportKind = 'final';
+      }),
+    );
+    expect(byKey(fin, 'complete').status).toBe('fail');
   });
 });

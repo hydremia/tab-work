@@ -40,7 +40,8 @@ export const REVIEW_THRESHOLDS = {
   maxPsi: 300,
 };
 
-export type CheckStatus = 'pass' | 'warn' | 'fail' | 'na';
+/** `accepted`: a "Check" line a reviewer accepted (its findings unchanged since). */
+export type CheckStatus = 'pass' | 'warn' | 'accepted' | 'fail' | 'na';
 
 export interface CheckFinding {
   text: string;
@@ -58,6 +59,8 @@ export interface ReviewCheck {
   /** Shown when the check passes or does not apply. */
   note?: string;
   findings: CheckFinding[];
+  /** Who accepted the findings and when (status `accepted`). */
+  accepted?: CheckAcceptance;
 }
 
 export interface ReviewInput {
@@ -81,6 +84,7 @@ export interface ReviewResult {
   checks: ReviewCheck[];
   fail: number;
   warn: number;
+  accepted: number;
   pass: number;
 }
 
@@ -397,10 +401,56 @@ export function reviewProject(input: ReviewInput): ReviewResult {
     );
   }
 
+  for (const c of checks) {
+    if (c.status !== 'warn') continue;
+    const a = checkAcceptance(project.info, c);
+    if (a) {
+      c.status = 'accepted';
+      c.accepted = a;
+    }
+  }
+
   return {
     checks,
     fail: checks.filter((c) => c.status === 'fail').length,
     warn: checks.filter((c) => c.status === 'warn').length,
+    accepted: checks.filter((c) => c.status === 'accepted').length,
     pass: checks.filter((c) => c.status === 'pass').length,
   };
+}
+
+// ------------------------------------------------------------------ acceptances
+/**
+ * A reviewer can accept a "Check" (warning) line: stored as project info `accept_<check key>` (a JSON string: who,
+ * when and a fingerprint of the findings), synced like any project field. The acceptance holds while the findings
+ * are the same; any change of them (a new discrepancy, a different count) shows the line as "Check" again. A
+ * "Must fix" line is never accepted.
+ */
+export interface CheckAcceptance {
+  name: string;
+  at: number;
+  /** Fingerprint of the findings when accepted (findingsFingerprint). */
+  fp: string;
+}
+
+export const acceptanceKey = (checkKey: string) => `accept_${checkKey}`;
+
+/** A short, stable fingerprint of a check's findings (their texts in order). */
+export function findingsFingerprint(c: Pick<ReviewCheck, 'findings'>): string {
+  let h = 5381;
+  for (const ch of c.findings.map((f) => f.text).join('\n')) h = ((h * 33) ^ ch.charCodeAt(0)) >>> 0;
+  return `${c.findings.length}-${h.toString(16)}`;
+}
+
+/** The acceptance of a check that still matches its findings, else null. */
+export function checkAcceptance(info: Project['info'], c: ReviewCheck): CheckAcceptance | null {
+  const raw = info[acceptanceKey(c.key)];
+  if (typeof raw !== 'string') return null;
+  try {
+    const a = JSON.parse(raw) as Partial<CheckAcceptance>;
+    if (typeof a.fp !== 'string' || a.fp !== findingsFingerprint(c)) return null;
+    return { name: typeof a.name === 'string' ? a.name : '', at: typeof a.at === 'number' ? a.at : 0, fp: a.fp };
+  } catch {
+    return null;
+  }
 }

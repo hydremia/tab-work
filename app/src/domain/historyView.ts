@@ -66,6 +66,7 @@ const PRESSURE_LABEL: Record<string, string> = {
 };
 
 function infoLabel(key: string): string {
+  if (key.startsWith('accept_')) return `Report check accepted (${key.slice('accept_'.length)})`;
   return (
     PRESSURE_LABEL[key] ??
     CERT_LABELS[key] ??

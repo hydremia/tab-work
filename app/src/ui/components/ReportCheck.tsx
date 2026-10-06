@@ -3,23 +3,37 @@
  * Failures on a final report are listed first; every finding links to the unit or page to fix.
  */
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { db } from '../../data/db';
-import { useCertProfile, useInstruments } from '../../data/hooks';
+import { useCertProfile, useInstruments, useUserName } from '../../data/hooks';
+import { acceptCheck, clearCheckAcceptance } from '../../data/repo';
 import type { Equipment, Issue, Project } from '../../data/types';
 import type { AttentionItem } from '../../domain/attention';
 import type { Completion } from '../../domain/completion';
-import { reviewProject, type CheckStatus, type ReviewResult } from '../../domain/review';
+import {
+  findingsFingerprint,
+  reviewProject,
+  type CheckStatus,
+  type ReviewCheck,
+  type ReviewResult,
+} from '../../domain/review';
 import { StatusIcon } from './Status';
 
-const ICON: Record<CheckStatus, 'green' | 'amber' | 'red' | 'gray'> = {
+const ICON: Record<CheckStatus, 'green' | 'amber' | 'red' | 'gray' | 'blue'> = {
   pass: 'green',
   warn: 'amber',
+  accepted: 'blue',
   fail: 'red',
   na: 'gray',
 };
-const WORD: Record<CheckStatus, string> = { pass: 'OK', warn: 'Check', fail: 'Must fix', na: 'n/a' };
+const WORD: Record<CheckStatus, string> = {
+  pass: 'OK',
+  warn: 'Check',
+  accepted: 'Accepted',
+  fail: 'Must fix',
+  na: 'n/a',
+};
 
 export function useReportCheck(
   project: Project,
@@ -37,10 +51,91 @@ export function useReportCheck(
   }, [project, equipment, rows, issues, instruments, completions, attention, certProfile]);
 }
 
-/** `base`: the project's path; without it (a checked file) findings are plain text. */
-export function ReportCheck({ result, base }: { result: ReviewResult | undefined; base?: string }) {
+const day = (t: number) => new Date(t).toLocaleDateString('en-US', { dateStyle: 'medium' });
+
+/** Accept a "Check" line (who and when; it shows "Check" again when its findings change), or clear an acceptance. */
+function AcceptRow({ projectId, check, locked }: { projectId: string; check: ReviewCheck; locked: boolean }) {
+  const saved = useUserName();
+  const [typed, setTyped] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const name = typed ?? saved ?? '';
+  const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
+  if (check.accepted)
+    return (
+      <div className="review-row" data-testid={`accepted-${check.key}`}>
+        <span className="grow review-done">
+          <StatusIcon color="blue" size={16} /> Accepted{check.accepted.name ? ` by ${check.accepted.name}` : ''}
+          {check.accepted.at ? ` · ${day(check.accepted.at)}` : ''}
+        </span>
+        <button
+          type="button"
+          className="btn"
+          disabled={locked}
+          onClick={() => void clearCheckAcceptance(projectId, check.key).catch(fail)}
+        >
+          Clear
+        </button>
+        {error && (
+          <span className="small" role="alert">
+            {error}
+          </span>
+        )}
+      </div>
+    );
+  return (
+    <div className="review-row">
+      <label className="visually-hidden" htmlFor={`accept-name-${check.key}`}>
+        Reviewer name
+      </label>
+      <input
+        id={`accept-name-${check.key}`}
+        className="input"
+        placeholder="Reviewer name"
+        value={name}
+        disabled={locked}
+        onChange={(e) => setTyped(e.target.value)}
+        autoComplete="name"
+      />
+      <button
+        type="button"
+        className="btn"
+        disabled={locked || !name.trim()}
+        data-testid={`accept-${check.key}`}
+        onClick={() =>
+          void acceptCheck(projectId, check.key, findingsFingerprint(check), name).then(() => setTyped(null), fail)
+        }
+      >
+        <StatusIcon color="blue" size={16} /> Accept
+      </button>
+      <span className="small muted" style={{ flexBasis: '100%' }}>
+        Accepting records that these were reviewed; the line shows Check again if its findings change.
+      </span>
+      {error && (
+        <span className="small" role="alert">
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * `base`: the project's path; without it (a checked file) findings are plain text. `projectId`: "Check" lines can
+ * be accepted (not while `locked`).
+ */
+export function ReportCheck({
+  result,
+  base,
+  projectId,
+  locked = false,
+}: {
+  result: ReviewResult | undefined;
+  base?: string;
+  projectId?: string;
+  locked?: boolean;
+}) {
   if (!result) return null;
-  const order: CheckStatus[] = ['fail', 'warn', 'pass', 'na'];
+  const order: CheckStatus[] = ['fail', 'warn', 'accepted', 'pass', 'na'];
   const checks = [...result.checks].sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status));
   const link = (to: string) => (to.startsWith('/') ? to : `${base}/${to}`);
   return (
@@ -51,7 +146,8 @@ export function ReportCheck({ result, base }: { result: ReviewResult | undefined
         </h2>
         <span className="small" data-testid="report-check-summary">
           {result.fail > 0 && <b style={{ color: 'var(--red)' }}>{result.fail} must fix · </b>}
-          {result.warn} to check · {result.pass} OK
+          {result.warn} to check · {result.accepted > 0 && <>{result.accepted} accepted · </>}
+          {result.pass} OK
         </span>
       </div>
       <p className="small muted" style={{ margin: 0 }}>
@@ -83,6 +179,9 @@ export function ReportCheck({ result, base }: { result: ReviewResult | undefined
                 <p className="small muted" style={{ margin: '4px 0 0' }}>
                   {c.note ?? (c.status === 'na' ? 'Not applicable.' : 'Nothing found.')}
                 </p>
+              )}
+              {projectId && (c.status === 'warn' || c.status === 'accepted') && (
+                <AcceptRow projectId={projectId} check={c} locked={locked} />
               )}
             </details>
           </li>
