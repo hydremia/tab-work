@@ -521,6 +521,9 @@ otherwise the page says so.
 - **Auto-save**: every field saves a moment after you stop typing and when you leave it. There's no Save button.
 - A **\*** marks a required field.
 - Number fields open the number keypad.
+- **Remarks** print on the unit's page. **Field notes (not in the report)**, under them, are for working math, sizes
+  and readings to re-check: they stay in the app and are never exported. **Move remarks to field notes** moves the
+  whole remark there in one tap (the page also says when the remarks look like working math).
 
 ### Airflow rows (outlets, inlets, registers)
 
@@ -627,6 +630,10 @@ that total. The workbook (revision 07) has a *Measured at hood* line under the f
 design / initial / final CFM, in the fan's totals. (Re-issued onto a rev 05 / 06 workbook, each hood is one row of the
 fan's grilles instead: "Hood H-1 (measured at hood)", Ak 1, VEL = the hood CFM.) A re-import turns either back into
 the hood link.
+
+Read the fan itself instead (a raw opening, no filters at the hood)? Set **Airflow measured at** to **Grilles** and
+enter the reading in its grille table. Grille readings left on a fan measured at the hood are not exported: the fan
+page says so in red and the export lists a warning.
 
 ![Fan](../screenshots/09-fan.png)
 
@@ -760,6 +767,12 @@ separately:
 - **Delete** removes the issue and its deficiency photos (it asks first).
 
 The Issues tab count shows open deficiencies.
+
+**Suggested deficiencies.** At the top of the Issues tab, every unit with readings outside tolerance and no issue
+yet, e.g. *EF-12 (New): Registers / grilles 1 at 63 % and Registers / grilles 2 at 128 % of design, outside the ±10 %
+tolerance.* **Add as deficiency** adds it pre-filled and linked to the unit (and to the line when there is only one);
+edit the remark as it should read. **Not a deficiency** sets the unit aside for this project (for example when its
+remarks explain it). Issues are never added on their own: only the ones on this tab go on the Summary pages.
 
 **Issues and photos of one airflow line.** Each outlet / grille / valve row has, in its **Row…** menu, **Add issue
 for this line** (the new issue opens on the Issues tab with the unit and the line already set) and **Add photo of
@@ -1075,7 +1088,8 @@ every time, each line linking to the unit or page to fix:
   images; every listed instrument calibrated within 12 months before the TAB date.
 - **Units:** every unit complete (a *must fix* on a final report); reviewed before a final report; no two units of a
   type with the same designation, no repeated row numbers.
-- **Remarks:** every unit with a reading out of tolerance has a remark or an issue explaining it.
+- **Remarks:** every unit with a reading out of tolerance has a remark or an issue explaining it; no working math left
+  in a unit's remarks ("516 = 1484", a column of numbers): move it to the unit's field notes.
 - **Electrical:** measured voltage within ±10 % of the rated voltage; voltage imbalance at most 2 %.
 - **Values:** readings outside a plausible range (a typo such as 85 in. w.g. or 25,000 fpm).
 - **Hydronic:** a valve recorded wide open per system, memory stops set, pumps and valve systems named alike, the VFD
@@ -1087,6 +1101,12 @@ runs the same check on any a2b revision 05 or 06 workbook (another tech's report
 (unit completeness is left out there: photos are not in a workbook).
 
 ![Report check](../screenshots/41-report-check.png)
+
+**Spelling.** Under the Report check, **Check spelling** checks the text that prints (narrative, Building Balance
+notes and pressure remarks, unit remarks, areas served, locations, final settings, airflow lines' areas, issues)
+against an English dictionary plus trade and manufacturer words. Acronyms and tags (CFM, VFDs, RTU-1, 8x8) are
+skipped. Each word shows suggestions and links to where it is typed; **Ignore** adds it to this project's word list.
+The dictionary comes with the app, so it works offline. Typing in a field also gets the device's own spell check.
 
 ### Final report with the figures
 

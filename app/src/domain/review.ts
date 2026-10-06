@@ -24,6 +24,7 @@ import { certValue, CERT_KEYS } from './certification';
 import type { Completion } from './completion';
 import { EQUIPMENT_TYPES } from './equipmentTypes';
 import { calibrationExempt, calibrationExpired } from './instruments';
+import { scratchLines } from './remarks';
 import type { AttentionGroup, AttentionItem } from './attention';
 import { ATTENTION_GROUPS } from './attention';
 import { xlNum } from './staticProfile';
@@ -263,6 +264,17 @@ export function reviewProject(input: ReviewInput): ReviewResult {
       ref: 'NEBB 5.2.4 (deficiencies noted)',
     }),
   );
+  // working math left in the remarks (they print): it belongs in the unit's field notes
+  const scratch: CheckFinding[] = [];
+  for (const e of units) {
+    const lines = scratchLines(e.data.remarks);
+    if (lines.length)
+      scratch.push({
+        text: `${e.designation}: the remarks hold working notes ("${lines[0].trim()}"${lines.length > 1 ? ` and ${lines.length - 1} more line${lines.length > 2 ? 's' : ''}` : ''}). Move them to the field notes, which stay in the app.`,
+        to: unitTo(e, 'remarks'),
+      });
+  }
+  checks.push(check('scratch', 'remarks', 'No working notes in the remarks', scratch));
 
   // ------------------------------------------------------------------ electrical
   const elec: CheckFinding[] = [];

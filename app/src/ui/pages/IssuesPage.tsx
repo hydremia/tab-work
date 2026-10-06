@@ -1,10 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { db } from '../../data/db';
 import { usePhotos } from '../../data/hooks';
 import { addIssue, deleteRecord, moveIssue, setField, setFields, setIssueType } from '../../data/repo';
-import { isObservation } from '../../domain/issues';
+import { dismissedSuggestions, isObservation, suggestedDeficiencies } from '../../domain/issues';
 import { rowNames } from '../../domain/rowLabels';
 import type { Equipment, Issue, IssueKind, Photo } from '../../data/types';
 import { deficiencyLabels, issueLabel, issuePhotos } from '../../photos/labels';
@@ -229,6 +229,64 @@ function IssueCard({
   );
 }
 
+/** Units out of tolerance with no issue yet: one tap adds the deficiency, pre-filled and linked to the unit. */
+function SuggestedDeficiencies() {
+  const { project, equipment, issues, status, locked } = useProjectContext();
+  const navigate = useNavigate();
+  const dismissed = dismissedSuggestions(project.info);
+  const list = suggestedDeficiencies(equipment, status?.byEquipment, issues, project.tolerance, dismissed);
+  if (locked || !list.length) return null;
+  return (
+    <section className="card card-pad stack" aria-labelledby="sugg-h" data-testid="suggested-deficiencies">
+      <h2 id="sugg-h" style={{ margin: 0 }}>
+        Suggested deficiencies <span className="tab-count">{list.length}</span>
+      </h2>
+      <p className="small muted" style={{ margin: 0 }}>
+        Readings outside tolerance with no issue yet. Add one to list it on the Summary page, or set it aside when the
+        unit's remarks explain it.
+      </p>
+      {list.map((s) => (
+        <div key={s.equipmentId} className="stack" style={{ gap: 4 }} data-testid={`suggest-${s.designation}`}>
+          <div className="small">
+            <b>{s.designation}</b> ({s.kind === 'new' ? 'New' : 'Existing'}): {s.remark}
+            {s.hasRemark && <span className="muted"> Its remarks may already explain it.</span>}
+          </div>
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() =>
+                void addIssue(project.id, {
+                  kind: s.kind,
+                  equipmentId: s.equipmentId,
+                  airflowRowId: s.airflowRowId,
+                  remark: s.remark,
+                }).then((i) => navigate(`#issue-${i.id}`))
+              }
+            >
+              <IconPlus size={16} /> Add as deficiency
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() =>
+                void setField(
+                  'projects',
+                  project.id,
+                  'info.issueSuggestDismissed',
+                  [...dismissed, s.equipmentId].join('\n'),
+                )
+              }
+            >
+              Not a deficiency
+            </button>
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 export function IssuesPage() {
   const { project, equipment, issues, locked } = useProjectContext();
   const photos = usePhotos(project.id);
@@ -264,6 +322,7 @@ export function IssuesPage() {
           </p>
         </div>
       </div>
+      <SuggestedDeficiencies />
       <fieldset className="lockable" disabled={locked}>
         <legend className="visually-hidden">Issues</legend>
         {groups.map((g) => {

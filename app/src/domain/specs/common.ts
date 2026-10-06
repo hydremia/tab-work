@@ -21,5 +21,13 @@ export const remarksSection: SectionSpec = {
   airflow: true,
   fields: [
     { key: 'remarks', label: 'Remarks', input: 'textarea', required: false, hint: 'One line per workbook remark line' },
+    {
+      key: 'fieldNotes',
+      label: 'Field notes (not in the report)',
+      input: 'textarea',
+      required: false,
+      appOnly: true,
+      hint: 'Working math, sizes, readings to re-check: stays in the app, never exported',
+    },
   ],
 };

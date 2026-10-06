@@ -95,6 +95,22 @@ describe('hood ↔ exhaust fan', () => {
     expect(back.data).not.toHaveProperty('hoodLine');
   });
 
+  it('grille readings entered on a fan measured at its hood are not lost silently: the export warns', () => {
+    const { b, fan } = linked();
+    b.rows.push({
+      ...b.rows[0],
+      id: 'kef-g1',
+      equipmentId: fan.id,
+      table: 'outlets',
+      order: 1,
+      data: { finalVel: 900 },
+    });
+    const w = toProjectData(b).warnings.join('\n');
+    expect(w).toMatch(/KEF-1 .*measured at hood H-1, H-2, so its \d+ grille readings? (is|are) not exported/);
+    fan.data.measuredAt = 'Grilles';
+    expect(toProjectData(b).warnings.join('\n')).not.toMatch(/grille readings? (is|are) not exported/);
+  });
+
   it('export onto a rev 05 / 06 workbook: one grille row per hood, Ak 1 with the hood CFM as VEL, and an Ak note', () => {
     const { b, fan } = linked();
     const { data } = toProjectData(b, 'air', TEMPLATE_MAP_06);

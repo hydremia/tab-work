@@ -36,7 +36,7 @@ import { CERT_KEYS, CERT_PRELIM_REASON, certValue } from '../domain/certificatio
 import { PRESSURE_KEYS, PRESSURE_ROWS } from '../domain/projectCompletion';
 import { findRow, rowNames } from '../domain/rowLabels';
 import { joinSheaveBore, splitSheaveBore } from '../domain/sheaveBore';
-import { fanAtHood, hoodLinks, hoodsAirflow, hoodTotals } from '../domain/equipmentCalcs';
+import { fanAtHood, fanHoodIgnoredReadings, hoodLinks, hoodsAirflow, hoodTotals } from '../domain/equipmentCalcs';
 import { isObservation } from '../domain/issues';
 import { SPARE_OA_ROWS, spareOaKey, type SpareOaColumn } from '../domain/spareOa';
 import { getSpec, seqKey, tableColumns, type EquipmentSpec, type RowTableSpec } from '../domain/specs';
@@ -421,6 +421,11 @@ export function toProjectData(
       // fan's totals); in a rev 05 / 06 workbook each hood is one grille row, Ak 1 with the hood's CFM as VEL, so the
       // Fans sheet and the Building Balance get the right CFM
       const hoods = e.type === 'fan' && t.key === 'outlets' ? (hoodLinked.get(e.id) ?? []) : [];
+      const ignored = td && hoods.length && fanAtHood(e, true) ? fanHoodIgnoredReadings(unitRows) : 0;
+      if (ignored)
+        warnings.push(
+          `${path}: measured at hood ${hoods.map((h) => h.designation).join(', ')}, so its ${ignored} grille reading${ignored === 1 ? ' is' : 's are'} not exported (set Measured at to Grilles to use them)`,
+        );
       if (td && hoods.length && fanAtHood(e, true) && layout.fields?.some((f) => f.key === 'hoodLine')) {
         const air = hoodsAirflow(
           hoods,

@@ -52,6 +52,7 @@ import { SpecField } from '../components/SpecField';
 import { StatusBadge, StatusIcon } from '../components/Status';
 import type { AirflowRow, Instrument, Issue, Photo } from '../../data/types';
 import { openDeficiencies } from '../../domain/issues';
+import { appendNotes, scratchLines } from '../../domain/remarks';
 
 function fieldLabel(f: FieldSpec, data: Equipment['data']): string {
   if (!f.component) return f.label;
@@ -267,6 +268,28 @@ function SectionCard({
                   }
                 />
               ))}
+            </div>
+          )}
+          {section.key === 'remarks' && typeof equipment.data.remarks === 'string' && equipment.data.remarks.trim() && (
+            <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'baseline' }}>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                data-testid="move-remarks"
+                onClick={() =>
+                  void setFields('equipment', equipment.id, {
+                    'data.fieldNotes': appendNotes(equipment.data.fieldNotes, String(equipment.data.remarks)),
+                    'data.remarks': null,
+                  })
+                }
+              >
+                Move remarks to field notes
+              </button>
+              {scratchLines(equipment.data.remarks).length > 0 && (
+                <span className="small" style={{ color: 'var(--amber)' }}>
+                  The remarks look like working notes; they print on the report.
+                </span>
+              )}
             </div>
           )}
           {section.tables?.map((t) => (
