@@ -13,6 +13,7 @@ import {
 } from './templateMap.js';
 import { inputCells } from './inputCells.js';
 import { fitPrintAreas } from './printAreas.js';
+import { hideUnusedBlocks, type HideReport } from './hideBlocks.js';
 import { applyToleranceColors } from './toleranceColors.js';
 import { APP_INFO_PROP, EXISTING_UNITS_PROP, type RevisionMarker, writeCustomProperties, writeRevisionMarker } from './docProps.js';
 import { anchorSizeEmu, type CoverPhotoCropper, drawingPictures } from './coverPhoto.js';
@@ -58,6 +59,11 @@ export interface ExportOptions {
    * tolerance and red outside (toleranceColors.ts). null: colours of an earlier export are removed. Omitted: nothing.
    */
   toleranceColors?: number | null;
+  /**
+   * Hide what the report does not use (unused unit sheets and blocks, empty continuation pages and table rows, unused
+   * Equipment Summary / Building Balance lines: hideBlocks.ts), as the Print Report macro would. Airside map only.
+   */
+  hideUnused?: boolean;
 }
 
 export interface ExportReport {
@@ -75,6 +81,7 @@ export interface ExportReport {
     width: number; height: number; srcWidth: number; srcHeight: number; bytes: number;
   };
   certImages?: CertImagesReport;
+  hidden?: HideReport;
 }
 
 type CellWrite = { kind: 'text'; text: string } | { kind: 'number'; n: number } | { kind: 'clear' };
@@ -556,6 +563,15 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
       return `<c${a.replace(/\st="[^"]*"/, '')}>${fx}<v></v></c>`;
     });
     if (n) { zip.file(s.part, fixed); report.cachedValuesStripped += n; }
+  }
+  // ---- unused blocks hidden (the Print Report macro's job, done here so the export prints clean as it is)
+  if (opts.hideUnused) {
+    const h = await hideUnusedBlocks(zip, sheets, wbXml, map, project, sst);
+    if (h.xml !== wbXml) {
+      wbXml = h.xml;
+      zip.file(wbPart, wbXml);
+    }
+    report.hidden = h.report;
   }
   // ---- print areas: each unit sheet prints through the page of its last unit
   const fitted = await fitPrintAreas(zip, sheets, wbXml, map, project.equipment, project.sections);

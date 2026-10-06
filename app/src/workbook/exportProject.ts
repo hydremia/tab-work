@@ -98,6 +98,8 @@ export async function exportProject(projectId: string, opts: ExportOptions = {})
     marker,
     certImages,
     toleranceColors: bundle.project.tolerance,
+    // unused units, pages and empty rows hidden, so the workbook prints clean without the Print Report macro
+    hideUnused: true,
   };
 
   let out: { bytes: Uint8Array; report: ExportReport } | undefined;

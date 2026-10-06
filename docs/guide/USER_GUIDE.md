@@ -830,13 +830,21 @@ sent anywhere by itself.
 ### The TAB workbook (.xlsm)
 
 1. **Export** tab → **TAB workbook (.xlsm)** card. It shows the equipment and issue counts, the template
-   (**Revision 06**, or 05 for projects started before) and the status bar.
+   (**Revision 07**; an issued rev 05 / 06 workbook is re-issued in its own revision) and the status bar.
 2. Check the **Revision** label. The app suggests **Prelim** first, then **Rev 1**, **Rev 2**… and you can type
    **Final** or anything else.
 3. Tap **Export Prelim (.xlsm)** (the button shows the label).
 4. The file `<Project> - TAB Report <date>.xlsm` downloads, and a box under the button confirms it.
 
 You can export even when some units aren't complete. The app just notes that it's a preliminary workbook.
+
+**The workbook comes out ready to print.** The export hides what the report doesn't use, as the *Print Report* macro
+would: unit sheets with no units of their type (e.g. VAVs, Traverses), unused unit blocks, continuation pages with
+nothing on them, empty outlet / grille rows, and the Equipment Summary and Building Balance lines of units the
+project doesn't have. Printing or saving as PDF from Excel prints only the used pages. To fill in more by hand in
+Excel, unhide the rows (select the rows around them → right-click → **Unhide**) or the sheet (right-click a sheet tab
+→ **Unhide…**); the next export from the app sets it all again. The ToC page numbers still come from Excel
+(*Print Report*, or the ToC button).
 
 To send out the report *and* freeze the data, use **Issue report as Prelim** instead (see
 [section 10](#issue-the-report-lock)). The plain **Export** button never locks anything, so use it for working copies
