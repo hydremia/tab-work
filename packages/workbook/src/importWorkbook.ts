@@ -1,15 +1,41 @@
 /**
  * importWorkbook: read the template map's input cells back out of a workbook -> ProjectData.
  * Handles inline strings (our export), shared strings (Excel / LibreOffice re-saves), numbers and dates.
+ * The map is the one of the workbook's own template revision (detectTemplateRevision) unless one is given.
  */
+import type JSZip from 'jszip';
 import { loadWorkbookZip } from './zipLimits.js';
-import { cellValue, listSheets, loadSharedStrings, longToIso, parseCells, RawCell, readText, serialToIso, usToIso } from './ooxml.js';
-import { anchorRow, blockLayout, FieldDef, fieldPreset, FieldType, Layout, sequenceCells, tableRows, TEMPLATE_MAP, TemplateMap } from './templateMap.js';
+import {
+  cellValue, listSheets, loadSharedStrings, longToIso, parseCells, parseDefinedNames, RawCell, readText, serialToIso, usToIso, workbookPart,
+} from './ooxml.js';
+import {
+  anchorRow, blockLayout, FieldDef, fieldPreset, FieldType, Layout, mapForRevision, REVISION_NAME, sequenceCells, tableRows, TemplateMap,
+} from './templateMap.js';
 import type { Cell, LayoutData, ProjectData, UnitData, Value } from './types.js';
 import { readAppInfo, readExistingUnits, readRevisionMarker, type RevisionMarker } from './docProps.js';
 
 export interface ImportOptions { map?: TemplateMap }
 export interface ImportReport { warnings: string[] }
+
+/**
+ * The template revision a workbook was made from: its `a2b.TemplateRevision` name (revision 07 on), or null for a
+ * workbook without one (revisions 05 / 06, whose layout is TEMPLATE_MAP_06).
+ */
+export async function detectTemplateRevision(zip: JSZip): Promise<string | null> {
+  let wb: string;
+  try {
+    wb = await readText(zip, await workbookPart(zip));
+  } catch {
+    return null;
+  }
+  const n = parseDefinedNames(wb).find((d) => d.name === REVISION_NAME && d.localSheetId === undefined);
+  return n ? n.ref.replace(/^="?|"$/g, '').replace(/^"/, '') : null;
+}
+
+/** detectTemplateRevision on workbook bytes ('06' for a workbook without a revision name: the rev 05 / 06 layout). */
+export async function workbookRevision(bytes: Uint8Array): Promise<string> {
+  return (await detectTemplateRevision(await loadWorkbookZip(bytes))) ?? '06';
+}
 
 export async function importWorkbook(bytes: Uint8Array, opts: ImportOptions = {}): Promise<ProjectData> {
   return (await importWorkbookWithReport(bytes, opts)).project;
@@ -17,8 +43,8 @@ export async function importWorkbook(bytes: Uint8Array, opts: ImportOptions = {}
 
 export async function importWorkbookWithReport(bytes: Uint8Array, opts: ImportOptions = {}):
   Promise<{ project: ProjectData; report: ImportReport; marker: RevisionMarker | null }> {
-  const map = opts.map ?? TEMPLATE_MAP;
   const zip = await loadWorkbookZip(bytes);
+  const map = opts.map ?? mapForRevision((await detectTemplateRevision(zip)) ?? '06');
   const sheets = await listSheets(zip);
   const sst = await loadSharedStrings(zip);
   const report: ImportReport = { warnings: [] };

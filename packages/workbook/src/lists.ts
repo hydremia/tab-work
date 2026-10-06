@@ -1,5 +1,5 @@
 /**
- * Dropdown lists of the revision 05 template ({Dropdowns} named ranges), for building forms without opening
+ * Dropdown lists of the revision 07 template (rev 05 / 06: without Intake and Flat Oval) ({Dropdowns} named ranges), for building forms without opening
  * the template. The exporter still validates against the template's own lists; `lists.test.ts` checks that
  * these copies match the template.
  */
@@ -26,9 +26,9 @@ export const TEMPLATE_LISTS = {
     'Other Velocity Meter',
     'Other Instrument',
   ],
-  'Airflow.Method': ['Outlets', 'PSP', 'Filter Grid', 'Profile Pressure'],
+  'Airflow.Method': ['Outlets', 'PSP', 'Filter Grid', 'Profile Pressure', 'Intake'],
   'PSP.Width': [6, 9, 10, 12, 14, 16, 18, 20, 24],
-  'Duct.Shape': ['Rectangular', 'Round'],
+  'Duct.Shape': ['Rectangular', 'Round', 'Flat Oval'],
   'Hood.FilterType': [
     'Baffle (VelGrid)',
     'Captrate (VelGrid)',

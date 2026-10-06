@@ -18,6 +18,8 @@ export * from './compat.js';
 export * from './schedule.js';
 export * from './zipLimits.js';
 
-/** File name of the template the map describes (at the repository root). */
-export const TEMPLATE_FILE_NAME = '06 - a2b_Blank_TAB_Workbook 10-1-26.xlsm';
+/** File name of the template TEMPLATE_MAP describes (at the repository root). */
+export const TEMPLATE_FILE_NAME = '07 - a2b_Blank_TAB_Workbook 10-6-26.xlsm';
+/** File name of the revision 06 template (the rev 05 / 06 layout, TEMPLATE_MAP_06). */
+export const TEMPLATE_06_FILE_NAME = '06 - a2b_Blank_TAB_Workbook 10-1-26.xlsm';
 export * from './toleranceColors.js';

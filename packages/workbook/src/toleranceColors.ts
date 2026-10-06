@@ -7,6 +7,7 @@
  * The cells are found by their formulas, so no cell list has to be kept in step with the template:
  *   - outlet / inlet rows:  IF(OR(H#="",H#=0),"",IF(K#="",IF(J#="",... J#/H# ...   (Final or Initial CFM / design)
  *   - totals and summaries: IF(OR(L#="",K#="",K#=0),"",IF(OR(ISTEXT(L#),ISTEXT(K#)),"",L#/K#))   (actual / design)
+ *   - Building Balance (rev 07): the same ratio inside IF($P#<>"","Excl.", ...) (an excluded row shows "Excl.")
  * Rules added by an earlier export (recognised by their formula) are replaced, never duplicated.
  */
 import type JSZip from 'jszip';
@@ -15,6 +16,8 @@ import { colToNum, readText, splitRef } from './ooxml.js';
 const OUTLET = /^IF\(OR\(([A-Z]+)(\d+)="",\1\2=0\),"",IF\([A-Z]+\2="",IF\([A-Z]+\2="",""/;
 const RATIO =
   /^IF\(OR\(([A-Z]+)(\d+)="",([A-Z]+)(\d+)="",\3\4=0\),"",IF\(OR\(ISTEXT\(\1\2\),ISTEXT\(\3\4\)\),"",\1\2\/\3\4\)\)$/;
+/** Revision 07 Building Balance: the row's ratio, or "Excl." when the row is left out of the totals. */
+const EXCLUDED = /^IF\(\$[A-Z]+\d+<>"","Excl\.",(.*)\)$/;
 /** The formulas of the rules this module writes (to find them again). */
 const OURS =
   /<conditionalFormatting\b[^>]*>(?:(?!<\/conditionalFormatting>)[\s\S])*?AND\(ISNUMBER\(\$?[A-Z]+\$?\d+\),ABS\([A-Z]+\d+-1\)(?:&lt;=|&gt;)[\d.]+\)(?:(?!<\/conditionalFormatting>)[\s\S])*?<\/conditionalFormatting>/g;
@@ -29,7 +32,8 @@ export function percentCells(sheetXml: string): string[] {
   const out: string[] = [];
   const sharedHit = new Set<string>();
   const isPercent = (f: string) => {
-    const g = f.replace(/&quot;/g, '"').replace(/\s+/g, '');
+    let g = f.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, '');
+    g = EXCLUDED.exec(g)?.[1] ?? g;
     return OUTLET.test(g) || RATIO.test(g);
   };
   for (const m of sheetXml.matchAll(/<c\b([^>]*)>\s*<f\b([^>]*?)(?:\/>|>([^<]*)<\/f>)/g)) {

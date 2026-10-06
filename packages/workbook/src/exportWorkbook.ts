@@ -558,7 +558,7 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
     if (n) { zip.file(s.part, fixed); report.cachedValuesStripped += n; }
   }
   // ---- print areas: each unit sheet prints through the page of its last unit
-  const fitted = await fitPrintAreas(zip, sheets, wbXml, map, project.equipment);
+  const fitted = await fitPrintAreas(zip, sheets, wbXml, map, project.equipment, project.sections);
   if (fitted.changed.length) {
     wbXml = fitted.xml;
     zip.file(wbPart, wbXml);
