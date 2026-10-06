@@ -753,6 +753,23 @@ export function ProjectInfoPage() {
                   onCommit={(v) => void setField('projects', project.id, `blueprints.${i}.revisionDate`, v ?? '')}
                 />
               </div>
+              {project.blueprints.length > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  aria-label={`Remove sheet ${i + 1}`}
+                  onClick={() =>
+                    void setField(
+                      'projects',
+                      project.id,
+                      'blueprints',
+                      blueprints.filter((_, j) => j !== i),
+                    )
+                  }
+                >
+                  <IconTrash size={16} />
+                </button>
+              )}
             </div>
           ))}
           {project.blueprints.length < 9 && (

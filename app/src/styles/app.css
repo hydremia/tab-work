@@ -1554,7 +1554,7 @@ textarea {
 
 .bp-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 11.5rem;
+  grid-template-columns: minmax(0, 1fr) 11.5rem auto;
   gap: 8px;
   align-items: end;
 }

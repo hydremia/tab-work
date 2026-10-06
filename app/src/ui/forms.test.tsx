@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
@@ -225,6 +225,35 @@ describe('Duplicate, needs attention, building pressures (jsdom)', () => {
       expect(card.querySelector('[data-field="bbKitchenDp"]')).toHaveAttribute('data-state', 'missing'),
     );
     expect(screen.getByTestId('project-completion')).toHaveTextContent('Kitchen vs Dining ΔP');
+  });
+});
+
+describe('Blueprints used (jsdom)', () => {
+  it('a typed revision date is saved only once complete; a sheet row can be removed', async () => {
+    const p = await createProject({ name: 'Job' });
+    await setField('projects', p.id, 'blueprints', [
+      { sheet: 'M1.0', revisionDate: '2026-01-05' },
+      { sheet: 'M2.0', revisionDate: '' },
+      { sheet: '', revisionDate: '' },
+    ]);
+    renderAt(`/p/${p.id}/info`);
+    const date = (await screen.findByLabelText('Revision date', { selector: '#bp-date-1' })) as HTMLInputElement;
+    // typing the year passes through 0002, 0020, 0202: none of them is saved, and the field keeps what was typed
+    for (const v of ['0002-03-04', '0020-03-04', '0202-03-04']) {
+      act(() => {
+        fireEvent.change(date, { target: { value: v } });
+      });
+      expect(date).toHaveValue(v);
+    }
+    act(() => {
+      fireEvent.change(date, { target: { value: '2026-03-04' } });
+    });
+    fireEvent.blur(date);
+    await waitFor(async () => expect((await db.projects.get(p.id))?.blueprints[1].revisionDate).toBe('2026-03-04'));
+    // remove the extra (third) sheet
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Remove sheet 3' }));
+    await waitFor(async () => expect((await db.projects.get(p.id))?.blueprints).toHaveLength(2));
+    expect((await db.projects.get(p.id))?.blueprints.map((b) => b.sheet)).toEqual(['M1.0', 'M2.0']);
   });
 });
 

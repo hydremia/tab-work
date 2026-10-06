@@ -159,13 +159,21 @@ export function DateInput({
   onCommit,
   ...rest
 }: BaseProps & { value: string; onCommit: (v: string | null) => void }) {
+  // a draft while typing: typing the year passes through 0002-, 0020-, 0202- … and an incomplete date reads "",
+  // so only a full date with a plausible year is saved as you type; clearing is saved on blur
+  const d = useDraft<string>(value, (s) => onCommit(s || null));
   return (
     <input
       id={id}
       className="input"
       type="date"
-      value={value}
-      onChange={(e) => onCommit(e.target.value || null)}
+      value={d.shown}
+      onChange={(e) => d.change(e.target.value, /^(19|20)\d\d-\d\d-\d\d$/.test(e.target.value))}
+      onBlur={(e) => {
+        // cleared (not just left half-typed, which the browser reports as badInput)
+        if (e.target.value === '' && !e.target.validity.badInput && value !== '') onCommit(null);
+        d.blur();
+      }}
       {...rest}
     />
   );
