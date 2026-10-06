@@ -41,6 +41,26 @@ describe('review sign-off (jsdom)', () => {
     expect((await db.equipment.get(rtu.id))?.review?.name).toBe('Dana');
   });
 
+  it('Previous / Next step through the units in list order; "Mark reviewed & next" opens the next unreviewed', async () => {
+    const user = userEvent.setup();
+    const { p, rtu } = await greenUnit();
+    const mau = await addEquipment(p.id, 'mau', 'MAU-1');
+    const rtu2 = await addEquipment(p.id, 'rtu', 'RTU-2');
+    await markReviewed(rtu.id, 'Dana'); // already reviewed: skipped by "& next"
+    await setField('equipment', rtu2.id, 'naState.equipment', { notation: 'N/A' });
+    const router = renderAt(`/p/${p.id}/e/${rtu.id}`);
+    const stepper = await screen.findByTestId('unit-stepper');
+    expect(stepper).toHaveTextContent('1 of 3'); // RTU-1, RTU-2, MAU-1 (by type, then slot)
+    expect(within(stepper).queryByTestId('prev-unit')).toBeNull();
+    await user.click(within(stepper).getByTestId('next-unit'));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/p/${p.id}/e/${rtu2.id}`));
+    expect(await screen.findByTestId('unit-stepper')).toHaveTextContent('2 of 3');
+    expect(screen.getByLabelText('Reviewer name')).toHaveValue('Dana'); // remembered from the last review
+    await user.click(screen.getByTestId('mark-reviewed-next'));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/p/${p.id}/e/${mau.id}`));
+    expect((await db.equipment.get(rtu2.id))?.review?.name).toBe('Dana');
+  });
+
   it('the equipment list shows blue cards and the reviewed rollup', async () => {
     const { p, rtu } = await greenUnit();
     await markReviewed(rtu.id, 'Dana');

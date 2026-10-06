@@ -39,7 +39,7 @@ import {
 } from '../../domain/completion';
 import { evalCond } from '../../domain/conditions';
 import { hoodFanTags, hoodLinks, traverseLayout } from '../../domain/equipmentCalcs';
-import { equipmentType, nextDesignation } from '../../domain/equipmentTypes';
+import { EQUIPMENT_TYPES, equipmentType, nextDesignation } from '../../domain/equipmentTypes';
 import { getSpec, type FieldSpec, type SectionSpec, type SequenceSpec } from '../../domain/specs';
 import { airflowOnlySections } from '../../domain/unitScope';
 import { AirflowTable } from '../components/AirflowTable';
@@ -409,11 +409,15 @@ function ReviewRow({
   equipment,
   completion,
   locked,
+  nextToReview,
 }: {
   equipment: Equipment;
   completion: Completion;
   locked: boolean;
+  /** The next unit (equipment list order) not reviewed yet: "Mark reviewed & next" opens it. */
+  nextToReview?: Equipment;
 }) {
+  const navigate = useNavigate();
   const saved = useUserName();
   const [typed, setTyped] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -483,6 +487,22 @@ function ReviewRow({
       >
         <StatusIcon color="blue" size={16} /> Mark reviewed
       </button>
+      {nextToReview && (
+        <button
+          type="button"
+          className="btn"
+          disabled={locked || !name.trim()}
+          data-testid="mark-reviewed-next"
+          onClick={() =>
+            void markReviewed(equipment.id, name).then(() => {
+              setTyped(null);
+              void navigate(`/p/${equipment.projectId}/e/${nextToReview.id}`);
+            }, fail)
+          }
+        >
+          Mark reviewed &amp; next ({nextToReview.designation}) ›
+        </button>
+      )}
       {completion.color === 'red' && (
         <span className="small muted" style={{ flexBasis: '100%' }} data-testid="review-accepts">
           Reviewing accepts the issue / tolerance callouts above; they stay on the report.
@@ -494,6 +514,40 @@ function ReviewRow({
         </span>
       )}
     </div>
+  );
+}
+
+/** The project's units in the equipment list's order (by type, then workbook slot). */
+const listOrder = (all: readonly Equipment[]) =>
+  EQUIPMENT_TYPES.flatMap((t) => all.filter((e) => e.type === t.key).sort((a, b) => a.slot - b.slot));
+
+/** Previous / Next unit in the equipment list's order, for stepping through units while reviewing. */
+function UnitStepper({ equipment, ordered }: { equipment: Equipment; ordered: readonly Equipment[] }) {
+  const i = ordered.findIndex((e) => e.id === equipment.id);
+  if (i < 0 || ordered.length < 2) return null;
+  const prev = ordered[i - 1];
+  const next = ordered[i + 1];
+  const to = (e: Equipment) => `/p/${e.projectId}/e/${e.id}`;
+  return (
+    <nav className="unit-stepper" aria-label="Previous and next unit" data-testid="unit-stepper">
+      {prev ? (
+        <Link className="btn btn-ghost" to={to(prev)} data-testid="prev-unit">
+          ‹ {prev.designation}
+        </Link>
+      ) : (
+        <span />
+      )}
+      <span className="small muted">
+        {i + 1} of {ordered.length}
+      </span>
+      {next ? (
+        <Link className="btn btn-ghost" to={to(next)} data-testid="next-unit">
+          {next.designation} ›
+        </Link>
+      ) : (
+        <span />
+      )}
+    </nav>
   );
 }
 
@@ -608,6 +662,10 @@ export function EquipmentPage() {
     if (equipment && (equipment.data.sheaveBore !== undefined || equipment.naState.fields.sheaveBore))
       void splitLegacySheaveBore(equipment);
   }, [equipment]);
+  // stepping to another unit (Previous / Next): start at its top
+  useEffect(() => {
+    if (!window.location.hash) window.scrollTo(0, 0);
+  }, [equipmentId]);
   // a link to a section (needs-attention list, "Show missing"): scroll there once the form is rendered
   useEffect(() => {
     if (!ready || !hash) return;
@@ -647,6 +705,7 @@ export function EquipmentPage() {
   const esp = unitEspCheck(equipment, c, project.tolerance);
   const locked = Boolean(project.lock);
   const shown = displayColor(c.color, Boolean(equipment.review), c.complete);
+  const ordered = listOrder(all);
   const unitConflicts = (conflicts ?? []).filter((x) => x.equipmentId === equipment.id);
 
   return (
@@ -781,7 +840,13 @@ export function EquipmentPage() {
               </ul>
             </details>
           )}
-          <ReviewRow equipment={equipment} completion={c} locked={locked} />
+          <ReviewRow
+            equipment={equipment}
+            completion={c}
+            locked={locked}
+            nextToReview={ordered.slice(ordered.findIndex((e) => e.id === equipment.id) + 1).find((e) => !e.review)}
+          />
+          <UnitStepper equipment={equipment} ordered={ordered} />
         </section>
 
         {sections.length > 2 && (

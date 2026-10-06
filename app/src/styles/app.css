@@ -2047,6 +2047,14 @@ fieldset.lockable:disabled .card {
   padding-top: 10px;
   border-top: 1px solid var(--border);
 }
+.unit-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
 .review-row .input {
   flex: 1 1 140px;
   min-width: 0;
