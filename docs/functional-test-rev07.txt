@@ -1,0 +1,95 @@
+PASS [0] blank template: error cells: 0
+PASS [1] RTUs motor sheave K16: '2VP60'
+PASS [1] RTUs fan pulley K17: 'BK90'
+PASS [1] RTUs motor bore M16: '1-3/8'
+PASS [1] RTUs Estimated BHP G18: 4.125
+PASS [1] MAUs motor sheave K16: '2VP60'
+PASS [1] MAUs fan pulley K17: 'BK90'
+PASS [1] MAUs motor bore M16: '1-3/8'
+PASS [1] MAUs Estimated BHP G18: 2.75
+PASS [1] Fans motor sheave K16: '2VP60'
+PASS [1] Fans fan pulley K17: 'BK90'
+PASS [1] Fans motor bore M16: '1-3/8'
+PASS [1] Fans Estimated BHP G18: 2.6304347826087
+PASS [1] unit blocks: error cells: 0
+PASS [2] PSP CFM initial: 1124.44444444444
+PASS [2] PSP CFM final: 1405.55555555556
+PASS [2] filter CFM initial C: 279.45
+PASS [2] filter CFM final D: 738.72
+PASS [2] filter total initial: 915.57
+PASS [2] filter total final: 1064.745
+PASS [2] intake CFM row 1 final: 1000
+PASS [2] intake total initial: 1900
+PASS [2] intake total final: 2300
+PASS [2] profile CFM: 697.15
+PASS [2] page-2 outlet subtotal (final): 450
+PASS [2] page-1 total design (both pages): 1500
+PASS [2] design total airflow K9: 1500
+PASS [2] Method Total (PSP): 1405.55555555556
+PASS [2] Total Airflow actual L9 (PSP): 1405.55555555556
+PASS [2] PSP: error cells: 0
+PASS [2] Method Total (PSP-initial): 1124.44444444444
+PASS [2] Total Airflow actual L9 (PSP-initial): 1124.44444444444
+PASS [2] PSP-initial: error cells: 0
+PASS [2] Method Total (Filter Grid): 1064.745
+PASS [2] Total Airflow actual L9 (Filter Grid): 1064.745
+PASS [2] Filter Grid: error cells: 0
+PASS [2] Method Total (Profile Pressure): 697.15
+PASS [2] Total Airflow actual L9 (Profile Pressure): 697.15
+PASS [2] Profile Pressure: error cells: 0
+PASS [2] Method Total (Intake): 2300
+PASS [2] Total Airflow actual L9 (Intake): 2300
+PASS [2] Intake: error cells: 0
+PASS [2] Method Total (Intake-initial): 1900
+PASS [2] Total Airflow actual L9 (Intake-initial): 1900
+PASS [2] Intake-initial: error cells: 0
+PASS [2] Method Total (Outlets): 1350
+PASS [2] Total Airflow actual L9 (Outlets): 1350
+PASS [2] Outlets: error cells: 0
+PASS [3] hood line % (final / design): 0.95
+PASS [3] fan total design H49: 1200
+PASS [3] fan total final L49: 1160
+PASS [3] fan design K9 / actual L9: (1200, 1160)
+PASS [3] Building Balance EF-1 actual: 1160
+PASS [4] RTU-2 marked (its %): ('RTU-2', 'Excl.')
+PASS [4] RTU-1 not marked: ('RTU-1', 1.1)
+PASS [4] OA design total without RTU-2: 400
+PASS [4] OA actual total without RTU-2: 440
+PASS [4] EF-3 marked (its %): ('EF-3', 'Excl.')
+PASS [4] exhaust design total without EF-3: 150
+PASS [4] exhaust actual total without EF-3: 180
+PASS [4] design building balance: 250
+PASS [5] flat oval Ak H7: 2.285
+PASS [5] flat oval size F7: '30" x 12" oval'
+PASS [5] flat oval points M9: '3x3+8 ends'
+PASS [5] flat oval end points O9: 8
+PASS [5] flat oval Final VEL L7: 931
+PASS [5] flat oval CFM M7: 2127
+PASS [5] flat oval grid row 1: [1000, 1000, 1000, None]
+PASS [5] flat oval ends row 4: [800, 800, 800, 800, 800, 800, 800, 800, None]
+PASS [5] flat oval row labels: [2, 10, 'Ends', None]
+PASS [5] flat oval positions: [3, 9, 15, None]
+PASS [5] same as rev 06: F22: '24" x 12"'
+PASS [5] same as rev 06: H22: 2
+PASS [5] same as rev 06: L22: 955
+PASS [5] same as rev 06: M22: 1910
+PASS [5] same as rev 06: M24: '4 x 3'
+PASS [5] same as rev 06: N24: 4
+PASS [5] same as rev 06: N25: 3
+PASS [5] same as rev 06: N26: 12
+PASS [5] same as rev 06: grid of block at row 20: ['Depth↓ Pos→ (in)', 3, 9, 15, 21, None, None, None, None, None, None, 2, 900, 910, 920, 930, None, None, None, None, None, None, 6, 940, 950, 960, 970, None, None, None, None, None, None, 10, 980, 990, 1000, 1010, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None]
+PASS [5] same as rev 06: F37: '14" dia'
+PASS [5] same as rev 06: H37: 1.069
+PASS [5] same as rev 06: L37: 995
+PASS [5] same as rev 06: M37: 1064
+PASS [5] same as rev 06: M39: '10 x 2 axes'
+PASS [5] same as rev 06: N39: 10
+PASS [5] same as rev 06: N40: 2
+PASS [5] same as rev 06: N41: 20
+PASS [5] same as rev 06: grid of block at row 35: ['Depth↓ Pos→ (in)', 0.4, 1.1, 2.1, 3.2, 4.8, 9.2, 10.8, 11.9, 12.9, 13.6, 'Axis 1 (0°)', 900, 910, 920, 930, 940, 950, 960, 970, 980, 990, 'Axis 2 (90°)', 1000, 1010, 1020, 1030, 1040, 1050, 1060, 1070, 1080, 1090, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None]
+PASS [5] traverses: error cells: 0
+PASS [6] N/A notations in new inputs: error cells: 0
+PASS [6] RTU BHP with N/A amps legs (E:G all N/A) is blank: None
+
+92 / 92 checks passed
+EXIT 0
