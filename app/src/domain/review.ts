@@ -179,7 +179,7 @@ export function reviewProject(input: ReviewInput): ReviewResult {
   // ------------------------------------------------------------------ units
   const incomplete = units.filter((e) => {
     const c = completions.get(e.id);
-    return c && c.color !== 'green';
+    return c && !c.complete;
   });
   if (!input.fromFile)
     checks.push(
@@ -189,19 +189,17 @@ export function reviewProject(input: ReviewInput): ReviewResult {
         'Every unit complete',
         incomplete.map((e) => {
           const c = completions.get(e.id)!;
-          const why =
-            c.color === 'red'
-              ? 'issue / tolerance'
-              : c.color === 'gray'
-                ? 'not started'
-                : `${c.missing.length} item${c.missing.length === 1 ? '' : 's'} missing`;
+          // a red unit with every item entered is complete: its issues / tolerance are on the report
+          const why = !c.started
+            ? 'not started'
+            : `${c.missing.length} item${c.missing.length === 1 ? '' : 's'} missing`;
           return { text: `${e.designation}: ${why}.`, to: unitTo(e) };
         }),
         { severity: final ? 'fail' : 'warn', na: !units.length, note: units.length ? undefined : 'No units yet.' },
       ),
     );
   if (final && !input.fromFile) {
-    const unreviewed = units.filter((e) => completions.get(e.id)?.color === 'green' && !e.review);
+    const unreviewed = units.filter((e) => completions.get(e.id)?.complete && !e.review);
     checks.push(
       check(
         'reviewed',

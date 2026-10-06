@@ -51,11 +51,11 @@ describe('review sign-off (jsdom)', () => {
     expect(screen.getByTestId('rollup-rtu')).toHaveTextContent('RTUs 1/1 complete, 1 reviewed');
   });
 
-  it('a unit that is not green offers no review', async () => {
+  it('a unit that is not complete offers no review', async () => {
     const p = await createProject({ name: 'Job' });
     const rtu = await addEquipment(p.id, 'rtu', 'RTU-1');
     renderAt(`/p/${p.id}/e/${rtu.id}`);
-    expect(await screen.findByTestId('review-status')).toHaveTextContent('once complete');
+    expect(await screen.findByTestId('review-status')).toHaveTextContent('once every required item is entered');
     expect(screen.queryByTestId('mark-reviewed')).toBeNull();
   });
 });

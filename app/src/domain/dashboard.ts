@@ -64,7 +64,7 @@ export function dashboardRow(i: DashboardInput): DashboardRow {
   return {
     ...i,
     stage,
-    pctComplete: t.total ? t.green / t.total : 0,
+    pctComplete: t.total ? t.complete / t.total : 0,
     pctReviewed: t.total ? t.reviewed / t.total : 0,
     address: str(i.project.info.address),
     tabDate: str(i.project.info.tabDate),
@@ -116,7 +116,7 @@ export function dashboardTotals(rows: readonly DashboardRow[]) {
   return {
     projects: rows.length,
     units: sum((r) => r.total.total),
-    complete: sum((r) => r.total.green),
+    complete: sum((r) => r.total.complete),
     reviewed: sum((r) => r.total.reviewed),
     openIssues: sum((r) => r.openIssues.new + r.openIssues.existing),
     attention: sum((r) => r.attention),

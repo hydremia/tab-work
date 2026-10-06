@@ -369,7 +369,10 @@ describe('rollup', () => {
       green: 2,
       red: 1,
       reviewed: 0,
+      complete: 2,
     });
+    // a red unit with every item entered counts as complete
+    expect(rollup(['green', 'red', 'red', 'blue'], [true, true, false, true])).toMatchObject({ complete: 3 });
   });
 
   it('counts blue (reviewed) as complete and reviewed', () => {

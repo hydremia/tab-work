@@ -40,7 +40,7 @@ async function greenUnit() {
 const history = async (projectId: string) => (await projectHistory(projectId)).reverse(); // oldest first
 
 describe('review sign-off', () => {
-  it('only a green unit can be reviewed; the review is a synced field with name, user, device and time', async () => {
+  it('only a complete unit can be reviewed; the review is a synced field with name, user, device and time', async () => {
     const p = await createProject({ name: 'Job' });
     const rtu = await addEquipment(p.id, 'rtu', 'RTU-1');
     await expect(markReviewed(rtu.id, 'Dana')).rejects.toBeInstanceOf(NotCompleteError);
@@ -54,6 +54,26 @@ describe('review sign-off', () => {
     expect((await db.meta.get('userName'))?.value).toBe('Dana'); // remembered for the next review
     const h = (await history(p.id)).at(-1)!;
     expect(h).toMatchObject({ kind: 'review', equipmentId: rtu.id, userName: 'Dana' });
+  });
+
+  it('a complete unit with an open issue (red) is complete, can be reviewed, and then shows blue', async () => {
+    const { p, rtu } = await greenUnit();
+    await addIssue(p.id, { remark: 'Belt worn', equipmentId: rtu.id });
+    const status = async () =>
+      projectStatus({
+        project: (await db.projects.get(p.id))!,
+        equipment: await db.equipment.toArray(),
+        rows: [],
+        photos: [],
+        issues: await db.issues.toArray(),
+      });
+    let s = await status();
+    expect(s.byEquipment.get(rtu.id)).toMatchObject({ color: 'red', complete: true });
+    expect(s.total).toMatchObject({ total: 1, red: 1, complete: 1, reviewed: 0 });
+    await markReviewed(rtu.id, 'Dana');
+    s = await status();
+    expect(s.display.get(rtu.id)).toBe('blue');
+    expect(s.total).toMatchObject({ complete: 1, reviewed: 1 });
   });
 
   it('shows blue in the status and rollups: "1/2 complete, 1 reviewed"', async () => {

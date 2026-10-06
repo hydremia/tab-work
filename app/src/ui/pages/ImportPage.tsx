@@ -6,6 +6,7 @@
  *  - a workbook for a project that was never in the app here: "Create new project", or "Compare with project…"
  *    (a two-way review against a project the user picks).
  */
+import { TEMPLATE_REVISION } from '@a2b/workbook/map';
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { db } from '../../data/db';
@@ -169,7 +170,7 @@ export function ImportPage() {
         <p className="small muted" style={{ margin: 0 }}>
           {into
             ? 'The report exported from this project (and edited in Excel since). You review every changed value before anything is saved.'
-            : 'A revision 05 workbook (.xlsm) exported by this app or filled in by hand. On a phone, pick it from Files / Dropbox.'}
+            : `A revision ${TEMPLATE_REVISION} (or earlier) workbook (.xlsm) exported by this app or filled in by hand. On a phone, pick it from Files / Dropbox.`}
         </p>
         <label className="btn btn-primary btn-lg file-btn">
           <IconFile size={20} /> {busy ? 'Reading…' : 'Choose .xlsm file'}

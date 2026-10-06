@@ -26,8 +26,9 @@ import {
 export type StatusColor = 'gray' | 'amber' | 'green' | 'red';
 /**
  * What cards and rollups show: the completion color, or blue = complete and reviewed (signed off). Blue is never
- * computed by the engine; it is a green unit with a review (`displayColor`). A reviewed unit that is not green any
- * more (e.g. an issue was opened on it) shows its real color.
+ * computed by the engine; it is a complete unit with a review (`displayColor`): green, or red with every item entered
+ * (its issues / tolerance callouts reviewed and accepted, still on the report). A reviewed unit that is no longer
+ * complete shows its real color.
  */
 export type DisplayColor = StatusColor | 'blue';
 
@@ -39,8 +40,8 @@ export const STATUS_LABEL: Record<DisplayColor, string> = {
   blue: 'Reviewed',
 };
 
-export const displayColor = (color: StatusColor, reviewed: boolean): DisplayColor =>
-  color === 'green' && reviewed ? 'blue' : color;
+export const displayColor = (color: StatusColor, reviewed: boolean, complete = color === 'green'): DisplayColor =>
+  reviewed && complete && (color === 'green' || color === 'red') ? 'blue' : color;
 
 export type ItemState =
   'value' | 'na' | 'auto-na' | 'section-na' | 'equipment-na' | 'scope-na' | 'optional' | 'missing';
@@ -105,6 +106,11 @@ export interface Completion {
   color: StatusColor;
   label: string;
   started: boolean;
+  /**
+   * Every required item entered (started, nothing missing), whatever the color: a red unit (open issue / out of
+   * tolerance) can be complete, its callouts go on the report. Complete units can be reviewed.
+   */
+  complete: boolean;
   required: number;
   satisfied: number;
   missing: MissingItem[];
@@ -167,6 +173,7 @@ export function computeCompletion(input: CompletionInput): Completion {
     color: 'gray',
     label: '',
     started: false,
+    complete: false,
     required: 0,
     satisfied: 0,
     missing: [],
@@ -426,6 +433,7 @@ export function computeCompletion(input: CompletionInput): Completion {
     });
   }
 
+  res.complete = res.started && res.missing.length === 0;
   if (res.openIssues > 0 || res.outOfTolerance.length > 0) res.color = 'red';
   else if (!res.started) res.color = 'gray';
   else if (res.missing.length === 0) res.color = 'green';
@@ -445,22 +453,26 @@ export interface Rollup {
   red: number;
   /** Complete and reviewed (blue); a subset of `green`. */
   reviewed: number;
+  /** Every required item entered: `green` plus the red units that are complete (their callouts to review). */
+  complete: number;
 }
 
-export function rollup(colors: readonly DisplayColor[]): Rollup {
-  const r: Rollup = { total: colors.length, gray: 0, amber: 0, green: 0, red: 0, reviewed: 0 };
-  for (const c of colors) {
+/** `complete[i]`: unit i has every required item entered (Completion.complete); without it only green counts. */
+export function rollup(colors: readonly DisplayColor[], complete?: readonly boolean[]): Rollup {
+  const r: Rollup = { total: colors.length, gray: 0, amber: 0, green: 0, red: 0, reviewed: 0, complete: 0 };
+  colors.forEach((c, i) => {
     if (c === 'blue') {
       r.green++;
       r.reviewed++;
     } else r[c]++;
-  }
+    if (c === 'blue' || c === 'green' || (c === 'red' && complete?.[i])) r.complete++;
+  });
   return r;
 }
 
 /** "5/8 complete, 3 reviewed" (the reviewed part only when there is one). */
 export const rollupText = (r: Rollup) =>
-  `${r.green}/${r.total} complete${r.reviewed ? `, ${r.reviewed} reviewed` : ''}`;
+  `${r.complete}/${r.total} complete${r.reviewed ? `, ${r.reviewed} reviewed` : ''}`;
 
-/** Fraction complete for progress bars (green incl. reviewed). */
-export const completeFraction = (r: Rollup) => (r.total ? r.green / r.total : 0);
+/** Fraction complete (every required item entered, reviewed included). */
+export const completeFraction = (r: Rollup) => (r.total ? r.complete / r.total : 0);

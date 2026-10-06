@@ -303,6 +303,7 @@ function BuildingBalanceCard({ project, equipment }: { project: Project; equipme
   ];
   const off = (u: number, e: FieldValue) => typeof e === 'number' && Math.abs(u - e) >= 1;
   const cfm = (x: number | null) => (x === null ? '—' : formatNumber(x));
+  const pct = (a: number | null, d: number | null) => (a !== null && d ? formatPercent(a / d) : '—');
   return (
     <section className="card card-pad stack" aria-labelledby="bb-h" data-testid="building-balance">
       <h2 id="bb-h">Building balance</h2>
@@ -318,6 +319,7 @@ function BuildingBalanceCard({ project, equipment }: { project: Project; equipme
             <th>Side</th>
             <th>Design</th>
             <th>Actual</th>
+            <th title="Actual ÷ design">%</th>
             <th title="In the building balance">Incl.</th>
           </tr>
         </thead>
@@ -353,6 +355,7 @@ function BuildingBalanceCard({ project, equipment }: { project: Project; equipme
                     )}
                   </td>
                   <td>{cfm(a)}</td>
+                  <td data-testid={`bb-pct-${l.designation}-${side}`}>{pct(a, d ?? sched)}</td>
                   <td>
                     {k === 0 && (
                       <input
@@ -392,6 +395,7 @@ function BuildingBalanceCard({ project, equipment }: { project: Project; equipme
             <th>Design</th>
             {has && <th>Air balance</th>}
             <th>Actual</th>
+            <th title="Actual ÷ design">%</th>
           </tr>
         </thead>
         <tbody>
@@ -411,6 +415,8 @@ function BuildingBalanceCard({ project, equipment }: { project: Project; equipme
                 </td>
               )}
               <td>{cfm(a)}</td>
+              {/* the net can be near zero or negative: a percentage of it means nothing */}
+              <td data-testid={`bb-total-pct-${label}`}>{label.startsWith('Net') ? '' : pct(a, u)}</td>
             </tr>
           ))}
         </tbody>

@@ -1,8 +1,9 @@
 /**
  * /check: the report check on a workbook file, without importing it: another tech's or firm's TAB report (airside
- * revision 05 layout) is read in memory and checked with the same rules as a project on the Export tab. Nothing is
+ * a2b workbook layout) is read in memory and checked with the same rules as a project on the Export tab. Nothing is
  * saved. Photos are not in a workbook, so unit completeness and photo items are left out.
  */
+import { TEMPLATE_REVISION } from '@a2b/workbook/map';
 import { useState } from 'react';
 import { needsAttention } from '../../domain/attention';
 import { computeCompletion } from '../../domain/completion';
@@ -55,8 +56,9 @@ export function CheckWorkbookPage() {
     <Screen title="Check a workbook" back="/">
       <section className="card card-pad stack">
         <p className="small muted" style={{ margin: 0 }}>
-          Run the report check on a TAB workbook (.xlsm, the a2b revision 05 layout) without importing it: another
-          tech&apos;s report before it goes out, or a report to review. Nothing is saved on this device.
+          Run the report check on a TAB workbook (.xlsm, the a2b revision {TEMPLATE_REVISION} layout or earlier) without
+          importing it: another tech&apos;s report before it goes out, or a report to review. Nothing is saved on this
+          device.
         </p>
         <label className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>
           {busy ? 'Checking…' : 'Choose workbook…'}

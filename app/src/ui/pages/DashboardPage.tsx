@@ -58,7 +58,7 @@ function typeSummary(r: DashboardRow): string {
   return EQUIPMENT_TYPES.filter((t) => r.byType.get(t.key))
     .map((t) => {
       const x = r.byType.get(t.key)!;
-      return `${t.plural} ${x.green}/${x.total}`;
+      return `${t.plural} ${x.complete}/${x.total}`;
     })
     .join(' · ');
 }
@@ -87,7 +87,7 @@ function Row({ r, cloud }: { r: DashboardRow; cloud: boolean }) {
           <>
             <ProgressBar rollup={r.total} />
             <span className="small dash-sub" data-testid="dash-units">
-              {r.total.green}/{r.total.total} complete · {r.total.reviewed} reviewed
+              {r.total.complete}/{r.total.total} complete · {r.total.reviewed} reviewed
             </span>
             <span className="small muted dash-sub">{typeSummary(r)}</span>
           </>

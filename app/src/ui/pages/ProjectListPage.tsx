@@ -51,7 +51,7 @@ function ProjectCard({ project, r, ex }: { project: Project; r: Rollup; ex?: Exp
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <span className="small muted">
           {r.total
-            ? `${r.green} of ${r.total} units complete${r.reviewed ? ` · ${r.reviewed} reviewed` : ''}`
+            ? `${r.complete} of ${r.total} units complete${r.reviewed ? ` · ${r.reviewed} reviewed` : ''}`
             : 'No equipment yet'}
         </span>
         {r.total > 0 && <RollupCounts rollup={r} />}

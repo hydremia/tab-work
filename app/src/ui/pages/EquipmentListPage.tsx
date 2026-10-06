@@ -79,7 +79,7 @@ export function EquipmentListPage() {
           <h1>Equipment</h1>
           <p>
             {status && status.total.total
-              ? `${status.total.green} of ${status.total.total} complete${status.total.reviewed ? ` · ${status.total.reviewed} reviewed` : ''}`
+              ? `${status.total.complete} of ${status.total.total} complete${status.total.reviewed ? ` · ${status.total.reviewed} reviewed` : ''}`
               : 'Add the units you will test and balance.'}
           </p>
         </div>
@@ -170,7 +170,7 @@ export function EquipmentListPage() {
               <div className="type-head">
                 <h2 id={`grp-${t.key}`}>{t.plural}</h2>
                 <span className="rollup" data-testid={`rollup-${t.key}`}>
-                  {t.plural} {r.green}/{r.total} complete
+                  {t.plural} {r.complete}/{r.total} complete
                   {r.reviewed > 0 && (
                     <>
                       , <span style={{ whiteSpace: 'nowrap' }}>{r.reviewed} reviewed</span>

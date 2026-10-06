@@ -1,3 +1,4 @@
+import { TEMPLATE_REVISION } from '@a2b/workbook/map';
 import { useState } from 'react';
 import type { IssueKind } from '../../data/types';
 import type { PerPage } from '../../reports/layout';
@@ -177,7 +178,10 @@ export function ExportPage() {
       <div className="page-head">
         <div>
           <h1>Export</h1>
-          <p>Fills the revision 05 TAB workbook with this project's data. Runs on this device, also offline.</p>
+          <p>
+            Fills the revision {TEMPLATE_REVISION} TAB workbook with this project's data. Runs on this device, also
+            offline.
+          </p>
         </div>
       </div>
 
@@ -231,17 +235,17 @@ export function ExportPage() {
               <RollupCounts rollup={status.total} />
               <span className="small muted" data-testid="review-summary">
                 Reviewed: {status.total.reviewed} of {status.total.total} units
-                {status.total.green > status.total.reviewed
-                  ? ` (${status.total.green - status.total.reviewed} complete, not reviewed)`
+                {status.total.complete > status.total.reviewed
+                  ? ` (${status.total.complete - status.total.reviewed} complete, not reviewed)`
                   : ''}
               </span>
             </div>
           </>
         )}
-        {status && status.total.total > status.total.green && (
+        {status && status.total.total > status.total.complete && (
           <div className="callout" data-tone="amber">
-            {status.total.total - status.total.green} unit(s) are not complete yet. You can still export a preliminary
-            workbook.
+            {status.total.total - status.total.complete} unit(s) are not complete yet. You can still export a
+            preliminary workbook.
           </div>
         )}
         {smallFans > 30 && (

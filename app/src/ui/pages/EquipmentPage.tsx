@@ -401,7 +401,10 @@ function DuplicateCard({ equipment, all }: { equipment: Equipment; all: Equipmen
 
 const stamp = (t: number) => new Date(t).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
 
-/** Review sign-off: any user can mark a green unit reviewed (blue); any later change of the unit clears it. */
+/**
+ * Review sign-off: any user can mark a complete unit reviewed (blue), a red one included (its callouts accepted);
+ * any later change of the unit clears it.
+ */
 function ReviewRow({
   equipment,
   completion,
@@ -416,13 +419,13 @@ function ReviewRow({
   const [error, setError] = useState<string | null>(null);
   const name = typed ?? saved ?? '';
   const review = equipment.review;
-  const green = completion.color === 'green';
+  const complete = completion.complete;
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
   if (review) {
     return (
       <div className="review-row" data-testid="review-row">
         <span className="grow">
-          {green ? (
+          {complete ? (
             <span className="review-done" data-testid="review-status">
               <StatusIcon color="blue" size={16} /> Reviewed{review.name ? ` by ${review.name}` : ''} ·{' '}
               {stamp(review.at)}
@@ -451,10 +454,10 @@ function ReviewRow({
       </div>
     );
   }
-  if (!green)
+  if (!complete)
     return (
       <p className="small muted" style={{ margin: 0 }} data-testid="review-status">
-        Can be marked reviewed once complete (green).
+        Can be marked reviewed once every required item is entered.
       </p>
     );
   return (
@@ -480,6 +483,11 @@ function ReviewRow({
       >
         <StatusIcon color="blue" size={16} /> Mark reviewed
       </button>
+      {completion.color === 'red' && (
+        <span className="small muted" style={{ flexBasis: '100%' }} data-testid="review-accepts">
+          Reviewing accepts the issue / tolerance callouts above; they stay on the report.
+        </span>
+      )}
       {error && (
         <span className="small" role="alert">
           {error}
@@ -638,7 +646,7 @@ export function EquipmentPage() {
   const sections = spec.sections.filter((s) => !s.showWhen || evalCond(s.showWhen, values));
   const esp = unitEspCheck(equipment, c, project.tolerance);
   const locked = Boolean(project.lock);
-  const shown = displayColor(c.color, Boolean(equipment.review));
+  const shown = displayColor(c.color, Boolean(equipment.review), c.complete);
   const unitConflicts = (conflicts ?? []).filter((x) => x.equipmentId === equipment.id);
 
   return (

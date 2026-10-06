@@ -126,14 +126,20 @@ export function projectStatus({ project, equipment, rows, photos, issues }: Stat
         hoodLinked: linked.has(e.id),
       }),
     );
-    display.set(e.id, displayColor(byEquipment.get(e.id)!.color, Boolean(e.review)));
+    const c = byEquipment.get(e.id)!;
+    display.set(e.id, displayColor(c.color, Boolean(e.review), c.complete));
   }
+  const roll = (list: readonly Equipment[]) =>
+    rollup(
+      list.map((e) => display.get(e.id)!),
+      list.map((e) => byEquipment.get(e.id)!.complete),
+    );
   const byType = new Map<EquipmentTypeKey, Rollup>();
   for (const t of EQUIPMENT_TYPES) {
     const list = equipment.filter((e) => e.type === t.key);
-    if (list.length) byType.set(t.key, rollup(list.map((e) => display.get(e.id)!)));
+    if (list.length) byType.set(t.key, roll(list));
   }
-  return { byEquipment, display, byType, total: rollup([...display.values()]) };
+  return { byEquipment, display, byType, total: roll(equipment) };
 }
 
 async function loadStatusInputs(projectIds: string[]) {

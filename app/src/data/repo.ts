@@ -453,13 +453,13 @@ async function signature(): Promise<Signature> {
 
 export class NotCompleteError extends Error {
   constructor(designation: string) {
-    super(`${designation} is not complete (green) yet, so it can't be marked reviewed.`);
+    super(`${designation} is not complete yet (required items missing), so it can't be marked reviewed.`);
     this.name = 'NotCompleteError';
   }
 }
 
-/** Is the unit complete (green) right now? (The same completion the UI shows.) */
-export async function isUnitGreen(equipmentId: string): Promise<boolean> {
+/** Has the unit every required item entered right now (green, or red with callouts)? The same completion the UI shows. */
+export async function isUnitComplete(equipmentId: string): Promise<boolean> {
   const unit = await db.equipment.get(equipmentId);
   if (!unit) return false;
   const [project, rows, photos, issues, units] = await Promise.all([
@@ -470,28 +470,26 @@ export async function isUnitGreen(equipmentId: string): Promise<boolean> {
     unit.type === 'fan' ? db.equipment.where('projectId').equals(unit.projectId).toArray() : Promise.resolve([]),
   ]);
   if (!project) return false;
-  return (
-    computeCompletion({
-      spec: getSpec(unit.type),
-      unit,
-      rows,
-      photos,
-      project,
-      openIssues: openDeficiencies(issues).length,
-      hoodLinked: hoodLinks(units).has(unit.id),
-    }).color === 'green'
-  );
+  return computeCompletion({
+    spec: getSpec(unit.type),
+    unit,
+    rows,
+    photos,
+    project,
+    openIssues: openDeficiencies(issues).length,
+    hoodLinked: hoodLinks(units).has(unit.id),
+  }).complete;
 }
 
 /**
- * Sign a green unit off as reviewed (any user, decision F4). `name` (optional) is remembered on this device as the
+ * Sign a complete unit off as reviewed and accepted (any user, decision F4; a red unit's callouts stay on the report). `name` (optional) is remembered on this device as the
  * reviewer name. The review is a synced field (`review`: name, user, device, time).
  */
 export async function markReviewed(equipmentId: string, name?: string): Promise<void> {
   if (name !== undefined && name.trim()) await setUserName(name);
   const unit = await db.equipment.get(equipmentId);
   if (!unit) throw new Error('unit not found');
-  if (!(await isUnitGreen(equipmentId))) throw new NotCompleteError(unit.designation);
+  if (!(await isUnitComplete(equipmentId))) throw new NotCompleteError(unit.designation);
   await setField('equipment', equipmentId, 'review', await signature());
 }
 

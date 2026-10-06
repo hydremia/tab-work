@@ -34,7 +34,7 @@ export function ProgressBar({ rollup }: { rollup: Rollup }) {
     <div
       className="progress"
       role="img"
-      aria-label={`${rollup.green} of ${rollup.total} complete${rollup.reviewed ? ` (${rollup.reviewed} reviewed)` : ''}, ${rollup.amber} in progress, ${rollup.red} need attention, ${rollup.gray} not started`}
+      aria-label={`${rollup.complete} of ${rollup.total} complete${rollup.reviewed ? ` (${rollup.reviewed} reviewed)` : ''}, ${rollup.amber} in progress, ${rollup.red} need attention, ${rollup.gray} not started`}
     >
       <span className="seg-blue" style={{ width: pct(rollup.reviewed) }} />
       <span className="seg-green" style={{ width: pct(rollup.green - rollup.reviewed) }} />
