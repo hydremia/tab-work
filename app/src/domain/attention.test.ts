@@ -9,7 +9,7 @@ import {
   type Project,
 } from '../data/types';
 import { groupAttention, needsAttention } from './attention';
-import { calibrationExpired, pickerWarning } from './instruments';
+import { calibrationExempt, calibrationExpired, pickerWarning } from './instruments';
 
 const project: Project = {
   id: 'p',
@@ -73,6 +73,8 @@ describe('instruments vs. calibration', () => {
     expect(calibrationExpired('2025-10-21', '2026-09-15')).toBe(false);
     expect(calibrationExpired('2025-09-15', '2026-09-15')).toBe(false);
     expect(calibrationExpired('2025-09-14', '2026-09-15')).toBe(true);
+    expect(calibrationExempt({ type: 'Balometer', model: 'Three Pounder' })).toBe(true);
+    expect(calibrationExempt({ type: 'Flow Hood', model: 'ADM-860C' })).toBe(false);
     expect(calibrationExpired('2024-01-01', null)).toBe(false);
   });
 });
@@ -161,21 +163,23 @@ describe('needsAttention', () => {
         'design|RTU-1|Schedule 1,200 CFM vs. outlets 1,000 CFM',
         'design|RTU-1|Unit ESP: design 0.80 vs. actual 1.07 in. w.g. (134 %)',
         expect.stringMatching(/^motor\|RTU-1\|Measured amps above corrected FLA × SF .* L1 5\.2 A/),
-        'motor|RTU-1|Estimated BHP 3.47 is above the scheduled 3 HP.',
         'tolerance|VAV-1|Outlets S-1: 67 % of design (±10 %)',
         'photos|RTU-1|Missing: Unit, Unit label / tag, Motor / nameplate',
         'issues|Issue N-1 · RTU-1|Damper stuck',
         'capacity|MAUs|10 of 10 MAUs: the workbook has no room for more',
         'capacity|Small fans|EF-S31 past slot 30: not on Building Balance (left out of the exhaust total)',
         'calibration|Hot Wire Anemometer (VAV-1)|No calibration row for a hot-wire (thermal) anemometer',
-        'calibration|Flow Hood (RTU-1)|Balometer Evergreen Telemetry Three Pounder: calibrated 2024-03-14, more than 12 months before the TAB date (2026-09-15)',
       ]),
     );
+    // the amps are checked (FLA given): no separate BHP-above-HP item (estimated BHP 3.47 > 3 HP)
+    expect(brief.some((b) => b.includes('Estimated BHP'))).toBe(false);
+    // the balometer (calibrated 2024-03-14) needs no 12-month lab calibration
+    expect(brief.some((b) => b.includes('Three Pounder'))).toBe(false);
     // closed issues, units not started (the MAUs) and in-date meters (tachometer, multimeter, manometer) are not listed
     expect(brief.some((b) => b.includes('Closed one'))).toBe(false);
     expect(brief.some((b) => b.includes('Filters recently changed'))).toBe(false); // observations never flag
     expect(items.some((i) => i.group === 'photos' && i.subject.startsWith('MAU'))).toBe(false);
-    expect(brief.filter((b) => b.startsWith('calibration'))).toHaveLength(2);
+    expect(brief.filter((b) => b.startsWith('calibration'))).toHaveLength(1);
     // links
     expect(items.find((i) => i.group === 'motor')?.to).toBe(`e/${rtu.id}#sec-motor`);
     expect(items.find((i) => i.group === 'issues')?.to).toBe('issues');
@@ -188,6 +192,26 @@ describe('needsAttention', () => {
       'calibration',
       'capacity',
     ]);
+  });
+
+  it('an electronic flow hood calibrated more than 12 months before is listed; a balometer never is', () => {
+    const vav = unit('vav', 'VAV-1', 1, { instrument: 'Flow Hood' });
+    const hood = (type: string, model: string): Instrument => ({
+      ...instruments[0],
+      type,
+      manufacturer: 'TSI',
+      model,
+      calibrationDate: '2024-03-14',
+    });
+    const cal = (meters: Instrument[]) =>
+      needsAttention({ project, equipment: [vav], rows: [], photos: [], issues: [], instruments: meters })
+        .filter((i) => i.group === 'calibration')
+        .map((i) => i.text);
+    expect(cal([hood('Flow Hood', 'ADM-860C')])).toEqual([
+      'Flow Hood TSI ADM-860C: calibrated 2024-03-14, more than 12 months before the TAB date (2026-09-15)',
+    ]);
+    expect(cal([instruments[0]])).toEqual([]); // the 2024 Evergreen balometer
+    expect(cal([{ ...instruments[0], calibrationDate: '' }])).toEqual([]); // no date needed either
   });
 
   it('an empty project needs no attention', () => {

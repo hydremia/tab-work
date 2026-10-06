@@ -9,13 +9,14 @@
  *   issues       open issues
  *   capacity     a type at its workbook capacity; small fans past slot 30 (not on Building Balance)
  *   calibration  instruments used on units without a calibration row, or calibrated more than 12 months before
- *                the TAB date (or with no date)
+ *                the TAB date (or with no date); a balometer needs no 12-month calibration
  */
 import type { AirflowRow, Equipment, Instrument, Issue, Photo, Project } from '../data/types';
 import { formatNumber, formatPercent } from './calc';
 import { computeCompletion, type Completion } from './completion';
 import { EQUIPMENT_TYPES, equipmentType, slotCollisions } from './equipmentTypes';
 import {
+  calibrationExempt,
   calibrationExpired,
   impliedNeeds,
   INSTRUMENT_FIELDS,
@@ -251,7 +252,9 @@ export function needsAttention(input: AttentionInput): AttentionItem[] {
       continue;
     }
     // covered when at least one matching meter is in date
-    const inDate = rows.filter((r) => r.calibrationDate && !calibrationExpired(r.calibrationDate, tabDate));
+    const inDate = rows.filter(
+      (r) => calibrationExempt(r) || (r.calibrationDate && !calibrationExpired(r.calibrationDate, tabDate)),
+    );
     if (inDate.length) continue;
     const r = rows[0];
     const name = [r.type, r.manufacturer, r.model].filter(Boolean).join(' ');

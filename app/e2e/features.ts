@@ -2,8 +2,8 @@
  * E2E: equipment schedule import, duplicate, building pressures, needs attention.
  *
  *  - pressuresAndAttention(): on the main walk's project (it has a hood, so Kitchen vs Dining is required) fill the
- *    Building Balance pressure table on Info, then open the Needs attention tab: RTU-1's ESP and BHP checks and the
- *    out-of-date balometer (Flow Hood on RTU-1, calibrated 2024-03-14, TAB 2026-09-15) are listed and linked;
+ *    Building Balance pressure table on Info, then open the Needs attention tab: RTU-1's ESP and BHP checks are
+ *    listed and linked; the 2024 balometer (Flow Hood on RTU-1) is not (no 12-month lab calibration);
  *  - scheduleFlow(): a fresh browser context and project: 9 MAUs pasted (set-up), then a paste of 4 RTUs (one with
  *    an invalid CFM, one unmapped column mapped by hand) and 2 MAUs (MAU-11 over capacity): preview, import, values
  *    normalized (phase, V/Ph/Hz); duplicate RTU-3 -> RTU-4 (next slot, design data copied); the TAB workbook source
@@ -154,10 +154,10 @@ export async function pressuresAndAttention(page: Page, projectUrl: string, docS
   const tab = Number((await page.getByTestId('tab-count-attention').innerText()).trim());
   const has = (re: RegExp) => items.some((i) => re.test(i));
   check(
-    'needs attention: RTU-1 ESP (design 0.80 vs 1.07) and BHP 3.13 > 3 HP, old balometer calibration; counts match',
+    'needs attention: RTU-1 ESP (design 0.80 vs 1.07) and BHP 3.13 > 3 HP, the 2024 balometer not flagged; counts match',
     has(/^design\|RTU-1 Unit ESP: design 0\.80 vs\. actual 1\.07/) &&
       has(/^motor\|RTU-1 Estimated BHP 3\.13 is above the scheduled 3 HP/) &&
-      has(/^calibration\|Flow Hood \(RTU-1.*calibrated 2024-03-14, more than 12 months before the TAB date/) &&
+      !has(/^calibration\|Flow Hood/) &&
       count === items.length &&
       tab === items.length,
     `${count}/${tab}: ${items.join(' || ')}`,
@@ -412,11 +412,11 @@ export async function libraryFlow(browser: Browser, base: string, docShots: stri
     await page.waitForURL(/\/library$/);
     await page.getByRole('button', { name: /Add the template.s 7 a2b instruments/ }).click();
     await page.getByTestId('lib-item').nth(6).waitFor();
-    // the balometer (2024) is more than 12 months old: recalibrated
+    // the balometer (2024) needs no 12-month lab calibration: not flagged; given a new date all the same
     const balometer = page.getByTestId('lib-item').filter({ hasText: 'Balometer' });
     check(
-      'library: 7 template instruments, the 2024 balometer flagged',
-      (await balometer.getByTestId('lib-expired').count()) === 1,
+      'library: 7 template instruments, the 2024 balometer not flagged',
+      (await balometer.getByTestId('lib-expired').count()) === 0,
     );
     await balometer.locator('summary').click();
     await balometer.locator('input[type="date"]').fill('2026-09-10');

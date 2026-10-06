@@ -23,7 +23,7 @@ import { formatNumber, formatPercent } from './calc';
 import { certValue, CERT_KEYS } from './certification';
 import type { Completion } from './completion';
 import { EQUIPMENT_TYPES } from './equipmentTypes';
-import { calibrationExpired } from './instruments';
+import { calibrationExempt, calibrationExpired } from './instruments';
 import type { AttentionGroup, AttentionItem } from './attention';
 import { ATTENTION_GROUPS } from './attention';
 import { xlNum } from './staticProfile';
@@ -166,10 +166,12 @@ export function reviewProject(input: ReviewInput): ReviewResult {
     instFindings.push({ text: 'No instrument is listed on the Calibration sheet.', to: 'info#cal-h' });
   for (const i of listed) {
     const name = [i.type, i.model, i.serial && `SN ${i.serial}`].filter(Boolean).join(' ');
+    const exempt = calibrationExempt(i);
+    if (exempt && !isoDate(i.calibrationDate)) continue;
     if (!isoDate(i.calibrationDate)) instFindings.push({ text: `${name}: no calibration date.`, to: 'info#cal-h' });
     else if (tabDate && isoDate(i.calibrationDate)! > tabDate)
       instFindings.push({ text: `${name}: calibrated after the TAB date.`, to: 'info#cal-h' });
-    else if (calibrationExpired(i.calibrationDate, project.info.tabDate))
+    else if (!exempt && calibrationExpired(i.calibrationDate, project.info.tabDate))
       instFindings.push({ text: `${name}: calibrated more than 12 months before the TAB date.`, to: 'info#cal-h' });
   }
   checks.push(check('instruments', 'report', 'Instruments and calibration', instFindings, { ref: 'NEBB 5.2.6' }));
@@ -372,17 +374,28 @@ export function reviewProject(input: ReviewInput): ReviewResult {
     const byGroup = new Map<AttentionGroup, number>();
     for (const a of input.attention)
       if (!(input.fromFile && a.group === 'photos')) byGroup.set(a.group, (byGroup.get(a.group) ?? 0) + 1);
+    // design discrepancies and motor checks are for the reviewer only: nothing about them is printed on the report
+    const reviewOnly = (g: AttentionGroup) => g === 'design' || g === 'motor';
+    const summary = (keep: (g: AttentionGroup) => boolean) =>
+      ATTENTION_GROUPS.filter((g) => keep(g.key) && byGroup.get(g.key)).map((g) => ({
+        text: `${g.title}: ${byGroup.get(g.key)}`,
+        to: 'attention',
+      }));
     checks.push(
       check(
         'attention',
         'attention',
         'Needs-attention list',
-        ATTENTION_GROUPS.filter((g) => byGroup.get(g.key)).map((g) => ({
-          text: `${g.title}: ${byGroup.get(g.key)}`,
-          to: 'attention',
-        })),
-        { note: 'Nothing on the Attention tab.' },
+        summary((g) => !reviewOnly(g)),
+        {
+          note: 'Nothing else on the Attention tab.',
+        },
       ),
+    );
+    checks.push(
+      check('reviewOnly', 'attention', 'Design discrepancies and motor checks (review only)', summary(reviewOnly), {
+        note: 'None. These are for the reviewer and are not printed on the report.',
+      }),
     );
   }
 

@@ -195,15 +195,14 @@ describe('Duplicate, needs attention, building pressures (jsdom)', () => {
     await addIssue(p.id, { remark: 'Damper stuck', equipmentId: vav.id });
     renderAt(`/p/${p.id}/attention`);
     expect(await screen.findByRole('heading', { name: 'Needs attention' })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByTestId('tab-count-attention')).toHaveTextContent('4'));
+    await waitFor(() => expect(screen.getByTestId('tab-count-attention')).toHaveTextContent('3'));
     expect(
       within(screen.getByTestId('attention-tolerance')).getByText(/Outlets S-1: 67 % of design/),
     ).toBeInTheDocument();
     expect(within(screen.getByTestId('attention-issues')).getByText('Damper stuck')).toBeInTheDocument();
     expect(within(screen.getByTestId('attention-photos')).getByText(/Missing: Unit \/ tag/)).toBeInTheDocument();
-    const cal = within(screen.getByTestId('attention-calibration'));
-    expect(cal.getByText(/calibrated 2024-03-14, more than 12 months before the TAB date/)).toBeInTheDocument();
-    expect(cal.getByRole('link')).toHaveAttribute('href', `/p/${p.id}/info#cal-h`);
+    // the flow hood is the template's 2024 balometer: no 12-month lab calibration needed
+    expect(screen.queryByTestId('attention-calibration')).toBeNull();
   });
 
   it('building pressures on Project Info: kitchen N/A without hoods, values saved through setField', async () => {
@@ -348,7 +347,9 @@ describe('Certification, other OA, instrument library (jsdom)', () => {
     await user.click(await screen.findByRole('button', { name: /Add the template.s 7 a2b instruments/ }));
     await waitFor(async () => expect(await db.libraryInstruments.count()).toBe(7));
     expect(await screen.findAllByTestId('lib-item')).toHaveLength(7);
-    expect(screen.getAllByTestId('lib-expired').length).toBeGreaterThan(0); // the 2024 balometer
+    // the January 2025 humidity tester; the 2024 balometer needs no 12-month lab calibration
+    expect(screen.getAllByTestId('lib-expired')).toHaveLength(1);
+    expect(within(screen.getByTestId('lib-expired').closest('details')!).getByText(/Humidity Tester/)).toBeTruthy();
     const a = await addEquipment(p.id, 'rtu', 'RTU-1');
     const b = await addEquipment(p.id, 'rtu', 'RTU-2');
     await setFields('equipment', b.id, { slot: 3, slotMove: { from: 2, to: 3, otherId: a.id } });

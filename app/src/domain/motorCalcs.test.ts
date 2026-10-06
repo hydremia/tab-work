@@ -94,14 +94,18 @@ describe('motor field checks', () => {
     expect(w[0].text).toContain('corrected FLA');
     expect(motorWarnings(c, inp, 'SF 1.25', 5)).toEqual([]); // 4.72 x 1.25 = 5.9
     expect(motorWarnings(c, inp, null, 5)[0].text).toContain('1.0 assumed');
-    expect(motorWarnings(c, inp, 'SF 1.25', 2).map((x) => x.key)).toEqual(['bhp']); // BHP 3.6 > 2 HP
+    // BHP 3.6 > 2 HP, but the amps are within FLA × SF (the real load check): no BHP warning
+    expect(motorWarnings(c, inp, 'SF 1.25', 2)).toEqual([]);
+    // no FLA, so the amps can't be checked: BHP above the HP is flagged
+    const nf = { ...inp, fla: 'Not Avail.' };
+    expect(motorWarnings(motorCalc(nf), nf, 'SF 1.25', 2).map((x) => x.key)).toEqual(['bhp']);
     // no corrected FLA (rated voltage N/A): falls back to the nameplate FLA
     const nv = { ...inp, voltage: 'N/A' };
     expect(motorWarnings(motorCalc(nv), nv, 'SF 1.0', 5)[0].text).toContain('above FLA × SF');
   });
 
   it('a nameplate HP that differs from the schedule is flagged; BHP is checked against the nameplate', () => {
-    const inp = m({});
+    const inp = m({ fla: 'Not Avail.' });
     const c = motorCalc(inp);
     expect(motorWarnings(c, inp, 'SF 1.25', 5, 5)).toEqual([]);
     const w = motorWarnings(c, inp, 'SF 1.25', 3, 5);

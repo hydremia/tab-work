@@ -108,6 +108,14 @@ export function calibrationAgeMonths(calibrationDate: string, tabDate: unknown):
   return (ty - cy) * 12 + (tm - cm) + (td - cd) / 31;
 }
 
+/**
+ * A balometer (Evergreen Telemetry Three Pounder …) needs no 12-month lab calibration (NEBB; Evergreen Telemetry): it
+ * is never "expired" and needs no calibration date. Electronic flow hoods are not exempt.
+ */
+export function calibrationExempt(i: Pick<Instrument, 'type' | 'model'>): boolean {
+  return /balometer|three pounder/i.test(`${i.type} ${i.model}`);
+}
+
 /** "More than 12 months before the TAB date" (REQUIRED_FIELDS.md, Calibration). */
 export function calibrationExpired(calibrationDate: string, tabDate: unknown): boolean {
   const m = calibrationAgeMonths(calibrationDate, tabDate);

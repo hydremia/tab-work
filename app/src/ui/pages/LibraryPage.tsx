@@ -11,7 +11,7 @@ import { db } from '../../data/db';
 import { useLibraryConflicts } from '../../data/hooks';
 import { addLibraryInstrument, deleteLibraryInstrument, differsFromLibrary, setField } from '../../data/repo';
 import { INSTRUMENT_DETAIL_KEYS, type LibraryInstrument } from '../../data/types';
-import { calibrationExpired } from '../../domain/instruments';
+import { calibrationExempt, calibrationExpired } from '../../domain/instruments';
 import { ConflictList } from '../components/Conflicts';
 import { IconPlus, IconTrash } from '../components/Icons';
 import { DateInput, TextArea, TextInput } from '../components/inputs';
@@ -40,7 +40,8 @@ function LibraryItem({
   outdated: number;
   conflict: boolean;
 }) {
-  const expired = lib.calibrationDate ? calibrationExpired(lib.calibrationDate, today()) : false;
+  const expired =
+    lib.calibrationDate && !calibrationExempt(lib) ? calibrationExpired(lib.calibrationDate, today()) : false;
   const title = [lib.type, lib.manufacturer, lib.model].filter(Boolean).join(' ') || 'New instrument';
   return (
     // collapsed to one summary line per instrument; a new (empty) instrument opens for editing

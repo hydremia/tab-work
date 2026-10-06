@@ -23,7 +23,7 @@ import {
   certificationStates,
   certValue,
 } from '../../domain/certification';
-import { calibrationExpired } from '../../domain/instruments';
+import { calibrationExempt, calibrationExpired } from '../../domain/instruments';
 import { AIR_BALANCE_KEYS, designFieldOf, excludedIds, excludedUnits } from '../../domain/airBalance';
 import { balanceLines, buildingBalance } from '../../domain/equipmentCalcs';
 import {
@@ -925,10 +925,16 @@ export function ProjectInfoPage() {
                     value={ins.calibrationDate}
                     onCommit={(v) => void setField('instruments', ins.id, 'calibrationDate', v ?? '')}
                   />
-                  {calibrationExpired(ins.calibrationDate, project.info.tabDate) && (
-                    <span className="field-warning" data-testid="calibration-expired">
-                      More than 12 months before the TAB date
+                  {calibrationExempt(ins) ? (
+                    <span className="field-hint" data-testid="calibration-exempt">
+                      Balometer: no 12-month lab calibration needed
                     </span>
+                  ) : (
+                    calibrationExpired(ins.calibrationDate, project.info.tabDate) && (
+                      <span className="field-warning" data-testid="calibration-expired">
+                        More than 12 months before the TAB date
+                      </span>
+                    )
                   )}
                 </div>
               </div>

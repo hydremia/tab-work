@@ -258,4 +258,5 @@ Microsoft app registration ([SYNC_SETUP.md](./SYNC_SETUP.md)).
     5. *Motor HP (nameplate)* cell under the motor data (`motorHp`).
     6. Summary - New / (E): an *Observations* list (Obs. 1, 2…) below the deficiencies (`issueType`).
     7. Fans sheet: a *measured at hood* line per fan (the hoods and their total) instead of the interim grille rows.
-    8. Anything else found during the weekend's testing.
+    8. Estimated BHP (G(P+14) on every unit block, user 2026-10-05): **nameplate HP × average measured amps ÷ FLA** (corrected FLA when it can be calculated, else nameplate FLA; the nameplate HP when entered, else the scheduled HP) instead of V × A × 0.8 × 0.9 (× 1.732) ÷ 746. The fixed PF × efficiency put a motor at its FLA above its nameplate HP; the ratio lands on the nameplate HP at FLA. App `motorCalc` changes with the template (the app follows one revision), the report note's formula text too.
+    9. Anything else found during the weekend's testing.

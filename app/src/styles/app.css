@@ -807,19 +807,27 @@ textarea {
 }
 
 /* ---------------------------------------------------------------- sections */
+/* every chip visible (wrapped, no sideways scroll); sticky on wider screens only, where it wraps to a row or two */
 .section-nav {
-  position: sticky;
-  top: calc(var(--header-h) + env(safe-area-inset-top));
-  z-index: 10;
   margin: 0 -16px;
   padding: 8px 16px;
   /* opaque: scrolled text must not show through behind the chips */
   background: var(--bg);
   box-shadow: 0 1px 0 var(--border);
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
+}
+@media (min-width: 768px) {
+  .section-nav {
+    position: sticky;
+    top: calc(var(--header-h) + env(safe-area-inset-top));
+    z-index: 10;
+  }
+  .section {
+    /* --section-nav-h: the wrapped chips' height, kept by the unit page */
+    scroll-margin-top: calc(var(--header-h) + var(--section-nav-h, 56px) + 8px);
+  }
 }
 .section-nav a {
   display: inline-flex;
@@ -837,7 +845,7 @@ textarea {
   white-space: nowrap;
 }
 .section {
-  scroll-margin-top: calc(var(--header-h) + 64px);
+  scroll-margin-top: calc(var(--header-h) + 8px);
 }
 .section-head {
   display: flex;
@@ -914,6 +922,19 @@ textarea {
 .callout[data-tone='amber'] {
   background: var(--amber-bg);
   color: var(--amber);
+}
+/* review only (design discrepancies, motor checks): softer than amber, not printed on the report */
+.callout[data-tone='note'] {
+  background: var(--surface-2);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--amber-solid);
+}
+.review-only {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  color: var(--text-3);
+  white-space: nowrap;
 }
 .callout[data-tone='info'] {
   background: var(--primary-soft);

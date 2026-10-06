@@ -43,7 +43,7 @@ import { equipmentType, nextDesignation } from '../../domain/equipmentTypes';
 import { getSpec, type FieldSpec, type SectionSpec, type SequenceSpec } from '../../domain/specs';
 import { airflowOnlySections } from '../../domain/unitScope';
 import { AirflowTable } from '../components/AirflowTable';
-import { CalcPanel, espText, unitEspCheck } from '../components/CalcPanels';
+import { CalcPanel, espText, ReviewCallout, unitEspCheck } from '../components/CalcPanels';
 import { SequenceGrid, type GridShape } from '../components/SequenceGrid';
 import { IconChevron, IconHistory, IconTrash } from '../components/Icons';
 import { PhotoSlots } from '../components/PhotoSlots';
@@ -569,6 +569,18 @@ function AirflowOnly({ equipment }: { equipment: Equipment }) {
   );
 }
 
+/** Keeps --section-nav-h at the wrapped chips' height, so a section scrolls to just below the sticky chips. */
+function trackNavHeight(el: HTMLElement | null) {
+  if (!el || typeof ResizeObserver === 'undefined') return;
+  const root = document.documentElement.style;
+  const ro = new ResizeObserver(() => root.setProperty('--section-nav-h', `${el.offsetHeight}px`));
+  ro.observe(el);
+  return () => {
+    ro.disconnect();
+    root.removeProperty('--section-nav-h');
+  };
+}
+
 export function EquipmentPage() {
   const { projectId, equipmentId } = useParams();
   const project = useProject(projectId);
@@ -701,14 +713,14 @@ export function EquipmentPage() {
             </div>
           )}
           {c.designDiscrepancies.map((d) => (
-            <div className="callout" data-tone="amber" key={d.field}>
+            <ReviewCallout key={d.field}>
               Design discrepancy: schedule {formatNumber(d.schedule)} CFM vs. {d.label} {formatNumber(d.outlets)} CFM.
-            </div>
+            </ReviewCallout>
           ))}
           {esp && (
-            <div className="callout" data-tone="amber" data-testid="summary-esp-warning">
+            <ReviewCallout testId="summary-esp-warning">
               {espText(esp)} Outside ±{Math.round(project.tolerance * 100)} % (static pressure profile).
-            </div>
+            </ReviewCallout>
           )}
           {equipment.slotMove && (
             <div className="callout" data-tone="amber" role="status" data-testid="slot-move-note">
@@ -765,7 +777,7 @@ export function EquipmentPage() {
         </section>
 
         {sections.length > 2 && (
-          <nav className="section-nav" aria-label="Jump to section">
+          <nav className="section-nav" aria-label="Jump to section" ref={trackNavHeight}>
             {sections.map((s) => {
               const r = c.sections[s.key];
               const color =

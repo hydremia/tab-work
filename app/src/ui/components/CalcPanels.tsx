@@ -120,6 +120,21 @@ export function unitEspCheck(equipment: Equipment, completion: Completion, toler
 export const espText = (d: { design: number; actual: number; ratio: number }) =>
   `Unit ESP: design ${formatNumber(d.design, 2)} vs. actual ${formatNumber(d.actual, 2)} in. w.g. (${formatPercent(d.ratio)}).`;
 
+/**
+ * A design discrepancy or motor check: softer than an out-of-tolerance reading, listed on the Attention tab and the
+ * Report check for the reviewer, never printed on the report.
+ */
+export function ReviewCallout({ children, testId }: { children: React.ReactNode; testId?: string }) {
+  return (
+    <div className="callout" data-tone="note" role="status" data-testid={testId}>
+      <span className="grow">{children}</span>
+      <span className="review-only" title="Listed on the Attention tab and the Report check; not printed on the report">
+        Review only
+      </span>
+    </div>
+  );
+}
+
 const cfm = (x: number | null) => (x === null ? '—' : `${formatNumber(x)} CFM`);
 
 export function CalcPanel({
@@ -154,9 +169,9 @@ export function CalcPanel({
           ]}
         />
         {esp && (
-          <div className="callout" data-tone="amber" role="status" data-testid="esp-warning">
+          <ReviewCallout testId="esp-warning">
             {espText(esp)} Outside ±{Math.round(tolerance * 100)} %.
-          </div>
+          </ReviewCallout>
         )}
         <ReportNote>
           {' '}
@@ -210,9 +225,9 @@ export function CalcPanel({
           ]}
         />
         {warnings.map((w) => (
-          <div className="callout" data-tone="amber" role="status" key={w.key} data-testid={`motor-warning-${w.key}`}>
+          <ReviewCallout key={w.key} testId={`motor-warning-${w.key}`}>
             {w.text}
-          </div>
+          </ReviewCallout>
         ))}
         <ReportNote>
           {' '}
@@ -240,9 +255,9 @@ export function CalcPanel({
           <span>{design && sp.esp !== null ? formatPercent(sp.esp / design) : '— %'}</span>
         </div>
         {esp && (
-          <div className="callout" data-tone="amber" role="status">
+          <ReviewCallout>
             {espText(esp)} Outside ±{Math.round(tolerance * 100)} %.
-          </div>
+          </ReviewCallout>
         )}
         <p className="small muted calc-note">
           Actual = ESP of the static pressure profile (fan leaving − unit entering).

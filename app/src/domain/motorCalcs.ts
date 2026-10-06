@@ -113,7 +113,7 @@ export interface MotorWarning {
 /**
  * Warnings (not blocking): a measured amps leg above corrected FLA x SF (nameplate FLA when the corrected FLA can't
  * be calculated; SF 1.0 when none is given), an estimated BHP above the motor HP (the nameplate HP when entered, else
- * the scheduled HP), and a nameplate HP that differs from the scheduled one.
+ * the scheduled HP; only when no FLA lets the amps be checked), and a nameplate HP that differs from the scheduled one.
  */
 export function motorWarnings(
   calc: MotorCalc,
@@ -125,6 +125,7 @@ export function motorWarnings(
   const out: MotorWarning[] = [];
   const factor = serviceFactor(sf);
   const base = calc.correctedFla ?? xlNum(m.fla);
+  const ampsChecked = base !== null && base > 0 && m.amps.some((a) => xlNum(a) !== null);
   if (base !== null && base > 0) {
     const limit = base * (factor ?? 1);
     const over = m.amps
@@ -145,7 +146,9 @@ export function motorWarnings(
   if (designHp !== undefined && hpN !== null && designN !== null && Math.abs(hpN - designN) > 1e-9) {
     out.push({ key: 'hp', text: `Motor nameplate ${fmt(hpN, 2)} HP vs. scheduled ${fmt(designN, 2)} HP.` });
   }
-  if (calc.bhp !== null && hpN !== null && hpN > 0 && calc.bhp > hpN + 1e-9) {
+  // only when the amps can't be checked: the estimate assumes PF 0.8 × efficiency 0.9, above most motors at full
+  // load, so a motor at its FLA estimates above its nameplate HP; amps within FLA × SF are the real load check
+  if (!ampsChecked && calc.bhp !== null && hpN !== null && hpN > 0 && calc.bhp > hpN + 1e-9) {
     out.push({
       key: 'bhp',
       text: `Estimated BHP ${fmt(calc.bhp, 2)} is above the ${designHp !== undefined ? 'nameplate' : 'scheduled'} ${fmt(hpN, 2)} HP.`,
