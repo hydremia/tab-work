@@ -312,7 +312,7 @@ export function reviewProject(input: ReviewInput): ReviewResult {
         odd.push({ text: `${e.designation}: ${formatNumber(n)} psi — check the value.`, to: unitTo(e) });
     }
     for (const r of rows.filter((x) => x.equipmentId === e.id)) {
-      for (const k of ['initialVel', 'finalVel', 'velocity'] as const) {
+      for (const k of ['initialVel', 'finalVel', 'initialVelocity', 'velocity'] as const) {
         const n = xlNum(r.data[k]);
         if (n !== null && (n < 0 || n > T.maxVelocityFpm))
           odd.push({

@@ -508,10 +508,13 @@ export async function renderGraphicsPdf(
   const onColor = (t: number) => (t > 0.55 ? rgb(1, 1, 1) : INK);
 
   const drawTraverse = (f: TraverseFigure, top: number) => {
-    const nums = f.readings.flat().filter((v): v is number => v !== null);
+    const fo = f.flatOval;
+    const nums = [...f.readings.flat(), ...(fo?.ends ?? [])].filter((v): v is number => v !== null);
     heading(
       `${f.unit} — duct traverse`,
-      `${f.sizeText} ${f.round ? 'round · 2 diameters' : 'rectangular'} · ${f.round ? `${f.positions.length} points per diameter` : `${f.positions.length} x ${f.depths.length} points`} · fpm`,
+      fo
+        ? `${f.sizeText} · flat part ${f.positions.length} x ${f.depths.length} points + ${fo.ends.length} on the ends (NEBB 6.3.3h) · fpm`
+        : `${f.sizeText} ${f.round ? 'round · 2 diameters' : 'rectangular'} · ${f.round ? `${f.positions.length} points per diameter` : `${f.positions.length} x ${f.depths.length} points`} · fpm`,
     );
     const avg = f.average;
     const vmin = nums.length ? Math.min(...nums) : 0;
@@ -546,21 +549,68 @@ export async function renderGraphicsPdf(
       line(dxl, Y(gtop), dxl, Y(gtop + gh), 0.5, MUTED);
       text(page, `${num(Hin, 1)} in.`, dxl - 4 - tw(`${num(Hin, 1)} in.`, 7), Y(gtop + gh / 2) - 3, 7, regular, MUTED);
       lgTop = gtop + gh + 18;
-      page.drawRectangle({
-        x: x0,
-        y: Y(gtop + gh),
-        width: gw,
-        height: gh,
-        color: rgb(0.97, 0.97, 0.97),
-        borderColor: INK,
-        borderWidth: 1.4,
-      });
-      const cw = gw / nW;
+      // a flat oval: the flat part between two half circles of diameter H (the cells fill the flat part)
+      const endR = fo ? gh / 2 : 0;
+      const faceX = x0 + endR;
+      const faceW = gw - 2 * endR;
+      const face = rgb(0.97, 0.97, 0.97);
+      if (fo) {
+        page.drawCircle({
+          x: x0 + endR,
+          y: Y(gtop + endR),
+          size: endR,
+          color: face,
+          borderColor: INK,
+          borderWidth: 1.4,
+        });
+        page.drawCircle({
+          x: x0 + gw - endR,
+          y: Y(gtop + endR),
+          size: endR,
+          color: face,
+          borderColor: INK,
+          borderWidth: 1.4,
+        });
+        page.drawRectangle({ x: faceX, y: Y(gtop + gh), width: faceW, height: gh, color: face });
+        line(faceX, Y(gtop), faceX + faceW, Y(gtop), 1.4, INK);
+        line(faceX, Y(gtop + gh), faceX + faceW, Y(gtop + gh), 1.4, INK);
+        line(faceX, Y(gtop), faceX, Y(gtop + gh), 0.5, MUTED, [2, 2]);
+        line(faceX + faceW, Y(gtop), faceX + faceW, Y(gtop + gh), 0.5, MUTED, [2, 2]);
+        line(x0, Y(gtop + endR), x0 + gw, Y(gtop + endR), 0.5, MUTED, [3, 2]);
+        // the end points on the horizontal axis
+        const dotR = Math.max(2.2, Math.min(4.6, endR / 4));
+        fo.ends.forEach((v, i) => {
+          const x = x0 + (fo.endPositions[i] / dim) * gw;
+          const yy = Y(gtop + endR);
+          if (v === null) {
+            page.drawCircle({ x, y: yy, size: 2, color: MUTED });
+            return;
+          }
+          page.drawCircle({
+            x,
+            y: yy,
+            size: dotR,
+            color: velColor(tOf(v)),
+            borderColor: flagged(v) ? RED : INK,
+            borderWidth: flagged(v) ? 1.4 : 0.4,
+          });
+        });
+      } else
+        page.drawRectangle({
+          x: x0,
+          y: Y(gtop + gh),
+          width: gw,
+          height: gh,
+          color: face,
+          borderColor: INK,
+          borderWidth: 1.4,
+        });
+      const cw = faceW / nW;
       const chh = gh / nH;
       for (let r = 0; r < nH; r++)
         for (let k = 0; k < nW; k++) {
           const v = f.readings[r]?.[k] ?? null;
-          const x = x0 + k * cw;
+          const x = faceX + k * cw;
           const yb = Y(gtop + (r + 1) * chh);
           if (v !== null) {
             const t = tOf(v);
@@ -688,6 +738,8 @@ export async function renderGraphicsPdf(
     const ptop = panelTop + 6;
     const ph = 120;
     const series = f.round ? f.readings.slice(0, 2) : f.readings;
+    // a flat oval's end points: one more line, at their positions across the whole duct
+    const endSeries = fo ? fo.ends.map((v, i) => ({ x: fo.endPositions[i], v })) : [];
     const vhi = Math.max(1, vmax) * 1.1;
     const vlo = Math.max(0, Math.min(vmin * 0.85, avg ?? vmin));
     const step = nice(vhi - vlo);
@@ -740,6 +792,20 @@ export async function renderGraphicsPdf(
       const lab = f.round ? `dia. ${si === 0 ? 'A' : 'B'}` : `row ${si + 1}`;
       text(page, lab, lx + 13, ly, 6.5, regular, INK);
     });
+    if (endSeries.length) {
+      const c = palette[series.length % palette.length];
+      const half = endSeries.length / 2;
+      for (const side of [endSeries.slice(0, half), endSeries.slice(half)]) {
+        const pts = side.filter((q): q is { x: number; v: number } => q.v !== null);
+        for (let j = 1; j < pts.length; j++)
+          line(Xp(pts[j - 1].x), Yv(pts[j - 1].v), Xp(pts[j].x), Yv(pts[j].v), 1.2, c, [2, 1.5]);
+        for (const q of pts) page.drawCircle({ x: Xp(q.x), y: Yv(q.v), size: 1.8, color: c });
+      }
+      const lx = px + 4 + series.length * 44;
+      const ly = Y(ptop - 4);
+      line(lx, ly + 2, lx + 10, ly + 2, 1.4, c, [2, 1.5]);
+      text(page, 'ends', lx + 13, ly, 6.5, regular, INK);
+    }
 
     // results
     const vp = (v: number) => (v / 4005) ** 2;
@@ -750,7 +816,7 @@ export async function renderGraphicsPdf(
     const verdict = cov === null ? '' : cov <= 0.1 ? 'even' : cov <= 0.2 ? 'acceptable' : 'uneven: check the location';
     const pct = f.cfm !== null && f.design ? (f.cfm / f.design) * 100 : null;
     const rows2: [string, string, RGB][] = [
-      ['Average velocity', `${num(avg)} fpm`, INK],
+      [fo ? 'Average velocity (by area)' : 'Average velocity', `${num(avg)} fpm`, INK],
       [
         'Airflow',
         `${num(f.cfm)} CFM${f.design ? ` · design ${num(f.design)}${pct !== null ? ` (${num(pct)} %)` : ''}` : ''}`,

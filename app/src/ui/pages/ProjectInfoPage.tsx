@@ -428,7 +428,7 @@ function BuildingBalanceCard({ project, equipment }: { project: Project; equipme
           : ''}
         . Actual: the measured readings.
         {excluded.length > 0 &&
-          ' The workbook greys and skips excluded units from template revision 07; on revision 06 its Building Balance sheet still counts them.'}
+          ' The workbook marks them Excl., greys them and leaves them out of its totals (a re-issued revision 05 / 06 workbook still counts them).'}
       </p>
     </section>
   );

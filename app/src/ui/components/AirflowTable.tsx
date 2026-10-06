@@ -94,10 +94,10 @@ function RowCalcLine({
     );
   }
   if (calc === 'filterGrid') {
-    const v = row.data.velocity;
+    const cfmOf = (v: unknown) => filterCfm(MAU_FILTER_GRID_TYPE, row.data.size, typeof v === 'number' ? v : null);
     return (
       <span className="calc">
-        CFM {formatNumber(filterCfm(MAU_FILTER_GRID_TYPE, row.data.size, typeof v === 'number' ? v : null))}
+        CFM init {formatNumber(cfmOf(row.data.initialVelocity))} · final {formatNumber(cfmOf(row.data.velocity))}
       </span>
     );
   }

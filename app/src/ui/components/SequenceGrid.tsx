@@ -26,8 +26,8 @@ export interface GridShape {
   shown: number;
   /** Label of grid row r (0-based), e.g. `2"` depth or `Axis 1`. */
   rowLabel?: (r: number) => string;
-  /** Label of position c (0-based), e.g. `3"`. */
-  colLabel?: (c: number) => string;
+  /** Label of position c (0-based) of reading i (1-based), e.g. `3"`. */
+  colLabel?: (c: number, i: number) => string;
 }
 
 export function SequenceGrid({
@@ -141,7 +141,7 @@ export function SequenceGrid({
       const k = seqKey(spec.key, i);
       const mark = marks[k];
       const v = data[k];
-      const label = shape.colLabel ? `#${i} · ${shape.colLabel(c)}` : `#${i}`;
+      const label = shape.colLabel ? `#${i} · ${shape.colLabel(c, i)}` : `#${i}`;
       out.push(
         <div className="cell" key={i}>
           <label htmlFor={id(i)}>{label}</label>

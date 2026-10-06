@@ -6,10 +6,14 @@
  *
  * The page end is the first manual page break at or after the last unit's last row (the template has a break after
  * every page of the unit sheets); a sheet without breaks ends at that row.
+ *
+ * A section table with a page of its own (printEndWhenEmpty: the Summary observations, rev 07) prints only when the
+ * project has rows for it.
  */
 import type JSZip from 'jszip';
 import { readText } from './ooxml.js';
-import { anchorRow, type TemplateMap } from './templateMap.js';
+import { anchorRow, tableRows, type TemplateMap } from './templateMap.js';
+import type { LayoutData } from './types.js';
 
 export interface PrintAreaUnits {
   /** equipment type key -> slots in use */
@@ -28,6 +32,7 @@ export async function fitPrintAreas(
   wbXml: string,
   map: TemplateMap,
   units: PrintAreaUnits,
+  sections: Readonly<Record<string, LayoutData>> = {},
 ): Promise<{ xml: string; changed: string[] }> {
   // last row needed per sheet (at least the first unit's page, like Print Report)
   const need = new Map<string, number>();
@@ -35,6 +40,13 @@ export async function fitPrintAreas(
     const last = Math.max(1, ...(units[def.key] ?? []).map((u) => u.slot));
     need.set(def.block.sheet, Math.max(need.get(def.block.sheet) ?? 0, blockEnd(def, last)));
   }
+  // a page that prints only with rows on it: through its table, or through the row before it
+  for (const sec of map.sections)
+    for (const t of sec.tables ?? []) {
+      if (t.printEndWhenEmpty === undefined) continue;
+      const used = (sections[sec.key]?.tables?.[t.key] ?? []).some((r) => Object.values(r).some((v) => v !== null && v !== ''));
+      need.set(sec.sheet, used ? Math.max(...tableRows(t).map((r) => r.row)) : t.printEndWhenEmpty);
+    }
   let xml = wbXml;
   const changed: string[] = [];
   for (const [name, row] of need) {

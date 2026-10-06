@@ -15,10 +15,16 @@ import type { AirflowRow, Equipment, Issue, LibraryPump, Project, PumpCurvePoint
 import { AIR_BALANCE_KEYS, excludedIds } from '../domain/airBalance';
 import { PRESSURE_KEYS } from '../domain/projectCompletion';
 import { spareOaTotals } from '../domain/spareOa';
-import { rowCfm } from '../domain/calc';
+import { num, rowCfm } from '../domain/calc';
 import type { Completion } from '../domain/completion';
 import { EQUIPMENT_TYPES, equipmentType, type EquipmentTypeKey } from '../domain/equipmentTypes';
-import { buildingBalance, sequenceValues, traverseLayout, type BuildingBalance } from '../domain/equipmentCalcs';
+import {
+  buildingBalance,
+  sequenceValues,
+  traverseLayout,
+  traverseTotals,
+  type BuildingBalance,
+} from '../domain/equipmentCalcs';
 import { pumpTest } from '../domain/hydronicCalcs';
 import { pumpCurveResult, pumpName } from '../domain/pumpCurves';
 import { staticInputs, staticProfile, xlNum, type StaticProfile } from '../domain/staticProfile';
@@ -48,6 +54,12 @@ export interface TraverseFigure {
   cov: number | null;
   cfm: number | null;
   design: number | null;
+  /**
+   * A flat oval: `positions` run across the whole duct (from the left end), the rectangle readings sit in the flat
+   * part (`flat` in. wide, between the two half circles of diameter `height`); the end points on the horizontal axis at
+   * `endPositions` (in. from the left end), half at each end. `average` is area-weighted (rectangle and circle).
+   */
+  flatOval?: { flat: number; height: number; ends: (number | null)[]; endPositions: number[] };
 }
 
 export interface BarRow {
@@ -159,17 +171,39 @@ export function buildGraphicsModel(input: {
     if (e.type === 'traverse') {
       const layout = traverseLayout(e.data);
       if (layout.nW && layout.nH) {
-        const all = sequenceValues(e.data, 'readings', 80).slice(0, layout.nW * layout.nH);
-        if (all.some((v) => v !== null)) {
+        const nRect = layout.nW * layout.nH;
+        const readingsAll = sequenceValues(e.data, 'readings', 80);
+        const all = readingsAll.slice(0, nRect);
+        const ends = layout.ends ? readingsAll.slice(nRect, nRect + layout.ends.points) : [];
+        if ([...all, ...ends].some((v) => v !== null)) {
           const grid = Array.from({ length: layout.nH }, (_, r) =>
             Array.from({ length: layout.nW! }, (_, k) => all[r * layout.nW! + k] ?? null),
           );
-          const nums = all.filter((v): v is number => v !== null);
-          const avg = nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
+          const nums = [...all, ...ends].filter((v): v is number => v !== null);
+          const mean = nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
           const sd =
-            avg !== null && nums.length > 1
-              ? Math.sqrt(nums.reduce((a, b) => a + (b - avg) ** 2, 0) / (nums.length - 1))
+            mean !== null && nums.length > 1
+              ? Math.sqrt(nums.reduce((a, b) => a + (b - mean) ** 2, 0) / (nums.length - 1))
               : null;
+          // a flat oval averages the rectangle and the ends by their areas (the workbook's Final VEL, unrounded)
+          let avg = mean;
+          let flatOval: TraverseFigure['flatOval'];
+          if (layout.ends) {
+            const t = traverseTotals(e.data);
+            const { rectAk, circleAk } = layout.ends;
+            avg =
+              t.rectAverage != null && t.endsAverage != null
+                ? (t.rectAverage * rectAk + t.endsAverage * circleAk) / (rectAk + circleAk)
+                : null;
+            const H = num(e.data.height) ?? 0;
+            const flat = (num(e.data.width) ?? 0) - H;
+            flatOval = {
+              flat,
+              height: H,
+              ends,
+              endPositions: layout.ends.positions.map((p, i) => (i < layout.ends!.points / 2 ? p : flat + p)),
+            };
+          }
           figures.push({
             kind: 'traverse',
             unit: e.designation,
@@ -177,12 +211,13 @@ export function buildGraphicsModel(input: {
             round: e.data.shape === 'Round',
             sizeText: layout.sizeText ?? '',
             readings: grid,
-            positions: layout.positions,
+            positions: flatOval ? layout.positions.map((p) => p + flatOval!.height / 2) : layout.positions,
             depths: layout.depths,
             average: avg,
-            cov: avg && sd !== null ? sd / avg : null,
+            cov: mean && sd !== null ? sd / mean : null,
             cfm: avg !== null && layout.ak ? avg * layout.ak : null,
             design: xlNum(e.data.designCfm),
+            ...(flatOval ? { flatOval } : {}),
           });
         }
       }

@@ -3,7 +3,7 @@
 For HVAC TAB technicians and project managers, in the field and in the office. For the short version, see
 [QUICK_START.md](./QUICK_START.md). A one-page [Field cheat sheet](#field-cheat-sheet) is at the end.
 
-The app fills in the a2b TAB workbook (revision 06, a2b's look in the e2s colours; revision 05 workbooks work the same) for you. You enter readings on your phone, tablet or laptop,
+The app fills in the a2b TAB workbook (revision 07; an issued revision 05 / 06 workbook is still re-imported and re-issued in its own revision) for you. You enter readings on your phone, tablet or laptop,
 and the app writes them into the right cells of the `.xlsm` file. The workbook's own formulas, macros and
 print layout stay as they are.
 
@@ -256,8 +256,10 @@ missing, or a design CFM that differs from the engineer's table).
 intake louver paired with its fan (*Note 1: EF-22 and EF-23 excluded*). It is greyed, marked **Excl.** and left out of
 every total (and the graphics summary); it is still tested and reported on its own page. Say why in the line that
 appears (*isolated rooms with dedicated intake louvers, ventilation calc Note 1*). Units the imported air balance
-table marks with a note start switched off. Until template revision 07 the workbook's Building Balance sheet still
-counts excluded units.
+table marks with a note start switched off. In the workbook an excluded unit's row is greyed, its % shows **Excl.**,
+the sheet's totals leave it out (an **Excl.** typed in column P / Q next to a row in Excel does the same, and a
+re-import reads it back), and the reason is the line under the notes. A re-issued rev 05 / 06 workbook still counts
+excluded units.
 
 The air balance totals and the exclusions travel with the exported workbook (as a file property), so they come back
 when the workbook is imported on another device.
@@ -471,7 +473,7 @@ things to check **before issuing the report**. It's wider than the red units: it
 - open issues
 - design discrepancies: the schedule design CFM doesn't match the sum of the outlet design CFMs, or the actual
   unit ESP is outside the tolerance of the design ESP
-- motor checks: amps above corrected FLA × SF, estimated BHP above nameplate HP
+- motor checks: amps above corrected FLA × SF, nameplate HP different from the scheduled HP
 - missing required photos (only on units you've started)
 - calibration: an instrument used with no calibration row, or calibrated more than 12 months before the TAB date
 - capacity: a type that's full, small fans past slot 30
@@ -544,8 +546,8 @@ damper · Static pressure profile · Airflow · Photos · Remarks.
   2* shows *Auto N/A · not on this unit type*.
 - **Drive data**: **Motor sheave** with **Motor bore (shaft)** next to it, then **Fan pulley** with **Fan bore
   (shaft)** (e.g. *2VP60* and *1-3/8*). A value entered earlier in the old *Sheave bore M/F* box (*motor / fan*) is
-  split into the two bores the first time the unit is opened. Until template revision 07 the workbook shows both
-  bores in its *Shv Bore M/F* box as *motor / fan*.
+  split into the two bores the first time the unit is opened. The workbook shows each bore beside its sheave /
+  pulley (a re-issued rev 05 / 06 workbook: both in its *Shv Bore M/F* box as *motor / fan*).
 - **Drive type**: when it's Direct or ECM, the sheave / pulley / bore / belt / C to C fields are N/A for you.
 - **RPM data**: initial and final are both required (the same value when nothing was changed). On a Direct or ECM
   drive the fan turns at motor speed: enter the **fan RPM** (initial and final); the motor RPM row is N/A.
@@ -567,15 +569,17 @@ damper · Static pressure profile · Airflow · Photos · Remarks.
   blank in the workbook, so its TSP, ESP and unit ΔP still calculate. The drop between entering and fan inlet then
   shows under that last component in the workbook; the graphics appendix shows it as one drop across all the
   components in between. A workbook with only those three readings comes back as 3-point.
-- Motor: **Average volts**, **Average amps**, **Corrected FLA** (rated V ÷ average measured V × FLA) and **BHP**
-  (estimated).
+- Motor: **Average volts**, **Average amps**, **Corrected FLA** (rated V ÷ average measured V × FLA) and
+  **Estimated BHP** = HP × average amps ÷ FLA: the nameplate HP when entered (else the scheduled HP), the corrected
+  FLA when it can be calculated (else the nameplate FLA). A motor drawing its FLA estimates its nameplate HP. (Before
+  template revision 07: V × A × 0.8 × 0.9 (× 1.732) ÷ 746, which put a motor at its FLA above its nameplate HP.)
 - Values tagged **REPORT** are exactly what the workbook will print.
 - **Amber warnings** (not errors, and they never change the color):
-  - a measured amps leg above corrected FLA × service factor
-  - *Estimated BHP … is above the nameplate … HP*
+  - a measured amps leg above corrected FLA × service factor (the same check as a BHP above the HP, since the BHP is
+    HP × amps ÷ FLA)
   - *Motor nameplate … HP vs. scheduled … HP* when the **Motor HP (nameplate)** you read off the motor (under
-    *Motor data*) differs from the scheduled HP under *Design data*. The BHP check then uses the nameplate HP.
-    The nameplate HP stays in the app until template revision 07 has a cell for it.
+    *Motor data*) differs from the scheduled HP under *Design data*. The workbook has it under the measured
+    amperage, and the estimated BHP uses it.
   - *Unit ESP: design … vs. actual … Outside ±10 %*
 
 ### MAU / supply fan
@@ -585,15 +589,17 @@ Same as RTU, but there's no OA damper and no OA / return rows. The **Supply airf
 
 | Method | What you enter | What the app works out |
 |---|---|---|
-| **Outlets** | Instrument and outlet rows (up to 38) | CFM, % per row, total |
-| **PSP** (perforated supply plenum) | Length, width (6–24 in.), number of blanks, up to 20 velocity readings | K-factor, average velocity, PSP CFM, CFM / ft |
-| **Filter Grid** | Filter size and velocity for each filter (up to 11) | CFM (velocity × free area × 1.35) |
+| **Outlets** | Instrument and outlet rows (up to 28: 16 on page 1, 12 on page 2) | CFM, % per row, total |
+| **PSP** (perforated supply plenum) | Length, width (6–24 in.), number of blanks, up to 20 **initial** (optional) and 20 **final** velocity readings | K-factor, average velocity and PSP CFM of each, CFM / ft |
+| **Filter Grid** | Filter size, **initial** and **final** velocity for each filter (up to 11) | CFM (velocity × free area × 1.35) of each, totals |
 | **Profile Pressure** | Housing size (1–5), burner profile pressure (0.15–0.65 in. w.g.) | CFM from the manufacturer's curve |
 | **Intake** | One row per intake screen: size, Ak, velocity against the screen (initial / final) | CFM per screen (VEL × Ak), total |
 
 **Intake screens** can also be read as a **check** next to another method: fill the rows and the totals line shows
-*Intake check* with its % of the actual. Until template revision 07 the workbook has no intake cells: the Intake
-method and the screens stay in the app, and the export says so.
+*Intake check* with its % of the actual. The workbook lists up to 4 screens on the MAU's second page (a re-issued
+rev 05 / 06 workbook has no intake cells: the Intake method and the screens stay in the app, and the export says so).
+
+The method total uses the **final** readings, or the initial ones while there are no final ones yet.
 
 Only the chosen method's inputs are required. The others become N/A. If you switch methods, your earlier entries are
 kept in the app and come back when you switch back, but only the chosen method is exported. **Method total** is
@@ -612,13 +618,15 @@ No OA damper. Static profile: Filter, Core, Fan.
 ### Fans (EF, TF, KEF)
 
 Like an RTU without OA. The static profile is just fan inlet (entering) and fan discharge (leaving). Airflow is
-**Registers / grilles** (up to 56 rows).
+**Registers / grilles** (up to 55 rows; the last row of page 1 is the *measured at hood* line).
 
 **Measured at the hood.** A kitchen exhaust fan read at its hood(s): set **Airflow measured at** to **Hood**. The
 fan's grille table and instrument become N/A, and its airflow is the total of every hood whose *Associated exhaust
 fan* names it (a panel lists the hoods, their CFM and the total vs. the fan's design). The Building Balance uses
-that total. In the rev 06 workbook each hood is written as one row of the fan's grilles ("Hood H-1 (measured at
-hood)", Ak 1, VEL = the hood CFM), so the sheet's totals work; a re-import turns those rows back into the hood link.
+that total. The workbook (revision 07) has a *Measured at hood* line under the fan's grilles: the hoods and their
+design / initial / final CFM, in the fan's totals. (Re-issued onto a rev 05 / 06 workbook, each hood is one row of the
+fan's grilles instead: "Hood H-1 (measured at hood)", Ak 1, VEL = the hood CFM.) A re-import turns either back into
+the hood link.
 
 ![Fan](../screenshots/09-fan.png)
 
@@ -656,8 +664,13 @@ N/A unless the terminal is fan-powered. Actual heating CFM is N/A unless heating
 ![Traverse point grid](../screenshots/12-traverse.png)
 
 - **Identity**: point (T-#), area served, design CFM.
-- **Duct**: **Duct shape** (Rectangular / Round), **Width / diameter**, **Height** (N/A for round), **Liner
-  thickness** (optional). The app works out the size, Ak, number of points and insertion depths.
+- **Duct**: **Duct shape** (Rectangular / Round / Flat Oval), **Width / diameter**, **Height** (N/A for round),
+  **Liner thickness** (optional). The app works out the size, Ak, number of points and insertion depths.
+- **Flat oval** (NEBB 6.3.3h): width = the major axis, height = the minor axis. The flat part, (W − H) × H, is read
+  like a rectangle; the two round ends as one round duct of diameter H on the horizontal axis only (6 / 8 / 10 points,
+  half at each end). Enter the rectangle readings first (row by row), then the end points (left end, then right end;
+  the grid labels them *L end* / *R end*). The CFM is each part's average × its area, added (the readings are never
+  averaged together); Final VEL is that CFM ÷ the whole Ak.
 - **Readings**: either an **Initial average velocity** (one number, fine for a prelim) or the **Final point
   readings**, laid out in the calculated grid with each depth and position labeled.
   - **Quick entry**: type a reading, press **Enter** or **Next** on the keypad, and it moves to the next point.
@@ -729,8 +742,9 @@ separately:
   **observation** is a note for the report that doesn't flag anything (e.g. "filters recently changed by owner"):
   numbered on its own (**Obs. N-1**, **Obs. E-1**), listed under each list's *Observations*, never counted as an
   open issue. **Add observation** starts one; switching an issue's type gives it the next number in the other list.
-  Observations print in the Issues report (their own section); the rev 06 workbook leaves them out (export
-  warning), template revision 07 lists them on the Summary pages.
+  Observations print in the Issues report (their own section) and, in the workbook, on the page after each Summary
+  page's deficiencies (*Observations*, 20 lines; the page prints only when there are some). A re-issued rev 05 / 06
+  workbook has no place for them (export warning).
 
 - **Equipment**: pick the unit, or **General (N/A)** for a building-wide issue. In the workbook, a linked issue's
   remark starts with the unit, e.g. `RTU-1: Supply fan belt worn…`.
@@ -816,13 +830,21 @@ sent anywhere by itself.
 ### The TAB workbook (.xlsm)
 
 1. **Export** tab → **TAB workbook (.xlsm)** card. It shows the equipment and issue counts, the template
-   (**Revision 06**, or 05 for projects started before) and the status bar.
+   (**Revision 07**; an issued rev 05 / 06 workbook is re-issued in its own revision) and the status bar.
 2. Check the **Revision** label. The app suggests **Prelim** first, then **Rev 1**, **Rev 2**… and you can type
    **Final** or anything else.
 3. Tap **Export Prelim (.xlsm)** (the button shows the label).
 4. The file `<Project> - TAB Report <date>.xlsm` downloads, and a box under the button confirms it.
 
 You can export even when some units aren't complete. The app just notes that it's a preliminary workbook.
+
+**The workbook comes out ready to print.** The export hides what the report doesn't use, as the *Print Report* macro
+would: unit sheets with no units of their type (e.g. VAVs, Traverses), unused unit blocks, continuation pages with
+nothing on them, empty outlet / grille rows, and the Equipment Summary and Building Balance lines of units the
+project doesn't have. Printing or saving as PDF from Excel prints only the used pages. To fill in more by hand in
+Excel, unhide the rows (select the rows around them → right-click → **Unhide**) or the sheet (right-click a sheet tab
+→ **Unhide…**); the next export from the app sets it all again. The ToC page numbers still come from Excel
+(*Print Report*, or the ToC button).
 
 To send out the report *and* freeze the data, use **Issue report as Prelim** instead (see
 [section 10](#issue-the-report-lock)). The plain **Export** button never locks anything, so use it for working copies
@@ -1108,6 +1130,8 @@ without readings are left out.
     average), the points more than 25 % from the average outlined in red;
   - **round**: the duct with its equal-area rings and both diameters, the points at their real positions, and the
     readings of each diameter in a coloured table;
+  - **flat oval**: the flat part as a coloured grid between the two half circles, the end points on the centre
+    line, the average weighted by area;
   - a **velocity profile** across the duct (one line per diameter or per row), the average, the airflow against
     design, the spread (coefficient of variation: 10 % or less is even, over 20 % uneven), and the location check:
     how many readings have a velocity pressure of at least 1/10 of the highest. Under 75 % marks a poor traverse

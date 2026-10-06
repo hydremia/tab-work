@@ -37,5 +37,18 @@ describe('print areas fitted to the units', () => {
     expect(a.Traverses).toBe('$A$1:$M$101'); // three a page: T-4 on page 2
     expect(a.MAUs).toBe('$A$1:$N$107'); // none: the first unit's two pages, like Print Report
     expect(a.Narrative).toBe('$A$1:$M$41'); // other sheets untouched
+    // no observations: the Summary pages print page 1 only
+    expect(a['Summary - New']).toBe('$A$1:$M$62');
+    expect(a['Summary - (E)']).toBe('$A$1:$M$62');
+  });
+
+  it('a Summary page prints its observations page when it has observations', async () => {
+    const a = await areas({
+      templateRevision: TEMPLATE_MAP.revision,
+      sections: { issuesExisting: { tables: { observations: [{ no: 1, remark: 'roof hatch sticks' }] } } },
+      equipment: {},
+    });
+    expect(a['Summary - (E)']).toBe('$A$1:$M$85');
+    expect(a['Summary - New']).toBe('$A$1:$M$62');
   });
 });

@@ -29,14 +29,27 @@ export const TRAVERSE_SPEC: EquipmentSpec = {
       label: 'Duct',
       airflow: true,
       fields: [
-        { key: 'shape', label: 'Duct shape', input: 'select', options: TEMPLATE_LISTS['Duct.Shape'] },
-        { key: 'width', label: 'Width / diameter', input: 'number', unit: 'in.' },
+        {
+          key: 'shape',
+          label: 'Duct shape',
+          input: 'select',
+          options: TEMPLATE_LISTS['Duct.Shape'],
+          hint: 'Flat oval (NEBB 6.3.3h): the flat part read as a rectangle, the two ends as one round of diameter H on the horizontal axis; CFM per part, added',
+        },
+        {
+          key: 'width',
+          label: 'Width / diameter',
+          input: 'number',
+          unit: 'in.',
+          hint: 'Flat oval: the major (long) axis',
+        },
         {
           key: 'height',
           label: 'Height',
           input: 'number',
           unit: 'in.',
           autoNa: [{ when: { field: 'shape', eq: 'Round' }, reason: 'round duct' }],
+          hint: 'Flat oval: the minor (short) axis',
         },
         {
           key: 'liner',
@@ -68,6 +81,7 @@ export const TRAVERSE_SPEC: EquipmentSpec = {
         {
           key: 'readings',
           label: 'Final point readings',
+          // a flat oval: the rectangle readings first (row by row), then the end points (left end, then right end)
           count: 80,
           unit: 'fpm',
           requiredWhen: { field: 'initialVel', blank: true },

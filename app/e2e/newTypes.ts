@@ -461,7 +461,7 @@ export async function recalcCrossCheck(file: string, wb: ProjectData, ui: Record
   const mau = unit('mau');
   const m = mauTotals(mau.data, rowsOf(mau.id));
   const P = anchorRow(TEMPLATE_MAP.equipment.find((x) => x.key === 'mau')!.block.anchor, 1);
-  await cmp('MAU-1 method total (PSP)', 'MAUs', `E${P + Q + 19}`, m.methodTotal);
+  await cmp('MAU-1 method total (PSP)', 'MAUs', `E${P + Q + 31}`, m.methodTotal); // rev 07: Method Total E(Q+31)
   await cmp('MAU-1 total actual', 'MAUs', `L${P + 5}`, m.actual);
   await cmp('MAU-1 total design (override)', 'MAUs', `K${P + 5}`, m.design);
   check(

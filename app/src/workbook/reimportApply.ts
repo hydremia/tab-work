@@ -165,8 +165,9 @@ export function planApply(
         break;
       }
       case 'issue': {
+        const obs = ref.observation === true;
         const target = real.issues.find(
-          (i) => i.kind === ref.issueKind && i.number === ref.number && !isObservation(i),
+          (i) => i.kind === ref.issueKind && i.number === ref.number && isObservation(i) === obs,
         );
         if (it.change === 'field' && target) {
           if (it.cell === 'unit') set('issues', target.id, 'equipmentId', unitIdByWbDesignation(it.wb));
@@ -190,6 +191,7 @@ export function planApply(
             ...(lineIdIn(unitIdByWbDesignation(w.unit ?? null), w.line ?? null)
               ? { airflowRowId: lineIdIn(unitIdByWbDesignation(w.unit ?? null), w.line ?? null) }
               : {}),
+            ...(obs ? { issueType: 'observation' as const } : {}),
             createdAt: now,
             updatedAt: now,
           };

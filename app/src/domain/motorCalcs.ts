@@ -1,23 +1,23 @@
 /**
- * Motor data of the big unit sheets (RTUs / MAUs / ERVs / Fans), replicating the revision 05 formulas (identical on
+ * Motor data of the big unit sheets (RTUs / MAUs / ERVs / Fans), replicating the revision 07 formulas (identical on
  * every block of the four sheets; P = block anchor):
  *
- *   B(P+13) rated voltage = EDE voltage,  C(P+13) phase = EDE phase,  E(P+13) FLA,
- *   E:G(P+15) measured volts L1-L3,  E:G(P+16) measured amps L1-L3
+ *   B(P+13) rated voltage = EDE voltage,  C(P+13) phase = EDE phase,  E(P+13) FLA,  D(P+12) scheduled HP = EDE HP,
+ *   E:G(P+15) measured volts L1-L3,  E:G(P+16) measured amps L1-L3,  E(P+17) nameplate motor HP (rev 07)
  *
  *   D(P+14) Corrected FLA =
  *     IF(OR(E19="", E17="", B17=""), "",
  *        IF(OR(ISTEXT(B17), COUNT(E19:G19)=0, ISTEXT(E17)), "", B17 / AVERAGE(E19:G19) * E17))
- *   G(P+14) Estimated BHP =
- *     IF(OR(COUNT(E19:G19)=0, COUNT(E20:G20)=0), "",
- *        IF(C17="1-phase", IF(OR(ISTEXT(E19), ISTEXT(E20)), "", 0.8*0.9*E19*E20/746),
- *           AVERAGE(E19:G19) * AVERAGE(E20:G20) * 0.8*0.9*1.732/746))
+ *   G(P+14) Estimated BHP (rev 07) = HP x average measured amps / FLA:
+ *     HP  = IF(N(E21)>0, E21, N(D16))         the nameplate HP when entered, else the scheduled HP
+ *     FLA = IF(N(D18)>0, D18, N(E17))         the corrected FLA when it can be calculated, else the nameplate FLA
+ *     IF(OR(COUNT(E20:G20)=0, HP=0, FLA=0), "", HP * AVERAGE(E20:G20) / FLA)
+ *   (revisions 05 / 06: V x A x 0.8 x 0.9 (x 1.732 3-phase) / 746; the fixed PF x efficiency put a motor at its FLA
+ *   above its nameplate HP, the ratio lands on the nameplate HP at FLA)
  *
  * Quirks kept on purpose (they are what the report prints):
  *  - corrected FLA needs volts L1: a blank L1 gives blank even when L2 / L3 are read (a notation in L1 is fine:
  *    AVERAGE skips it and uses the other legs);
- *  - the 1-phase BHP uses L1 only; a blank L1 counts as 0 there (BHP 0) when another leg holds the COUNT;
- *  - any phase other than "1-phase" (compared case-insensitively), including a blank phase, uses the 3-phase formula;
  *  - the service factor is not used by any formula (only by the app's amps check below).
  */
 import type { FieldValue } from '../data/types';
@@ -32,6 +32,10 @@ export interface MotorInputs {
   fla: XCell;
   volts: readonly XCell[];
   amps: readonly XCell[];
+  /** Nameplate motor HP (rev 07 E P+17). */
+  motorHp?: XCell;
+  /** Scheduled HP, EDE G. */
+  hp?: XCell;
 }
 
 export interface MotorCalc {
@@ -45,6 +49,9 @@ export interface MotorCalc {
   correctedFla: number | null;
   /** G(P+14) */
   bhp: number | null;
+  /** The HP and FLA the BHP used (null when it could not be estimated). */
+  bhpHp: { value: number; nameplate: boolean } | null;
+  bhpFla: { value: number; corrected: boolean } | null;
 }
 
 const average = (xs: readonly XCell[]) => {
@@ -71,19 +78,23 @@ export function motorCalc(m: MotorInputs): MotorCalc {
     }
   }
 
-  let bhp: number | null = null;
-  if (voltsLegs > 0 && ampsLegs > 0) {
-    if (onePhase) {
-      if (!(xlText(volts[0]) || xlText(amps[0]))) {
-        const v1 = xlNum(volts[0]) ?? 0; // a blank cell is 0 in Excel arithmetic
-        const a1 = xlNum(amps[0]) ?? 0;
-        bhp = (0.8 * 0.9 * v1 * a1) / 746;
-      }
-    } else {
-      bhp = (avgVolts! * avgAmps! * 0.8 * 0.9 * 1.732) / 746;
-    }
-  }
-  return { onePhase, avgVolts, avgAmps, voltsLegs, ampsLegs, correctedFla, bhp };
+  // HP x avg amps / FLA (N() of a blank or a notation is 0, so it falls back)
+  const plate = xlNum(m.motorHp ?? null) ?? 0;
+  const hpN = plate > 0 ? plate : (xlNum(m.hp ?? null) ?? 0);
+  const flaN = correctedFla !== null && correctedFla > 0 ? correctedFla : (xlNum(m.fla) ?? 0);
+  const ok = ampsLegs > 0 && hpN !== 0 && flaN !== 0;
+  const bhp = ok ? (hpN * avgAmps!) / flaN : null;
+  return {
+    onePhase,
+    avgVolts,
+    avgAmps,
+    voltsLegs,
+    ampsLegs,
+    correctedFla,
+    bhp,
+    bhpHp: ok ? { value: hpN, nameplate: plate > 0 } : null,
+    bhpFla: ok ? { value: flaN, corrected: correctedFla !== null && correctedFla > 0 } : null,
+  };
 }
 
 /** Motor inputs from a unit's cell values (keys of the template map). */
@@ -94,6 +105,8 @@ export function motorInputs(cells: Readonly<Record<string, XCell>>): MotorInputs
     fla: cells.fla,
     volts: [cells.volts1, cells.volts2, cells.volts3],
     amps: [cells.amps1, cells.amps2, cells.amps3],
+    motorHp: cells.motorHp,
+    hp: cells.hp,
   };
 }
 
@@ -106,14 +119,15 @@ export function serviceFactor(v: FieldValue | undefined): number | null {
 
 // ------------------------------------------------------------------------------------------ field checks (app only)
 export interface MotorWarning {
-  key: 'amps' | 'bhp' | 'hp';
+  key: 'amps' | 'hp';
   text: string;
 }
 
 /**
  * Warnings (not blocking): a measured amps leg above corrected FLA x SF (nameplate FLA when the corrected FLA can't
- * be calculated; SF 1.0 when none is given), an estimated BHP above the motor HP (the nameplate HP when entered, else
- * the scheduled HP; only when no FLA lets the amps be checked), and a nameplate HP that differs from the scheduled one.
+ * be calculated; SF 1.0 when none is given), and a nameplate HP that differs from the scheduled one. (An estimated BHP
+ * above the HP is the same check as amps above FLA since revision 07's HP x amps / FLA, so it has no warning of its
+ * own.)
  */
 export function motorWarnings(
   calc: MotorCalc,
@@ -125,7 +139,6 @@ export function motorWarnings(
   const out: MotorWarning[] = [];
   const factor = serviceFactor(sf);
   const base = calc.correctedFla ?? xlNum(m.fla);
-  const ampsChecked = base !== null && base > 0 && m.amps.some((a) => xlNum(a) !== null);
   if (base !== null && base > 0) {
     const limit = base * (factor ?? 1);
     const over = m.amps
@@ -145,14 +158,6 @@ export function motorWarnings(
   const designN = xlNum(designHp ?? null);
   if (designHp !== undefined && hpN !== null && designN !== null && Math.abs(hpN - designN) > 1e-9) {
     out.push({ key: 'hp', text: `Motor nameplate ${fmt(hpN, 2)} HP vs. scheduled ${fmt(designN, 2)} HP.` });
-  }
-  // only when the amps can't be checked: the estimate assumes PF 0.8 × efficiency 0.9, above most motors at full
-  // load, so a motor at its FLA estimates above its nameplate HP; amps within FLA × SF are the real load check
-  if (!ampsChecked && calc.bhp !== null && hpN !== null && hpN > 0 && calc.bhp > hpN + 1e-9) {
-    out.push({
-      key: 'bhp',
-      text: `Estimated BHP ${fmt(calc.bhp, 2)} is above the ${designHp !== undefined ? 'nameplate' : 'scheduled'} ${fmt(hpN, 2)} HP.`,
-    });
   }
   return out;
 }

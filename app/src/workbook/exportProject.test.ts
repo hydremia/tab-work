@@ -217,7 +217,7 @@ describe('export revisions', () => {
     expect((await prepareReview(b.project.id, parsed)).diff.items).toEqual([]);
   });
 
-  it('a base that is no longer a revision-05 workbook: blank template, with a warning', async () => {
+  it('a base that is no longer a copy of its revision: blank template, with a warning', async () => {
     const b = sampleBundle();
     await store(b);
     const prelim = await exportProject(b.project.id, { template });
@@ -234,7 +234,7 @@ describe('export revisions', () => {
     });
     const r = await exportProject(b.project.id, { template });
     expect(r.baseFileName).toBeUndefined();
-    expect(r.warnings.join(' ')).toMatch(/not a revision 05 workbook.*M10/);
+    expect(r.warnings.join(' ')).toMatch(/not a revision 07 workbook.*M10/);
     expect((await importWorkbook(r.bytes)).equipment.rtu.length).toBeGreaterThan(0);
   });
 });
