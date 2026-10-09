@@ -43,26 +43,27 @@ describe('unit configuration library', () => {
     expect(matchLibraryUnit(lib, 'X', 'ab99')?.line).toBe('all');
   });
 
-  it('order in words, and the template order compared: RTU heat before fan is flagged, the MAU matches', () => {
+  it('order in words, and the template order compared: the revision 08 RTU and MAU orders match, a desiccant unit entered as a DOAS is flagged', () => {
     const ge = matchLibraryUnit(library, 'Carrier', '48GERN24')!;
     expect(orderText(ge.components)).toBe(
       'Economizer / OA-RA dampers (option) → Filter → Evaporator coil → Humidi-MiZer reheat coil (option) → Vane-axial direct-drive indoor fan (EcoBlue) → Gas heat exchanger',
     );
-    const rtu = compareWithTemplate('RTU', ge.components)!;
-    expect(rtu.sameOrder).toBe(false);
-    expect(rtu.notes[0]).toBe(
-      "The template draws Filter → Coil → Heat → Fan; this unit's order is Filter → Coil → Fan → Heat.",
-    );
-    expect(rtu.notes[1]).toMatch(/no place for: Humidi-MiZer reheat coil/);
+    // revision 08: Filter, Coil, Reheat, Fan, Heat (the heat after the fan, a place for the reheat)
+    expect(compareWithTemplate('RTU', ge.components)).toEqual({ sameOrder: true, notes: [] });
     const mau = compareWithTemplate('MAU', matchLibraryUnit(library, 'CaptiveAire', 'A2-D.250-20D')!.components)!;
     expect(mau).toEqual({ sameOrder: true, notes: [] });
     // Capitola RTU-2: a desiccant unit entered as a DOAS: the wheel comes after the coil, the heat after the fan
     const dhu = compareWithTemplate('DOAS', matchLibraryUnit(library, 'Munters', 'HCUC8040')!.components)!;
     expect(dhu.notes).toEqual([
-      "The template draws Filter → Wheel → Coil → Heat → Fan; this unit's order is Filter → Coil → Wheel → Fan → Heat.",
+      "The template draws Filter → Wheel → Coil → Fan → Heat; this unit's order is Filter → Coil → Wheel → Fan → Heat.",
     ]);
-    // RTU-1, the same model entered as an RTU: no wheel at all
-    expect(compareWithTemplate('RTU', matchLibraryUnit(library, 'Munters', 'HCUC8040')!.components)!.notes[1]).toMatch(
+    // the DHU unit type is its order
+    expect(compareWithTemplate('DHU', matchLibraryUnit(library, 'Munters', 'HCUC8040')!.components)).toEqual({
+      sameOrder: true,
+      notes: [],
+    });
+    // RTU-1, the same model entered as an RTU: the order agrees, but the RTU has no wheel (enter it as a DHU)
+    expect(compareWithTemplate('RTU', matchLibraryUnit(library, 'Munters', 'HCUC8040')!.components)!.notes[0]).toMatch(
       /no place for: Desiccant wheel/,
     );
     expect(compareWithTemplate('RTU', null)).toBeNull();

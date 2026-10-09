@@ -9,6 +9,7 @@ import type { FieldValue, NaMark, NaState, Notation, Project } from '../data/typ
 import { num, ratio, rowActualCfm, withinTolerance } from './calc';
 import { evalCond, isBlank } from './conditions';
 import { TOTAL_CALCS } from './equipmentCalcs';
+import { withComponentStatic } from './staticSlots';
 import { valveRatio } from './hydronicCalcs';
 import {
   DEFAULT_READING_GROUPS,
@@ -55,6 +56,8 @@ export interface ItemResult {
   reason?: string;
   /** Automatic N/A the export leaves blank (see AutoNa.exportBlank). */
   exportBlank?: boolean;
+  /** Automatic N/A the form leaves out (see AutoNa.hide). */
+  hidden?: boolean;
 }
 
 export interface RowResult {
@@ -162,7 +165,9 @@ function forcedAuto(auto: readonly AutoNa[] | undefined, values: Readonly<Record
 }
 
 export function computeCompletion(input: CompletionInput): Completion {
-  const { spec, unit, project } = input;
+  const { spec, project } = input;
+  // static profile readings entered before revision 08 (positional keys) read by component
+  const unit = withComponentStatic(input.unit);
   const values: Record<string, FieldValue> = {
     ...unit.data,
     designation: unit.designation,
@@ -219,6 +224,7 @@ export function computeCompletion(input: CompletionInput): Completion {
         notation: 'N/A',
         reason: auto.reason,
         ...(auto.exportBlank ? { exportBlank: true } : {}),
+        ...(auto.hide ? { hidden: true } : {}),
       };
     if (f.recordField !== 'designation') {
       const sn = sectionNa(s, f.airflow ?? s.airflow);

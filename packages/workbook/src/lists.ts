@@ -1,11 +1,11 @@
 /**
- * Dropdown lists of the revision 07 template (rev 05 / 06: without Intake and Flat Oval) ({Dropdowns} named ranges), for building forms without opening
+ * Dropdown lists of the revision 08 template (rev 05-07: without the DHU unit type; rev 05 / 06: without Intake and Flat Oval) ({Dropdowns} named ranges), for building forms without opening
  * the template. The exporter still validates against the template's own lists; `lists.test.ts` checks that
  * these copies match the template.
  */
 export const TEMPLATE_LISTS = {
   'Drive.Type': ['Belt', 'Direct', 'ECM'],
-  'Unit.Type': ['RTU', 'DOAS', 'MAU', 'ERV', 'EF'],
+  'Unit.Type': ['RTU', 'DOAS', 'DHU', 'MAU', 'ERV', 'EF'],
   /** First entry "SF" is the column header / placeholder, not a value. */
   'Service.Factors2': ['SF 1.0', 'SF 1.15', 'SF 1.25', 'SF 1.35', 'SF 1.5'],
   'Airflow.Instrument': [
@@ -61,10 +61,25 @@ export const TEMPLATE_LISTS = {
 export const PHASES = ['1-phase', '3-phase'] as const;
 
 /**
- * Static pressure profile components 1-5 by unit type ({Dropdowns} unit-type table). null = "—" (component
- * greyed out on the sheet; the app treats its leaving static as automatically N/A).
+ * Static pressure profile components 1-6 by unit type, in airflow order (revision 08 {Dropdowns} AH1:AO7). null = "—"
+ * (no such component on the unit type). Packaged units put the heat after the supply fan (blow-through), reheat right
+ * after the cooling coil, a desiccant dehumidifier its wheel after the coil (research doc "Unit Static Profile
+ * Component Order").
  */
 export const UNIT_TYPE_COMPONENTS: Record<string, readonly (string | null)[]> = {
+  RTU: ['Filter', 'Coil', 'Reheat', 'Fan', 'Heat', null],
+  DOAS: ['Filter', 'Wheel', 'Coil', 'Reheat', 'Fan', 'Heat'],
+  DHU: ['Filter', 'Coil', 'Desiccant', 'Fan', 'Heat', null],
+  MAU: ['Filter', 'Burner', 'Fan', null, null, null],
+  ERV: ['Filter', 'Core', 'Fan', null, null, null],
+  EF: ['Fan', null, null, null, null, null],
+};
+
+/**
+ * The revision 05-07 profile (5 fixed components, the fan last, the heat drawn before it): how the leaving statics of a
+ * rev 05-07 workbook (and of projects entered before revision 08) are laid out.
+ */
+export const UNIT_TYPE_COMPONENTS_07: Record<string, readonly (string | null)[]> = {
   RTU: ['Filter', null, 'Coil', 'Heat', 'Fan'],
   DOAS: ['Filter', 'Wheel', 'Coil', 'Heat', 'Fan'],
   MAU: ['Filter', null, 'Burner', null, 'Fan'],
@@ -72,10 +87,11 @@ export const UNIT_TYPE_COMPONENTS: Record<string, readonly (string | null)[]> = 
   EF: [null, null, null, null, 'Fan'],
 };
 
-/** Inlet label of the static-profile strip by unit type ({Dropdowns} AI2:AI6, first column of the table). */
+/** Inlet label of the static-profile strip by unit type ({Dropdowns} AI2:AI7, first column of the table). */
 export const UNIT_TYPE_INLETS: Record<string, string> = {
   RTU: 'RA / OA',
   DOAS: 'OA',
+  DHU: 'OA',
   MAU: 'OA',
   ERV: 'OA / EA',
   EF: 'Inlet',

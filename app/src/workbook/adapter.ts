@@ -30,7 +30,17 @@ import {
   type UnitData,
 } from '@a2b/workbook/map';
 import { computeCompletion, isNaState, seqNaKey, tableNaKey, type Completion } from '../domain/completion';
-import { isBlank, tapSkipped, THREE_POINT } from '../domain/conditions';
+import { isBlank } from '../domain/conditions';
+import {
+  measuredComponents,
+  readPositionalStatic,
+  SP_KEYS,
+  spKey,
+  THREE_POINT,
+  threePointTaps,
+  toPositional,
+  withComponentStatic,
+} from '../domain/staticSlots';
 import { equipmentType, mapOf, workbookDef, type Discipline, type EquipmentTypeKey } from '../domain/equipmentTypes';
 import { CERT_KEYS, CERT_PRELIM_REASON, certValue } from '../domain/certification';
 import { PRESSURE_KEYS, PRESSURE_ROWS } from '../domain/projectCompletion';
@@ -39,7 +49,7 @@ import { joinSheaveBore, splitSheaveBore } from '../domain/sheaveBore';
 import { fanAtHood, fanHoodIgnoredReadings, hoodLinks, hoodsAirflow, hoodTotals } from '../domain/equipmentCalcs';
 import { isObservation } from '../domain/issues';
 import { SPARE_OA_ROWS, spareOaKey, type SpareOaColumn } from '../domain/spareOa';
-import { getSpec, seqKey, tableColumns, type EquipmentSpec, type RowTableSpec } from '../domain/specs';
+import { getSpec, presetUnitType, seqKey, tableColumns, type EquipmentSpec, type RowTableSpec } from '../domain/specs';
 import {
   emptyNaState,
   type AirflowRow,
@@ -590,18 +600,46 @@ export function unitFieldCells(
   if (!def) return { schedule, fields };
   const rev07 = map ? atLeastRevision(map, '07') : true;
   const layout = blockLayout(def, e.slot);
-  const keys = new Set([...Object.keys(e.data), ...Object.keys(e.naState.fields), ...Object.keys(c.fields)]);
+  // the static profile: component readings (spCoil, spFan ...) to the layout's positional cells (spLeaving1 ...)
+  const unitType = e.data.unitType ?? presetUnitType(e.type);
+  const slotLayout = !map || atLeastRevision(map, '08') ? '08' : '07';
+  const moved = withComponentStatic(e, unitType);
+  const data: Record<string, FieldValue> = { ...moved.data };
+  const marks: Record<string, NaMark | null> = { ...moved.naState.fields };
+  const states: Record<string, (typeof c.fields)[string]> = { ...c.fields };
+  for (const k of SP_KEYS) {
+    delete data[k];
+    delete marks[k];
+    delete states[k];
+  }
+  Object.assign(
+    data,
+    toPositional(unitType, slotLayout, (k) => moved.data[k] ?? undefined),
+  );
+  Object.assign(
+    marks,
+    toPositional(unitType, slotLayout, (k) => moved.naState.fields[k] ?? undefined),
+  );
+  Object.assign(
+    states,
+    toPositional(unitType, slotLayout, (k) => c.fields[k]),
+  );
+  if (slotLayout === '07' && typeof unitType === 'string' && unitType.trim().toUpperCase() === 'DHU') {
+    data.unitType = 'DOAS';
+    warnings.push(`${path}: the DHU unit type needs template revision 08; written as DOAS in this workbook`);
+  }
+  const keys = new Set([...Object.keys(data), ...Object.keys(marks), ...Object.keys(states)]);
   for (const key of keys) {
     if (key === 'designation' || key === 'remarks') continue;
     const edeDef = def.ede?.fields.find((f) => f.key === key);
     const blockDef = layout.fields?.find((f) => f.key === key);
     if (!edeDef && !blockDef) continue; // app-only (hasVfd, photo:/table:/seq: marks, sequence readings)
-    const st = c.fields[key];
+    const st = states[key];
     if (st?.state === 'auto-na' && st.exportBlank) continue; // blank on purpose (absent static-profile component)
     const levelMark: NaMark | null =
       st && isNaState(st.state) && st.state !== 'na' && st.notation ? { notation: st.notation } : null;
     // automatic N/A that overrides an entered value (MAU: a method that is not the chosen one) exports as N/A
-    const raw = st?.state === 'auto-na' ? 'N/A' : out(e.data[key], e.naState.fields[key] ?? levelMark);
+    const raw = st?.state === 'auto-na' ? 'N/A' : out(data[key], marks[key] ?? levelMark);
     if (raw === undefined) continue;
     // MAU method "Intake" and flat oval ducts: not in the revision 05 / 06 lists (no cells for the screens / the ends)
     if (key === 'method' && raw === 'Intake' && !layout.tables?.some((t) => t.key === 'intake')) {
@@ -650,9 +688,7 @@ export function unitCells(
   const { schedule, fields } = unitFieldCells(e, c);
   const cells: Record<string, Cell> = { ...schedule, ...fields };
   if (!('unitType' in cells)) {
-    const preset = getSpec(e.type)
-      .sections.flatMap((s) => s.fields)
-      .find((f) => f.key === 'unitType')?.preset;
+    const preset = presetUnitType(e.type);
     if (preset !== undefined) cells.unitType = preset;
   }
   return cells;
@@ -829,6 +865,13 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
         delete data.sheaveBore;
         delete na.fields.sheaveBore;
       }
+      // the static profile's positional leaving statics, by component (the workbook's own layout)
+      readPositionalStatic(
+        data,
+        na.fields,
+        atLeastRevision(map, '08') ? '08' : '07',
+        data.unitType ?? presetUnitType(type),
+      );
       // a fan measured at its hood(s) (rev 07 line): the hoods' CFMs are derived from the hoods, not stored
       if (typeof data.hoodLine === 'string' && data.hoodLine.trim()) data.measuredAt = 'Hood';
       for (const k of ['hoodLine', 'hoodDesignCfm', 'hoodInitialCfm', 'hoodFinalCfm']) {
@@ -843,13 +886,20 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
       if (data.hasVfd === undefined && naOnly('vsdFinal')) data.hasVfd = 'No';
       if (data.hasFilters === undefined && naOnly('filters')) data.hasFilters = 'No';
       // a 3-point static profile: entering, fan inlet and discharge only (the other leaving statics blank)
-      if (typeof data.spEntering === 'number' && typeof data.spLeaving5 === 'number') {
-        const skipped = [1, 2, 3, 4].filter((n) => tapSkipped(n, { ...data, spTaps: THREE_POINT }));
-        const fanInlet = [1, 2, 3, 4].some((n) => !skipped.includes(n) && typeof data[`spLeaving${n}`] === 'number');
+      const taps = threePointTaps({
+        ...data,
+        unitType: data.unitType ?? presetUnitType(type) ?? null,
+        spTaps: THREE_POINT,
+      });
+      if (taps?.discharge && taps.fanInlet && typeof data.spEntering === 'number') {
+        const tapped = [taps.fanInlet, taps.discharge];
+        const others = measuredComponents({ ...data, unitType: data.unitType ?? presetUnitType(type) ?? null }).filter(
+          (c) => !tapped.includes(c),
+        );
         if (
-          fanInlet &&
-          skipped.length &&
-          skipped.every((n) => isBlank(data[`spLeaving${n}`]) && !na.fields[`spLeaving${n}`])
+          tapped.every((c) => typeof data[spKey(c)] === 'number') &&
+          others.length &&
+          others.every((c) => isBlank(data[spKey(c)]) && !na.fields[spKey(c)])
         )
           data.spTaps = THREE_POINT;
       }

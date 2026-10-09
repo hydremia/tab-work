@@ -177,15 +177,42 @@ describe('automatic N/A rules', () => {
     expect(c.color).toBe('green');
   });
 
-  it('unit type sets the static-profile components (RTU has no wheel, DOAS does)', () => {
-    expect(computeCompletion(fullRtu()).fields.spLeaving2.state).toBe('auto-na');
-    expect(computeCompletion(withData(fullRtu(), { unitType: 'DOAS' })).fields.spLeaving2.state).toBe('missing');
+  it('unit type sets the static-profile components (RTU has no wheel, DOAS does; hidden when absent)', () => {
+    const rtu = computeCompletion(fullRtu()).fields;
+    expect(rtu.spWheel).toMatchObject({ state: 'auto-na', hidden: true, exportBlank: true });
+    expect(computeCompletion(withData(fullRtu(), { unitType: 'DOAS' })).fields.spWheel.state).toBe('missing');
+    // the fan leaving static before a heat section is optional (the discharge gives the TSP); an MAU's is required
+    expect(rtu.spFan.state).toBe('optional');
+    expect(computeCompletion(withData(fullRtu(), { unitType: 'MAU' })).fields.spFan.state).toBe('missing');
+  });
+
+  it('a reheat coil only when the unit has one', () => {
+    expect(computeCompletion(fullRtu()).fields.spReheat).toMatchObject({ state: 'auto-na', hidden: true });
+    expect(computeCompletion(withData(fullRtu(), { hasReheat: 'Yes' })).fields.spReheat.state).toBe('missing');
   });
 
   it('no filters -> filter description and filter leaving static', () => {
-    const c = computeCompletion(withData(fullRtu(), { hasFilters: 'No', filters: null, spLeaving1: null }));
+    const c = computeCompletion(withData(fullRtu(), { hasFilters: 'No', filters: null, spFilter: null }));
     expect(c.fields.filters.state).toBe('auto-na');
-    expect(c.fields.spLeaving1.state).toBe('auto-na');
+    expect(c.fields.spFilter).toMatchObject({ state: 'auto-na', hidden: true });
+  });
+
+  it('readings entered before revision 08 (positional) count as their components', () => {
+    const old = withData(fullRtu(), {
+      spFilter: null,
+      spCoil: null,
+      spHeat: null,
+      spLeaving1: -0.5,
+      spLeaving4: -1,
+      spLeaving5: 0.6,
+    });
+    const c = computeCompletion(old);
+    expect([c.fields.spFilter.state, c.fields.spCoil.state, c.fields.spHeat.state]).toEqual([
+      'value',
+      'value',
+      'value',
+    ]);
+    expect(c.color).toBe('green');
   });
 });
 

@@ -173,10 +173,11 @@ describe('ERV', () => {
 });
 
 describe('Fans (EF)', () => {
-  it('only the fan is on the static profile: components 1-4 automatically N/A', () => {
+  it('only the fan is on the static profile: the other components automatically N/A (hidden)', () => {
     const c = computeCompletion(unit('EF-2'));
-    for (const k of ['spLeaving1', 'spLeaving2', 'spLeaving3', 'spLeaving4']) expect(c.fields[k].state).toBe('auto-na');
-    expect(c.fields.spLeaving5.state).toBe('value');
+    for (const k of ['spFilter', 'spWheel', 'spCoil', 'spHeat'])
+      expect(c.fields[k]).toMatchObject({ state: 'auto-na', hidden: true });
+    expect(c.fields.spFan.state).toBe('value');
     expect(c.fields.volts2.state).toBe('auto-na'); // 1-phase
     expect(c.fields.designOaCfm).toBeUndefined();
   });

@@ -6,88 +6,90 @@ const close = (a: number | null, b: number) => {
   expect(a!).toBeCloseTo(b, 10);
 };
 
-describe('static-pressure profile strip (RTUs / MAUs / ERVs / Fans rows P+19 ... P+25)', () => {
+/** The cases of tools/functional_test_rev08.py (LibreOffice-recalculated revision 08 workbook), cell by cell. */
+describe('static-pressure profile (revision 08: RTUs / MAUs / ERVs / Fans rows P+19 ... P+25)', () => {
   it('unit-type table: labels, inlet, "—" for absent components; unknown type gives "" labels (IFERROR)', () => {
     expect(unitTypeRow('RTU')).toEqual({
       known: true,
       inlet: 'RA / OA',
-      labels: ['Filter', '—', 'Coil', 'Heat', 'Fan'],
+      labels: ['Filter', 'Coil', 'Reheat', 'Fan', 'Heat', '—'],
     });
-    expect(unitTypeRow('doas').labels).toEqual(['Filter', 'Wheel', 'Coil', 'Heat', 'Fan']); // MATCH ignores case
-    expect(unitTypeRow('EF').labels).toEqual(['—', '—', '—', '—', 'Fan']);
-    expect(unitTypeRow('N/A')).toEqual({ known: false, inlet: '', labels: ['', '', '', '', ''] });
+    expect(unitTypeRow('doas').labels).toEqual(['Filter', 'Wheel', 'Coil', 'Reheat', 'Fan', 'Heat']); // MATCH ignores case
+    expect(unitTypeRow('DHU').labels).toEqual(['Filter', 'Coil', 'Desiccant', 'Fan', 'Heat', '—']);
+    expect(unitTypeRow('EF').labels).toEqual(['Fan', '—', '—', '—', '—', '—']);
+    expect(unitTypeRow('N/A')).toEqual({ known: false, inlet: '', labels: ['', '', '', '', '', ''] });
     expect(unitTypeRow(null).known).toBe(false);
   });
 
-  it('revision 04/05 functional test, RTU-1: -0.3 / -0.5 / (—) / -0.7 / (heat blank) / 0.9', () => {
-    const p = staticProfile({ unitType: 'RTU', entering: -0.3, leaving: [-0.5, null, -0.7, null, 0.9] });
-    expect(p.entering).toEqual([-0.3, -0.5, -0.5, -0.7, -0.7]); // D24 = E24 = -0.5, G24 = -0.7
-    expect(p.dpText[0]).toBe('Δ -0.20'); // D28
-    expect(p.dp[1]).toBeNull(); // wheel "—"
-    close(p.dp[2], -0.2); // coil
-    expect(p.dp[3]).toBeNull(); // heat: leaving blank
-    close(p.tsp, 1.6); // E29
-    close(p.esp, 1.2); // I29 = L12 unit ESP actual
-    close(p.unitDp, -0.4); // M29
+  it('RTU full profile: Δ per component, TSP across the blow-through heat section, ESP, Unit ΔP', () => {
+    const p = staticProfile({ unitType: 'RTU', entering: -0.5, leaving: [-0.6, -0.9, -1.0, null, 0.5, null] });
+    expect(p.dpText).toEqual(['Δ -0.10', 'Δ -0.30', 'Δ -0.10', null, null, null]);
+    expect(p.fanInlet).toBe(-1.0);
+    expect(p.discharge).toBe(0.5);
+    close(p.tsp, 1.5);
+    close(p.esp, 1.0); // I25 = L P+8 "Unit ESP actual"
+    close(p.unitDp, -0.5);
+    expect(p.strip).toEqual([-0.5, -0.6, -0.9, -1.0, null, 0.5, null]);
   });
 
-  it('revision 04/05 functional test, EF: the fan inlet passes through the four absent components', () => {
-    const p = staticProfile({ unitType: 'EF', entering: -0.5, leaving: [null, null, null, null, 0.3] });
-    expect(p.entering[4]).toBe(-0.5);
-    close(p.tsp, 0.8);
-    close(p.esp, 0.8);
-    close(p.unitDp, 0);
-    expect(p.dp.slice(0, 4)).toEqual([null, null, null, null]);
-    close(p.dp[4], 0.8);
+  it('RTU 3-point (Capitola RTU-3): entering, coil leaving = fan inlet, heat leaving = discharge', () => {
+    const p = staticProfile({ unitType: 'RTU', entering: -0.317, leaving: [null, -0.806, null, null, 0.514, null] });
+    expect(p.dp).toEqual([null, null, null, null, null, null]); // no adjacent readings
+    expect(p.fanInlet).toBe(-0.806);
+    close(p.tsp, 1.32);
+    close(p.esp, 0.831);
+    close(p.unitDp, -0.489);
   });
 
-  it('revision 05 RTU-3: a notation as a leaving static is passed on as text, blanking the fan TSP and unit ΔP', () => {
-    const p = staticProfile({ unitType: 'RTU', entering: -0.3, leaving: [-0.5, null, 'Not Acc.', null, 0.9] });
-    expect(p.entering[3]).toBe('Not Acc.'); // F232 heat entering shows Not Acc.
-    expect(p.entering[4]).toBe('Not Acc.');
-    expect(p.dp[2]).toBeNull(); // H236 coil ΔP blank
-    expect(p.dp[3]).toBeNull();
-    expect(p.tsp).toBeNull(); // E237
-    close(p.esp, 1.2); // I237
-    expect(p.unitDp).toBeNull(); // M237
+  it('MAU (Capitola MAU-9), EF (the fan first), DOAS (6 components), DHU (desiccant after the coil)', () => {
+    const mau = staticProfile({ unitType: 'MAU', entering: -0.355, leaving: [null, -0.921, 0.339, null, null, null] });
+    expect(mau.dpText).toEqual([null, null, 'Δ 1.26', null, null, null]);
+    close(mau.tsp, 1.26);
+    close(mau.esp, 0.694);
+    close(mau.unitDp, -0.566);
+    const ef = staticProfile({ unitType: 'EF', entering: -0.2, leaving: [0.6, null, null, null, null, null] });
+    close(ef.tsp, 0.8);
+    close(ef.esp, 0.8);
+    close(ef.unitDp, 0);
+    const doas = staticProfile({ unitType: 'DOAS', entering: -0.3, leaving: [-0.4, -0.7, -1.1, -1.2, 0.9, 1.0] });
+    expect(doas.dpText).toEqual(['Δ -0.10', 'Δ -0.30', 'Δ -0.40', 'Δ -0.10', 'Δ 2.10', 'Δ 0.10']);
+    close(doas.tsp, 2.1); // the fan's own reading
+    close(doas.esp, 1.3);
+    close(doas.unitDp, -0.9);
+    const dhu = staticProfile({ unitType: 'DHU', entering: -1.26, leaving: [-1.53, -2.35, -2.6, null, 0.572, null] });
+    expect(dhu.fanInlet).toBe(-2.6);
+    close(dhu.tsp, 0.572 + 2.6);
+    close(dhu.esp, 0.572 + 1.26);
   });
 
-  it('revision 05 Fans: inlet static N/A blanks TSP (fan entering is N/A) and ESP', () => {
-    const p = staticProfile({ unitType: 'EF', entering: 'N/A', leaving: [null, null, null, null, 0.4] });
+  it('a notation at the fan inlet blanks TSP and Unit ΔP, not the ESP', () => {
+    const p = staticProfile({ unitType: 'RTU', entering: -0.5, leaving: [null, 'Not Acc.', null, null, 0.5, null] });
+    expect(p.fanInlet).toBe('Not Acc.');
     expect(p.tsp).toBeNull();
-    expect(p.esp).toBeNull();
     expect(p.unitDp).toBeNull();
+    close(p.esp, 1.0);
   });
 
-  it('an "N/A" in an absent component would blank everything downstream (why the export leaves it blank)', () => {
-    const na = staticProfile({ unitType: 'MAU', entering: -0.2, leaving: [-0.35, 'N/A', -0.6, 'N/A', 0.55] });
-    expect([na.tsp, na.unitDp, na.dp[2]]).toEqual([null, null, null]);
-    close(na.esp, 0.75);
-    const blank = staticProfile({ unitType: 'MAU', entering: -0.2, leaving: [-0.35, null, -0.6, null, 0.55] });
-    close(blank.dp[2], -0.25); // burner
-    close(blank.tsp, 1.15);
-    close(blank.unitDp, -0.4);
+  it('a fan leaving static marked Not Acc. (blow-through): TSP from the discharge, the heat Δ blank', () => {
+    const p = staticProfile({ unitType: 'RTU', entering: -0.5, leaving: [-0.6, -0.9, null, 'Not Acc.', 0.5, null] });
+    close(p.tsp, 1.4);
+    expect(p.dp[4]).toBeNull();
   });
 
-  it('a value typed into an absent component still feeds the next entering static (as the sheet does)', () => {
-    const p = staticProfile({ unitType: 'RTU', entering: -0.3, leaving: [-0.5, -0.6, -0.7, null, 0.9] });
-    expect(p.entering[2]).toBe(-0.6);
-    expect(p.dp[1]).toBeNull(); // but its own ΔP stays blank ("—")
-    close(p.dp[2], -0.1);
+  it('an absent ("—") component is skipped for the Δ of the next one; an unread one leaves it blank', () => {
+    // RTU without reheat: the fan's Δ is measured from the coil
+    const p = staticProfile({ unitType: 'RTU', entering: -0.3, leaving: [-0.4, -0.8, null, 0.9, 1.0, null] });
+    expect(p.dp[3]).toBeNull(); // reheat (not "—" on an RTU) is unread: the fan's Δ is blank
+    close(p.tsp, 1.7); // fan inlet passes the unread reheat
+    const ef = staticProfile({ unitType: 'EF', entering: -0.2, leaving: [0.6, 5, null, null, null, null] });
+    expect(ef.dp[1]).toBeNull(); // a value typed into a "—" component shows no Δ
+    close(ef.esp, 5.2); // ... but the sheet's last reading is still the discharge, as the formulas do
   });
 
-  it('negative ESP / TSP and blank chains', () => {
-    const p = staticProfile({ unitType: 'DOAS', entering: 0.1, leaving: [-0.2, -0.4, -0.6, -0.65, -0.3] });
-    close(p.tsp, 0.35);
-    close(p.esp, -0.4);
-    close(p.unitDp, -0.75);
-    expect(p.dpText).toEqual(['Δ -0.30', 'Δ -0.20', 'Δ -0.20', 'Δ -0.05', 'Δ 0.35']);
-    const none = staticProfile({ unitType: 'RTU', entering: null, leaving: [null, null, null, null, 0.5] });
-    expect([none.tsp, none.esp, none.unitDp]).toEqual([null, null, null]);
-    expect(none.entering).toEqual([null, null, null, null, null]);
-    // unknown unit type: no component is "—", every ΔP is calculated
-    const unk = staticProfile({ unitType: 'XYZ', entering: -0.1, leaving: [-0.2, -0.3, null, null, 0.4] });
-    expect(unk.dp.map((d) => (d === null ? null : Math.round(d * 100) / 100))).toEqual([-0.1, -0.1, null, null, 0.7]);
+  it('inlet static N/A blanks the ESP and Unit ΔP', () => {
+    const p = staticProfile({ unitType: 'EF', entering: 'N/A', leaving: [0.3, null, null, null, null, null] });
+    expect(p.esp).toBeNull();
+    expect(p.tsp).toBeNull(); // the fan is first: its inlet is the entering static
   });
 
   it('TEXT(x, "0.00") rounding', () => {

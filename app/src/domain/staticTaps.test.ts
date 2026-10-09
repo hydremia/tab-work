@@ -22,28 +22,34 @@ const rtu = (data: Equipment['data']): Equipment => ({
 });
 
 describe('3-point static profile', () => {
-  it('RTU (filter, coil, heat, fan): filter and coil are not measured; the fan inlet goes on heat', () => {
+  it('RTU (filter, coil, [reheat], fan, heat): entering, the fan inlet (coil, or reheat) and the discharge (heat)', () => {
     const v = { unitType: 'RTU', spTaps: '3-point' };
-    expect([1, 2, 3, 4, 5].map((n) => tapSkipped(n, v))).toEqual([true, false, true, false, false]);
-    expect([1, 2, 3, 4, 5].map((n) => tapSkipped(n, { ...v, spTaps: 'Full profile' }))).toEqual([
+    const comps = ['Filter', 'Coil', 'Reheat', 'Fan', 'Heat'];
+    // no reheat: the coil is the fan inlet; the fan's own leaving static is not read (the heat is the discharge)
+    expect(comps.map((c) => tapSkipped(c, v))).toEqual([true, false, false, true, false]);
+    expect(comps.map((c) => tapSkipped(c, { ...v, hasReheat: 'Yes' }))).toEqual([true, true, false, true, false]);
+    expect(comps.map((c) => tapSkipped(c, { ...v, spTaps: 'Full profile' }))).toEqual([
       false,
       false,
       false,
       false,
       false,
     ]);
-    // MAU (filter, burner, fan): filter skipped, burner = fan inlet
-    expect([1, 2, 3, 4].map((n) => tapSkipped(n, { unitType: 'MAU', spTaps: '3-point' }))).toEqual([
+    // MAU (filter, burner, fan): filter skipped, burner = fan inlet, fan = discharge
+    expect(['Filter', 'Burner', 'Fan'].map((c) => tapSkipped(c, { unitType: 'MAU', spTaps: '3-point' }))).toEqual([
       true,
       false,
       false,
-      false,
     ]);
+    // DHU: the desiccant wheel is the fan inlet
+    expect(
+      ['Filter', 'Coil', 'Desiccant', 'Fan', 'Heat'].map((c) => tapSkipped(c, { unitType: 'DHU', spTaps: '3-point' })),
+    ).toEqual([true, true, false, true, false]);
   });
 
   it('the skipped taps are automatically N/A (not missing) and exported blank, so TSP / ESP still calculate', () => {
     const b = sampleBundle();
-    const unit = rtu({ spTaps: '3-point', spEntering: -0.3, spLeaving4: -1.0, spLeaving5: 0.7 });
+    const unit = rtu({ spTaps: '3-point', spEntering: -0.3, spCoil: -1.0, spHeat: 0.7 });
     const c = computeCompletion({
       spec: getSpec('rtu'),
       unit,
@@ -52,12 +58,14 @@ describe('3-point static profile', () => {
       project: b.project,
       openIssues: 0,
     });
-    expect(c.fields.spLeaving1.state).toBe('auto-na');
-    expect(c.fields.spLeaving3.state).toBe('auto-na');
-    expect(c.missing.map((m) => m.key)).not.toContain('spLeaving1');
+    expect(c.fields.spFilter.state).toBe('auto-na');
+    expect(c.fields.spFan.state).toBe('auto-na');
+    expect(c.missing.map((m) => m.key)).not.toContain('spFilter');
     const cells = unitCells(unit, c);
-    // blank (not "N/A"): the workbook's strip passes the entering static on
-    expect([cells.spLeaving1, cells.spLeaving3].every((x) => x === undefined || x === null || x === '')).toBe(true);
+    // revision 08 positions: Filter, Coil, Reheat, Fan, Heat; the skipped ones blank (not "N/A")
+    expect(cells.spLeaving2).toBe(-1.0);
+    expect(cells.spLeaving5).toBe(0.7);
+    expect([cells.spLeaving1, cells.spLeaving4].every((x) => x === undefined || x === null || x === '')).toBe(true);
     const p = staticProfile(staticInputs(cells));
     expect(p.tsp).toBeCloseTo(1.7, 6);
     expect(p.esp).toBeCloseTo(1.0, 6);
@@ -66,10 +74,10 @@ describe('3-point static profile', () => {
 
   it('a workbook with only those three readings comes back as 3-point', () => {
     const b = sampleBundle();
-    const unit = rtu({ spTaps: '3-point', spEntering: -0.3, spLeaving4: -1.0, spLeaving5: 0.7 });
+    const unit = rtu({ spTaps: '3-point', spEntering: -0.3, spCoil: -1.0, spHeat: 0.7 });
     unit.projectId = b.project.id;
     const { data } = toProjectData({ ...b, equipment: [...b.equipment, unit] });
-    const back = fromProjectData(data);
-    expect(back.equipment.find((e) => e.designation === 'RTU-9')?.data.spTaps).toBe('3-point');
+    const back = fromProjectData(data).equipment.find((e) => e.designation === 'RTU-9')!;
+    expect(back.data).toMatchObject({ spTaps: '3-point', spEntering: -0.3, spCoil: -1.0, spHeat: 0.7 });
   });
 });

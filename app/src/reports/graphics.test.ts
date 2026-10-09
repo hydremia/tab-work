@@ -153,9 +153,12 @@ describe('graphics appendix', () => {
     const f = fig();
     expect(f.makeModel).toBe('Carrier 48GERN24B2P6-3U5C0');
     expect(f.library).toMatchObject({ name: 'Carrier WeatherMaster 48GE', confidence: 'stated' });
-    expect(f.diagram.sections.map((s) => s.kind)).toEqual(['damper', 'filter', 'coil', 'reheat', 'fan', 'heat']);
+    // the optional Humidi-MiZer reheat coil only when the unit has reheat
+    expect(f.diagram.sections.map((s) => s.kind)).toEqual(['damper', 'filter', 'coil', 'fan', 'heat']);
+    unit.data.hasReheat = 'Yes';
+    expect(fig().diagram.sections.map((s) => s.kind)).toEqual(['damper', 'filter', 'coil', 'reheat', 'fan', 'heat']);
     unit.data.hasFilters = 'No';
-    expect(fig().diagram.sections.map((s) => s.kind)).toEqual(['damper', 'coil', 'reheat', 'fan', 'heat']);
+    expect(fig().diagram.sections.map((s) => s.kind)).toEqual(['damper', 'coil', 'reheat', 'fan', 'heat']); // still with reheat
   });
 
   it('a pump picked from the pump-curve library carries its curve at the estimated impeller', () => {

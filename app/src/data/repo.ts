@@ -17,7 +17,8 @@ import { duplicateData, duplicateRow } from '../domain/duplicate';
 import { acceptanceKey } from '../domain/review';
 import { equipmentType, nextFreeSlot, workbookDef, type EquipmentTypeKey } from '../domain/equipmentTypes';
 import type { PreviewRow } from '../domain/scheduleImport';
-import { getSpec } from '../domain/specs';
+import { getSpec, presetUnitType } from '../domain/specs';
+import { legacyStaticWrites } from '../domain/staticSlots';
 import { airflowOnlySections } from '../domain/unitScope';
 import {
   AIR_BALANCE_KEYS,
@@ -1351,6 +1352,36 @@ export async function splitLegacySheaveBore(unit: Equipment): Promise<boolean> {
     if (e instanceof LockedError) return false;
     throw e;
   }
+}
+
+/**
+ * Static profile readings entered before template revision 08 (the rev 05-07 positional leaving statics spLeaving1-5)
+ * moved to their component keys (domain/staticSlots.ts), as one attributed, synced write. False when there is nothing
+ * to move or the project is locked (readers translate on the fly meanwhile).
+ */
+export async function migrateLegacyStatic(unit: Equipment): Promise<boolean> {
+  const unitType = unit.data.unitType ?? presetUnitType(unit.type) ?? null;
+  const values = legacyStaticWrites(unit.data, unit.naState.fields, unitType);
+  if (!values) return false;
+  try {
+    await setFields('equipment', unit.id, values, {
+      source: 'auto',
+      note: 'Static pressure profile readings moved to their components (template revision 08)',
+      keepReview: true,
+    });
+    return true;
+  } catch (e) {
+    if (e instanceof LockedError) return false;
+    throw e;
+  }
+}
+
+/** Every unit of a project with static profile readings from before revision 08 moved (see migrateLegacyStatic). */
+export async function migrateProjectStatic(projectId: string): Promise<number> {
+  const units = await db.equipment.where('projectId').equals(projectId).toArray();
+  let n = 0;
+  for (const u of units) if (await migrateLegacyStatic(u)) n++;
+  return n;
 }
 
 export async function addLibraryUnit(u: Partial<Omit<LibraryUnit, 'id' | 'createdAt' | 'updatedAt'>> = {}) {

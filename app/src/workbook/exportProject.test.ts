@@ -2,13 +2,22 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import JSZip from 'jszip';
-import { importWorkbook, importWorkbookWithReport, listSheets, readText, TEMPLATE_FILE_NAME } from '@a2b/workbook';
+import {
+  exportWorkbookWithReport,
+  importWorkbook,
+  importWorkbookWithReport,
+  listSheets,
+  readText,
+  TEMPLATE_07_FILE_NAME,
+  TEMPLATE_FILE_NAME,
+  TEMPLATE_MAP_07,
+} from '@a2b/workbook';
 import { describe, expect, it } from 'vitest';
 import { db } from '../data/db';
 import { createRecord, setCertImage, setField, unlockProject, writeTables } from '../data/repo';
 import type { Revision } from '../data/types';
 import { sampleBundle } from '../test/fixtures';
-import type { ProjectBundle } from './adapter';
+import { toProjectData, type ProjectBundle } from './adapter';
 import { toCertImage } from '../certification/images';
 import { exportFileName, exportProject } from './exportProject';
 import { applyReimport, parseWorkbook, prepareReview } from './importProject';
@@ -217,6 +226,33 @@ describe('export revisions', () => {
     expect((await prepareReview(b.project.id, parsed)).diff.items).toEqual([]);
   });
 
+  it('a revision 07 base (an issued rev 07 report): the export moves the project to revision 08, with a warning', async () => {
+    const b = sampleBundle();
+    await store(b);
+    const rev07 = new Uint8Array(
+      readFileSync(fileURLToPath(new URL(`../../../${TEMPLATE_07_FILE_NAME}`, import.meta.url))),
+    );
+    const { data } = toProjectData(b, 'air', TEMPLATE_MAP_07);
+    const old = (await exportWorkbookWithReport(rev07, data, { map: TEMPLATE_MAP_07 })).bytes;
+    await db.baseWorkbooks.put({
+      projectId: b.project.id,
+      blob: new Blob([old as BlobPart]),
+      fileName: 'issued-rev07.xlsm',
+      size: old.length,
+      importedAt: 1,
+      fromRevisionId: null,
+    });
+    const r = await exportProject(b.project.id, { template });
+    expect(r.baseFileName).toBeUndefined();
+    expect(r.warnings.join(' ')).toMatch(
+      /issued-rev07\.xlsm is a revision 07 workbook: this export moves the project to revision 08/,
+    );
+    const back = await importWorkbook(r.bytes);
+    expect(back.templateRevision).toBe('08');
+    // RTU-1 positions in revision 08: Filter, Coil, Reheat, Fan, Heat
+    expect(back.equipment.rtu[0].fields).toMatchObject({ spLeaving1: -0.55, spLeaving2: -1.05, spLeaving5: 0.72 });
+  });
+
   it('a base that is no longer a copy of its revision: blank template, with a warning', async () => {
     const b = sampleBundle();
     await store(b);
@@ -234,7 +270,7 @@ describe('export revisions', () => {
     });
     const r = await exportProject(b.project.id, { template });
     expect(r.baseFileName).toBeUndefined();
-    expect(r.warnings.join(' ')).toMatch(/not a revision 07 workbook.*M10/);
+    expect(r.warnings.join(' ')).toMatch(/not a revision 08 workbook.*M10/);
     expect((await importWorkbook(r.bytes)).equipment.rtu.length).toBeGreaterThan(0);
   });
 });

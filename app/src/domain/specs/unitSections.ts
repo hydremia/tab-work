@@ -5,6 +5,7 @@
  */
 import { PHASES, TEMPLATE_LISTS } from '@a2b/workbook/map';
 import type { AutoNa, FieldSpec, PhotoSpec, SectionSpec } from './types';
+import { SP_COMPONENTS, spKey, type SpComponent } from '../staticSlots';
 
 export const ONE_PHASE: AutoNa = { when: { field: 'phase', eq: '1-phase' }, reason: '1-phase' };
 export const NOT_BELT: AutoNa = { when: { field: 'driveType', in: ['Direct', 'ECM'] }, reason: 'direct / ECM drive' };
@@ -15,31 +16,56 @@ export const DIRECT_RPM: AutoNa = {
 export const NO_VFD: AutoNa = { when: { field: 'hasVfd', notIn: ['Yes'] }, reason: 'no VFD' };
 export const NO_FILTERS: AutoNa = { when: { field: 'hasFilters', eq: 'No' }, reason: 'no filters' };
 /**
- * A component that is "—" on the unit type (or a filter section on a unit without filters) has no leaving static.
- * The export leaves that cell blank: the workbook's strip then passes the entering static through to the next
- * component, which is how it skips an absent component (an "N/A" there would blank the downstream ΔP, TSP and ESP).
+ * A component the unit type does not have: no field on the form and nothing in the workbook (the revision 08 strip has
+ * "—" there and skips it).
  */
-const absent = (n: number): AutoNa => ({
-  when: { componentAbsent: n },
+const absent = (c: string): AutoNa => ({
+  when: { componentAbsent: c },
   reason: 'not on this unit type',
   exportBlank: true,
+  hide: true,
 });
-const NO_FILTERS_STATIC: AutoNa = { ...NO_FILTERS, exportBlank: true };
+const NO_FILTERS_STATIC: AutoNa = { ...NO_FILTERS, exportBlank: true, hide: true };
+const NO_REHEAT: AutoNa = {
+  when: { field: 'hasReheat', notIn: ['Yes'] },
+  reason: 'no reheat coil',
+  exportBlank: true,
+  hide: true,
+};
 
-/** A 3-point profile: the component's leaving static is not measured (blank in the workbook, so the strip passes). */
-const NOT_TAPPED = (n: number): AutoNa => ({
-  when: { tapSkipped: n },
+/** A 3-point profile: the component's leaving static is not measured (blank in the workbook). */
+const NOT_TAPPED = (c: string): AutoNa => ({
+  when: { tapSkipped: c },
   reason: '3-point profile: not measured',
   exportBlank: true,
 });
 
-const leaving = (n: number, extra: AutoNa[] = []): FieldSpec => ({
-  key: `spLeaving${n}`,
-  label: `Leaving component ${n}`,
+const LEAVING_LABEL: Record<SpComponent, string> = {
+  Filter: 'Leaving filter',
+  Wheel: 'Leaving energy recovery wheel',
+  Core: 'Leaving core',
+  Coil: 'Leaving cooling coil',
+  Desiccant: 'Leaving desiccant wheel',
+  Reheat: 'Leaving reheat coil',
+  Burner: 'Leaving burner',
+  Fan: 'Leaving fan',
+  Heat: 'Leaving heat section',
+};
+
+const leaving = (c: SpComponent): FieldSpec => ({
+  key: spKey(c),
+  label: LEAVING_LABEL[c],
   input: 'number',
   unit: 'in. w.g.',
-  component: n,
-  autoNa: [absent(n), NOT_TAPPED(n), ...extra],
+  component: c,
+  autoNa: [absent(c), ...(c === 'Filter' ? [NO_FILTERS_STATIC] : c === 'Reheat' ? [NO_REHEAT] : []), NOT_TAPPED(c)],
+  ...(c === 'Fan'
+    ? {
+        // before a heat section (blow-through) the discharge past it gives the TSP
+        requiredWhen: { componentAbsent: 'Heat' },
+        hint: 'On a blow-through unit (heat after the fan) the fan leaving static is usually not accessible: mark it Not Acc.; the discharge past the heat gives the TSP.',
+      }
+    : {}),
 });
 
 /** Schedule fields every unit sheet shares (EDE columns E-O). */
@@ -155,7 +181,7 @@ export const rpmSection: SectionSpec = {
   ],
 };
 
-export function staticSection(enteringLabel = 'Entering static (first component)'): SectionSpec {
+export function staticSection(enteringLabel = 'Entering static (unit inlet)'): SectionSpec {
   return {
     key: 'static',
     label: 'Static pressure profile',
@@ -168,14 +194,19 @@ export function staticSection(enteringLabel = 'Entering static (first component)
         input: 'select',
         options: ['Full profile', '3-point'],
         required: false,
-        hint: '3-point: entering, fan inlet (the leaving static of the last component before the fan) and discharge',
+        hint: '3-point: entering, fan inlet (the leaving static of the last component before the fan) and discharge (the last component)',
+      },
+      {
+        key: 'hasReheat',
+        label: 'Has reheat coil?',
+        input: 'yesno',
+        appOnly: true,
+        required: false,
+        autoNa: [{ when: { componentAbsent: 'Reheat' }, reason: 'not on this unit type', hide: true }],
+        hint: 'Hot gas or hot water reheat after the cooling coil',
       },
       { key: 'spEntering', label: enteringLabel, input: 'number', unit: 'in. w.g.' },
-      leaving(1, [NO_FILTERS_STATIC]),
-      leaving(2),
-      leaving(3),
-      leaving(4),
-      leaving(5),
+      ...SP_COMPONENTS.map(leaving),
     ],
   };
 }

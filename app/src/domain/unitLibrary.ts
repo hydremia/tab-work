@@ -107,6 +107,8 @@ export function templateKinds(unitType: unknown): UnitComponentKind[] {
     Wheel: 'wheel',
     Core: 'wheel',
     Coil: 'coil',
+    Reheat: 'reheat',
+    Desiccant: 'desiccant',
     Heat: 'heat',
     Burner: 'burner',
     Fan: 'fan',
@@ -135,6 +137,7 @@ export function compareWithTemplate(
     filter: 'Filter',
     wheel: 'Wheel',
     coil: 'Coil',
+    reheat: 'Reheat',
     heat: 'Heat',
     fan: 'Fan',
   };

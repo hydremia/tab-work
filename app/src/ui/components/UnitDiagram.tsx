@@ -8,25 +8,27 @@ import type { Equipment, FieldValue, LibraryUnit } from '../../data/types';
 import { staticInputs, type XCell } from '../../domain/staticProfile';
 import { unitDiagram, type DiagramKind, type UnitDiagram as Diagram } from '../../domain/unitDiagram';
 import { matchLibraryUnit, withBuiltIn } from '../../domain/unitLibrary';
-
-const STATIC_KEYS = ['unitType', 'spEntering', 'spLeaving1', 'spLeaving2', 'spLeaving3', 'spLeaving4', 'spLeaving5'];
+import { toPositional, withComponentStatic } from '../../domain/staticSlots';
+import { presetUnitType } from '../../domain/specs';
 
 /** The unit's diagram from its fields (a field marked N/A carries its notation, as the workbook prints it). */
 export function diagramFor(equipment: Equipment, library: readonly LibraryUnit[] | undefined): Diagram {
-  const cells: Record<string, XCell> = {};
-  for (const k of STATIC_KEYS) {
-    const mark = equipment.naState.fields[k];
-    cells[k] = mark ? mark.notation : (equipment.data[k] as FieldValue | undefined);
-  }
+  const unitType = equipment.data.unitType ?? presetUnitType(equipment.type) ?? null;
+  const u = withComponentStatic(equipment, unitType);
+  const cell = (k: string): XCell => {
+    const mark = u.naState.fields[k];
+    return mark ? mark.notation : (u.data[k] as FieldValue | undefined);
+  };
+  const cells: Record<string, XCell> = {
+    unitType,
+    spEntering: cell('spEntering'),
+    ...toPositional(unitType, '08', (k) => cell(k) ?? undefined),
+  };
   const m = matchLibraryUnit(withBuiltIn(library), equipment.data.manufacturer, equipment.data.model);
-  return unitDiagram(staticInputs(cells), m?.components, { noFilters: equipment.data.hasFilters === 'No' });
-}
-
-/** Where a reading field's tap is on this unit, when the strip's name for it says otherwise ("fan inlet"). */
-export function tapHint(d: Diagram, field: string): string | null {
-  const t = d.taps.find((x) => x.field === field);
-  if (!t || t.slot < 0 || t.inDuct || t.name === t.entered) return null;
-  return t.name === 'Fan inlet' ? 'at the fan inlet on this unit' : null;
+  return unitDiagram(staticInputs(cells), m?.components, {
+    noFilters: equipment.data.hasFilters === 'No',
+    hasReheat: equipment.data.hasReheat === 'Yes',
+  });
 }
 
 const W = 640;

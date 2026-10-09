@@ -16,10 +16,10 @@ export type Cond =
   | { field: string; blankOrZero: true }
   | { field: string; matches: string }
   | { field: string; notMatches: string }
-  /** Static profile component n (1-5) is "—" for the unit's unit type. */
-  | { componentAbsent: number }
+  /** The unit's unit type has no such static profile component (domain/staticSlots.ts, e.g. "Reheat"). */
+  | { componentAbsent: string }
   /** a 3-point static profile (spTaps) does not measure this component's leaving static */
-  | { tapSkipped: number }
+  | { tapSkipped: string }
   | { not: Cond }
   | { any: readonly Cond[] }
   | { all: readonly Cond[] };
@@ -38,6 +38,8 @@ export interface AutoNa {
    * passes the entering static through, while an "N/A" would be passed on and blank the downstream ΔP / TSP.
    */
   exportBlank?: boolean;
+  /** The form leaves the field out (a static profile component the unit type does not have). */
+  hide?: boolean;
 }
 
 export type InputKind = 'text' | 'number' | 'select' | 'date' | 'textarea' | 'yesno';
@@ -61,8 +63,8 @@ export interface FieldSpec {
   preset?: string | number;
   /** App-only field, not in the workbook (e.g. "Has VFD?"). */
   appOnly?: boolean;
-  /** Static profile component number (1-5): the form labels the field with the component name. */
-  component?: number;
+  /** The static profile component whose leaving static this is (domain/staticSlots.ts SP_COMPONENTS). */
+  component?: string;
   /** Stored on the record itself (designation) instead of in `data`. */
   recordField?: 'designation';
   hint?: string;
