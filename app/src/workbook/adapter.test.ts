@@ -121,6 +121,14 @@ describe('toProjectData', () => {
     // an explicit mark on a component that applies is still written
     b.equipment[0].naState.fields.spFan = { notation: 'Not Acc.' };
     expect(toProjectData(b).data.equipment.rtu[0].fields).toMatchObject({ spLeaving4: 'Not Acc.' });
+    // ... but N/A before the fan (no such component on this unit) is left blank, so the TSP / Unit ΔP still
+    // calculate; on the fan and the discharge it stays (no TSP / ESP without them)
+    b.equipment[0].naState.fields.spFan = { notation: 'N/A' };
+    b.equipment[0].naState.fields.spFilter = { notation: 'N/A' };
+    delete b.equipment[0].data.spFilter;
+    const na = toProjectData(b).data.equipment.rtu[0].fields;
+    expect(na).not.toHaveProperty('spLeaving1');
+    expect(na).toMatchObject({ spLeaving4: 'N/A' });
   });
 
   it('a rev 05 / 06 base gets the old positions: fan inlet in the old "Heat" slot, the discharge in the old "Fan" slot', () => {
