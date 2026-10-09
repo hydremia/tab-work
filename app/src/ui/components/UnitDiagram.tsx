@@ -7,7 +7,7 @@
 import type { Equipment, FieldValue, LibraryUnit } from '../../data/types';
 import { staticInputs, type XCell } from '../../domain/staticProfile';
 import { unitDiagram, type DiagramKind, type UnitDiagram as Diagram } from '../../domain/unitDiagram';
-import { matchLibraryUnit } from '../../domain/unitLibrary';
+import { matchLibraryUnit, withBuiltIn } from '../../domain/unitLibrary';
 
 const STATIC_KEYS = ['unitType', 'spEntering', 'spLeaving1', 'spLeaving2', 'spLeaving3', 'spLeaving4', 'spLeaving5'];
 
@@ -18,7 +18,7 @@ export function diagramFor(equipment: Equipment, library: readonly LibraryUnit[]
     const mark = equipment.naState.fields[k];
     cells[k] = mark ? mark.notation : (equipment.data[k] as FieldValue | undefined);
   }
-  const m = matchLibraryUnit(library, equipment.data.manufacturer, equipment.data.model);
+  const m = matchLibraryUnit(withBuiltIn(library), equipment.data.manufacturer, equipment.data.model);
   return unitDiagram(staticInputs(cells), m?.components, { noFilters: equipment.data.hasFilters === 'No' });
 }
 

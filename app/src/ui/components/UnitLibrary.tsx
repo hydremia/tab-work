@@ -22,7 +22,10 @@ import {
   COMPONENT_KINDS,
   COMPONENT_LABEL,
   compareWithTemplate,
+  isBuiltIn,
+  lineKey,
   matchLibraryUnit,
+  withBuiltIn,
   orderText,
 } from '../../domain/unitLibrary';
 import { UNIT_LIBRARY_SEED } from '../../domain/unitLibrarySeed';
@@ -401,9 +404,6 @@ function UnitItem({ u, used }: { u: LibraryUnit; used: number }) {
   );
 }
 
-const seedKey = (make: string, line: string) =>
-  `${make.split(',')[0].trim().toLowerCase()}|${line.trim().toLowerCase()}`;
-
 export function UnitLibrary() {
   const units = useLibraryUnits();
   const equipment = useLiveQuery(() => db.equipment.toArray(), []);
@@ -413,8 +413,8 @@ export function UnitLibrary() {
     const m = matchLibraryUnit(units, e.data.manufacturer, e.data.model);
     if (m) usage.set(m.id, (usage.get(m.id) ?? 0) + 1);
   }
-  const have = new Set((units ?? []).map((u) => seedKey(u.make, u.line)));
-  const missing = UNIT_LIBRARY_SEED.filter((s) => !have.has(seedKey(s.make, s.line)));
+  const have = new Set((units ?? []).map((u) => lineKey(u.make, u.line)));
+  const missing = UNIT_LIBRARY_SEED.filter((s) => !have.has(lineKey(s.make, s.line)));
   async function seed() {
     setBusy(true);
     try {
@@ -462,7 +462,7 @@ export function UnitLibraryMatch({ equipment }: { equipment: Equipment }) {
   if (!units) return null;
   const make = equipment.data.manufacturer;
   const model = equipment.data.model;
-  const m = matchLibraryUnit(units, make, model);
+  const m = matchLibraryUnit(withBuiltIn(units), make, model);
   if (!m) {
     if (!make || !model) return null;
     return (
@@ -480,9 +480,15 @@ export function UnitLibraryMatch({ equipment }: { equipment: Equipment }) {
           {m.make.split(',')[0]} {m.line}
         </b>
         <ConfidenceChip c={m.confidence} />
-        <Link className="small" to={`/library#lib-unit-${m.id}`}>
-          Library entry
-        </Link>
+        {isBuiltIn(m) ? (
+          <Link className="small" to="/library#ulib-h" data-testid="unit-lib-builtin">
+            Built-in research: add it to the library to edit it
+          </Link>
+        ) : (
+          <Link className="small" to={`/library#lib-unit-${m.id}`}>
+            Library entry
+          </Link>
+        )}
       </div>
       {m.components?.length ? (
         <span className="small">Order: {orderText(m.components)}</span>

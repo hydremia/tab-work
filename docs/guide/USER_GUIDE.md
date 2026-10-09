@@ -239,7 +239,9 @@ direct-fired make-up air …) with
   entry.
 
 On an empty library, **Add the researched product lines** loads the October 2026 research (Carrier, York, Lennox, Trane,
-Addison, Munters, CaptiveAire, Seasons-4); check the *Inferred* and *Not confirmed* orders against the drawings.
+Addison, Munters, CaptiveAire, Seasons-4); check the *Inferred* and *Not confirmed* orders against the drawings. A unit
+is drawn in its researched order even before the lines are loaded (its page says *Built-in research*); load them to edit
+an entry or add documents, and the team's entry then wins.
 
 A unit whose make and model match an entry shows it at the top of its **Static pressure profile** section: the order,
 the documents, and in amber where the template draws the components in a different order (for example a rooftop unit

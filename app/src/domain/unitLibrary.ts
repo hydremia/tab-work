@@ -6,6 +6,7 @@
  */
 import { UNIT_TYPE_COMPONENTS } from '@a2b/workbook/map';
 import type { LibraryUnit, UnitComponent, UnitComponentKind } from '../data/types';
+import { UNIT_LIBRARY_SEED } from './unitLibrarySeed';
 
 export const COMPONENT_LABEL: Record<UnitComponentKind, string> = {
   damper: 'Dampers / economizer',
@@ -74,6 +75,27 @@ export function matchLibraryUnit(
     }
   }
   return best?.u ?? null;
+}
+
+/** A product line's identity across libraries: its first make name and its line, ignoring case. */
+export const lineKey = (make: string, line: string) =>
+  `${make.split(',')[0].trim().toLowerCase()}|${line.trim().toLowerCase()}`;
+
+const BUILT_IN = 'builtin:';
+export const isBuiltIn = (u: LibraryUnit) => u.id.startsWith(BUILT_IN);
+
+/**
+ * The library a unit is matched against: the team's entries, then the built-in researched lines
+ * (domain/unitLibrarySeed.ts) the team's library does not hold yet, so a unit is drawn in its own order before anyone
+ * loads them on the Library page. The team's entries come first: on an equally specific pattern they win.
+ */
+export function withBuiltIn(library: readonly LibraryUnit[] | undefined): LibraryUnit[] {
+  const own = library ?? [];
+  const have = new Set(own.map((u) => lineKey(u.make, u.line)));
+  const builtIn = UNIT_LIBRARY_SEED.map((s, i) => ({ ...s, id: `${BUILT_IN}${i}`, createdAt: 0, updatedAt: 0 })).filter(
+    (u) => !have.has(lineKey(u.make, u.line)),
+  );
+  return [...own, ...builtIn];
 }
 
 /** The template's components for a unit type, as library kinds ("Core" = energy recovery, "Burner" kept). */
