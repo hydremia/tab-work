@@ -113,6 +113,6 @@ describe('static profile readings by component (template revision 08)', () => {
     });
     expect(threePointTaps({ unitType: 'EF', spTaps: '3-point' })).toEqual({ fanInlet: null, discharge: 'Fan' });
     expect(threePointTaps({ unitType: 'RTU' })).toBeNull();
-    expect(measuredComponents({ unitType: 'DOAS', hasFilters: 'No' })).toEqual(['Wheel', 'Coil', 'Fan', 'Heat']);
+    expect(measuredComponents({ unitType: 'DOAS', hasFilters: 'No' })).toEqual(['Coil', 'Wheel', 'Fan', 'Heat']);
   });
 });

@@ -600,7 +600,7 @@ damper · Static pressure profile · Airflow · Photos · Remarks.
   | Unit type | Components |
   | --- | --- |
   | RTU | Filter → Coil → Reheat → **Fan** → Heat |
-  | DOAS | Filter → Wheel → Coil → Reheat → **Fan** → Heat |
+  | DOAS | Filter → Coil → Wheel → Reheat → **Fan** → Heat |
   | DHU (desiccant dehumidifier) | Filter → Coil → Desiccant wheel → **Fan** → Heat |
   | MAU | Filter → Burner → **Fan** |
   | ERV | Filter → Core → **Fan** |

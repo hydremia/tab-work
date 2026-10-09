@@ -71,7 +71,7 @@ SLOTS = "CDEFGH"
 CASES = {
     "rtu_full": ("RTUs", 4, "RTU", -0.5, [-0.6, -0.9, -1.0, None, 0.5, None]),
     "rtu_3pt": ("RTUs", 108, "RTU", -0.317, [None, -0.806, None, None, 0.514, None]),
-    "doas": ("RTUs", 212, "DOAS", -0.3, [-0.4, -0.7, -1.1, -1.2, 0.9, 1.0]),
+    "doas": ("RTUs", 212, "DOAS", -0.3, [-0.4, -0.7, -1.1, -1.2, 0.9, 1.0]),  # Filter, Coil, Wheel, Reheat, Fan, Heat
     "dhu": ("RTUs", 316, "DHU", -1.26, [-1.53, -2.35, -2.6, None, 0.572, None]),
     "rtu_notation": ("RTUs", 420, "RTU", -0.5, [None, "Not Acc.", None, None, 0.5, None]),
     "rtu_fan_na": ("RTUs", 524, "RTU", -0.5, [-0.6, -0.9, None, "Not Acc.", 0.5, None]),
@@ -149,7 +149,7 @@ check("3 EF", "ESP", r["esp"], 0.8)
 check("3 EF", "Unit ΔP (fan first)", r["unitDp"], 0.0)
 
 ws, b, r = res("doas")
-check("3 DOAS", "labels", [ws[f"{c}{b['L']}"].value for c in SLOTS], ["Filter", "Wheel", "Coil", "Reheat", "Fan", "Heat"])
+check("3 DOAS", "labels", [ws[f"{c}{b['L']}"].value for c in SLOTS], ["Filter", "Coil", "Wheel", "Reheat", "Fan", "Heat"])
 check("3 DOAS", "Δ", r["delta"], ["Δ -0.10", "Δ -0.30", "Δ -0.40", "Δ -0.10", "Δ 2.10", "Δ 0.10"])
 check("3 DOAS", "TSP (fan's own reading)", r["tsp"], 2.1)
 check("3 DOAS", "ESP", r["esp"], 1.3)

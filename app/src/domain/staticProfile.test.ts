@@ -14,7 +14,7 @@ describe('static-pressure profile (revision 08: RTUs / MAUs / ERVs / Fans rows P
       inlet: 'RA / OA',
       labels: ['Filter', 'Coil', 'Reheat', 'Fan', 'Heat', '—'],
     });
-    expect(unitTypeRow('doas').labels).toEqual(['Filter', 'Wheel', 'Coil', 'Reheat', 'Fan', 'Heat']); // MATCH ignores case
+    expect(unitTypeRow('doas').labels).toEqual(['Filter', 'Coil', 'Wheel', 'Reheat', 'Fan', 'Heat']); // MATCH ignores case
     expect(unitTypeRow('DHU').labels).toEqual(['Filter', 'Coil', 'Desiccant', 'Fan', 'Heat', '—']);
     expect(unitTypeRow('EF').labels).toEqual(['Fan', '—', '—', '—', '—', '—']);
     expect(unitTypeRow('N/A')).toEqual({ known: false, inlet: '', labels: ['', '', '', '', '', ''] });

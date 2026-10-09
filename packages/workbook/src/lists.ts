@@ -64,11 +64,12 @@ export const PHASES = ['1-phase', '3-phase'] as const;
  * Static pressure profile components 1-6 by unit type, in airflow order (revision 08 {Dropdowns} AH1:AO7). null = "—"
  * (no such component on the unit type). Packaged units put the heat after the supply fan (blow-through), reheat right
  * after the cooling coil, a desiccant dehumidifier its wheel after the coil (research doc "Unit Static Profile
- * Component Order").
+ * Component Order"); a DOAS its wheel after the coil too (field: an Addison DOAS pulling water off the coil into the
+ * wheel; an energy-recovery wheel ahead of the coil is a unit configuration in the app's library).
  */
 export const UNIT_TYPE_COMPONENTS: Record<string, readonly (string | null)[]> = {
   RTU: ['Filter', 'Coil', 'Reheat', 'Fan', 'Heat', null],
-  DOAS: ['Filter', 'Wheel', 'Coil', 'Reheat', 'Fan', 'Heat'],
+  DOAS: ['Filter', 'Coil', 'Wheel', 'Reheat', 'Fan', 'Heat'],
   DHU: ['Filter', 'Coil', 'Desiccant', 'Fan', 'Heat', null],
   MAU: ['Filter', 'Burner', 'Fan', null, null, null],
   ERV: ['Filter', 'Core', 'Fan', null, null, null],

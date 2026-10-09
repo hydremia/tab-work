@@ -448,17 +448,16 @@ export const UNIT_LIBRARY_SEED: readonly SeedUnit[] = [
     modelPatterns: 'PR*, AK*',
     unitType: 'DOAS',
     components: [
-      c('filter', 'OA / RA wheel filters (2")', true),
-      c('wheel', 'Energy recovery wheel', true),
       c('filter', 'Filters'),
       c('coil', 'Evaporator coil'),
+      c('wheel', 'Wheel (downstream of the coil)', true),
       c('reheat', 'Subcooling coil, then hot gas reheat coil', true),
       c('fan', 'Direct drive plenum supply blower'),
       c('heat', 'Duct furnace / electric heater'),
     ],
     confidence: 'inferred',
     evidence:
-      'Stated: PR IOM R-454B p.45 Fig. 9 note 8 (AIR FLOW arrow): "SUB-COOLING COIL IS TO BE INSTALLED DOWNSTREAM OF EVAP. REHEAT COIL DOWNSTREAM OF SUB-COOLING COIL" (AK IOM p.23 Fig. 7 the same); p.75: "Install ECA-T/RH after the ECW" (wheel before the coil); "SENSOR MUST BE INSTALLED DOWNSTREAM OF HEATER". Not shown in any Addison document: the supply blower position and the heater relative to the blower (order after the reheat coil inferred). Use the unit submittal.',
+      'Field (a2b, Sept 2026): on a PR DOAS the wheel was downstream of the coil: the unit, running too fast, pulled water off the coil and through the wheel. Stated: PR IOM R-454B p.45 Fig. 9 note 8 (AIR FLOW arrow): "SUB-COOLING COIL IS TO BE INSTALLED DOWNSTREAM OF EVAP. REHEAT COIL DOWNSTREAM OF SUB-COOLING COIL" (AK IOM p.23 Fig. 7 the same); "SENSOR MUST BE INSTALLED DOWNSTREAM OF HEATER". The energy conservation wheel option (model digits 29-30 "0B"-"0V") reads "Install ECA-T/RH [entering coil air] after the ECW": on such a unit the wheel is ahead of the coil (add a configuration with the wheel first). Not shown in any Addison document: the supply blower position and the heater relative to the blower (order after the reheat coil inferred). Check the full model number (digits 22-23 reheat, 29-30 wheel) or the submittal.',
     documents: [
       {
         title: 'PR Series IOM, R-454B',

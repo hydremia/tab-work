@@ -52,11 +52,16 @@ describe('unit configuration library', () => {
     expect(compareWithTemplate('RTU', ge.components)).toEqual({ sameOrder: true, notes: [] });
     const mau = compareWithTemplate('MAU', matchLibraryUnit(library, 'CaptiveAire', 'A2-D.250-20D')!.components)!;
     expect(mau).toEqual({ sameOrder: true, notes: [] });
-    // Capitola RTU-2: a desiccant unit entered as a DOAS: the wheel comes after the coil, the heat after the fan
-    const dhu = compareWithTemplate('DOAS', matchLibraryUnit(library, 'Munters', 'HCUC8040')!.components)!;
-    expect(dhu.notes).toEqual([
-      "The template draws Filter → Wheel → Coil → Fan → Heat; this unit's order is Filter → Coil → Wheel → Fan → Heat.",
-    ]);
+    // Capitola RTU-2: a desiccant unit entered as a DOAS: the revision 08 DOAS has the wheel after the coil too
+    expect(compareWithTemplate('DOAS', matchLibraryUnit(library, 'Munters', 'HCUC8040')!.components)).toEqual({
+      sameOrder: true,
+      notes: [],
+    });
+    // an energy-recovery wheel ahead of the coil (a library configuration) is flagged against the DOAS order
+    const erw = [{ kind: 'filter' as const }, { kind: 'wheel' as const }, { kind: 'coil' as const }, { kind: 'fan' as const }];
+    expect(compareWithTemplate('DOAS', erw)!.notes[0]).toBe(
+      "The template draws Filter → Coil → Wheel → Fan; this unit's order is Filter → Wheel → Coil → Fan.",
+    );
     // the DHU unit type is its order
     expect(compareWithTemplate('DHU', matchLibraryUnit(library, 'Munters', 'HCUC8040')!.components)).toEqual({
       sameOrder: true,

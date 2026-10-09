@@ -5,6 +5,8 @@ Packaged rooftop units and DOAS put the heat AFTER the supply fan (blow-through 
 cooling coil, and desiccant dehumidifiers the wheel after the coil; the revision 05-07 strip drew every unit as
 Filter, Wheel / Core, Coil, Heat / Burner, Fan (5 fixed components, fan last). Revision 08:
 
+     (DOAS: the wheel downstream of the coil, as on the Addison DOAS a technician found pulling water off the coil
+     into the wheel; an energy-recovery wheel ahead of the coil is a unit configuration in the app's library)
   1. unit_profile   RTUs / MAUs / ERVs / Fans, every block (rows P+19 ... P+25, P = block anchor):
                       P+19  B: inlet label, C:H: components 1-6 for the unit type ({Dropdowns} AH1:AO7)
                       P+20  B: entering static (typed), C:H: leaving static of components 1-6 (typed), in airflow order
@@ -21,7 +23,7 @@ Filter, Wheel / Core, Coil, Heat / Burner, Fan (5 fixed components, fan last). R
                     redone for the six columns.
   2. dropdowns      {Dropdowns} AH1:AO7: unit types RTU, DOAS, DHU (new), MAU, ERV, EF with up to 6 components:
                       RTU   RA / OA  Filter  Coil      Reheat    Fan     Heat    —
-                      DOAS  OA       Filter  Wheel     Coil      Reheat  Fan     Heat
+                      DOAS  OA       Filter  Coil      Wheel     Reheat  Fan     Heat
                       DHU   OA       Filter  Coil      Desiccant Fan     Heat    —
                       MAU   OA       Filter  Burner    Fan       —       —       —
                       ERV   OA / EA  Filter  Core      Fan       —       —       —
@@ -54,7 +56,7 @@ HELP = ["Q", "R", "S", "T", "U", "V"]
 
 UNIT_TYPES = [
     ("RTU", "RA / OA", ["Filter", "Coil", "Reheat", "Fan", "Heat", DASH]),
-    ("DOAS", "OA", ["Filter", "Wheel", "Coil", "Reheat", "Fan", "Heat"]),
+    ("DOAS", "OA", ["Filter", "Coil", "Wheel", "Reheat", "Fan", "Heat"]),
     ("DHU", "OA", ["Filter", "Coil", "Desiccant", "Fan", "Heat", DASH]),
     ("MAU", "OA", ["Filter", "Burner", "Fan", DASH, DASH, DASH]),
     ("ERV", "OA / EA", ["Filter", "Core", "Fan", DASH, DASH, DASH]),

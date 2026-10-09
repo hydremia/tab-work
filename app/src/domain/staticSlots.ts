@@ -18,9 +18,9 @@ import type { FieldValue, NaMark } from '../data/types';
 /** Every component, in an order that is the airflow order of every unit type. */
 export const SP_COMPONENTS = [
   'Filter',
-  'Wheel',
   'Core',
   'Coil',
+  'Wheel',
   'Desiccant',
   'Reheat',
   'Burner',

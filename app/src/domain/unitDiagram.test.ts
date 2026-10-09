@@ -8,7 +8,7 @@ const library: LibraryUnit[] = UNIT_LIBRARY_SEED.map((s, i) => ({ ...s, id: `u${
 const comps = (make: string, model: string) => matchLibraryUnit(library, make, model)!.components;
 const measured = (d: ReturnType<typeof unitDiagram>) => d.taps.filter((t) => t.value !== null);
 
-/** Revision 08 positions: RTU Filter, Coil, Reheat, Fan, Heat, —; MAU Filter, Burner, Fan; DOAS Filter, Wheel, Coil, Reheat, Fan, Heat. */
+/** Revision 08 positions: RTU Filter, Coil, Reheat, Fan, Heat, —; MAU Filter, Burner, Fan; DOAS Filter, Coil, Wheel, Reheat, Fan, Heat. */
 describe('unit diagram', () => {
   it('Capitola RTU-3 (Carrier 48GE, 3-point): coil leaving at the fan inlet side, the heat after the fan, discharge in the duct', () => {
     const d = unitDiagram(
@@ -89,7 +89,7 @@ describe('unit diagram', () => {
     expect(d.notes).toEqual([]);
   });
 
-  it('a DOAS wheel reading on a desiccant unit goes after the wheel, past the coil, in airflow order', () => {
+  it('a DOAS on a desiccant unit: the wheel after the coil, as the revision 08 DOAS draws it', () => {
     const d = unitDiagram(
       { unitType: 'DOAS', entering: -1, leaving: [-1.2, -2.4, -1.9, null, null, 0.5] },
       comps('Munters', 'HCUC8040'),
@@ -101,9 +101,7 @@ describe('unit diagram', () => {
       'Desiccant wheel leaving',
       'Discharge',
     ]);
-    expect(d.notes[0]).toMatch(
-      /^The workbook lists Filter → Wheel → Coil → Fan → Heat; drawn here in this unit's order/,
-    );
+    expect(d.notes).toEqual([]); // the revision 08 DOAS has the wheel after the coil
   });
 
   it('a unit whose data says it has no filters: no filter section, no filter tap, a note', () => {
