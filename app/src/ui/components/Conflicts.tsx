@@ -183,6 +183,7 @@ const TABLE_NOUN: Record<TableName, [one: string, many: string]> = {
   certProfiles: ['certification profile', 'certification profiles'],
   libraryValves: ['library valve', 'library valves'],
   libraryPumps: ['library pump', 'library pumps'],
+  libraryUnits: ['unit configuration', 'unit configurations'],
 };
 
 /** "2 outlet rows and 1 photo" */

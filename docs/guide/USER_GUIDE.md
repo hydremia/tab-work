@@ -209,7 +209,7 @@ number to go straight to its Attention tab. On a phone each project is a card.
 ### The instrument library
 
 Your meters, entered once and reused on every project. Open it from the bottom of the **Projects** screen
-(**Instrument library**).
+(**Library**). The same page holds the unit configuration, valve and pump libraries.
 
 ![Instrument library](../screenshots/31-calibration-library.png)
 
@@ -224,6 +224,28 @@ Your meters, entered once and reused on every project. Open it from the bottom o
   date. The library says how many project copies differ.
 - Removing a meter from the library doesn't remove it from any project.
 - When you're signed in, the library is shared with the whole team. In Local mode it's on this device.
+
+### The unit configuration library
+
+Also on the **Library** page: one entry per product line (Carrier WeatherMaster 48GE, Munters DryCool HCUc, CaptiveAire
+direct-fired make-up air …) with
+
+- the **order of the components in the supply air**, inlet to discharge (dampers, filter, wheel, cooling coil, reheat
+  coil, desiccant wheel, burner, fan, heat, final filter), each optional component marked;
+- **how that order is known**: *Stated* by the manufacturer, *Inferred* from its documents, or *Not confirmed*, with the
+  evidence (the sentence or figure and the document it is in);
+- the line's **documents**: manuals, product data, submittals and drawings, with their form number and a link;
+- **model patterns** (`48GE*`, `A?-D*`; spaces and dashes ignored) and other names of the make, so units find their
+  entry.
+
+On an empty library, **Add the researched product lines** loads the October 2026 research (Carrier, York, Lennox, Trane,
+Addison, Munters, CaptiveAire, Seasons-4); check the *Inferred* and *Not confirmed* orders against the drawings.
+
+A unit whose make and model match an entry shows it at the top of its **Static pressure profile** section: the order,
+the documents, and in amber where the template draws the components in a different order (for example a rooftop unit
+whose heat is after the fan, which the template draws before it) or has no place for one (a reheat coil, a desiccant
+wheel). Until the template follows the unit's order, note on the report which tap each reading was taken at. A unit
+with no match links to the library to add one.
 
 ### Building pressures
 
@@ -1291,7 +1313,7 @@ change is kept everywhere and the **Attention** tab lists a **Conflict** with bo
   latest values (a unit takes the next free workbook block if its own is taken; photos only when the file is on your
   phone). The phone that deleted it sees a similar card; once one of you restores it, the other card closes.
 - **Instrument library.** A conflict on a library instrument shows on the Attention tab of every project that uses it,
-  on the **Instrument library** page, and as a number on the *Instrument library* button on the Projects page.
+  on the **Library** page, and as a number on the *Library* button on the Projects page.
   Resolving it once resolves it everywhere.
 - **Reviews.** A review signs off what you saw. If a teammate changed the unit before your review reached the cloud,
   the review is cleared (History: *Review cleared automatically (the unit changed on another device …)*). Check the

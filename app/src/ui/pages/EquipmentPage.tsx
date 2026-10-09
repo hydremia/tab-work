@@ -53,6 +53,7 @@ import { StatusBadge, StatusIcon } from '../components/Status';
 import type { AirflowRow, Instrument, Issue, Photo } from '../../data/types';
 import { openDeficiencies } from '../../domain/issues';
 import { appendNotes, scratchLines } from '../../domain/remarks';
+import { UnitLibraryMatch } from '../components/UnitLibrary';
 
 function fieldLabel(f: FieldSpec, data: Equipment['data']): string {
   if (!f.component) return f.label;
@@ -311,6 +312,7 @@ function SectionCard({
               shape={gridShape(q, equipment)}
             />
           ))}
+          {section.calc === 'staticProfile' && <UnitLibraryMatch equipment={equipment} />}
           {section.calc && (
             <CalcPanel
               panel={section.calc}

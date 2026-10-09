@@ -223,6 +223,20 @@ export function fieldLabel(e: HistoryEntry, ctx: HistoryContext): string {
           signature: 'Signature image',
         }[f] ?? f
       );
+    case 'libraryUnits':
+      return (
+        {
+          make: 'Make',
+          line: 'Product line',
+          modelPatterns: 'Model patterns',
+          unitType: 'Unit type',
+          components: 'Component order',
+          confidence: 'Confidence',
+          evidence: 'Evidence',
+          documents: 'Documents',
+          notes: 'Notes',
+        }[f] ?? f
+      );
     case 'libraryPumps':
       return (
         {
@@ -323,6 +337,8 @@ export function subjectText(e: HistoryEntry, ctx: HistoryContext): string {
       return 'Valve library';
     case 'libraryPumps':
       return 'Pump library';
+    case 'libraryUnits':
+      return 'Unit configuration library';
     case 'libraryInstruments': {
       const lib = e.recordId ? ctx.library?.get(e.recordId) : undefined;
       const name = lib ? [lib.type, lib.serial && `SN ${lib.serial}`].filter(Boolean).join(' ') : '';
