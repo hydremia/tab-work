@@ -11,7 +11,16 @@
  *   pump      a pump's design point and operating point (flow vs head), with the shut-off head, and its curve
  *             (at the impeller the shut-off head gives) when the pump is picked from the pump-curve library
  */
-import type { AirflowRow, Equipment, Issue, LibraryPump, Project, PumpCurvePoint } from '../data/types';
+import type {
+  AirflowRow,
+  Equipment,
+  Issue,
+  LibraryConfidence,
+  LibraryPump,
+  LibraryUnit,
+  Project,
+  PumpCurvePoint,
+} from '../data/types';
 import { AIR_BALANCE_KEYS, excludedIds } from '../domain/airBalance';
 import { PRESSURE_KEYS } from '../domain/projectCompletion';
 import { spareOaTotals } from '../domain/spareOa';
@@ -31,6 +40,8 @@ import { staticInputs, staticProfile, xlNum, type StaticProfile } from '../domai
 import { getSpec } from '../domain/specs';
 import { unitCells } from '../workbook/adapter';
 import { openDeficiencies } from '../domain/issues';
+import { unitDiagram, type UnitDiagram } from '../domain/unitDiagram';
+import { matchLibraryUnit } from '../domain/unitLibrary';
 
 export interface ProfileFigure {
   kind: 'profile';
@@ -38,6 +49,12 @@ export interface ProfileFigure {
   typeLabel: string;
   profile: StaticProfile;
   designEsp: number | null;
+  /** The cabinet in the unit's own component order and where each reading was taken (domain/unitDiagram.ts). */
+  diagram: UnitDiagram;
+  /** "Carrier 48GERN24B2P6-3U5C0" */
+  makeModel: string;
+  /** The unit configuration library entry the order comes from. */
+  library: { name: string; confidence: LibraryConfidence; source: string | null } | null;
 }
 
 export interface TraverseFigure {
@@ -153,6 +170,7 @@ export function buildGraphicsModel(input: {
   rows: readonly AirflowRow[];
   completions: ReadonlyMap<string, Completion>;
   libraryPumps?: readonly LibraryPump[];
+  libraryUnits?: readonly LibraryUnit[];
   issues?: readonly Pick<Issue, 'kind' | 'status' | 'issueType'>[];
 }): GraphicsModel {
   const { project, rows, completions } = input;
@@ -166,8 +184,11 @@ export function buildGraphicsModel(input: {
     // static profile (units with the profile strip)
     if (c && spec.sections.some((s) => s.calc === 'staticProfile')) {
       const cells = unitCells(e, c);
-      const profile = staticProfile(staticInputs(cells));
-      if (profile.known && profile.strip.some((v) => xlNum(v) !== null))
+      const inputs = staticInputs(cells);
+      const profile = staticProfile(inputs);
+      if (profile.known && profile.strip.some((v) => xlNum(v) !== null)) {
+        const lib = matchLibraryUnit(input.libraryUnits, e.data.manufacturer, e.data.model);
+        const text = (v: unknown) => (typeof v === 'string' ? v.trim() : typeof v === 'number' ? String(v) : '');
         figures.push({
           kind: 'profile',
           unit: e.designation,
@@ -175,7 +196,18 @@ export function buildGraphicsModel(input: {
           typeLabel: equipmentType(e.type).label,
           profile,
           designEsp: xlNum(cells.unitEsp),
+          diagram: unitDiagram(inputs, lib?.components, { noFilters: e.data.hasFilters === 'No' }),
+          makeModel: [text(e.data.manufacturer), text(e.data.model)].filter(Boolean).join(' '),
+          library:
+            lib && lib.components?.length
+              ? {
+                  name: `${lib.make.split(',')[0].trim()} ${lib.line}`,
+                  confidence: lib.confidence,
+                  source: lib.documents?.find((d) => d.ref)?.ref ?? null,
+                }
+              : null,
         });
+      }
     }
     // traverse cross-section
     if (e.type === 'traverse') {

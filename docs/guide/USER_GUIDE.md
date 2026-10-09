@@ -247,6 +247,14 @@ whose heat is after the fan, which the template draws before it) or has no place
 wheel). Until the template follows the unit's order, note on the report which tap each reading was taken at. A unit
 with no match links to the library to add one.
 
+The section also draws the unit: its cabinet in the library's order (the template's when there is no entry), with a
+**tap** at each place a reading is taken. A tap with a reading shows it in red; an empty tap is dashed, so you can see
+where the next reading goes, and tapping it moves to its field. The pressure change between readings is under the
+drawing ("rise" across the fan). A reading the template names after a component that is past the fan on this unit (an
+RTU's heat) is drawn at the **fan inlet**, and its field says so: "Leaving Heat (at the fan inlet on this unit)". A
+unit marked **Unit has filters? No** has no filter section. The graphics appendix draws the same diagram for each
+profile, with the library entry the order comes from.
+
 ### Building pressures
 
 **Info → Building pressures (Building Balance)**:

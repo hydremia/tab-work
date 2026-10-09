@@ -2,7 +2,8 @@
 import { writeFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
-import { emptyNaState, type Equipment, type LibraryPump } from '../data/types';
+import { emptyNaState, type Equipment, type LibraryPump, type LibraryUnit } from '../data/types';
+import { UNIT_LIBRARY_SEED } from '../domain/unitLibrarySeed';
 import { computeCompletion } from '../domain/completion';
 import { seqKey } from '../domain/specs';
 import { getSpec } from '../domain/specs';
@@ -105,6 +106,8 @@ const PUMP_LIB: LibraryPump[] = [
   },
 ];
 
+const LIB_UNITS: LibraryUnit[] = UNIT_LIBRARY_SEED.map((u, i) => ({ ...u, id: `u${i}`, createdAt: 0, updatedAt: 0 }));
+
 describe('graphics appendix', () => {
   it('builds profile, traverse, outlet and pump figures from a project', () => {
     const b = bundle();
@@ -130,6 +133,29 @@ describe('graphics appendix', () => {
     const fig = (u: string) => m.figures.find((f) => f.kind === 'traverse' && f.unit === u);
     expect(fig('T-9')).toMatchObject({ ductStatic: -0.42, temperature: 55 });
     expect(fig('T-20')).toMatchObject({ ductStatic: 'Not Acc.', temperature: null });
+  });
+
+  it('a static profile draws the unit in its library order, and without a filter when the unit has none', () => {
+    const b = bundle();
+    const fig = () => {
+      const m = buildGraphicsModel({ ...b, completions: completions(b), libraryUnits: LIB_UNITS });
+      const f = m.figures.find((x) => x.kind === 'profile');
+      if (f?.kind !== 'profile') throw new Error('no profile figure');
+      return f;
+    };
+    const unit = b.equipment.find((e) => e.designation === fig().unit)!;
+    unit.data.manufacturer = 'Acme';
+    const plain = fig();
+    expect(plain.library).toBeNull();
+    expect(plain.diagram.source).toBe('template');
+    unit.data.manufacturer = 'Carrier';
+    unit.data.model = '48GERN24B2P6-3U5C0';
+    const f = fig();
+    expect(f.makeModel).toBe('Carrier 48GERN24B2P6-3U5C0');
+    expect(f.library).toMatchObject({ name: 'Carrier WeatherMaster 48GE', confidence: 'stated' });
+    expect(f.diagram.sections.map((s) => s.kind)).toEqual(['damper', 'filter', 'coil', 'reheat', 'fan', 'heat']);
+    unit.data.hasFilters = 'No';
+    expect(fig().diagram.sections.map((s) => s.kind)).toEqual(['damper', 'coil', 'reheat', 'fan', 'heat']);
   });
 
   it('a pump picked from the pump-curve library carries its curve at the estimated impeller', () => {

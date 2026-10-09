@@ -9,6 +9,7 @@ import {
   useHistory,
   useInstruments,
   useIssues,
+  useLibraryUnits,
   usePhotos,
   useProject,
   useUserName,
@@ -54,12 +55,16 @@ import type { AirflowRow, Instrument, Issue, Photo } from '../../data/types';
 import { openDeficiencies } from '../../domain/issues';
 import { appendNotes, scratchLines } from '../../domain/remarks';
 import { UnitLibraryMatch } from '../components/UnitLibrary';
+import { diagramFor, tapHint, UnitDiagram } from '../components/UnitDiagram';
+import type { UnitDiagram as Diagram } from '../../domain/unitDiagram';
 
-function fieldLabel(f: FieldSpec, data: Equipment['data']): string {
+function fieldLabel(f: FieldSpec, data: Equipment['data'], diagram?: Diagram | null): string {
   if (!f.component) return f.label;
   const ut = typeof data.unitType === 'string' ? data.unitType : '';
   const comp = UNIT_TYPE_COMPONENTS[ut]?.[f.component - 1];
-  return comp ? `Leaving ${comp}` : f.label;
+  // where the reading is taken on this unit when its order differs from the strip's (an RTU's heat after the fan)
+  const hint = diagram ? tapHint(diagram, f.key) : null;
+  return comp ? `Leaving ${comp}${hint ? ` (${hint})` : ''}` : f.label;
 }
 
 /** Remark lines the workbook has for this unit (hoods / traverses share a page box). */
@@ -135,6 +140,7 @@ function SectionCard({
   photos,
   instruments,
   all,
+  diagram,
 }: {
   section: SectionSpec;
   equipment: Equipment;
@@ -145,6 +151,8 @@ function SectionCard({
   instruments: Instrument[];
   /** The project's units (a hood's exhaust fan is picked from its fans). */
   all: Equipment[];
+  /** The static profile diagram (units with the profile strip). */
+  diagram: Diagram | null;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [unfolded, setUnfolded] = useState(false);
@@ -254,7 +262,7 @@ function SectionCard({
                         ? { ...f, suggestions: fanTags }
                         : f
                   }
-                  label={fieldLabel(f, equipment.data)}
+                  label={fieldLabel(f, equipment.data, section.calc === 'staticProfile' ? diagram : null)}
                   value={f.recordField ? equipment.designation : equipment.data[f.key]}
                   state={completion.fields[f.key]}
                   mark={equipment.naState.fields[f.key]}
@@ -312,6 +320,7 @@ function SectionCard({
               shape={gridShape(q, equipment)}
             />
           ))}
+          {section.calc === 'staticProfile' && diagram && <UnitDiagram equipment={equipment} diagram={diagram} />}
           {section.calc === 'staticProfile' && <UnitLibraryMatch equipment={equipment} />}
           {section.calc && (
             <CalcPanel
@@ -689,6 +698,7 @@ export function EquipmentPage() {
   const photos = usePhotos(projectId, equipmentId ?? null);
   const issues = useIssues(projectId);
   const instruments = useInstruments(projectId);
+  const libraryUnits = useLibraryUnits();
   const all = useEquipmentList(projectId);
   const conflicts = useConflicts(projectId);
   const nav = useNavigate();
@@ -741,6 +751,7 @@ export function EquipmentPage() {
   const values = { ...equipment.data, designation: equipment.designation };
   const sections = spec.sections.filter((s) => !s.showWhen || evalCond(s.showWhen, values));
   const esp = unitEspCheck(equipment, c, project.tolerance);
+  const diagram = spec.sections.some((s) => s.calc === 'staticProfile') ? diagramFor(equipment, libraryUnits) : null;
   const locked = Boolean(project.lock);
   const shown = displayColor(c.color, Boolean(equipment.review), c.complete);
   const ordered = listOrder(all);
@@ -916,6 +927,7 @@ export function EquipmentPage() {
               photos={photos}
               instruments={instruments}
               all={all}
+              diagram={diagram}
             />
           ))}
 

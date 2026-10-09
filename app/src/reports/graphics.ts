@@ -5,6 +5,7 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from 'pdf-lib';
 import type { EquipmentTypeKey } from '../domain/equipmentTypes';
 import type { XCell } from '../domain/staticProfile';
+import type { DiagramKind } from '../domain/unitDiagram';
 import { sanitizer } from './pdf';
 import type {
   BarsFigure,
@@ -51,7 +52,7 @@ const cellText = (v: XCell) =>
 export function figureHeight(f: Figure): number {
   switch (f.kind) {
     case 'profile':
-      return 290;
+      return f.diagram.notes.length ? 316 : 296;
     case 'traverse':
       return 280;
     case 'pump':
@@ -187,82 +188,85 @@ export async function renderGraphicsPdf(
     line(x2 - 5 * d, yy + 3, x2, yy, t, color);
     line(x2 - 5 * d, yy - 3, x2, yy, t, color);
   };
+  const WARM = rgb(0.8, 0.4, 0.1);
   /** A component drawn inside its section of the cabinet (x, bottom y, width, height in PDF units). */
-  const drawComponent = (label: string, x: number, yb: number, w: number, h: number) => {
+  const drawComponent = (kind: DiagramKind, name: string, x: number, yb: number, w: number, h: number) => {
     const cx = x + w / 2;
     const cy = yb + h / 2;
-    const k = label.toLowerCase();
-    if (k.startsWith('filter')) {
-      // pleats
-      const n = 7;
-      const px = x + w * 0.3;
-      const pw = w * 0.4;
-      for (let i = 0; i < n; i++) {
-        const y1 = yb + 6 + ((h - 12) * i) / n;
-        const y2 = yb + 6 + ((h - 12) * (i + 1)) / n;
-        line(i % 2 ? px + pw : px, y1, i % 2 ? px : px + pw, y2, 0.8, BRAND);
-      }
-    } else if (k.startsWith('coil')) {
+    const coil = (color: RGB) => {
       for (let i = 0; i < 6; i++)
-        line(x + w * 0.28 + i * (w * 0.09), yb + 5, x + w * 0.28 + i * (w * 0.09), yb + h - 5, 0.6, BRAND);
+        line(x + w * 0.28 + i * (w * 0.09), yb + 5, x + w * 0.28 + i * (w * 0.09), yb + h - 5, 0.6, color);
       for (let j = 0; j < 4; j++)
         page.drawCircle({
           x: cx,
           y: yb + 9 + (j * (h - 18)) / 3,
           size: 2.2,
           color: rgb(1, 1, 1),
-          borderColor: BRAND,
+          borderColor: color,
           borderWidth: 0.7,
         });
-    } else if (k.startsWith('heat') || k.startsWith('burner')) {
-      if (k.startsWith('burner'))
-        for (let i = 0; i < 3; i++) {
-          const fx = x + w * (0.3 + i * 0.2);
-          const fy = yb + 8;
-          page.drawSvgPath(
-            `M ${fx - 5} ${-fy} Q ${fx - 6} ${-(fy + 12)} ${fx} ${-(fy + 22)} Q ${fx + 6} ${-(fy + 12)} ${fx + 5} ${-fy} Z`,
-            {
-              x: 0,
-              y: 0,
-              color: rgb(0.98, 0.72, 0.35),
-              borderColor: rgb(0.8, 0.4, 0.1),
-              borderWidth: 0.6,
-            },
-          );
-        }
-      else
-        for (let j = 0; j < 3; j++) {
-          const ty = yb + 10 + (j * (h - 20)) / 2;
-          page.drawSvgPath(
-            `M ${x + w * 0.22} ${-ty} Q ${x + w * 0.36} ${-(ty + 5)} ${x + w * 0.5} ${-ty} Q ${x + w * 0.64} ${-(ty - 5)} ${x + w * 0.78} ${-ty}`,
-            { x: 0, y: 0, borderColor: rgb(0.8, 0.4, 0.1), borderWidth: 1 },
-          );
-        }
-    } else if (k.startsWith('wheel')) {
-      page.drawEllipse({
-        x: cx,
-        y: cy,
-        xScale: w * 0.14,
-        yScale: h * 0.4,
-        color: BOX,
-        borderColor: BRAND,
-        borderWidth: 0.8,
-      });
-      line(cx, cy - h * 0.4, cx, cy + h * 0.4, 0.5, BRAND);
-    } else if (k.startsWith('core')) {
+    };
+    const pleats = (color: RGB, n = 7) => {
+      const px = x + w * 0.3;
+      const pw = w * 0.4;
+      for (let i = 0; i < n; i++) {
+        const y1 = yb + 6 + ((h - 12) * i) / n;
+        const y2 = yb + 6 + ((h - 12) * (i + 1)) / n;
+        line(i % 2 ? px + pw : px, y1, i % 2 ? px : px + pw, y2, 0.8, color);
+      }
+    };
+    if (kind === 'filter') pleats(BRAND);
+    else if (kind === 'finalFilter') {
+      pleats(BRAND, 9);
+      line(x + w * 0.24, yb + 5, x + w * 0.24, yb + h - 5, 0.5, BRAND);
+    } else if (kind === 'coil') coil(BRAND);
+    else if (kind === 'reheat') coil(WARM);
+    else if (kind === 'burner')
+      for (let i = 0; i < 3; i++) {
+        const fx = x + w * (0.3 + i * 0.2);
+        const fy = yb + 8;
+        page.drawSvgPath(
+          `M ${fx - 5} ${-fy} Q ${fx - 6} ${-(fy + 12)} ${fx} ${-(fy + 22)} Q ${fx + 6} ${-(fy + 12)} ${fx + 5} ${-fy} Z`,
+          { x: 0, y: 0, color: rgb(0.98, 0.72, 0.35), borderColor: WARM, borderWidth: 0.6 },
+        );
+      }
+    else if (kind === 'heat')
+      // heat exchanger tubes
+      for (let j = 0; j < 3; j++) {
+        const ty = yb + 10 + (j * (h - 20)) / 2;
+        page.drawSvgPath(
+          `M ${x + w * 0.22} ${-ty} Q ${x + w * 0.36} ${-(ty + 5)} ${x + w * 0.5} ${-ty} Q ${x + w * 0.64} ${-(ty - 5)} ${x + w * 0.78} ${-ty}`,
+          { x: 0, y: 0, borderColor: WARM, borderWidth: 1 },
+        );
+      }
+    else if (kind === 'wheel' && name.toLowerCase().startsWith('core')) {
       page.drawSvgPath(
         `M ${cx} ${-(yb + 5)} L ${x + w * 0.8} ${-cy} L ${cx} ${-(yb + h - 5)} L ${x + w * 0.2} ${-cy} Z`,
-        {
-          x: 0,
-          y: 0,
-          color: BOX,
-          borderColor: BRAND,
-          borderWidth: 0.8,
-        },
+        { x: 0, y: 0, color: BOX, borderColor: BRAND, borderWidth: 0.8 },
       );
       line(x + w * 0.35, cy - h * 0.2, x + w * 0.65, cy + h * 0.2, 0.5, BRAND);
       line(x + w * 0.35, cy + h * 0.2, x + w * 0.65, cy - h * 0.2, 0.5, BRAND);
-    } else if (k.startsWith('fan')) {
+    } else if (kind === 'wheel' || kind === 'desiccant') {
+      const rx = w * 0.14;
+      const ry = h * 0.4;
+      page.drawEllipse({
+        x: cx,
+        y: cy,
+        xScale: rx,
+        yScale: ry,
+        color: kind === 'desiccant' ? rgb(0.96, 0.93, 0.86) : BOX,
+        borderColor: kind === 'desiccant' ? rgb(0.55, 0.42, 0.2) : BRAND,
+        borderWidth: 0.8,
+      });
+      if (kind === 'desiccant')
+        // honeycomb media: rows across the wheel face
+        for (let i = 1; i < 6; i++) {
+          const yy = cy - ry + (2 * ry * i) / 6;
+          const half = rx * Math.sqrt(1 - ((yy - cy) / ry) ** 2);
+          line(cx - half, yy, cx + half, yy, 0.4, rgb(0.55, 0.42, 0.2));
+        }
+      line(cx, cy - ry, cx, cy + ry, 0.5, kind === 'desiccant' ? rgb(0.55, 0.42, 0.2) : BRAND);
+    } else if (kind === 'fan') {
       const r = Math.min(w, h) * 0.34;
       page.drawCircle({ x: cx, y: cy, size: r + 3, borderColor: BRAND, borderWidth: 1 });
       page.drawCircle({ x: cx, y: cy, size: r * 0.3, color: BRAND });
@@ -277,13 +281,21 @@ export async function renderGraphicsPdf(
           BRAND,
         );
       }
-    } else if (k.startsWith('inlet') || k.includes('oa') || k.includes('ra') || k.includes('ea')) {
+    } else if (kind === 'inlet' || kind === 'damper')
       // louvers / dampers
       for (let i = 0; i < 5; i++) {
         const ly = yb + 7 + (i * (h - 14)) / 4;
         line(x + w * 0.3, ly - 3, x + w * 0.7, ly + 3, 1, MUTED);
       }
-    }
+    else
+      page.drawRectangle({
+        x: x + w * 0.25,
+        y: yb + h * 0.25,
+        width: w * 0.5,
+        height: h * 0.5,
+        borderColor: MUTED,
+        borderWidth: 0.7,
+      });
   };
 
   const nice = (span: number) => {
@@ -292,19 +304,48 @@ export async function renderGraphicsPdf(
     const m = raw / p;
     return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p;
   };
+  /** Words wrapped to lines of a width. */
+  const wrap = (s: string, width: number, size: number, font: PDFFont = regular) => {
+    const out: string[] = [];
+    let cur = '';
+    for (const word of s.split(/\s+/)) {
+      const next = cur ? `${cur} ${word}` : word;
+      if (cur && tw(next, size, font) > width) {
+        out.push(cur);
+        cur = word;
+      } else cur = next;
+    }
+    if (cur) out.push(cur);
+    return out;
+  };
+  /** A line cut to a width with an ellipsis. */
+  const fit = (s: string, width: number, size: number, font: PDFFont = regular) => {
+    if (tw(s, size, font) <= width) return s;
+    let t = s;
+    while (t.length > 1 && tw(`${t}…`, size, font) > width) t = t.slice(0, -1);
+    return `${t.trimEnd()}…`;
+  };
 
   const drawProfile = (f: ProfileFigure, top: number) => {
     const p = f.profile;
-    heading(`${f.unit} — static pressure profile`, `${f.typeLabel} · in. w.g. · airflow left to right`);
-    const comps = p.labels.map((l, k) => ({ label: l, k })).filter((c) => !p.absent[c.k]);
-    const inletLabel = p.inlet || 'Inlet';
-    const sections = [{ label: inletLabel, k: -1 }, ...comps];
-    // cabinet: inlet section + components, then the discharge duct
+    const d = f.diagram;
+    const title = `${f.unit} — static pressure profile`;
+    heading(
+      title,
+      fit(`${f.makeModel || f.typeLabel} · in. w.g. · airflow left to right`, CW - tw(title, 11, bold) - 8, 8.5),
+    );
+    // where the component order comes from
+    const src = f.library
+      ? `Component order: ${f.library.name} (unit library, ${f.library.confidence}${f.library.source ? ` · ${f.library.source}` : ''})`
+      : `Component order: the workbook's ${f.typeLabel} strip (no unit library entry for this make and model)`;
+    text(page, fit(src, CW, 6.8), MX, Y(top + 26), 6.8, regular, MUTED);
+    const sections = d.sections;
+    // cabinet: the sections in airflow order, then the discharge duct
     const cabX = MX + 22;
     const ductW = 46;
     const cabW = CW - 22 - ductW - 8;
     const secW = cabW / sections.length;
-    const cabTop = top + 44;
+    const cabTop = top + 58;
     const cabH = 58;
     const yb = Y(cabTop + cabH);
     page.drawRectangle({
@@ -316,7 +357,6 @@ export async function renderGraphicsPdf(
       borderColor: INK,
       borderWidth: 1.2,
     });
-    // discharge duct
     const dx = cabX + cabW;
     page.drawRectangle({
       x: dx,
@@ -330,74 +370,80 @@ export async function renderGraphicsPdf(
     arrow(MX, yb + cabH / 2, cabX - 3, 1.2, MUTED);
     arrow(dx + ductW + 2, yb + cabH / 2, W - MX, 1.2, MUTED);
     text(page, 'SA', dx + ductW / 2 - 5, yb + cabH * 0.25 - 10, 7, bold, MUTED);
-    // stations (pressure taps): after the inlet section and after each component; x of each
-    const stationX: number[] = [];
-    const stationV: (number | null)[] = [];
-    const stationTxt: string[] = [];
     sections.forEach((s, i) => {
       const x = cabX + i * secW;
       if (i > 0) line(x, yb, x, yb + cabH, 0.6, RULE);
-      drawComponent(s.k < 0 ? 'inlet ' + s.label : s.label, x, yb, secW, cabH);
-      center(page, s.label, x + secW / 2, Y(cabTop + cabH + 11), 8, bold);
-      const v = s.k < 0 ? p.strip[0] : p.strip[s.k + 1];
-      // the fan's leaving static is at the discharge (in the duct); the others at the section's leaving side
-      const sx = s.k >= 0 && s.label.toLowerCase().startsWith('fan') ? dx + ductW / 2 : x + secW;
-      stationX.push(sx);
-      stationV.push(typeof v === 'number' ? v : null);
-      stationTxt.push(cellText(v));
+      if (s.optional)
+        page.drawRectangle({
+          x: x + 3,
+          y: yb + 3,
+          width: secW - 6,
+          height: cabH - 6,
+          borderColor: MUTED,
+          borderWidth: 0.5,
+          borderDashArray: [2, 2],
+        });
+      drawComponent(s.kind, s.name, x, yb, secW, cabH);
+      let size = 7.5;
+      while (size > 5.5 && tw(s.name, size, bold) > secW - 4) size -= 0.5;
+      center(page, fit(s.name, secW - 2, size, bold), x + secW / 2, Y(cabTop + cabH + 10), size, bold);
+      if (s.optional) center(page, '(option)', x + secW / 2, Y(cabTop + cabH + 18), 6.3, regular, MUTED);
     });
-    // ΔP under each component measured on both sides; across unmeasured components (a 3-point profile) one bracket
-    let last = stationV[0] !== null ? 0 : -1;
-    for (let i = 1; i < sections.length; i++) {
-      const v = stationV[i];
-      if (v === null) continue;
-      if (last >= 0) {
-        const d = v - stationV[last]!;
-        const x0 = cabX + (last + 1) * secW;
-        const x1 = cabX + (i + 1) * secW;
-        const by = Y(cabTop + cabH + 21);
-        if (i === last + 1) center(page, `ΔP ${num(d, 2)}`, (x0 + x1) / 2, by, 7.5, regular, MUTED);
-        else {
-          const names = sections.slice(last + 1, i + 1).map((q) => q.label);
-          line(x0 + 6, by + 8, x1 - 6, by + 8, 0.6, MUTED);
-          line(x0 + 6, by + 8, x0 + 6, by + 11, 0.6, MUTED);
-          line(x1 - 6, by + 8, x1 - 6, by + 11, 0.6, MUTED);
-          center(page, `ΔP ${num(d, 2)} across ${names.join(' · ')}`, (x0 + x1) / 2, by, 7.5, regular, MUTED);
-        }
+    // taps: the inlet and each section's leaving side; the discharge in the duct
+    const tapX = (t: (typeof d.taps)[number]) => (t.inDuct ? dx + ductW / 2 : cabX + (t.station + 1) * secW);
+    const shown = d.taps
+      .map((t, i) => ({ t, i, x: tapX(t), v: typeof t.value === 'number' ? t.value : null, txt: cellText(t.value) }))
+      .filter((q) => q.txt !== '');
+    // ΔP of each span between measured taps; across several sections one bracket
+    for (const sp of d.spans) {
+      const x0 = tapX(d.taps[sp.from]);
+      const x1 = tapX(d.taps[sp.to]);
+      const by = Y(cabTop + cabH + 29);
+      const value = `${sp.fan ? 'rise' : 'ΔP'} ${num(sp.dp, 2)}`;
+      if (sp.across.length <= 1) center(page, value, (x0 + x1) / 2, by, 7.5, regular, MUTED);
+      else {
+        line(x0 + 4, by + 8, x1 - 4, by + 8, 0.6, MUTED);
+        line(x0 + 4, by + 8, x0 + 4, by + 11, 0.6, MUTED);
+        line(x1 - 4, by + 8, x1 - 4, by + 11, 0.6, MUTED);
+        const long = `${value} across ${sp.across.join(' · ')}`;
+        const lab = tw(long, 7.5) <= x1 - x0 + 16 ? long : value;
+        center(page, lab, (x0 + x1) / 2, by, 7.5, regular, MUTED);
       }
-      last = i;
     }
-    // taps: a dot on the casing, a leader and the reading (unmeasured taps of a 3-point profile are not drawn)
-    stationX.forEach((sx, i) => {
-      if (stationV[i] === null && !stationTxt[i]) return;
-      const inDuct = sx > dx;
-      const tapY = inDuct ? yb + cabH * 0.75 : yb + cabH;
-      page.drawCircle({ x: sx, y: tapY, size: 2.6, color: RED });
-      line(sx, tapY + 2.6, sx, Y(cabTop - 8), 0.6, RED);
-      const t = stationTxt[i] || '—';
-      const bw = tw(t, 8.5, bold) + 10;
+    // callouts: the tap's name on this unit and its reading, on a leader from the casing
+    let right = -Infinity;
+    for (const q of shown) {
+      const tapY = q.t.inDuct ? yb + cabH * 0.75 : yb + cabH;
+      page.drawCircle({ x: q.x, y: tapY, size: 2.6, color: RED });
+      const name = q.t.name.replace(/ leaving$/, ' lvg').toLowerCase();
+      const bw = Math.max(tw(name, 5.8), tw(q.txt, 8.5, bold)) + 10;
+      let bx = q.x - bw / 2;
+      if (bx < right + 3) bx = right + 3;
+      bx = Math.min(bx, W - MX - bw);
+      right = bx + bw;
+      const boxB = Y(cabTop - 8);
+      line(q.x, tapY + 2.6, q.x, boxB, 0.6, RED);
+      if (q.x < bx + 4 || q.x > bx + bw - 4) line(q.x, boxB, bx + bw / 2, boxB, 0.6, RED);
       page.drawRectangle({
-        x: sx - bw / 2,
-        y: Y(cabTop - 8),
+        x: bx,
+        y: boxB,
         width: bw,
-        height: 13,
+        height: 21,
         color: rgb(1, 1, 1),
         borderColor: RED,
         borderWidth: 0.7,
       });
-      center(page, t, sx, Y(cabTop - 8) + 3.5, 8.5, bold, INK);
-    });
-    text(page, 'static taps (in. w.g.)', MX, Y(cabTop - 18), 6.5, regular, RED);
+      center(page, name, bx + bw / 2, boxB + 13.5, 5.8, regular, RED);
+      center(page, q.txt, bx + bw / 2, boxB + 3.5, 8.5, bold, INK);
+    }
 
-    // chart: static at each tap
-    const pts = stationX
-      .map((x, i) => ({ x, v: stationV[i] }))
-      .filter((q): q is { x: number; v: number } => q.v !== null);
-    const chTop = cabTop + cabH + 32;
-    const chH = 104;
+    // chart: static at each tap, in airflow order
+    const pts = shown.filter((q): q is typeof q & { v: number } => q.v !== null);
+    const chTop = cabTop + cabH + 40;
+    const chH = 84;
     const axX = MX + 22;
     if (pts.length) {
-      const lo0 = Math.min(0, ...pts.map((q) => q.v), f.designEsp !== null ? -0 : 0);
+      const lo0 = Math.min(0, ...pts.map((q) => q.v));
       const hi0 = Math.max(0, ...pts.map((q) => q.v));
       const step = nice(hi0 - lo0 || 1);
       const lo = Math.floor(lo0 / step) * step;
@@ -421,13 +467,15 @@ export async function renderGraphicsPdf(
       for (let v = lo; v <= hi + 1e-9; v += step) {
         const yy = yOf(v);
         line(axX, yy, W - MX, yy, Math.abs(v) < 1e-9 ? 0.9 : 0.3, Math.abs(v) < 1e-9 ? INK : RULE);
-        const lab = num(v, step < 0.1 ? 2 : step < 1 ? 2 : 1);
+        const lab = num(Math.abs(v) < 1e-9 ? 0 : v, step < 1 ? 2 : 1);
         text(page, lab, axX - 4 - tw(lab, 6.5), yy - 2.2, 6.5, regular, MUTED);
       }
       text(page, 'in. w.g.', MX - 10, yOf(hi) + 6, 6.5, bold, MUTED);
       text(page, 'discharge (+)', axX + 4, yOf(hi) - 8, 6.5, regular, rgb(0.6, 0.4, 0.1));
       text(page, 'suction (−)', axX + 4, yOf(lo) + 3, 6.5, regular, BRAND);
-      for (const sx of stationX) line(sx, yOf(lo), sx, yOf(hi), 0.3, RULE, [2, 2]);
+      // the section boundaries, faint, so the line reads against the cabinet above
+      for (let i = 1; i <= sections.length; i++)
+        line(cabX + i * secW, yOf(lo), cabX + i * secW, yOf(hi), 0.3, RULE, [2, 2]);
       for (let j = 1; j < pts.length; j++) line(pts[j - 1].x, yOf(pts[j - 1].v), pts[j].x, yOf(pts[j].v), 1.6, BRAND);
       for (const q of pts) {
         page.drawCircle({ x: q.x, y: yOf(q.v), size: 3, color: rgb(1, 1, 1), borderColor: BRAND, borderWidth: 1.4 });
@@ -436,21 +484,25 @@ export async function renderGraphicsPdf(
         const lx = q.x + 4 + tw(lab, 7, bold) > W - MX ? q.x - 4 - tw(lab, 7, bold) : q.x + 4;
         text(page, lab, lx, yOf(q.v) + (above ? 4 : -9), 7, bold, INK);
       }
-      // fan rise (TSP): fan entering static -> discharge
-      const fanI = sections.findIndex((s) => s.k >= 0 && s.label.toLowerCase().startsWith('fan'));
-      if (fanI > 0 && p.tsp !== null) {
-        const vIn = stationV[fanI - 1];
-        const vOut = stationV[fanI];
-        if (vIn !== null && vOut !== null) {
-          const fx = stationX[fanI] - 16;
-          line(fx, yOf(vIn), fx, yOf(vOut), 1, RED);
-          line(fx - 3, yOf(vOut) - 4, fx, yOf(vOut), 1, RED);
-          line(fx + 3, yOf(vOut) - 4, fx, yOf(vOut), 1, RED);
-          const t = `TSP ${num(p.tsp, 2)}`;
-          text(page, t, fx - tw(t, 7.5, bold) - 4, (yOf(vIn) + yOf(vOut)) / 2 - 3, 7.5, bold, RED);
-        }
+      // fan rise (TSP): the span that holds the fan
+      const fanSpan = d.spans.find((s) => s.fan);
+      if (fanSpan && p.tsp !== null) {
+        const a = d.taps[fanSpan.from];
+        const b = d.taps[fanSpan.to];
+        const vIn = a.value as number;
+        const vOut = b.value as number;
+        const fx = tapX(b) - 16;
+        line(fx, yOf(vIn), fx, yOf(vOut), 1, RED);
+        line(fx - 3, yOf(vOut) - 4, fx, yOf(vOut), 1, RED);
+        line(fx + 3, yOf(vOut) - 4, fx, yOf(vOut), 1, RED);
+        const t = `TSP ${num(p.tsp, 2)}`;
+        text(page, t, fx - tw(t, 7.5, bold) - 4, (yOf(vIn) + yOf(vOut)) / 2 - 3, 7.5, bold, RED);
       }
     }
+    // notes: where the drawing departs from the workbook strip
+    wrap(d.notes.join(' '), CW, 6.8)
+      .slice(0, 3)
+      .forEach((l, i) => text(page, l, MX, Y(chTop + chH + 60 + i * 9), 6.8, regular, rgb(0.6, 0.4, 0.1)));
     // results: TSP, ESP against design (gauge), unit dP
     const ry = chTop + chH + 14;
     const tile = (x: number, w: number, title: string, value: string, note = '', tone: RGB = INK) => {
