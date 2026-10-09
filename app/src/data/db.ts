@@ -5,6 +5,7 @@ import type {
   CertProfile,
   LibraryValve,
   LibraryPump,
+  LibraryUnit,
   Equipment,
   FieldChange,
   HistoryEntry,
@@ -37,6 +38,7 @@ export class TabDatabase extends Dexie {
   certProfiles!: EntityTable<CertProfile, 'id'>;
   libraryValves!: EntityTable<LibraryValve, 'id'>;
   libraryPumps!: EntityTable<LibraryPump, 'id'>;
+  libraryUnits!: EntityTable<LibraryUnit, 'id'>;
 
   constructor(name = 'a2b-tab') {
     super(name);
@@ -137,6 +139,8 @@ export class TabDatabase extends Dexie {
     this.version(8).stores({ libraryValves: 'id, updatedAt' });
     // v9: the shared pump-curve library. New table only.
     this.version(9).stores({ libraryPumps: 'id, updatedAt' });
+    // v10: the shared unit configuration library (component order, documents). New table only.
+    this.version(10).stores({ libraryUnits: 'id, updatedAt' });
   }
 }
 

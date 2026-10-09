@@ -131,6 +131,7 @@ async function graphicsInput(projectId: string) {
     ]);
   const b = await loadBundle(projectId);
   const libraryPumps = await db.libraryPumps.toArray();
+  const libraryUnits = await db.libraryUnits.toArray();
   const linked = hoodLinks(b.equipment);
   const completions = new Map(
     b.equipment.map((e) => [
@@ -146,7 +147,7 @@ async function graphicsInput(projectId: string) {
       }),
     ]),
   );
-  const model = buildGraphicsModel({ ...b, completions, libraryPumps });
+  const model = buildGraphicsModel({ ...b, completions, libraryPumps, libraryUnits });
   const reportDate =
     typeof b.project.info.reportDate === 'string' ? b.project.info.reportDate : new Date().toISOString().slice(0, 10);
   const address = typeof b.project.info.address === 'string' ? b.project.info.address : undefined;

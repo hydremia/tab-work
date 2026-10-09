@@ -110,7 +110,7 @@ export function ProjectListPage() {
           Dashboard
         </Link>
         <Link to="/library" className="btn btn-ghost" data-testid="library-link">
-          Instrument library
+          Library
           {libraryConflicts && libraryConflicts.length > 0 && (
             <span className="tab-count" data-tone="attention" data-testid="library-conflict-count">
               {libraryConflicts.length}

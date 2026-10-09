@@ -23,6 +23,7 @@ import type {
   CertProfile,
   LibraryValve,
   LibraryPump,
+  LibraryUnit,
   Equipment,
   HistoryEntry,
   Instrument,
@@ -385,6 +386,13 @@ export function useLibraryPumps(): LibraryPump[] | undefined {
         a.model.localeCompare(b.model) ||
         a.size.localeCompare(b.size, undefined, { numeric: true }),
     ),
+  );
+}
+
+/** The shared unit configuration library, by make and product line. */
+export function useLibraryUnits(): LibraryUnit[] | undefined {
+  return useLiveQuery(async () =>
+    (await db.libraryUnits.toArray()).sort((a, b) => a.make.localeCompare(b.make) || a.line.localeCompare(b.line)),
   );
 }
 

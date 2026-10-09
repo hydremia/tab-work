@@ -17,6 +17,7 @@ import { IconPlus, IconTrash } from '../components/Icons';
 import { DateInput, TextArea, TextInput } from '../components/inputs';
 import { Screen } from '../components/Screen';
 import { PumpLibrary } from '../components/PumpLibrary';
+import { UnitLibrary } from '../components/UnitLibrary';
 import { ValveLibrary } from '../components/ValveLibrary';
 
 const LABEL: Record<(typeof INSTRUMENT_DETAIL_KEYS)[number], string> = {
@@ -168,7 +169,7 @@ export function LibraryPage() {
     }
   }
   return (
-    <Screen title="Instrument library" back="/">
+    <Screen title="Library" back="/">
       {conflicts && conflicts.length > 0 && (
         <section className="card card-pad stack" aria-labelledby="lib-conflicts-h" data-testid="library-conflicts">
           <h2 id="lib-conflicts-h">
@@ -213,6 +214,7 @@ export function LibraryPage() {
           <IconPlus size={18} /> Add instrument
         </button>
       </section>
+      <UnitLibrary />
       <ValveLibrary />
       <PumpLibrary />
     </Screen>

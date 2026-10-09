@@ -321,6 +321,56 @@ export interface LibraryPump {
   updatedAt: number;
 }
 
+/** A component of a unit's supply-air path, in airflow order (the static pressure profile follows it). */
+export type UnitComponentKind =
+  'damper' | 'filter' | 'wheel' | 'coil' | 'reheat' | 'desiccant' | 'burner' | 'heat' | 'fan' | 'finalFilter' | 'other';
+
+export interface UnitComponent {
+  kind: UnitComponentKind;
+  /** Shown instead of the kind's name ("Humidi-MiZer reheat coil"). */
+  label?: string;
+  /** Present only with an option (reheat, post-heat, wheel). */
+  optional?: boolean;
+}
+
+/** How the order is known: stated in a manufacturer document, inferred from one, or not confirmed. */
+export type LibraryConfidence = 'stated' | 'inferred' | 'unconfirmed';
+
+export interface UnitDocument {
+  title: string;
+  kind: 'manual' | 'productData' | 'submittal' | 'drawing' | 'other';
+  /** Form number, revision or date ("48-50GE-17-28-01PD", "Rev C, 07/14"). */
+  ref?: string;
+  url?: string;
+  notes?: string;
+}
+
+/**
+ * The shared unit configuration library (Dexie v10 `libraryUnits`, server `unit_library`, 0014): one entry per product
+ * line, matched to units by make and model pattern (domain/unitLibrary.ts). It holds the supply-air component order the
+ * static profile should follow, how that order is known, and the manuals, product data, submittals and drawings for
+ * the line. Organization records, synced like the pump library.
+ */
+export interface LibraryUnit {
+  id: string;
+  /** Manufacturer; aliases separated by commas ("York, Johnson Controls"). */
+  make: string;
+  /** Product line ("WeatherMaster 48GE"). */
+  line: string;
+  /** Model patterns, comma separated; * any characters, ? one ("48GE*", "A?-D.*"). Spaces and dashes are ignored. */
+  modelPatterns: string;
+  /** Kind of unit: RTU, DOAS, DHU (desiccant dehumidifier), MAU, ERV, EF. */
+  unitType: string;
+  components: UnitComponent[] | null;
+  confidence: LibraryConfidence;
+  /** The sentence or figure that establishes the order, with its document. */
+  evidence: string;
+  documents: UnitDocument[] | null;
+  notes: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type TableName =
   | 'projects'
   | 'equipment'
@@ -331,10 +381,17 @@ export type TableName =
   | 'libraryInstruments'
   | 'certProfiles'
   | 'libraryValves'
-  | 'libraryPumps';
+  | 'libraryPumps'
+  | 'libraryUnits';
 
 /** Records of the organization that belong to no project: their changes carry the record's own id as projectId. */
-export const ORG_TABLES: readonly TableName[] = ['libraryInstruments', 'certProfiles', 'libraryValves', 'libraryPumps'];
+export const ORG_TABLES: readonly TableName[] = [
+  'libraryInstruments',
+  'certProfiles',
+  'libraryValves',
+  'libraryPumps',
+  'libraryUnits',
+];
 
 /** The sync outbox and audit log: one row per field edit (or record create / delete). */
 export interface FieldChange {

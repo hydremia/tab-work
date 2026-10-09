@@ -53,6 +53,7 @@ import {
   type LibraryInstrument,
   type LibraryValve,
   type LibraryPump,
+  type LibraryUnit,
   type FieldValue,
   type Photo,
   type PhotoCategory,
@@ -84,6 +85,7 @@ export const writeTables = () => [
   db.certProfiles,
   db.libraryValves,
   db.libraryPumps,
+  db.libraryUnits,
 ];
 
 /** Where a write comes from (recorded in the history). */
@@ -144,6 +146,8 @@ export function describeRecord(name: TableName, rec: AnyRecord): string {
       return `Library valve: ${[r.make, r.model, r.size].filter(Boolean).join(' ') || 'valve'}`;
     case 'libraryPumps':
       return `Library pump: ${[r.make, r.model, r.size].filter(Boolean).join(' ') || 'pump'}`;
+    case 'libraryUnits':
+      return `Unit configuration: ${[r.make, r.line].filter(Boolean).join(' ') || 'unit'}`;
   }
 }
 
@@ -1347,4 +1351,26 @@ export async function splitLegacySheaveBore(unit: Equipment): Promise<boolean> {
     if (e instanceof LockedError) return false;
     throw e;
   }
+}
+
+export async function addLibraryUnit(u: Partial<Omit<LibraryUnit, 'id' | 'createdAt' | 'updatedAt'>> = {}) {
+  const now = Date.now();
+  return createRecord<LibraryUnit>('libraryUnits', {
+    id: uuid(),
+    make: u.make ?? '',
+    line: u.line ?? '',
+    modelPatterns: u.modelPatterns ?? '',
+    unitType: u.unitType ?? '',
+    components: u.components ?? null,
+    confidence: u.confidence ?? 'unconfirmed',
+    evidence: u.evidence ?? '',
+    documents: u.documents ?? null,
+    notes: u.notes ?? '',
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+export async function deleteLibraryUnit(id: string): Promise<void> {
+  await deleteRecord('libraryUnits', id);
 }
