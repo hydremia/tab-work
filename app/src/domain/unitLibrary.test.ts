@@ -11,8 +11,8 @@ describe('unit configuration library', () => {
     expect(line('Carrier', '48GERN24B2P6-3U5C0')).toBe('WeatherMaster 48GE');
     expect(line('Carrier', '48GEHN06B2P6-3U5A0')).toBe('WeatherMaster 48GE');
     expect(line('Munters', 'HCUC8040ACS-GBBS60M-LFTSM0GBB-0B0B… (verify)')).toBe('DryCool HCUc / Standard (desiccant)');
-    expect(line('CaptiveAire', 'A2-D.250-20D')).toBe('Direct-fired make-up air (A-series D, D76)');
-    expect(line('Captive-Aire', 'D76')).toBe('Direct-fired make-up air (A-series D, D76)');
+    expect(line('CaptiveAire', 'A2-D.250-20D')).toBe('Direct-fired make-up air, A-series (A1-A5 D)');
+    expect(line('Captive-Aire', 'D76')).toBe('D76 compact direct-fired heater');
     expect(line('carrier corp', '48tc-d08a2a5')).toBe('WeatherMaker 48TC / 48HC, WeatherExpert 48LC');
     expect(line('Johnson Controls', 'ZJ078N10')).toBe('Predator, Sun Pro, ZE/XN, ZJ/ZR/ZF 3-25 ton');
   });
@@ -36,7 +36,7 @@ describe('unit configuration library', () => {
   it('order in words, and the template order compared: RTU heat before fan is flagged, the MAU matches', () => {
     const ge = matchLibraryUnit(library, 'Carrier', '48GERN24')!;
     expect(orderText(ge.components)).toBe(
-      'Economizer / OA-RA dampers (option) → Filter → Evaporator coil → Humidi-MiZer reheat coil (option) → Supply fan → Gas heat exchanger / electric heat',
+      'Economizer / OA-RA dampers (option) → Filter → Evaporator coil → Humidi-MiZer reheat coil (option) → Vane-axial direct-drive indoor fan (EcoBlue) → Gas heat exchanger',
     );
     const rtu = compareWithTemplate('RTU', ge.components)!;
     expect(rtu.sameOrder).toBe(false);
