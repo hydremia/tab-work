@@ -72,11 +72,11 @@ function rev07Bundle(): ProjectBundle {
   return b;
 }
 
-describe('revision 07 export', () => {
+describe('revision 07 features (in the current template, revision 08)', () => {
   const { data, warnings } = toProjectData(rev07Bundle());
 
   it('writes into the revision 07 cells, no rev 07 warnings', () => {
-    expect(data.templateRevision).toBe('07');
+    expect(data.templateRevision).toBe(TEMPLATE_MAP.revision);
     expect(warnings.join('\n')).not.toMatch(/revision 07/);
     const rtu = data.equipment.rtu[0];
     expect(rtu.fields).toMatchObject({ motorBore: '7/8', fanBore: '1', motorHp: 3 });
@@ -105,9 +105,9 @@ describe('revision 07 export', () => {
   it('round-trips through the revision 07 template (the importer picks rev 07 by itself)', async () => {
     const b = rev07Bundle();
     const { bytes } = await exportWorkbookWithReport(template(), toProjectData(b).data);
-    expect(await workbookRevision(bytes)).toBe('07');
+    expect(await workbookRevision(bytes)).toBe(TEMPLATE_MAP.revision);
     const pd = await importWorkbook(bytes);
-    expect(pd.templateRevision).toBe('07');
+    expect(pd.templateRevision).toBe(TEMPLATE_MAP.revision);
     const back = fromProjectData(pd);
     const rtu = back.equipment.find((e) => e.type === 'rtu')!;
     expect(rtu.data).toMatchObject({ motorBore: '7/8', fanBore: '1', motorHp: 3 });

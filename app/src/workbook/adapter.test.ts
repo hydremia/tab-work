@@ -8,6 +8,7 @@ import {
   normalizeProject,
   TEMPLATE_FILE_NAME,
   TEMPLATE_MAP_06,
+  TEMPLATE_MAP_07,
 } from '@a2b/workbook';
 import { describe, expect, it } from 'vitest';
 import { sampleBundle } from '../test/fixtures';
@@ -102,23 +103,47 @@ describe('toProjectData', () => {
     expect(d.schedule).toMatchObject({ belts: 'N/A', motorSheave: 'N/A' });
   });
 
-  it('leaves the leaving static of an absent component blank (the strip passes the entering static through)', () => {
+  it('writes the components to their revision 08 positions; an absent component (no reheat, no filters) stays blank', () => {
     const b = sampleBundle();
     const u = toProjectData(b).data.equipment.rtu[0];
-    // RTU: component 2 is "—"; an "N/A" there would reach the coil's entering static and blank its ΔP
-    expect(u.fields).not.toHaveProperty('spLeaving2');
-    expect(u.fields).toMatchObject({ spEntering: -0.35, spLeaving1: -0.55, spLeaving5: 0.72 });
+    // RTU positions: Filter, Coil, Reheat, Fan, Heat, —; no reheat and the fan unread: blank, not "N/A"
+    expect(u.fields).toMatchObject({ spEntering: -0.35, spLeaving1: -0.55, spLeaving2: -1.05, spLeaving5: 0.72 });
+    expect(u.fields).not.toHaveProperty('spLeaving3');
+    expect(u.fields).not.toHaveProperty('spLeaving4');
+    expect(u.fields).not.toHaveProperty('spLeaving6');
     // no filters: the filter's leaving static is left blank too; the filter text itself is still "N/A"
     b.equipment[0].data.hasFilters = 'No';
-    delete b.equipment[0].data.spLeaving1;
+    delete b.equipment[0].data.spFilter;
     delete b.equipment[0].data.filters;
     const nf = toProjectData(b).data.equipment.rtu[0];
     expect(nf.fields).not.toHaveProperty('spLeaving1');
     expect(nf.fields).toMatchObject({ filters: 'N/A' });
-    // an explicit mark on a component that applies is still written (rev 05 then blanks the downstream ΔP)
-    b.equipment[0].naState.fields.spLeaving3 = { notation: 'Not Acc.' };
-    delete b.equipment[0].data.spLeaving3;
-    expect(toProjectData(b).data.equipment.rtu[0].fields).toMatchObject({ spLeaving3: 'Not Acc.' });
+    // an explicit mark on a component that applies is still written
+    b.equipment[0].naState.fields.spFan = { notation: 'Not Acc.' };
+    expect(toProjectData(b).data.equipment.rtu[0].fields).toMatchObject({ spLeaving4: 'Not Acc.' });
+  });
+
+  it('a rev 05 / 06 base gets the old positions: fan inlet in the old "Heat" slot, the discharge in the old "Fan" slot', () => {
+    const b = sampleBundle();
+    b.equipment[0].data.hasReheat = 'Yes';
+    b.equipment[0].data.spReheat = -1.1;
+    const u = toProjectData(b, 'air', TEMPLATE_MAP_06).data.equipment.rtu[0];
+    // rev 05-07 RTU: Filter, —, Coil, Heat, Fan
+    expect(u.fields).toMatchObject({
+      spEntering: -0.35,
+      spLeaving1: -0.55,
+      spLeaving3: -1.05,
+      spLeaving4: -1.1,
+      spLeaving5: 0.72,
+    });
+  });
+
+  it('imports rev 07 positions into components (the old heat slot was the fan inlet, the old fan slot the discharge)', () => {
+    const pd = toProjectData(sampleBundle(), 'air', TEMPLATE_MAP_07).data;
+    pd.templateRevision = '07';
+    const back = fromProjectData(pd).equipment.find((e) => e.designation === 'RTU-1')!;
+    expect(back.data).toMatchObject({ spFilter: -0.55, spCoil: -1.05, spHeat: 0.72 });
+    for (let k = 1; k <= 6; k++) expect(back.data).not.toHaveProperty(`spLeaving${k}`);
   });
 
   it('writes scope-profile N/A (Airflow Only) as "N/A" in the unit fields, not blanks', () => {

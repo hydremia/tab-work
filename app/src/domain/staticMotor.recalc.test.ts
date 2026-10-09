@@ -18,6 +18,7 @@ import { computeCompletion } from './completion';
 import { motorCalc, motorInputs } from './motorCalcs';
 import { getSpec } from './specs';
 import { staticInputs, staticProfile, type XCell } from './staticProfile';
+import { SP_COMPONENTS, spKey } from './staticSlots';
 
 const template = () =>
   new Uint8Array(readFileSync(fileURLToPath(new URL(`../../../${TEMPLATE_FILE_NAME}`, import.meta.url))));
@@ -62,12 +63,14 @@ function makeUnits(): Equipment[] {
       // unit type: mostly the sheet's own, every type somewhere
       data.unitType =
         slot <= 5
-          ? TEMPLATE_LISTS['Unit.Type'][(slot + n) % 5]
+          ? TEMPLATE_LISTS['Unit.Type'][(slot + n) % TEMPLATE_LISTS['Unit.Type'].length]
           : r() < 0.7
             ? sheetType[kind]
             : pick(TEMPLATE_LISTS['Unit.Type']);
       if (slot === 6) delete data.unitType; // template preset stays
       data.hasFilters = r() < 0.8 ? 'Yes' : 'No';
+      if (r() < 0.4) data.hasReheat = 'Yes';
+      if (r() < 0.2) data.spTaps = '3-point';
       // schedule
       const phase = r();
       if (phase < 0.4) data.phase = '1-phase';
@@ -84,14 +87,17 @@ function makeUnits(): Equipment[] {
       for (const leg of [1, 2, 3]) put(`volts${leg}`, round2(vBase * (0.95 + r() * 0.1)), 0.15, 0.15);
       for (const leg of [1, 2, 3]) put(`amps${leg}`, round2(0.5 + r() * 15), 0.15, 0.15);
       data.serviceFactor = pick(TEMPLATE_LISTS['Service.Factors2']);
-      // static profile: negative suction side, positive discharge; notations; values in absent components
+      // static profile (by component, revision 08): negative suction side, positive past the fan; blanks, notations
       let s = round2(-0.05 - r() * 0.5);
       put('spEntering', s, 0.08, 0.08);
-      for (const k of [1, 2, 3, 4]) {
-        s = round2(s - r() * 0.4);
-        put(`spLeaving${k}`, s, 0.3, 0.1);
+      let past = false;
+      for (const comp of SP_COMPONENTS) {
+        if (comp === 'Fan') {
+          past = true;
+          s = round2(r() * 1.5 - 0.2);
+        } else s = past ? round2(s - r() * 0.2) : round2(s - r() * 0.4);
+        put(spKey(comp), s, comp === 'Fan' ? 0.3 : 0.25, 0.1);
       }
-      put('spLeaving5', round2(r() * 1.5 - 0.2), 0.08, 0.08);
       const designation = `${sheetType[kind]}-G${slot}`;
       n++;
       out.push({
@@ -111,9 +117,9 @@ function makeUnits(): Equipment[] {
   return out;
 }
 
-const COLS = ['C', 'D', 'E', 'F', 'G'];
-const STRIP_COLS = ['C', 'E', 'G', 'I', 'K', 'M'];
-const DP_COLS = ['D', 'F', 'H', 'J', 'L'];
+/** Revision 08: components 1-6 in C:H (labels P+19, readings P+20, Δ P+21); the reading before each in Q:V P+20. */
+const COLS = ['C', 'D', 'E', 'F', 'G', 'H'];
+const BEFORE_COLS = ['Q', 'R', 'S', 'T', 'U', 'V'];
 
 describe.skipIf(!hasSoffice())(
   'static profile + motor calcs = LibreOffice-recalculated export (generated units)',
@@ -159,13 +165,15 @@ describe.skipIf(!hasSoffice())(
         const mc = motorCalc(motorInputs(cells));
         const at = (col: string, off: number) => `${col}${P + off}`;
         const id = `${sheet} ${e.designation}`;
-        for (let k = 0; k < 5; k++) {
+        for (let k = 0; k < 6; k++) {
           cmp(`${id} label ${k + 1}`, await read(sheet, at(COLS[k], 19)), sp.labels[k]);
-          cmp(`${id} entering ${k + 1}`, await read(sheet, at(COLS[k], 20)), sp.entering[k]);
-          cmp(`${id} ΔP ${k + 1}`, await read(sheet, at(DP_COLS[k], 24)), sp.dpText[k]);
+          cmp(`${id} before ${k + 1}`, await read(sheet, at(BEFORE_COLS[k], 20)), sp.entering[k]);
+          cmp(`${id} ΔP ${k + 1}`, await read(sheet, at(COLS[k], 21)), sp.dpText[k]);
         }
-        for (let k = 0; k < 6; k++) cmp(`${id} strip ${k}`, await read(sheet, at(STRIP_COLS[k], 24)), sp.strip[k]);
-        cmp(`${id} inlet label`, await read(sheet, at('B', 23)), sp.inlet);
+        for (let k = 0; k < 7; k++) cmp(`${id} reading ${k}`, await read(sheet, at('BCDEFGH'[k], 20)), sp.strip[k]);
+        cmp(`${id} inlet label`, await read(sheet, at('B', 19)), sp.inlet);
+        cmp(`${id} fan inlet`, await read(sheet, at('D', 23)), sp.fanInlet);
+        cmp(`${id} discharge`, await read(sheet, at('I', 23)), sp.discharge);
         cmp(`${id} TSP`, await read(sheet, at('E', 25)), sp.tsp);
         cmp(`${id} ESP`, await read(sheet, at('I', 25)), sp.esp);
         cmp(`${id} unit ΔP`, await read(sheet, at('M', 25)), sp.unitDp);

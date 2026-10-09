@@ -19,11 +19,12 @@ import {
   PSP_K,
   TEMPLATE_LISTS,
   UNIT_TYPE_COMPONENTS,
+  UNIT_TYPE_COMPONENTS_07,
   UNIT_TYPE_INLETS,
 } from './lists.js';
 import { importWorkbook } from './importWorkbook.js';
 import { TEMPLATE_FILE_NAME } from './index.js';
-import { TEMPLATE_PATH, templateBytes } from './testTemplate.js';
+import { TEMPLATE_PATH, template07Bytes, templateBytes } from './testTemplate.js';
 
 describe('template lists', () => {
   it('TEMPLATE_FILE_NAME names the template the tests use', () => {
@@ -78,17 +79,17 @@ describe('template lists', () => {
     });
   });
 
-  it('unit-type table (static-profile inlet and components) matches {Dropdowns} AH2:AN6', async () => {
+  it('unit-type table (static-profile inlet and components) matches {Dropdowns} AH2:AO7', async () => {
     const zip = await JSZip.loadAsync(templateBytes());
     const info = (await listSheets(zip)).find((s) => s.name === '{Dropdowns}')!;
     const cells = parseCells(await readText(zip, info.part));
     const v = (ref: string) => cellValue(cells.get(ref), []);
     const types: string[] = [];
-    for (let r = 2; r <= 6; r++) {
+    for (let r = 2; r <= 7; r++) {
       const t = String(v(`AH${r}`));
       types.push(t);
       expect(v(`AI${r}`), `AI${r}`).toBe(UNIT_TYPE_INLETS[t]);
-      const comps = ['AJ', 'AK', 'AL', 'AM', 'AN'].map((c) => v(`${c}${r}`));
+      const comps = ['AJ', 'AK', 'AL', 'AM', 'AN', 'AO'].map((c) => v(`${c}${r}`));
       expect(
         comps.map((c) => (c === '—' ? null : c)),
         t,
@@ -96,6 +97,17 @@ describe('template lists', () => {
     }
     expect(types).toEqual(TEMPLATE_LISTS['Unit.Type']);
     expect(Object.keys(UNIT_TYPE_COMPONENTS)).toEqual(types);
+  });
+
+  it('the revision 05-07 unit-type table matches the revision 07 {Dropdowns} AH2:AN6', async () => {
+    const zip = await JSZip.loadAsync(template07Bytes());
+    const info = (await listSheets(zip)).find((s) => s.name === '{Dropdowns}')!;
+    const cells = parseCells(await readText(zip, info.part));
+    const v = (ref: string) => cellValue(cells.get(ref), []);
+    for (let r = 2; r <= 6; r++) {
+      const comps = ['AJ', 'AK', 'AL', 'AM', 'AN'].map((c) => v(`${c}${r}`));
+      expect(comps.map((c) => (c === '—' ? null : c))).toEqual(UNIT_TYPE_COMPONENTS_07[String(v(`AH${r}`))]);
+    }
   });
 
   it('DEFAULT_INSTRUMENTS are the Calibration sheet pre-loads', async () => {

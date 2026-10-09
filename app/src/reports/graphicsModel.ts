@@ -188,6 +188,7 @@ export function buildGraphicsModel(input: {
       const inputs = staticInputs(cells);
       const profile = staticProfile(inputs);
       if (profile.known && profile.strip.some((v) => xlNum(v) !== null)) {
+        // (the strip: the entering static and the leaving static of each component, revision 08 positions)
         const lib = matchLibraryUnit(library, e.data.manufacturer, e.data.model);
         const text = (v: unknown) => (typeof v === 'string' ? v.trim() : typeof v === 'number' ? String(v) : '');
         figures.push({
@@ -197,7 +198,10 @@ export function buildGraphicsModel(input: {
           typeLabel: equipmentType(e.type).label,
           profile,
           designEsp: xlNum(cells.unitEsp),
-          diagram: unitDiagram(inputs, lib?.components, { noFilters: e.data.hasFilters === 'No' }),
+          diagram: unitDiagram(inputs, lib?.components, {
+            noFilters: e.data.hasFilters === 'No',
+            hasReheat: e.data.hasReheat === 'Yes',
+          }),
           makeModel: [text(e.data.manufacturer), text(e.data.model)].filter(Boolean).join(' '),
           library:
             lib && lib.components?.length

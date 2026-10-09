@@ -18,6 +18,7 @@ import { ExportReminderGuard } from '../components/ExportReminder';
 import { LockBanner } from '../components/LockBanner';
 import { ProjectMenu } from '../components/DeleteProject';
 import { openDeficiencies } from '../../domain/issues';
+import { migrateProjectStatic } from '../../data/repo';
 
 export interface ProjectContext {
   project: Project;
@@ -48,6 +49,11 @@ export function ProjectLayout() {
   const libraryConflicts = useLibraryConflicts(useProjectLibraryIds(projectId) ?? []);
   const tabsRef = useRef<HTMLDivElement>(null);
   const { pathname } = useLocation();
+  // static profile readings entered before template revision 08: moved to their components once per opening
+  const unlocked = Boolean(project && !project.lock);
+  useEffect(() => {
+    if (projectId && unlocked) void migrateProjectStatic(projectId);
+  }, [projectId, unlocked]);
   // the tab bar scrolls sideways on a phone: keep the active tab in view
   useEffect(() => {
     const active = tabsRef.current?.querySelector('a.active') as HTMLElement | null;

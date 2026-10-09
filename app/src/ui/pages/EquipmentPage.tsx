@@ -1,4 +1,4 @@
-import { blockLayout, TEMPLATE_MAP, UNIT_TYPE_COMPONENTS } from '@a2b/workbook/map';
+import { blockLayout, TEMPLATE_MAP } from '@a2b/workbook/map';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import {
@@ -21,6 +21,7 @@ import {
   markReviewed,
   setField,
   setFields,
+  migrateLegacyStatic,
   splitLegacySheaveBore,
 } from '../../data/repo';
 import { makeContext } from '../../domain/historyView';
@@ -41,7 +42,7 @@ import {
 import { evalCond } from '../../domain/conditions';
 import { hoodFanTags, hoodLinks, traverseLayout } from '../../domain/equipmentCalcs';
 import { EQUIPMENT_TYPES, equipmentType, nextDesignation } from '../../domain/equipmentTypes';
-import { getSpec, type FieldSpec, type SectionSpec, type SequenceSpec } from '../../domain/specs';
+import { getSpec, presetUnitType, type FieldSpec, type SectionSpec, type SequenceSpec } from '../../domain/specs';
 import { airflowOnlySections } from '../../domain/unitScope';
 import { AirflowTable } from '../components/AirflowTable';
 import { CalcPanel, espText, ReviewCallout, unitEspCheck } from '../components/CalcPanels';
@@ -55,16 +56,22 @@ import type { AirflowRow, Instrument, Issue, Photo } from '../../data/types';
 import { openDeficiencies } from '../../domain/issues';
 import { appendNotes, scratchLines } from '../../domain/remarks';
 import { UnitLibraryMatch } from '../components/UnitLibrary';
-import { diagramFor, tapHint, UnitDiagram } from '../components/UnitDiagram';
+import { diagramFor, UnitDiagram } from '../components/UnitDiagram';
 import type { UnitDiagram as Diagram } from '../../domain/unitDiagram';
+import { measuredComponents } from '../../domain/staticSlots';
 
-function fieldLabel(f: FieldSpec, data: Equipment['data'], diagram?: Diagram | null): string {
+function fieldLabel(f: FieldSpec, data: Equipment['data'], unitType: unknown): string {
   if (!f.component) return f.label;
-  const ut = typeof data.unitType === 'string' ? data.unitType : '';
-  const comp = UNIT_TYPE_COMPONENTS[ut]?.[f.component - 1];
-  // where the reading is taken on this unit when its order differs from the strip's (an RTU's heat after the fan)
-  const hint = diagram ? tapHint(diagram, f.key) : null;
-  return comp ? `Leaving ${comp}${hint ? ` (${hint})` : ''}` : f.label;
+  // where the reading is on the profile: the last one before the fan is the fan inlet, the last one the discharge
+  const comps = measuredComponents({ ...data, unitType: (unitType ?? null) as FieldValue });
+  const fan = comps.indexOf('Fan');
+  const role =
+    fan > 0 && comps[fan - 1] === f.component
+      ? 'fan inlet'
+      : comps.length > 1 && comps[comps.length - 1] === f.component
+        ? 'discharge'
+        : null;
+  return role ? `${f.label} (${role})` : f.label;
 }
 
 /** Remark lines the workbook has for this unit (hoods / traverses share a page box). */
@@ -251,32 +258,34 @@ function SectionCard({
           {section.hint && <p className="small muted section-hint">{section.hint}</p>}
           {section.fields.length > 0 && (
             <div className="form-grid">
-              {section.fields.map((f) => (
-                <SpecField
-                  key={f.key}
-                  idPrefix={equipment.id.slice(0, 8)}
-                  field={
-                    f.key === 'remarks'
-                      ? { ...f, hint: remarkRoom(equipment) }
-                      : f.key === 'associatedFan'
-                        ? { ...f, suggestions: fanTags }
-                        : f
-                  }
-                  label={fieldLabel(f, equipment.data, section.calc === 'staticProfile' ? diagram : null)}
-                  value={f.recordField ? equipment.designation : equipment.data[f.key]}
-                  state={completion.fields[f.key]}
-                  mark={equipment.naState.fields[f.key]}
-                  onChange={onField(f)}
-                  onNa={f.recordField ? undefined : onNa(f)}
-                  warning={
-                    (INSTRUMENT_FIELDS as readonly string[]).includes(f.key)
-                      ? pickerWarning(equipment.data[f.key], instruments)
-                      : f.key === 'associatedFan'
-                        ? fanLinkWarning
-                        : null
-                  }
-                />
-              ))}
+              {section.fields
+                .filter((f) => !completion.fields[f.key]?.hidden)
+                .map((f) => (
+                  <SpecField
+                    key={f.key}
+                    idPrefix={equipment.id.slice(0, 8)}
+                    field={
+                      f.key === 'remarks'
+                        ? { ...f, hint: remarkRoom(equipment) }
+                        : f.key === 'associatedFan'
+                          ? { ...f, suggestions: fanTags }
+                          : f
+                    }
+                    label={fieldLabel(f, equipment.data, equipment.data.unitType ?? presetUnitType(equipment.type))}
+                    value={f.recordField ? equipment.designation : equipment.data[f.key]}
+                    state={completion.fields[f.key]}
+                    mark={equipment.naState.fields[f.key]}
+                    onChange={onField(f)}
+                    onNa={f.recordField ? undefined : onNa(f)}
+                    warning={
+                      (INSTRUMENT_FIELDS as readonly string[]).includes(f.key)
+                        ? pickerWarning(equipment.data[f.key], instruments)
+                        : f.key === 'associatedFan'
+                          ? fanLinkWarning
+                          : null
+                    }
+                  />
+                ))}
             </div>
           )}
           {section.key === 'remarks' && typeof equipment.data.remarks === 'string' && equipment.data.remarks.trim() && (
@@ -709,6 +718,8 @@ export function EquipmentPage() {
   useEffect(() => {
     if (equipment && (equipment.data.sheaveBore !== undefined || equipment.naState.fields.sheaveBore))
       void splitLegacySheaveBore(equipment);
+    // static profile readings entered before revision 08 (by position): moved to their components once
+    if (equipment) void migrateLegacyStatic(equipment);
   }, [equipment]);
   // stepping to another unit (Previous / Next): start at its top
   useEffect(() => {

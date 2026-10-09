@@ -106,10 +106,9 @@ export function sampleBundle(): ProjectBundle {
       hasVfd: 'No',
       oaDamper: '35 % open',
       spEntering: -0.35,
-      spLeaving1: -0.55,
-      spLeaving3: -0.95,
-      spLeaving4: -1.05,
-      spLeaving5: 0.72,
+      spFilter: -0.55,
+      spCoil: -1.05,
+      spHeat: 0.72,
       instrument: 'Flow Hood',
       remarks: 'Belt replaced.\nSecond remark line.',
     },
@@ -243,6 +242,16 @@ export function sampleBundle(): ProjectBundle {
   };
 }
 
+/** A full static profile per unit type (revision 08 components; the fan leaving static optional before a heat section). */
+const PROFILE_READINGS: Record<string, Equipment['data']> = {
+  RTU: { spFilter: -0.35, spCoil: -0.6, spHeat: 0.55 },
+  DOAS: { spFilter: -0.35, spWheel: -0.5, spCoil: -0.6, spHeat: 0.55 },
+  DHU: { spFilter: -0.35, spCoil: -0.5, spDesiccant: -0.6, spHeat: 0.55 },
+  MAU: { spFilter: -0.35, spBurner: -0.6, spFan: 0.55 },
+  ERV: { spFilter: -0.35, spCore: -0.5, spFan: 0.55 },
+  EF: { spFan: 0.55 },
+};
+
 /** Motor / drive / RPM / static data every big unit sheet shares (direct drive, no VFD, filters). */
 const unitCommon = (unitType: string): Equipment['data'] => ({
   unitType,
@@ -270,10 +279,7 @@ const unitCommon = (unitType: string): Equipment['data'] => ({
   fanRpmFinal: 1748,
   hasVfd: 'No',
   spEntering: -0.2,
-  spLeaving1: -0.35,
-  spLeaving2: -0.5,
-  spLeaving3: -0.6,
-  spLeaving5: 0.55,
+  ...PROFILE_READINGS[unitType],
 });
 
 type Eq = (

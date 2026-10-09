@@ -34,6 +34,11 @@ export function getSpec(type: EquipmentTypeKey): EquipmentSpec {
   return SPECS[type];
 }
 
+/** The unit type a unit sheet's blocks are preset to (RTU / MAU / ERV / EF), for units that leave it unchanged. */
+export function presetUnitType(type: string): string | number | undefined {
+  return SPECS[type as EquipmentTypeKey]?.sections.flatMap((s) => s.fields).find((f) => f.key === 'unitType')?.preset;
+}
+
 export function allFields(spec: EquipmentSpec): { field: FieldSpec; section: string }[] {
   return spec.sections.flatMap((s) => s.fields.map((field) => ({ field, section: s.key })));
 }

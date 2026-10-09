@@ -16,6 +16,7 @@ import {
   importWorkbook,
   mapForRevision,
   TEMPLATE_MAP,
+  TEMPLATE_MAP_07,
   workbookRevision,
   type ExportReport,
   type RevisionMarker,
@@ -30,7 +31,7 @@ import { APP_SECTIONS, toProjectData } from './adapter';
 import { loadBundle } from './bundle';
 import { getBaseWorkbook, listRevisions, newRevisionBase, saveRevision, suggestLabel } from './revisions';
 
-export const TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/tab-template-rev07.xlsm`;
+export const TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/tab-template-rev08.xlsm`;
 /** The revision 06 template: the rev 05 / 06 layout, for re-issuing onto an issued rev 05 / 06 workbook. */
 export const TEMPLATE_06_URL = `${import.meta.env.BASE_URL}templates/tab-template-rev06.xlsm`;
 export const HYDRONIC_TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/tab-hydronic-h01.xlsm`;
@@ -111,33 +112,40 @@ export async function exportProject(projectId: string, opts: ExportOptions = {})
     const rev = await workbookRevision(baseBytes).catch(() => TEMPLATE_MAP.revision);
     const map = mapForRevision(rev);
     const fallback = `Exported onto the blank revision ${TEMPLATE_MAP.revision} template instead, so hand formatting from ${base.fileName} is not carried forward.`;
-    try {
-      const baseTemplate = map === TEMPLATE_MAP ? template : (opts.template06 ?? (await loadTemplate(TEMPLATE_06_URL)));
-      const compat = await checkTemplateCompatibility(baseBytes, baseTemplate, map);
-      if (!compat.ok) {
-        warnings.push(
-          `The previously issued workbook is not a revision ${rev} workbook any more (${compat.problems.join('; ')}). ${fallback}`,
-        );
-      } else {
-        const onBase = toProjectData(bundle, 'air', map);
-        out = await exportWorkbookWithReport(baseBytes, onBase.data, {
-          ...common,
-          map,
-          reset: { template: baseTemplate, sections: APP_SECTIONS },
-        });
-        baseFileName = base.fileName;
-        if (map !== TEMPLATE_MAP)
-          warnings.push(
-            `Re-issued onto ${base.fileName}, a revision ${rev} workbook (its pages and hand formatting kept). “Use the blank template instead” exports a revision ${TEMPLATE_MAP.revision} workbook.`,
-          );
-        warnings.push(...onBase.warnings);
-      }
-    } catch (e) {
-      out = undefined;
+    // a revision 07 report moves to revision 08 (the static pressure profile in each unit's real order)
+    if (map === TEMPLATE_MAP_07)
       warnings.push(
-        `Could not write into the previously issued workbook (${e instanceof Error ? e.message : String(e)}). ${fallback}`,
+        `${base.fileName} is a revision 07 workbook: this export moves the project to revision ${TEMPLATE_MAP.revision} (static pressure profiles in each unit's real component order). ${fallback}`,
       );
-    }
+    else
+      try {
+        const baseTemplate =
+          map === TEMPLATE_MAP ? template : (opts.template06 ?? (await loadTemplate(TEMPLATE_06_URL)));
+        const compat = await checkTemplateCompatibility(baseBytes, baseTemplate, map);
+        if (!compat.ok) {
+          warnings.push(
+            `The previously issued workbook is not a revision ${rev} workbook any more (${compat.problems.join('; ')}). ${fallback}`,
+          );
+        } else {
+          const onBase = toProjectData(bundle, 'air', map);
+          out = await exportWorkbookWithReport(baseBytes, onBase.data, {
+            ...common,
+            map,
+            reset: { template: baseTemplate, sections: APP_SECTIONS },
+          });
+          baseFileName = base.fileName;
+          if (map !== TEMPLATE_MAP)
+            warnings.push(
+              `Re-issued onto ${base.fileName}, a revision ${rev} workbook (its pages and hand formatting kept). “Use the blank template instead” exports a revision ${TEMPLATE_MAP.revision} workbook.`,
+            );
+          warnings.push(...onBase.warnings);
+        }
+      } catch (e) {
+        out = undefined;
+        warnings.push(
+          `Could not write into the previously issued workbook (${e instanceof Error ? e.message : String(e)}). ${fallback}`,
+        );
+      }
   }
   if (!out) {
     const fresh = toProjectData(bundle);

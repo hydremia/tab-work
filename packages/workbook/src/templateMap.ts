@@ -1,9 +1,12 @@
 /**
- * Template maps for the a2b TAB workbook: revision 07 (`07 - a2b_Blank_TAB_Workbook 10-6-26.xlsm`, TEMPLATE_MAP) and
- * the revision 05 / 06 layout (TEMPLATE_MAP_06: revision 06 is revision 05 in the a2b / e2s colours), so issued rev 05 /
- * 06 workbooks still import and re-issue. Revision 07 (tools/build_rev07.py) adds and moves cells: drive rows with the
- * motor / fan bores, the nameplate motor HP, MAU page 2 (PSP and filter grid initial + final, intake screens, 12 outlet
- * rows), a fan's "measured at hood" line, Building Balance exclusions, Summary observations, flat oval traverses.
+ * Template maps for the a2b TAB workbook: revision 08 (`08 - a2b_Blank_TAB_Workbook 10-12-26.xlsm`, TEMPLATE_MAP), the
+ * revision 07 layout (TEMPLATE_MAP_07) and the revision 05 / 06 layout (TEMPLATE_MAP_06: revision 06 is revision 05 in
+ * the a2b / e2s colours), so issued rev 05-07 workbooks still import (and rev 05 / 06 re-issue). Revision 07
+ * (tools/build_rev07.py) adds and moves cells: drive rows with the motor / fan bores, the nameplate motor HP, MAU page 2
+ * (PSP and filter grid initial + final, intake screens, 12 outlet rows), a fan's "measured at hood" line, Building
+ * Balance exclusions, Summary observations, flat oval traverses. Revision 08 (tools/build_rev08.py) lays the static
+ * pressure profile out in each unit type's real component order: one row of readings (entering B, components 1-6 C:H;
+ * rev 05-07: entering C P+20, components 1-5 C:G P+21), the fan anywhere in it, the DHU unit type.
  *
  * Everything the exporter and importer know about the template lives here as DATA:
  *  - sheets are referred to by NAME; the XML part is resolved at run time through
@@ -18,13 +21,14 @@
  */
 import type { CertImagesDef } from './certImages.js';
 
-export const TEMPLATE_REVISION = '07';
+export const TEMPLATE_REVISION = '08';
 /**
- * Projects of these revisions export with the current map (TEMPLATE_MAP): the app keeps one data model, and a rev 05 /
- * 06 project's values all have a place in rev 07. A workbook's own layout is told apart by its revision name
- * (detectTemplateRevision): rev 05 / 06 workbooks read and re-issue with TEMPLATE_MAP_06.
+ * Projects of these revisions export with the current map (TEMPLATE_MAP): the app keeps one data model, and a rev 05-07
+ * project's values all have a place in rev 08. A workbook's own layout is told apart by its revision name
+ * (detectTemplateRevision): rev 05 / 06 workbooks read and re-issue with TEMPLATE_MAP_06, rev 07 workbooks read with
+ * TEMPLATE_MAP_07 (and export as revision 08).
  */
-export const COMPATIBLE_REVISIONS: readonly string[] = ['05', '06', '07'];
+export const COMPATIBLE_REVISIONS: readonly string[] = ['05', '06', '07', '08'];
 /** Revisions with the rev 05 / 06 cell layout (rev 06 is rev 05 restyled: tools/build_rev06.py). */
 export const LAYOUT_06_REVISIONS: readonly string[] = ['05', '06'];
 /** Workbook-level defined name holding the template revision (revision 07 on; rev 05 / 06 have none). */
@@ -240,15 +244,20 @@ const EDE_UNIT_FIELDS: readonly Omit<FieldDef, 'row'>[] = [
   { key: 'designOaCfm', col: 'Q', type: 'number' },
 ];
 
-/** Data block rows +2 ... +26 shared by RTUs / MAUs / ERVs / Fans. */
+/**
+ * Data block rows +2 ... +26 shared by RTUs / MAUs / ERVs / Fans. The static profile's leaving statics are positional
+ * here (spLeaving1 ... 5 for rev 05-07, 1 ... 6 for rev 08: the components of the unit type in that layout, lists.ts
+ * UNIT_TYPE_COMPONENTS_07 / UNIT_TYPE_COMPONENTS); the app stores them by component and translates.
+ */
 function unitDataFields(unitTypePreset: string, withOaDamper: boolean, rev: AirRevision): FieldDef[] {
+  const r07 = rev !== '06';
   return [
     f('driveType', 'D', 2, 'list', { list: 'Drive.Type' }),
     f('rotationDesign', 'G', 2, 'text'),
     f('rotationActual', 'J', 2, 'text'),
     // rev 05 / 06: one "Shv Bore M/F" cell ("motor / fan"); rev 07: each bore beside its sheave / pulley, and the
     // nameplate motor HP under the measured amperage
-    ...(rev === '07'
+    ...(r07
       ? [f('motorBore', 'M', 12, 'text'), f('fanBore', 'M', 13, 'text'), f('motorHp', 'E', 17, 'number')]
       : [f('sheaveBore', 'M', 2, 'text')]),
     f('serial', 'D', 6, 'text'),
@@ -265,11 +274,11 @@ function unitDataFields(unitTypePreset: string, withOaDamper: boolean, rev: AirR
     f('motorRpmInitial', 'K', 17, 'number'), f('motorRpmFinal', 'L', 17, 'number'),
     f('fanRpmInitial', 'K', 18, 'number'), f('fanRpmFinal', 'L', 18, 'number'),
     f('vsdInitial', 'K', 19, 'number'), f('vsdFinal', 'L', 19, 'number'),
-    f('spEntering', 'C', 20, 'number'),
     ...(withOaDamper ? [f('oaDamper', 'L', 20, 'text')] : []),
-    // Leaving static after components 1-5 (unit-type dependent: RTU = Filter, -, Coil, Heat, Fan).
-    f('spLeaving1', 'C', 21, 'number'), f('spLeaving2', 'D', 21, 'number'), f('spLeaving3', 'E', 21, 'number'),
-    f('spLeaving4', 'F', 21, 'number'), f('spLeaving5', 'G', 21, 'number'),
+    // Entering static and the leaving static after components 1-5 / 1-6 of the unit type (positional)
+    ...(rev === '08'
+      ? [f('spEntering', 'B', 20, 'number'), ...cols('C', 'H').map((col, i) => f(`spLeaving${i + 1}`, col, 20, 'number'))]
+      : [f('spEntering', 'C', 20, 'number'), ...cols('C', 'G').map((col, i) => f(`spLeaving${i + 1}`, col, 21, 'number'))]),
     f('unitType', 'D', 22, 'list', { list: 'Unit.Type', preset: unitTypePreset }),
     f('instrument', 'D', 26, 'list', { list: 'Airflow.Instrument' }),
     f('akNotes', 'I', 26, 'text'),
@@ -278,7 +287,7 @@ function unitDataFields(unitTypePreset: string, withOaDamper: boolean, rev: AirR
 
 const Q = 52; // continuation page offset (Q = P + 52)
 
-export type AirRevision = '06' | '07';
+export type AirRevision = '06' | '07' | '08';
 
 /** Summary - New / (E): the deficiencies, and from revision 07 the observations (rows 66-85). */
 function issueTables(rev: AirRevision): TableDef[] {
@@ -289,7 +298,7 @@ function issueTables(rev: AirRevision): TableDef[] {
       columns: [c('no', 'B', 'number'), c('remark', 'C', 'text'), c('status', 'J', 'list', { values: ['Open', 'Closed'] }),
         c('comments', 'K', 'text')],
     },
-    ...(rev === '07'
+    ...(rev !== '06'
       ? [{
         key: 'observations', segments: [{ row: 66, count: 20 }], printEndWhenEmpty: 62,
         columns: [c('no', 'B', 'number'), c('remark', 'C', 'text'), c('comments', 'K', 'text')],
@@ -302,7 +311,7 @@ function issueTables(rev: AirRevision): TableDef[] {
 function airMap(rev: AirRevision): TemplateMap {
   return {
     revision: rev,
-    compatibleRevisions: rev === '07' ? COMPATIBLE_REVISIONS : LAYOUT_06_REVISIONS,
+    compatibleRevisions: rev === '08' ? COMPATIBLE_REVISIONS : rev === '07' ? ['07'] : LAYOUT_06_REVISIONS,
     coverPhoto: { sheet: 'Cover Page', pictureName: 'Project Photo' },
     // stamp box C51:G56 (bordered, empty); signature right of the "Signature:" label (I52), on the line I53:L53
     certImages: { sheet: 'Certification', stamp: 'C51:G56', signature: 'J51:L53', placeholder: 'C50' },
@@ -363,12 +372,12 @@ function airMap(rev: AirRevision): TemplateMap {
           columns: [c('unit', 'B', 'text'), c('design', 'C', 'number'), c('actual', 'E', 'number')],
         },
         // rev 07: an Excl. flag per unit row (P outside air, Q exhaust; outside the print area), left out of the totals
-        ...(rev === '07'
+        ...(rev !== '06'
           ? [{ key: 'excluded', segments: [{ row: 7, count: 80 }], columns: [c('oa', 'P', 'text'), c('exhaust', 'Q', 'text')] }]
           : [])],
         lines: [{ key: 'notes', cells: [{ col: 'B', row: 102 }, { col: 'B', row: 103 }, { col: 'B', row: 104 }] }],
         // rev 07: why the excluded units are left out, a fourth line under the notes
-        ...(rev === '07' ? { fields: [f('excludedNote', 'B', 105, 'text')] } : {}),
+        ...(rev !== '06' ? { fields: [f('excludedNote', 'B', 105, 'text')] } : {}),
       },
       { key: 'equipmentSummary', sheet: 'Equipment Summary', fields: [f('tolerance', 'E', 5, 'number')] },
       {
@@ -422,26 +431,26 @@ function airMap(rev: AirRevision): TemplateMap {
             f('pspLength', 'D', Q + 3, 'number'),
             f('pspWidth', 'G', Q + 3, 'list', { list: 'PSP.Width' }),
             f('pspBlanks', 'J', Q + 3, 'number'),
-            f('profileHousing', 'D', Q + (rev === '07' ? 19 : 15), 'number'),
-            f('profilePressure', 'H', Q + (rev === '07' ? 19 : 15), 'number'),
-            f('method', 'E', Q + (rev === '07' ? 30 : 18), 'list', { list: 'Airflow.Method' }),
-            f('designCfmOverride', 'K', Q + (rev === '07' ? 30 : 18), 'number'),
-            f('methodRemarks', 'K', Q + (rev === '07' ? 31 : 19), 'text'),
+            f('profileHousing', 'D', Q + (rev !== '06' ? 19 : 15), 'number'),
+            f('profilePressure', 'H', Q + (rev !== '06' ? 19 : 15), 'number'),
+            f('method', 'E', Q + (rev !== '06' ? 30 : 18), 'list', { list: 'Airflow.Method' }),
+            f('designCfmOverride', 'K', Q + (rev !== '06' ? 30 : 18), 'number'),
+            f('methodRemarks', 'K', Q + (rev !== '06' ? 31 : 19), 'text'),
           ],
-          sequences: rev === '07'
+          sequences: rev !== '06'
             ? [{ key: 'pspVelocitiesInitial', type: 'number', row: Q + 4, rows: 2, cols: cols('D', 'M'), order: 'rowMajor' },
               { key: 'pspVelocities', type: 'number', row: Q + 6, rows: 2, cols: cols('D', 'M'), order: 'rowMajor' }]
             : [{ key: 'pspVelocities', type: 'number', row: Q + 4, rows: 2, cols: cols('D', 'M'), order: 'rowMajor' }],
           columnTables: [{
             key: 'filterGrid', cols: cols('C', 'M'),
-            fields: rev === '07'
+            fields: rev !== '06'
               ? [{ key: 'size', row: Q + 11, type: 'list', list: 'Hood.FilterSize' }, { key: 'initialVelocity', row: Q + 12, type: 'number' },
                 { key: 'velocity', row: Q + 13, type: 'number' }]
               : [{ key: 'size', row: Q + 9, type: 'list', list: 'Hood.FilterSize' }, { key: 'velocity', row: Q + 10, type: 'number' }],
           }],
           tables: [
-            { key: 'supply', columns: OUTLET_COLUMNS, segments: [{ row: 29, count: 16 }, { row: Q + (rev === '07' ? 35 : 25), count: rev === '07' ? 12 : 22 }] },
-            ...(rev === '07'
+            { key: 'supply', columns: OUTLET_COLUMNS, segments: [{ row: 29, count: 16 }, { row: Q + (rev !== '06' ? 35 : 25), count: rev !== '06' ? 12 : 22 }] },
+            ...(rev !== '06'
               ? [{ key: 'intake', segments: [{ row: Q + 23, count: 4 }],
                 columns: [c('no', 'B', 'text'), c('size', 'C', 'text'), c('ak', 'F', 'number'), c('initialVel', 'I', 'number'), c('finalVel', 'K', 'number')] }]
               : []),
@@ -492,12 +501,12 @@ function airMap(rev: AirRevision): TemplateMap {
           // rev 07: row 44 (the last outlet row on page 1) is the "measured at hood" line: the hoods, their CFMs
           fields: [
             ...unitDataFields('EF', false, rev),
-            ...(rev === '07'
+            ...(rev !== '06'
               ? [f('hoodLine', 'C', 44, 'text'), f('hoodDesignCfm', 'H', 44, 'number'), f('hoodInitialCfm', 'J', 44, 'number'),
                 f('hoodFinalCfm', 'L', 44, 'number')]
               : []),
           ],
-          tables: [{ key: 'outlets', columns: OUTLET_COLUMNS, segments: [{ row: 29, count: rev === '07' ? 15 : 16 }, { row: Q + 4, count: 40 }] }],
+          tables: [{ key: 'outlets', columns: OUTLET_COLUMNS, segments: [{ row: 29, count: rev !== '06' ? 15 : 16 }, { row: Q + 4, count: 40 }] }],
           lines: [{
             key: 'remarks',
             cells: [{ col: 'D', row: 47 }, { col: 'B', row: 48 }, { col: 'B', row: 49 }, { col: 'B', row: 50 },
@@ -627,14 +636,17 @@ function airMap(rev: AirRevision): TemplateMap {
   };
 }
 
-/** The current template (revision 07). */
-export const TEMPLATE_MAP: TemplateMap = airMap('07');
+/** The current template (revision 08). */
+export const TEMPLATE_MAP: TemplateMap = airMap('08');
+/** The revision 07 layout: issued rev 07 workbooks are read with it (and export as revision 08). */
+export const TEMPLATE_MAP_07: TemplateMap = airMap('07');
 /** The revision 05 / 06 layout: issued rev 05 / 06 workbooks are read and re-issued with it. */
 export const TEMPLATE_MAP_06: TemplateMap = airMap('06');
 
 /** The map of a workbook's template revision (rev 05 / 06 share a layout; anything else is read as the current one). */
 export function mapForRevision(revision: string | null | undefined): TemplateMap {
-  return revision && LAYOUT_06_REVISIONS.includes(revision) ? TEMPLATE_MAP_06 : TEMPLATE_MAP;
+  if (revision && LAYOUT_06_REVISIONS.includes(revision)) return TEMPLATE_MAP_06;
+  return revision === '07' ? TEMPLATE_MAP_07 : TEMPLATE_MAP;
 }
 
 /** Revision `rev` or later (two-digit revisions). */
