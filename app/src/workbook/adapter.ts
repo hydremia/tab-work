@@ -32,6 +32,7 @@ import {
 import { computeCompletion, isNaState, seqNaKey, tableNaKey, type Completion } from '../domain/completion';
 import { isBlank } from '../domain/conditions';
 import {
+  componentsOf,
   measuredComponents,
   readPositionalStatic,
   SP_KEYS,
@@ -628,6 +629,13 @@ export function unitFieldCells(
     data.unitType = 'DOAS';
     warnings.push(`${path}: the DHU unit type needs template revision 08; written as DOAS in this workbook`);
   }
+  // revision 08 positions of the components before the fan (an N/A there is left blank)
+  const naSkips = new Set<string>();
+  if (slotLayout === '08') {
+    const comps = componentsOf(unitType);
+    const fan = comps.indexOf('Fan');
+    for (let i = 0; i < fan; i++) naSkips.add(`spLeaving${i + 1}`);
+  }
   const keys = new Set([...Object.keys(data), ...Object.keys(marks), ...Object.keys(states)]);
   for (const key of keys) {
     if (key === 'designation' || key === 'remarks') continue;
@@ -641,6 +649,10 @@ export function unitFieldCells(
     // automatic N/A that overrides an entered value (MAU: a method that is not the chosen one) exports as N/A
     const raw = st?.state === 'auto-na' ? 'N/A' : out(data[key], marks[key] ?? levelMark);
     if (raw === undefined) continue;
+    // a static profile reading marked N/A (no such component on this unit) is left blank, like a "—" component, so
+    // the profile passes it; Not Acc. / Not Avail. (there, but not read) are written and blank what depends on them.
+    // The fan's and the last component's (the discharge) keep their N/A: without them there is no TSP / ESP.
+    if (raw === 'N/A' && naSkips.has(key)) continue;
     // MAU method "Intake" and flat oval ducts: not in the revision 05 / 06 lists (no cells for the screens / the ends)
     if (key === 'method' && raw === 'Intake' && !layout.tables?.some((t) => t.key === 'intake')) {
       warnings.push(
