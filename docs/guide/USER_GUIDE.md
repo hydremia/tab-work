@@ -577,8 +577,8 @@ velocity to look for before the first reading. The VEL boxes show it as a hint (
 Sections: Identity · Design data (schedule) · Unit data · Motor data · Drive data · Misc. unit info · RPM data · OA
 damper · Static pressure profile · Airflow · Photos · Remarks.
 
-- **Unit type** (RTU or DOAS) sets which static-pressure components exist. RTU has no wheel, so *Leaving component
-  2* shows *Auto N/A · not on this unit type*.
+- **Unit type** (RTU, DOAS or DHU) sets which static-pressure components exist (below); components the type doesn't
+  have aren't on the form.
 - **Drive data**: **Motor sheave** with **Motor bore (shaft)** next to it, then **Fan pulley** with **Fan bore
   (shaft)** (e.g. *2VP60* and *1-3/8*). A value entered earlier in the old *Sheave bore M/F* box (*motor / fan*) is
   split into the two bores the first time the unit is opened. The workbook shows each bore beside its sheave /
@@ -779,9 +779,9 @@ Every N/A is written into the workbook as text. Marks you set print as the notat
 or `Not Acc.`). Automatic and scope N/A print as `N/A`. The workbook formulas skip these cells in totals and
 averages, so nothing shows an error, and **no cell is left blank to mean N/A**.
 
-*One exception:* the leaving static of a component the unit type doesn't have (and the filter static on a unit with
-no filters) is left **blank**, because the workbook reads a blank there as "component absent" and still calculates
-the fan TSP and unit ΔP correctly.
+*One exception:* in the static pressure profile, an N/A on a component's leaving static **before the fan** is left
+**blank**, so the workbook still finds the fan inlet and calculates the fan TSP and unit ΔP. The fan and discharge
+readings keep their notation.
 
 ---
 
@@ -878,8 +878,8 @@ Most Compatible**.
 
 ### Storage on the phone
 
-Photos are stored **inside the app on this device**, not in your camera roll, and not uploaded yet (cloud upload
-comes with sync). The **Storage on this device** card shows how much space this project uses and whether storage is
+Photos are stored **inside the app on this device**, not in your camera roll. Signed in, they also upload to the team's
+cloud storage in the background (they need signal), and other devices download them when opened. The **Storage on this device** card shows how much space this project uses and whether storage is
 **Persistent** (the device won't clear it to free space). If it says *Best effort*, make sure the app is installed
 to the home screen and export the **Photos (.zip)** regularly.
 

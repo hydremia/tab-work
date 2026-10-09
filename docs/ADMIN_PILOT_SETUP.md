@@ -1,15 +1,16 @@
 # Admin runbook: setting up a technician for the multi-user pilot
 
 For the a2b admin: the person who owns the Microsoft 365, Supabase and Vercel accounts. Use it this week to get
-**you and one technician working the same project from two devices**. It covers the one-time switch to cloud
-sync, adding the technician, preparing the project and the first site day. It also covers adding or removing
+**you and one technician working the same project from two devices**. Cloud sync is already live on the
+tab-app-test project; it covers the one step left there, adding the technician, preparing the project and the
+first site day. It also covers adding or removing
 people later.
 
 The technician's own guide is **[guide/NEW_TECH.md](./guide/NEW_TECH.md)**. Send them that link once Part B is done.
 
 | Part | What | Who | Time |
 |---|---|---|---|
-| [A](#part-a-switch-on-sign-in-and-cloud-sync-once-for-the-company) | Switch on sign-in and cloud sync (once for the company) | you + your M365 admin | about 1–2 hours |
+| [A](#part-a-finish-the-cloud-setup) | Finish the cloud setup: apply migration 0014, confirm | you | 15 minutes |
 | [B](#part-b-add-the-technician) | Add the technician | you | 10 minutes |
 | [C](#part-c-prepare-the-pilot-project) | Prepare the pilot project | you | 30–60 minutes |
 | [D](#part-d-day-one-on-site-with-the-technician) | Day one on site | you + the tech | 15 minutes at the start |
@@ -18,105 +19,64 @@ The technician's own guide is **[guide/NEW_TECH.md](./guide/NEW_TECH.md)**. Send
 
 ---
 
-## First: is sync already on?
+## Part A: finish the cloud setup
 
-Open the app (https://tab-work-app.vercel.app or your company address) and look at the top right.
+Cloud sync is already live on the **tab-app-test** Supabase project, the pilot environment. Status as checked on
+Oct 9, 2026:
 
-- **A grey *Local* pill and the banner "Local mode — not signed in / not syncing"**: sync is **off**. Every device
-  keeps its own separate copy, so two people can't work the same project. **Do Part A first.**
-- **A cloud icon / *Synced* pill and a round account button with your initials**: sync is on. Skip to
-  [Part B](#part-b-add-the-technician).
+| Piece | Status |
+|---|---|
+| Supabase project | Done: **tab-app-test** |
+| Database migrations 0001–0013 | Done |
+| Migration 0014 (unit configuration library) | **To do** |
+| Photos bucket (private) | Done |
+| Microsoft sign-in (Entra app + Supabase Azure provider) | Done: two people have signed in with Microsoft |
+| Vercel settings (the app pointed at tab-app-test) | Confirm: the pilot app's pill shows a cloud icon and your initials, not *Local* |
 
-> Without sync, a project lives only on the device it was entered on. A tech's readings never reach your device
-> unless they go through a workbook file. Don't start a two-person job in Local mode. See [Part F](#part-f-if-sync-isnt-ready-in-time)
-> if you're stuck there.
+- [ ] **Apply migration 0014** before anyone uses the unit configuration library. Until it is applied the server
+      refuses library changes, so a device that adds or edits a unit configuration (including *Add the researched
+      product lines*) can get stuck with a sync error. Supabase → SQL Editor → New query → paste all of
+      `supabase/migrations/0014_unit_library.sql` → **Run** (safe to run again).
+- [ ] **Re-run the check query** below: every row should say *ok*, with 83 mapped sync fields.
+- [ ] **Confirm the pill** on the pilot app shows a cloud icon and your initials.
+- [ ] **Calendar the Entra client secret expiry** (Entra → App registrations → TAB App → Certificates & secrets), if
+      it isn't already. When it lapses, nobody can sign in.
+- [ ] Optional: a quick two-device check on a throw-away project (a unit added on your phone appears on your laptop
+      within 30 seconds; a photo comes across), then delete it.
 
----
+The check query (Supabase → SQL Editor; read-only, also in [supabase/verify_setup.sql](../supabase/verify_setup.sql)):
 
-## Part A: switch on sign-in and cloud sync (once for the company)
+```sql
+select check_name, result,
+       case when result = expected then 'ok' else 'MISSING / CHECK' end as status,
+       expected
+from (values
+  ('0001 tables + sync log',       (to_regclass('public.field_changes') is not null)::text, 'true'),
+  ('0001 photos bucket private',   (select coalesce(bool_and(not public), false)::text from storage.buckets where id = 'photos'), 'true'),
+  ('0001 organization a2b',        (select count(*)::text from public.organizations where name = 'a2b'), '1'),
+  ('0002 review/lock columns',     (select (count(*) > 0)::text from information_schema.columns where table_schema = 'public' and table_name = 'projects' and column_name like 'lock%'), 'true'),
+  ('0003 server clock',            (to_regprocedure('public.server_time_ms()') is not null)::text, 'true'),
+  ('0005 field_changes.units',     (select count(*)::text from information_schema.columns where table_name = 'field_changes' and column_name = 'units'), '1'),
+  ('0006 cert_profiles',           (to_regclass('public.cert_profiles') is not null)::text, 'true'),
+  ('0007 device_name',             (select count(*)::text from information_schema.columns where table_name = 'field_changes' and column_name = 'device_name'), '1'),
+  ('0008 hydronic types',          (select coalesce(bool_or(pg_get_constraintdef(oid) like '%valveSystem%'), false)::text from pg_constraint where conname = 'equipment_type_check'), 'true'),
+  ('0009 valve_library',           (to_regclass('public.valve_library') is not null)::text, 'true'),
+  ('0010 pump_library',            (to_regclass('public.pump_library') is not null)::text, 'true'),
+  ('0011 issues.airflow_row_id',   (select count(*)::text from information_schema.columns where table_name = 'issues' and column_name = 'airflow_row_id'), '1'),
+  ('0012 motor photos',            (select coalesce(bool_or(pg_get_constraintdef(oid) like '%motor%'), false)::text from pg_constraint where conname = 'photos_category_check'), 'true'),
+  ('0013 issues.issue_type',       (select count(*)::text from information_schema.columns where table_name = 'issues' and column_name = 'issue_type'), '1'),
+  ('0014 unit_library',            (to_regclass('public.unit_library') is not null)::text, 'true'),
+  ('0001-0014 mapped sync fields', (select count(*)::text from public.sync_columns), '83')
+) as t(check_name, result, expected)
+union all
+select 'users signed in via ' || coalesce(raw_app_meta_data->>'provider', '?'), count(*)::text, 'info', '-'
+from auth.users
+group by 1;
+```
 
-The app is already built for this. Turning it on means creating the accounts and pasting a few values into
-Supabase and Vercel. The detailed, click-by-click steps are in **[SYNC_SETUP.md](./SYNC_SETUP.md)**. This is the
-order to do them in, with what to have ready.
-
-**Do it early in the week, not the night before.** Step A2 needs your Microsoft 365 admin. You also want a day
-to run the two-device check (A6) on a throw-away project.
-
-### A1. Supabase project (database, photos, sync)
-
-[SETUP_ACCOUNTS.md §2](./SETUP_ACCOUNTS.md#2-supabase-database-photo-storage-live-sync)
-
-- [ ] Create the production project (e.g. `tab-app-prod`) in your Supabase organization. Pro plan: daily backups.
-- [ ] Apply the **14 database migrations, `0001` … `0014`, in order**:
-      [SYNC_SETUP.md §2](./SYNC_SETUP.md#2-apply-the-database-migrations-0001--0014). Run the check queries at the
-      end of that section. Every one must give the expected answer.
-- [ ] Check that the private `photos` bucket exists ([SYNC_SETUP.md §3](./SYNC_SETUP.md#3-photo-storage)).
-
-You can skip a separate dev project for a two-person pilot. If you do, run the two-device check (A6) on
-production with a throw-away project, then delete it.
-
-### A2. Microsoft sign-in (your M365 admin, about 15 minutes)
-
-[SYNC_SETUP.md §4](./SYNC_SETUP.md#4-microsoft-entra-id-the-app-registration-m365-admin)
-
-- [ ] App registration **TAB App**, single tenant, redirect URI `https://<project-ref>.supabase.co/auth/v1/callback`.
-- [ ] Client secret, 24 months. **Put a calendar reminder a month before it expires.** When it expires, nobody
-      can sign in.
-- [ ] *(Recommended)* **Assignment required = Yes**, and a group **TAB App Users**. You add or remove people through
-      this group (Part B, Part E).
-- [ ] The client ID, tenant ID and secret go to you through a password manager. Never send them by email, chat or
-      the repository.
-
-### A3. Supabase sign-in settings
-
-[SYNC_SETUP.md §5](./SYNC_SETUP.md#5-supabase-switch-on-the-azure-provider-tenant-restricted)
-
-- [ ] Azure provider on: client ID, the secret **value**, tenant URL `https://login.microsoftonline.com/<tenant ID>`
-      (your tenant, never `common`).
-- [ ] Email provider **off**, so Microsoft is the only way in.
-- [ ] Site URL = the app's address. Redirect URLs include `<app address>/auth/callback`.
-
-### A4. Vercel: the two settings, then redeploy
-
-[SYNC_SETUP.md §6](./SYNC_SETUP.md#6-vercel-the-two-settings)
-
-- [ ] `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (the **anon public** key, never `service_role`) for
-      Production.
-- [ ] **Deployments → ⋯ → Redeploy.** The values are only read when the app is built.
-
-### A5. Your first sign-in (moves your projects to the cloud)
-
-[SYNC_SETUP.md §7](./SYNC_SETUP.md#7-first-sign-in)
-
-1. On **your** device, the one that has your projects, open the app. Tap **Reload** on *Update available* if it
-   shows. The pill now says **Not signed in**.
-2. **Export every project you care about first** and save the files to Dropbox. That's your safety net.
-3. Tap the pill → **Sync & account** → **Sign in with Microsoft** → your work account.
-4. **Move projects to the cloud** lists every project on the device, all ticked. Untick old or test projects that
-   don't need to be shared. Then tap **Upload N projects**.
-5. Answer **Name this device** (e.g. *Laptop*).
-6. Wait for the pill to say **Synced**. Photos keep uploading in the background for a few minutes.
-
-The libraries (instruments, unit configurations, valves, pumps) and the certification profile on this device are
-uploaded too, and shared with everyone who signs in.
-
-### A6. Two-device check (15 minutes, before the tech is involved)
-
-[SYNC_SETUP.md §8](./SYNC_SETUP.md#8-check-sync-between-two-devices-15-minutes)
-
-Use your laptop and your phone (both signed in as you), and a throw-away project. At minimum, check that:
-
-- [ ] a unit added on one device appears on the other within 30 seconds;
-- [ ] a photo taken on the phone shows on the laptop;
-- [ ] an offline edit on both devices to the same field shows a **Conflict** on the Attention tab, and resolving it
-      clears it on both;
-- [ ] **Issue report** on one device locks the project on the other.
-
-Then delete the throw-away project (⋯ → **Delete project…**, which deletes it for everyone).
-
-If something fails, see [SYNC_SETUP.md §9 Troubleshooting](./SYNC_SETUP.md#9-troubleshooting). If it can't be fixed
-before the job, use [Part F](#part-f-if-sync-isnt-ready-in-time) and switch sync off again
-([SYNC_SETUP.md §10](./SYNC_SETUP.md#10-rollback-plan)). Nobody loses data.
+A future production project (`tab-app-prod`) repeats the full setup in [SYNC_SETUP.md](./SYNC_SETUP.md); the pilot
+doesn't need it. If sync ever has to be switched off, [SYNC_SETUP.md §10](./SYNC_SETUP.md#10-rollback-plan) is the
+rollback plan, and [Part F](#part-f-if-sync-isnt-ready-in-time) says how to work meanwhile.
 
 ---
 
@@ -150,7 +110,7 @@ to **Move projects to the cloud**. Tell them to untick practice projects.
 
 Do this on your device, signed in, before the site day.
 
-1. **Create the project**, or open the one you've already started; it's in the cloud since A5. Fill **Info**:
+1. **Create the project**, or open the one you've already started (made while signed in, it's already in the cloud). Fill **Info**:
    engineer, contractors, **Technician(s)** (both names), PM, TAB date, scope profile, tolerance.
 2. **Add every unit from the schedule** with **Import schedule** (paste from Excel), so the units exist before
    anyone is on site. Two people adding units at the same moment can make the app move one unit to another
@@ -216,7 +176,7 @@ keeps the projects on the device.
 
 **Things to keep an eye on (calendar them):**
 
-- The Entra **client secret expiry** (A2). When it expires, nobody can sign in.
+- The Entra **client secret expiry** (Part A). When it expires, nobody can sign in.
 - Supabase **storage** (photos) under the Pro plan's 100 GB. See the Photos FAQ in the user guide.
 - New app versions sometimes need a **new database migration**. The pull request and [SYNC_SETUP.md §2](./SYNC_SETUP.md#2-apply-the-database-migrations-0001--0014)
   say which one, and it has to be applied **before** people use the new feature.
@@ -233,4 +193,4 @@ fields as changes, so don't try to stitch two copies together. Pick one of these
 - **Split by project, not by unit.** If there are two jobs, each person runs a whole project on their own device.
 - Either way, **export every evening** and save to Dropbox. In Local mode the exported file is the only backup.
 
-Once sync is on, your first sign-in uploads the project (A5), and the tech gets it from then on.
+Sync is already on for tab-app-test, so this only applies if it has to be switched off for a while.

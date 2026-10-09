@@ -36,7 +36,7 @@ domain. No admin is needed, and we can switch to Microsoft sign-in later.
 
 ## 2. Supabase (database, photo storage, live sync)
 
-- An existing **Pro** organization works; you don't need a new org or account. Add a project `tab-app-dev` to it,
+- An existing **Pro** organization works; you don't need a new org or account. Add a project `tab-app-test` to it (the pilot environment, live since Sept 28),
   and later `tab-app-prod`. Each extra project adds about $10/mo of compute. Pro includes daily backups and 100 GB of
   storage, so photos are effectively free at our volume.
 - Send the **project URL** and the **anon (public) key**. Row-level security protects the data, so these two are safe
