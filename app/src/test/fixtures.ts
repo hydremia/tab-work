@@ -282,7 +282,6 @@ const unitCommon = (unitType: string): Equipment['data'] => ({
   ...PROFILE_READINGS[unitType],
 });
 
-
 type Eq = (
   type: Equipment['type'],
   designation: string,

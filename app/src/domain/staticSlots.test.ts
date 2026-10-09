@@ -88,6 +88,19 @@ describe('static profile readings by component (template revision 08)', () => {
       'naState.fields.spLeaving5': null,
     });
     expect(legacyStaticWrites({ unitType: 'RTU', spCoil: -1 }, {})).toBeNull();
+    // Capitola RTU-2 (rev 07 DOAS): N/A on the old "heat" slot next to a read coil is not a reheat coil
+    const doas = legacyStaticWrites(
+      { unitType: 'DOAS', spLeaving1: -1.44, spLeaving3: -2.23, spLeaving5: 0.551 },
+      { spLeaving2: { notation: 'N/A' }, spLeaving4: { notation: 'N/A' } },
+    )!;
+    expect(doas).not.toHaveProperty('data.hasReheat');
+    expect(doas).not.toHaveProperty('naState.fields.spReheat');
+    expect(doas).toMatchObject({
+      'data.spFilter': -1.44,
+      'data.spCoil': -2.23,
+      'data.spHeat': 0.551,
+      'naState.fields.spWheel': { notation: 'N/A' },
+    });
     const u = withComponentStatic({ data: { unitType: 'EF', spLeaving5: 0.3 }, naState: { fields: {} } });
     expect(u.data).toEqual({ unitType: 'EF', spFan: 0.3 });
   });

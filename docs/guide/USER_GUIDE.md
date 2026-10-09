@@ -3,7 +3,7 @@
 For HVAC TAB technicians and project managers, in the field and in the office. For the short version, see
 [QUICK_START.md](./QUICK_START.md). A one-page [Field cheat sheet](#field-cheat-sheet) is at the end.
 
-The app fills in the a2b TAB workbook (revision 07; an issued revision 05 / 06 workbook is still re-imported and re-issued in its own revision) for you. You enter readings on your phone, tablet or laptop,
+The app fills in the a2b TAB workbook (revision 08; an issued revision 05 / 06 workbook is still re-imported and re-issued in its own revision, and a revision 07 project moves to revision 08 on its next export) for you. You enter readings on your phone, tablet or laptop,
 and the app writes them into the right cells of the `.xlsm` file. The workbook's own formulas, macros and
 print layout stay as they are.
 
@@ -244,16 +244,15 @@ is drawn in its researched order even before the lines are loaded (its page says
 an entry or add documents, and the team's entry then wins.
 
 A unit whose make and model match an entry shows it at the top of its **Static pressure profile** section: the order,
-the documents, and in amber where the template draws the components in a different order (for example a rooftop unit
-whose heat is after the fan, which the template draws before it) or has no place for one (a reheat coil, a desiccant
-wheel). Until the template follows the unit's order, note on the report which tap each reading was taken at. A unit
-with no match links to the library to add one.
+the documents, and in amber where its order differs from its unit type's (a Munters desiccant unit entered as a DOAS:
+enter it as a **DHU**) or the unit type has no place for one of its components. A unit with no match links to the
+library to add one (**Add unit configuration**: make, model patterns, component order, documents); it is shared with
+the team when you are signed in.
 
 The section also draws the unit: its cabinet in the library's order (the template's when there is no entry), with a
 **tap** at each place a reading is taken. A tap with a reading shows it in red; an empty tap is dashed, so you can see
 where the next reading goes, and tapping it moves to its field. The pressure change between readings is under the
-drawing ("rise" across the fan). A reading the template names after a component that is past the fan on this unit (an
-RTU's heat) is drawn at the **fan inlet**, and its field says so: "Leaving Heat (at the fan inlet on this unit)". A
+drawing ("rise" across the fan); the last component's reading is drawn in the supply duct as the **discharge**. A
 unit marked **Unit has filters? No** has no filter section. The graphics appendix draws the same diagram for each
 profile, with the library entry the order comes from.
 
@@ -596,14 +595,36 @@ damper · Static pressure profile · Airflow · Photos · Remarks.
 
 ![Static profile and motor panels](../screenshots/13-rtu-static-motor.png)
 
-- Enter the entering static at the first component and the leaving static after each component. The strip shows
-  each component's Δ, then **Fan TSP**, **ESP** (unit ESP actual) and **Unit ΔP (inlet → fan)**.
-- **Static taps: 3-point** (the usual packaged RTU: entering / return, fan inlet, discharge). Enter the entering
-  static, the **fan inlet** as the leaving static of the last component before the fan (Heat on an RTU, Burner on an
-  MAU) and the discharge as the fan's leaving static. The other leaving statics become N/A automatically and are left
-  blank in the workbook, so its TSP, ESP and unit ΔP still calculate. The drop between entering and fan inlet then
-  shows under that last component in the workbook; the graphics appendix shows it as one drop across all the
-  components in between. A workbook with only those three readings comes back as 3-point.
+- The profile follows each unit type's **real component order** (template revision 08), airflow left to right:
+
+  | Unit type | Components |
+  | --- | --- |
+  | RTU | Filter → Coil → Reheat → **Fan** → Heat |
+  | DOAS | Filter → Wheel → Coil → Reheat → **Fan** → Heat |
+  | DHU (desiccant dehumidifier) | Filter → Coil → Desiccant wheel → **Fan** → Heat |
+  | MAU | Filter → Burner → **Fan** |
+  | ERV | Filter → Core → **Fan** |
+  | EF | **Fan** |
+
+  Packaged units put the heat **after** the supply fan (blow-through); revisions 05-07 drew it before the fan. Only
+  the unit type's components are on the form. **Reheat** shows when **Has reheat coil?** is Yes; the filter is left
+  out when **Unit has filters?** is No.
+- Enter the entering static (unit inlet) and the leaving static after each component. The field just before the fan
+  says **(fan inlet)** and the last one **(discharge)**. The workbook prints one row of readings, a **Δ** under each
+  component (this reading minus the one before it), the fan inlet and discharge, then **Fan TSP**, **ESP** (unit ESP
+  actual = discharge − entering) and **Unit ΔP (inlet → fan)**.
+- **Fan leaving** on an RTU / DOAS / DHU is optional: the fan discharges into the heat section, so the reading is
+  usually not accessible. Leave it blank or mark it **Not Acc.**; the TSP then runs from the fan inlet to the
+  discharge past the heat section.
+- **Static taps: 3-point** (the usual packaged unit: entering / return, fan inlet, discharge). Enter the entering
+  static, the **fan inlet** (the cooling coil on an RTU without reheat, the reheat coil with it, the burner on an MAU,
+  the desiccant wheel on a DHU) and the **discharge** (the heat section on an RTU / DOAS / DHU, the fan on an MAU /
+  ERV). The other leaving statics become N/A automatically and are left blank in the workbook, so its TSP, ESP and
+  unit ΔP still calculate. A workbook with only those three readings comes back as 3-point.
+- Readings entered before revision 08 move to their components the first time the project (or the unit) is opened:
+  the old RTU / DOAS "Heat" reading was taken at the fan inlet and goes to the coil (or the reheat coil when the coil
+  had its own reading); the old "Fan" reading is the discharge and goes to the heat section. The move is recorded in
+  the history and syncs like any edit. **Everyone on a project needs the updated app** before entering readings.
 - Motor: **Average volts**, **Average amps**, **Corrected FLA** (rated V ÷ average measured V × FLA) and
   **Estimated BHP** = HP × average amps ÷ FLA: the nameplate HP when entered (else the scheduled HP), the corrected
   FLA when it can be calculated (else the nameplate FLA). A motor drawing its FLA estimates its nameplate HP. (Before
@@ -875,7 +896,8 @@ sent anywhere by itself.
 ### The TAB workbook (.xlsm)
 
 1. **Export** tab → **TAB workbook (.xlsm)** card. It shows the equipment and issue counts, the template
-   (**Revision 07**; an issued rev 05 / 06 workbook is re-issued in its own revision) and the status bar.
+   (**Revision 08**; an issued rev 05 / 06 workbook is re-issued in its own revision; an issued rev 07 workbook is
+   replaced by a revision 08 export, with a note that its hand formatting is not carried over) and the status bar.
 2. Check the **Revision** label. The app suggests **Prelim** first, then **Rev 1**, **Rev 2**… and you can type
    **Final** or anything else.
 3. Tap **Export Prelim (.xlsm)** (the button shows the label).

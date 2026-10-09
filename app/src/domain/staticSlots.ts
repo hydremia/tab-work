@@ -159,12 +159,11 @@ export function legacyStaticWrites(
     const v = val(pos);
     const m = mark(pos);
     if (v !== undefined) out[`data.${key}`] = v;
-    if (m !== undefined) out[`naState.fields.${key}`] = m;
+    // a mark (N/A, Not Acc.) on the old fan-inlet slot next to a read coil says nothing about a reheat coil
+    else if (m !== undefined && key !== spKey('Reheat')) out[`naState.fields.${key}`] = m;
   }
   // an old RTU / DOAS reading between the coil and the fan (both read) is the reheat's: the unit shows it
-  if ('data.spReheat' in out || 'naState.fields.spReheat' in out) {
-    if (!present(data.hasReheat)) out['data.hasReheat'] = 'Yes';
-  }
+  if ('data.spReheat' in out && !present(data.hasReheat)) out['data.hasReheat'] = 'Yes';
   for (let k = 1; k <= 5; k++) {
     if (data[`spLeaving${k}`] !== undefined) out[`data.spLeaving${k}`] = null;
     if (marks[`spLeaving${k}`] != null) out[`naState.fields.spLeaving${k}`] = null;
