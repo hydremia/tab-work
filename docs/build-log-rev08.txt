@@ -1,0 +1,8 @@
+Source: 07 - a2b_Blank_TAB_Workbook 10-6-26.xlsm
+Output: 08 - a2b_Blank_TAB_Workbook 10-12-26.xlsm
+  RTUs: 40 blocks: profile P+19 labels B:H (inlet + 6 components), P+20 readings B:H, P+21 Δ C:H, P+23 fan inlet / discharge, P+25 TSP / ESP / Unit ΔP from the fan's column; helpers P:Y
+  MAUs: 10 blocks: profile P+19 labels B:H (inlet + 6 components), P+20 readings B:H, P+21 Δ C:H, P+23 fan inlet / discharge, P+25 TSP / ESP / Unit ΔP from the fan's column; helpers P:Y
+  ERVs: 10 blocks: profile P+19 labels B:H (inlet + 6 components), P+20 readings B:H, P+21 Δ C:H, P+23 fan inlet / discharge, P+25 TSP / ESP / Unit ΔP from the fan's column; helpers P:Y
+  Fans: 40 blocks: profile P+19 labels B:H (inlet + 6 components), P+20 readings B:H, P+21 Δ C:H, P+23 fan inlet / discharge, P+25 TSP / ESP / Unit ΔP from the fan's column; helpers P:Y
+  {Dropdowns}: unit types AH1:AO7 (RTU, DOAS, DHU new, MAU, ERV, EF; 6 components, fan mid-profile); Unit.Type AH2:AH7; a2b.TemplateRevision = "08"
+  parts rewritten: xl/workbook.xml, xl/worksheets/sheet11.xml, xl/worksheets/sheet12.xml, xl/worksheets/sheet13.xml, xl/worksheets/sheet14.xml, xl/worksheets/sheet8.xml; every other part copied unchanged

@@ -1,0 +1,46 @@
+PASS  0 blank: no error cells
+PASS  0 blank: unit types
+PASS  0 blank: RTU order
+PASS  0 blank: DHU order
+PASS  0 blank: RTU block labels
+PASS  0 blank: Fans block labels
+PASS  0 blank: blank results
+PASS  4 errors: no error cells
+PASS  1 RTU full: labels
+PASS  1 RTU full: Δ
+PASS  1 RTU full: fan inlet
+PASS  1 RTU full: discharge
+PASS  1 RTU full: TSP (heat after the fan)
+PASS  1 RTU full: ESP
+PASS  1 RTU full: Unit ΔP
+PASS  1 RTU full: Unit ESP actual (L P+8)
+PASS  2 RTU 3-point: Δ
+PASS  2 RTU 3-point: fan inlet
+PASS  2 RTU 3-point: TSP
+PASS  2 RTU 3-point: ESP
+PASS  2 RTU 3-point: Unit ΔP
+PASS  3 MAU: labels
+PASS  3 MAU: Δ
+PASS  3 MAU: TSP
+PASS  3 MAU: ESP
+PASS  3 MAU: Unit ΔP
+PASS  3 EF: TSP
+PASS  3 EF: ESP
+PASS  3 EF: Unit ΔP (fan first)
+PASS  3 DOAS: labels
+PASS  3 DOAS: Δ
+PASS  3 DOAS: TSP (fan's own reading)
+PASS  3 DOAS: ESP
+PASS  3 DOAS: Unit ΔP
+PASS  3 DHU: labels
+PASS  3 DHU: fan inlet (after the desiccant wheel)
+PASS  3 DHU: TSP
+PASS  3 DHU: ESP
+PASS  4 notation: fan inlet shows the notation
+PASS  4 notation: TSP blank
+PASS  4 notation: Unit ΔP blank
+PASS  4 notation: ESP
+PASS  4 notation: fan leaving Not Acc.: TSP from the discharge
+PASS  4 notation: fan leaving Not Acc.: heat Δ blank
+
+44 / 44 passed
