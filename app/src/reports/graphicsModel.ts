@@ -41,7 +41,7 @@ import { getSpec } from '../domain/specs';
 import { unitCells } from '../workbook/adapter';
 import { openDeficiencies } from '../domain/issues';
 import { unitDiagram, type UnitDiagram } from '../domain/unitDiagram';
-import { matchLibraryUnit } from '../domain/unitLibrary';
+import { matchLibraryUnit, withBuiltIn } from '../domain/unitLibrary';
 
 export interface ProfileFigure {
   kind: 'profile';
@@ -177,6 +177,7 @@ export function buildGraphicsModel(input: {
   const order = (e: Equipment) => EQUIPMENT_TYPES.findIndex((t) => t.key === e.type);
   const units = [...input.equipment].sort((a, b) => order(a) - order(b) || a.slot - b.slot);
   const figures: Figure[] = [];
+  const library = withBuiltIn(input.libraryUnits);
   for (const e of units) {
     const spec = getSpec(e.type);
     const unitRows = rows.filter((r) => r.equipmentId === e.id).sort((a, b) => a.order - b.order);
@@ -187,7 +188,7 @@ export function buildGraphicsModel(input: {
       const inputs = staticInputs(cells);
       const profile = staticProfile(inputs);
       if (profile.known && profile.strip.some((v) => xlNum(v) !== null)) {
-        const lib = matchLibraryUnit(input.libraryUnits, e.data.manufacturer, e.data.model);
+        const lib = matchLibraryUnit(library, e.data.manufacturer, e.data.model);
         const text = (v: unknown) => (typeof v === 'string' ? v.trim() : typeof v === 'number' ? String(v) : '');
         figures.push({
           kind: 'profile',

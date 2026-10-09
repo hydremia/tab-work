@@ -1,12 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import type { LibraryUnit } from '../data/types';
-import { compareWithTemplate, makeMatches, matchLibraryUnit, orderText } from './unitLibrary';
+import { compareWithTemplate, isBuiltIn, makeMatches, matchLibraryUnit, orderText, withBuiltIn } from './unitLibrary';
 import { UNIT_LIBRARY_SEED } from './unitLibrarySeed';
 
 const library: LibraryUnit[] = UNIT_LIBRARY_SEED.map((s, i) => ({ ...s, id: `u${i}`, createdAt: 0, updatedAt: 0 }));
 const line = (make: string, model: string) => matchLibraryUnit(library, make, model)?.line ?? null;
 
 describe('unit configuration library', () => {
+  it('an empty team library still matches the researched lines (built in); the team entry wins', () => {
+    const m = matchLibraryUnit(withBuiltIn([]), 'Munters', 'HCUC8040ACS')!;
+    expect(isBuiltIn(m)).toBe(true);
+    expect(m.components!.map((c) => c.kind)).toEqual(['damper', 'filter', 'coil', 'desiccant', 'fan', 'heat']);
+    const own: LibraryUnit = { ...m, id: 'team-1', notes: 'edited by the team', components: [{ kind: 'fan' }] };
+    const lib = withBuiltIn([own]);
+    expect(lib.filter((u) => u.line === m.line)).toHaveLength(1);
+    expect(matchLibraryUnit(lib, 'Munters', 'HCUC8040ACS')!.id).toBe('team-1');
+  });
+
   it('matches the Capitola units by make and model (case, spaces, dashes and dots ignored)', () => {
     expect(line('Carrier', '48GERN24B2P6-3U5C0')).toBe('WeatherMaster 48GE');
     expect(line('Carrier', '48GEHN06B2P6-3U5A0')).toBe('WeatherMaster 48GE');
