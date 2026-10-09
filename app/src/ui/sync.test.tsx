@@ -24,6 +24,7 @@ import {
 } from '../data/repo';
 import type { SyncConflict } from '../data/types';
 import { setCloudForTests, type Cloud } from '../sync/cloud';
+import { CloudSyncEngine } from '../sync/engine';
 import { FakeBackend } from '../sync/fakeBackend';
 import { FakeSyncServer } from '../sync/fakeServer';
 import { localOnlyProjects, setLocalOnlyProjects } from '../sync/outbox';
@@ -87,12 +88,22 @@ function renderAt(path: string) {
   return router;
 }
 
+/** Syncs still running: a test ends only once they have finished, so none meets the next test's database reset. */
+let running = 0;
+const realSync = CloudSyncEngine.prototype.sync;
+
 beforeEach(() => {
   server = new FakeSyncServer();
   server.addUser(USER.email!, 'a2b', USER.id);
   backend = null;
+  vi.spyOn(CloudSyncEngine.prototype, 'sync').mockImplementation(function (this: CloudSyncEngine) {
+    running++;
+    return realSync.call(this).finally(() => running--);
+  });
 });
-afterEach(() => {
+afterEach(async () => {
+  cleanup(); // unmount first: no new sync starts (its timers are cleared)
+  await waitFor(() => expect(running).toBe(0), { timeout: 10_000 });
   setCloudForTests(undefined);
   vi.restoreAllMocks();
   window.history.pushState({}, '', '/');
