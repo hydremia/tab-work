@@ -190,20 +190,35 @@ export const UNIT_LIBRARY_SEED: readonly SeedUnit[] = [
   },
   {
     make: 'Lennox',
-    line: 'Energence / Landmark, Model L, Raider, Strategos',
-    modelPatterns: 'LGH*, LCH*, LGM*, LCM*, ZGA*, ZGB*, ZGC*, ZGD*, ZCA*, ZCB*, KGA*, KGB*, KCB*',
+    line: 'Energence / Landmark LGH / LCH 3-6 ton',
+    modelPatterns: 'LGH*, LCH*',
+    unitType: 'RTU',
+    components: RTU_ORDER('Humiditrol reheat coil'),
+    confidence: 'stated',
+    evidence:
+      'LGH service literature 0924-L11, Figure 1 "LGH parts arrangement": filters → evaporator coil → Humiditrol coil (optional) → blower, with the burners and heat exchanger under the blower. Text: "The supply air blower forces air across the tubes to extract the heat of combustion." (Read from the document, 2026-10-09.)',
+    documents: [
+      {
+        title: 'LGH/LCH 3-6 ton service literature',
+        kind: 'manual',
+        ref: '0924-L11 (Figure 1 parts arrangement; Figure 9 static pressure readings)',
+        url: 'https://www.lennox.com/dA/08178a7baa/0924e.pdf',
+      },
+      { title: 'LGH/LCH 036-072 installation manual', kind: 'manual', ref: '507410-07a' },
+    ],
+    notes:
+      'Lennox reads external static in the supply and return ducts (Figure 9: supply air reading at the main duct run before the first branch, return air reading in the return duct), not inside the unit. Blower tables cover the base unit with a dry coil and filters; heat sections and economizers are added from separate tables.',
+  },
+  {
+    make: 'Lennox',
+    line: 'Landmark 7.5-25 ton, Model L, Raider, Strategos',
+    modelPatterns: 'LGM*, LCM*, ZGA*, ZGB*, ZGC*, ZGD*, ZCA*, ZCB*, KGA*, KGB*, KCB*',
     unitType: 'RTU',
     components: RTU_ORDER('Humiditrol reheat coil'),
     confidence: 'inferred',
     evidence:
-      'Service literature: "The supply air blower forces air across the tubes to extract the heat of combustion." Humiditrol: "reheat coil adjacent to and downstream of the evaporator coil."',
+      'Raider service literature: "The supply air blower forces air across the tubes"; S10 limit "on the blower deck to the right of the blower housing" (Model L). Same arrangement as the LGH (stated in 0924e).',
     documents: [
-      {
-        title: 'LGH 3-6 ton service literature',
-        kind: 'manual',
-        ref: '0924-L11',
-        url: 'https://www.lennox.com/dA/08178a7baa/0924e.pdf',
-      },
       {
         title: 'ZGA/ZGB service literature',
         kind: 'manual',
@@ -216,9 +231,9 @@ export const UNIT_LIBRARY_SEED: readonly SeedUnit[] = [
         ref: '100036',
         url: 'https://www.lennox.com/dA/7badeab555/100036.pdf',
       },
-      { title: 'LGH/LCH 036-072 installation manual', kind: 'manual', ref: '507410-07a' },
+      { title: 'LGH 7.5-12.5 ton service literature', kind: 'manual', ref: '1008-L2' },
     ],
-    notes: 'Lennox reads external static "from supply to return" at the locations in the installation manual figure.',
+    notes: '',
   },
   {
     make: 'Lennox',
@@ -246,13 +261,18 @@ export const UNIT_LIBRARY_SEED: readonly SeedUnit[] = [
     components: RTU_ORDER('Hot gas reheat coil'),
     confidence: 'inferred',
     evidence:
-      '"The evaporator is a draw-thru configuration." Heat after the fan is inferred (not stated in the extracts found).',
+      'RT-SVX21AD-EN (Precedent IOM, 06/2022) Figure 42 cutaway: slanted evaporator coil → indoor fan housing, with the gas furnace box directly under the fan discharge; text: TCO1 "is located behind the indoor fan access panel mounted on the top of the heat exchanger wrapper." Other Trane literature: "The evaporator is a draw-thru configuration." Heat after the fan is shown by the drawing, not stated in words. (Read from the document, 2026-10-09.)',
     documents: [
-      { title: 'Precedent gas/electric IOM', kind: 'manual', ref: 'RT-SVX21R-EN' },
+      {
+        title: 'Precedent 3-10 ton gas/electric IOM',
+        kind: 'manual',
+        ref: 'RT-SVX21AD-EN, 06/2022 (Figure 42: TCO1 / furnace location)',
+      },
       { title: 'Precedent product catalog', kind: 'productData', ref: 'RT-PRC107B-EN' },
       { title: 'Voyager IOM', kind: 'manual', ref: 'RT-SVX48E-EN' },
     ],
-    notes: '',
+    notes:
+      'Trane external static: "Measure the supply and return duct static pressure and sum the resulting absolute values", add the accessory drops (curb, economizer …) from the Service Facts, then read the fan tables with the RPM / speed tap or the motor amps.',
   },
   {
     make: 'Trane',
