@@ -58,7 +58,12 @@ describe('unit configuration library', () => {
       notes: [],
     });
     // an energy-recovery wheel ahead of the coil (a library configuration) is flagged against the DOAS order
-    const erw = [{ kind: 'filter' as const }, { kind: 'wheel' as const }, { kind: 'coil' as const }, { kind: 'fan' as const }];
+    const erw = [
+      { kind: 'filter' as const },
+      { kind: 'wheel' as const },
+      { kind: 'coil' as const },
+      { kind: 'fan' as const },
+    ];
     expect(compareWithTemplate('DOAS', erw)!.notes[0]).toBe(
       "The template draws Filter → Coil → Wheel → Fan; this unit's order is Filter → Wheel → Coil → Fan.",
     );
