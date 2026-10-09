@@ -1,7 +1,8 @@
 # a2b TAB app: User guide
 
 For HVAC TAB technicians and project managers, in the field and in the office. For the short version, see
-[QUICK_START.md](./QUICK_START.md). A one-page [Field cheat sheet](#field-cheat-sheet) is at the end.
+[QUICK_START.md](./QUICK_START.md). A one-page [Field cheat sheet](#field-cheat-sheet) is at the end. New to the
+team? Start with [NEW_TECH.md](./NEW_TECH.md). Admins setting someone up: [ADMIN_PILOT_SETUP.md](../ADMIN_PILOT_SETUP.md).
 
 The app fills in the a2b TAB workbook (revision 08; an issued revision 05 / 06 workbook is still re-imported and re-issued in its own revision, and a revision 07 project moves to revision 08 on its next export) for you. You enter readings on your phone, tablet or laptop,
 and the app writes them into the right cells of the `.xlsm` file. The workbook's own formulas, macros and
@@ -19,7 +20,7 @@ print layout stay as they are.
 8. [Exports](#8-exports)
 9. [Follow-up: re-importing an issued workbook](#9-follow-up-re-importing-an-issued-workbook)
 10. [Review, issuing the report, and History](#10-review-issuing-the-report-and-history)
-11. [Coming later](#11-coming-later)
+11. [Sign-in, sync and working as a team](#11-sign-in-sync-and-working-as-a-team)
 12. [Troubleshooting and FAQ](#12-troubleshooting-and-faq)
 13. [Field cheat sheet](#field-cheat-sheet)
 
@@ -61,24 +62,24 @@ The app shows up as **a2b TAB** (or **TAB**) with its own icon and opens full-sc
 Once the app has been opened one time with a connection, everything works with no signal: projects, forms, photos,
 the workbook export and the PDF reports. It all runs on your device. Roofs and basements are fine.
 
-### The Local-mode banner
+### Local mode or synced?
 
-Right now every screen shows:
+Look at the pill at the top right:
 
-> **Local mode** — not signed in / not syncing. Saved on this device only.
-
-The header also has a **Local** pill. This means:
-
-- **Microsoft sign-in and cloud sync are not live yet.** They're planned. When they arrive, the header will offer
-  **Sign in with Microsoft**, and the pill will show **Synced**, **N unsynced** or **Offline**.
-- **"Saved on this device only"** means exactly that. Your projects live in the app's storage on this phone,
-  tablet or laptop. Another tech's phone can't see them, the office can't see them, and nothing is backed up
-  anywhere.
-- Every change is still logged, so when sync is turned on later, nothing you entered is lost.
+- **Synced / Syncing… / Offline · N unsynced**, plus a round button with your initials: **sync is on**. You're
+  signed in with your Microsoft account, and your projects, photos and issues sync with the team. See
+  [Sign-in, sync and working as a team](#11-sign-in-sync-and-working-as-a-team).
+- **Local**, with the banner *"Local mode — not signed in / not syncing. Saved on this device only."*: sync isn't
+  switched on for this app (the admin turns it on: [ADMIN_PILOT_SETUP.md](../ADMIN_PILOT_SETUP.md)). Then:
+  - **"Saved on this device only"** means exactly that. Your projects live in the app's storage on this phone,
+    tablet or laptop. Another tech's phone can't see them, the office can't see them, and nothing is backed up
+    anywhere.
+  - Every change is still logged, so when sync is turned on later, nothing you entered is lost.
 
 ### Backing up: export
 
-Until sync is live, **the exported workbook is your backup**. Export at the end of each site day and save the file
+**In Local mode, the exported workbook is your backup.** With sync on, the cloud keeps a copy too, but the
+exported workbook saved to Dropbox is still the official record of each issued report. Export at the end of each site day and save the file
 to the project's Dropbox folder (see [Exports](#8-exports)). If a phone is lost, broken or reset, you can bring the
 project back from that file with **Import workbook** on the Projects screen. Photos aren't in the workbook, so
 also save the **Photos (.zip)** when photos matter.
@@ -1282,13 +1283,49 @@ graphics appendix draws the curve with the design and operating points.
 **Export → Hydronic workbook** (shown when the project has hydronic units) downloads it. It is written into the blank
 hydronic template each time (no re-import yet); issuing and locking the report stays on the airside workbook.
 
-## 11. Coming later
+## 11. Sign-in, sync and working as a team
 
-> **Later: Microsoft sign-in and cloud sync.** You'll sign in with your company Microsoft account. Projects and
-> photos will then sync between devices and teammates, and the **Local mode** banner will go away. Until then, data
-> stays on each device, so keep exporting.
+Once your admin has switched sync on, everyone signs in with their **company Microsoft account**. Every signed-in
+person sees every company project, and all users can do everything (there are no roles). Setup for a new person:
+[ADMIN_PILOT_SETUP.md](../ADMIN_PILOT_SETUP.md) (admin) and [NEW_TECH.md](./NEW_TECH.md) (the tech).
 
----
+### Signing in
+
+Tap the pill at the top right (*Not signed in*) → **Sync & account** → **Sign in with Microsoft** → your work account.
+The first time on a device:
+
+- the company's projects download (photos download when you open them);
+- if the device has projects from Local mode, **Move projects to the cloud** lists them, all ticked: untick any that
+  should stay on this device only, then **Upload N projects** (or **Continue without uploading**). You can move them
+  later from **Sync & account**.
+
+### How sync works
+
+A change is sent about 2 seconds after you make it. Each device checks for changes every 30 seconds, and a device
+that comes back online syncs straight away. **Sync now** (Sync & account) only saves waiting. With no signal,
+everything keeps working; edits wait on the device and the pill shows **Offline · N unsynced**.
+
+| Pill | Meaning |
+|---|---|
+| **Synced** | everything you did is in the cloud |
+| **Syncing…** / **N unsynced** | changes on their way |
+| **Offline · N unsynced** | no signal; edits saved here, sent when the signal is back |
+| **Paused · N not sent** | sync paused on this device ([below](#pausing-sync)) |
+| **Not signed in** | nothing syncs until you sign in |
+| **Sync error** | tap for the message; your edits are kept on the device |
+
+Photos upload in the background after the project is in the cloud. Let them finish (pill **Synced**) before you leave
+a site with signal.
+
+### Two people on one project
+
+- **Split the work by unit** (you: RTU-1 to RTU-4, the other tech: the DOAS and the fans). Different fields merge on
+  their own; only the **same field** changed on two devices before either synced becomes a conflict.
+- **Add units before the site day** (schedule import) where you can, so nobody adds the same unit twice.
+- **One person issues the report.** Issuing locks the project for everyone ([Issue the report](#issue-the-report-lock)).
+- **Deleting a project deletes it for everyone** while you're signed in.
+- The **History** tab names the person and the device for every change.
+
 
 ### Name this device (with cloud sync)
 
@@ -1360,13 +1397,16 @@ No. Everything saves on the device as you type, and the app keeps working offlin
 adds *· offline*.
 
 **I cleared my browser data / deleted the app / reset the phone. Where are my projects?**
-Gone from that device. Clearing website data or removing the home-screen app **erases the projects on it**. There's
-no cloud copy yet. Recover the project from your last exported workbook with **Projects → Import workbook**. Photos
+Gone from that device. Clearing website data or removing the home-screen app **erases the projects on it**. **Signed
+in:** sign in again and the synced projects come back; only changes that hadn't synced yet are lost. **Local mode:**
+there's no cloud copy. Recover the project from your last exported workbook with **Projects → Import workbook**. Photos
 come back only from the **Photos (.zip)** (add them again by hand). **This is why you export every day.**
 
 **The project isn't on my other phone / the office laptop.**
-Normal in Local mode. Each device has its own data. Send the exported workbook and import it on the other device.
-Only one person should keep working on a project's data at a time until sync is live.
+**Signed in:** check both pills say **Synced**, then tap **Sync now**. A project kept *on this device only* at the
+first sign-in isn't in the cloud: **Sync & account** can move it. **Local mode:** normal, each device has its own
+data. Send the exported workbook and import it on the other device, and only one person should keep working on a
+project's data at a time.
 
 **"Storage full", or photos won't save.**
 Free up space on the device (old videos and apps), then try again. Each project's workbook revisions take up to about
@@ -1428,7 +1468,8 @@ No. Only the cover photo is in the workbook. Unit and deficiency photos go in th
 
 ## Field cheat sheet
 
-**Before you leave the office:** open the app once with a connection. Check the project exists on *this* device.
+**Before you leave the office:** open the app once with a connection (signed in: wait for **Synced**). Check the
+project exists on *this* device, and open its units once.
 Check the instruments' calibration dates (Info).
 
 **On site, per unit**
@@ -1467,12 +1508,13 @@ Check the instruments' calibration dates (Info).
 
 **End of day (every day)**
 
-1. **Attention** tab: work through what you can.
-2. **Export → Export Prelim (.xlsm)** (or the next Rev). The project card should then say *no changes since*.
-3. **Share… → Dropbox** (iPhone), or save it to the project's **Dropbox** folder.
-4. **Photos (.zip)** too, if you took new photos.
+1. **Attention** tab: work through what you can (and settle conflicts, signed in).
+2. Signed in: get signal until the pill says **Synced**. Two people on the job: the lead exports.
+3. **Export → Export Prelim (.xlsm)** (or the next Rev). The project card should then say *no changes since*.
+4. **Share… → Dropbox** (iPhone), or save it to the project's **Dropbox** folder.
+5. **Photos (.zip)** too, if you took new photos.
 
 **Sending out a report:** review the units (blue), then **Export → Issue report as …**. **Unlock** for follow-up.
 
-**Never:** clear browser data, delete the app, or reset the phone without exporting first. In Local mode, that's the
-only copy.
+**Never:** clear browser data, delete the app, or reset the phone while there are unsynced changes (signed in) or
+without exporting first (Local mode, where the device is the only copy).

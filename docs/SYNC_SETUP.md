@@ -13,7 +13,7 @@ their time). **Total time:** about an hour, most of it waiting for deploys.
 - the Vercel project ([DEPLOY.md](./DEPLOY.md)) and the app's final web address (e.g. `https://tab.yourcompany.com`);
 - a Microsoft 365 admin (Global Administrator or Application Administrator).
 
-Do every step on **tab-app-dev** first, check it with a preview deploy (step 8), then repeat steps 2–6 on
+Do every step on **tab-app-dev** first (a two-person pilot can skip dev: see [ADMIN_PILOT_SETUP.md](./ADMIN_PILOT_SETUP.md#a1-supabase-project-database-photos-sync)), check it with a preview deploy (step 8), then repeat steps 2–6 on
 **tab-app-prod**.
 
 ---
@@ -27,9 +27,9 @@ Do every step on **tab-app-dev** first, check it with a preview deploy (step 8),
 | Sign in with Microsoft | Microsoft Entra ID + Supabase "Azure" provider | Only accounts of your company's Microsoft 365 can sign in |
 | Two settings | Vercel | Tell the app where the Supabase project is |
 
-## 2. Apply the database migrations (0001 … 0011)
+## 2. Apply the database migrations (0001 … 0014)
 
-Eleven files, **in this order**. Each can be run again safely only where noted, so run each one once.
+Fourteen files, **in this order**. Each can be run again safely only where noted, so run each one once.
 
 | File | What it adds |
 |---|---|
@@ -62,7 +62,7 @@ Eleven files, **in this order**. Each can be run again safely only where noted, 
 npx supabase login
 npx supabase init                          # only if it says this is not a Supabase project; answer "n" to the questions
 npx supabase link --project-ref <project-ref>
-npx supabase db push                       # applies 0001 … 0011 in order; shows them and asks first
+npx supabase db push                       # applies 0001 … 0014 in order; shows them and asks first
 ```
 
 The project ref is the `xxxx` in `https://xxxx.supabase.co` (Settings → General). Never run `supabase test db` against
@@ -71,7 +71,7 @@ the project: the files in `supabase/tests/` are for a throw-away local PostgreSQ
 **Check** (SQL Editor, new query):
 
 ```sql
-select count(*) as mapped_fields from public.sync_columns;                       -- 73 (0001 … 0011)
+select count(*) as mapped_fields from public.sync_columns;                       -- 83 (0001 … 0014)
 select public.server_time_ms() > 0 as server_clock;                            -- true
 select id, public, file_size_limit from storage.buckets where id = 'photos';   -- photos | false | 26214400
 select name from public.organizations;                                          -- a2b
@@ -86,6 +86,11 @@ select count(*) from public.valve_library;                                     -
 select count(*) from public.pump_library;                                      -- 0 (0010 applied)
 select count(*) from information_schema.columns
  where table_name = 'issues' and column_name = 'airflow_row_id';             -- 1 (0011 applied)
+select pg_get_constraintdef(oid) like '%motor%' from pg_constraint
+ where conname = 'photos_category_check';                                        -- true (0012 applied)
+select count(*) from information_schema.columns
+ where table_name = 'issues' and column_name = 'issue_type';                 -- 1 (0013 applied)
+select count(*) from public.unit_library;                                      -- 0 (0014 applied)
 ```
 
 ## 3. Photo storage
@@ -224,7 +229,9 @@ sync is off wait on the device (the outbox) until it is on again.
 2. **Undo migration 0003 only** (if its rules cause trouble): SQL Editor → run
    `supabase/rollback/0003_sync_rules_down.sql`. It restores the 0001 / 0002 rules and keeps all data; 0003 can be
    applied again later. (Checked on PostgreSQL 16: after the rollback the 0001 smoke test behaves as before, and 0003
-   re-applies cleanly.) Undo later ones first, newest first: **0011**
+   re-applies cleanly.) Undo later ones first, newest first: **0014**
+   (`supabase/rollback/0014_unit_library_down.sql`: unit library changes refused again; table and data kept), **0013**
+   (`supabase/rollback/0013_issue_types_down.sql`), **0012** (`supabase/rollback/0012_motor_photos_down.sql`), **0011**
    (`supabase/rollback/0011_row_links_down.sql`: line links no longer synced; columns and values kept), **0010**
    (`supabase/rollback/0010_pump_library_down.sql`: pump library changes refused again; table and data kept), **0009**
    (`supabase/rollback/0009_valve_library_down.sql`: library changes refused again; table and data kept), **0008**

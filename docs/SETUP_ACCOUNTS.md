@@ -1,6 +1,7 @@
 # Accounts & Admin Setup Checklist
 
-Everything the company needs to set up or approve. None of it is needed until **Phase 1**. Total recurring cost
+Everything the company needs to set up or approve. Needed before more than one person works a project (the
+multi-user pilot); the order to do it in, and adding a technician: **[ADMIN_PILOT_SETUP.md](./ADMIN_PILOT_SETUP.md)**. Total recurring cost
 is roughly **$25–45/month** (less if you already have Supabase Pro); confirm current prices at signup.
 
 Tip: create the accounts with a **shared company admin mailbox** (e.g. `admin@…`), not a personal email, so
@@ -35,7 +36,7 @@ domain. No admin is needed, and we can switch to Microsoft sign-in later.
 
 ## 2. Supabase (database, photo storage, live sync)
 
-- An existing **Pro** organization works; you don't need a new org or account. Add a project `tab-app-test` to it,
+- An existing **Pro** organization works; you don't need a new org or account. Add a project `tab-app-dev` to it,
   and later `tab-app-prod`. Each extra project adds about $10/mo of compute. Pro includes daily backups and 100 GB of
   storage, so photos are effectively free at our volume.
 - Send the **project URL** and the **anon (public) key**. Row-level security protects the data, so these two are safe

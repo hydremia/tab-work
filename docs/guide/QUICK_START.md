@@ -1,10 +1,12 @@
 # a2b TAB app: Quick start
 
-For techs and PMs. Two pages, phone first. The full guide is in [USER_GUIDE.md](./USER_GUIDE.md).
+For techs and PMs. Two pages, phone first. The full guide is in [USER_GUIDE.md](./USER_GUIDE.md). First week on
+the team: [NEW_TECH.md](./NEW_TECH.md).
 
-> **Right now the app runs in Local mode.** You'll see the banner *"Local mode — not signed in / not syncing. Saved
-> on this device only."* Microsoft sign-in and cloud sync aren't live yet, so your data exists **only on the
-> phone, tablet or laptop you entered it on**. **Export the workbook often.** The exported file is your backup.
+> **Check the pill at the top right.** **Synced** (cloud icon, your initials beside it): you're signed in and your
+> work syncs with the team. **Local** (banner *"Local mode — not signed in / not syncing. Saved on this device
+> only."*): your data exists **only on the device you entered it on**, so **export the workbook often**. The exported
+> file is then your only backup.
 
 ## 1. Install it (once per device)
 
@@ -21,6 +23,9 @@ From then on, open **a2b TAB** from the home screen or Start menu. After the fir
 On iPhone/iPad, always use the home-screen icon. Its data is separate from the same site opened in Safari.
 
 When a new version is out, a bar says **Update available**: tap **Reload** (your entries are kept), or **Later**.
+
+**Sign in** (when sync is on): tap the pill → **Sign in with Microsoft** → your work account, then name the device
+(**Phone**, **Tablet**…). The company's projects download to the device.
 
 ## 2. Create a project
 
@@ -103,9 +108,9 @@ The copy in Dropbox is the official record of that issued report.
 
 1. **Install it** to the home screen, and always open it from there.
 2. **Mark N/A.** Never leave a field blank on purpose.
-3. **Export at the end of every site day** and save the file to Dropbox. That's your backup. The project card
-   should say *no changes since*.
-4. **Don't clear browser data or delete the app** unless you've exported first. That erases the projects on that
-   device.
+3. **End every site day Synced** (signed in), and have the workbook exported and saved to Dropbox. In Local mode
+   that export is your only backup; the project card should say *no changes since*.
+4. **Don't clear browser data or delete the app** with unsynced changes, or in Local mode without exporting first.
+   That erases what's only on that device.
 5. For follow-up, **re-import the issued workbook** (Export tab → **Re-import workbook**) before you export
    again, so the edits made in Excel carry forward.
