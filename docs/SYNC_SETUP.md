@@ -9,11 +9,11 @@ their time). **Total time:** about an hour, most of it waiting for deploys.
 
 **Before you start, have ready:**
 
-- the Supabase projects `tab-app-dev` and `tab-app-prod` ([SETUP_ACCOUNTS.md §2](./SETUP_ACCOUNTS.md#2-supabase-database-photo-storage-live-sync));
+- the Supabase projects (the pilot runs on `tab-app-test`; later `tab-app-prod`) ([SETUP_ACCOUNTS.md §2](./SETUP_ACCOUNTS.md#2-supabase-database-photo-storage-live-sync));
 - the Vercel project ([DEPLOY.md](./DEPLOY.md)) and the app's final web address (e.g. `https://tab.yourcompany.com`);
 - a Microsoft 365 admin (Global Administrator or Application Administrator).
 
-Do every step on **tab-app-dev** first (a two-person pilot can skip dev: see [ADMIN_PILOT_SETUP.md](./ADMIN_PILOT_SETUP.md#a1-supabase-project-database-photos-sync)), check it with a preview deploy (step 8), then repeat steps 2–6 on
+Do every step on the test project (**tab-app-test**) first (the pilot already runs on it: [ADMIN_PILOT_SETUP.md](./ADMIN_PILOT_SETUP.md#part-a-finish-the-cloud-setup)), check it with a preview deploy (step 8), then repeat steps 2–6 on
 **tab-app-prod**.
 
 ---
@@ -72,6 +72,7 @@ the project: the files in `supabase/tests/` are for a throw-away local PostgreSQ
 
 ```sql
 select count(*) as mapped_fields from public.sync_columns;                       -- 83 (0001 … 0014)
+-- or run supabase/verify_setup.sql: one row per migration with ok / MISSING
 select public.server_time_ms() > 0 as server_clock;                            -- true
 select id, public, file_size_limit from storage.buckets where id = 'photos';   -- photos | false | 26214400
 select name from public.organizations;                                          -- a2b
