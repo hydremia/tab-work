@@ -84,7 +84,12 @@ export interface ExportReport {
   hidden?: HideReport;
 }
 
-type CellWrite = { kind: 'text'; text: string } | { kind: 'number'; n: number } | { kind: 'clear' };
+type CellWrite =
+  | { kind: 'text'; text: string }
+  | { kind: 'number'; n: number }
+  | { kind: 'clear' }
+  /** put a template formula back (an overridable cell a base workbook holds a value in) */
+  | { kind: 'formula'; f: string };
 
 // ------------------------------------------------------------------------------------------ sheet patcher
 class SheetPatcher {
@@ -132,14 +137,15 @@ class SheetPatcher {
 
   /** Queue a reset write (lower priority than set()); silently skipped where it could not be written. */
   setDefault(ref: string, w: CellWrite, value: number | string | null): void {
-    if (this.refCells?.get(ref)?.formula !== undefined || this.hiddenByMerge(ref)) return;
+    if (w.kind !== 'formula' && this.refCells?.get(ref)?.formula !== undefined) return;
+    if (this.hiddenByMerge(ref)) return;
     this.defaults.set(ref, { w, value });
   }
 
   /** Queue a write, after the safety checks: not a formula, not hidden under a merge, not written twice. */
-  set(ref: string, w: CellWrite, source: string, styleFrom?: string): void {
+  set(ref: string, w: CellWrite, source: string, styleFrom?: string, formulaOk = false): void {
     const cur = this.refCells ? this.refCells.get(ref) : this.cells.get(ref);
-    if (cur?.formula !== undefined) throw new FormulaCellError(this.sheet, ref, cur.formula, source);
+    if (cur?.formula !== undefined && !formulaOk) throw new FormulaCellError(this.sheet, ref, cur.formula, source);
     const mg = this.hiddenByMerge(ref);
     if (mg) {
       throw new MapError(`${source}: ${this.sheet}!${ref} is inside merged range ${mg.ref} but not its top-left cell (the value would be hidden)`);
@@ -155,6 +161,7 @@ class SheetPatcher {
     const s = style !== undefined ? ` s="${style}"` : '';
     if (w.kind === 'clear') return `<c r="${ref}"${s}/>`;
     if (w.kind === 'number') return `<c r="${ref}"${s}><v>${numberText(w.n)}</v></c>`;
+    if (w.kind === 'formula') return `<c r="${ref}"${s}><f>${xmlEscape(w.f)}</f></c>`;
     const sp = /^\s|\s$|\n/.test(w.text) ? ' xml:space="preserve"' : '';
     return `<c r="${ref}"${s} t="inlineStr"><is><t${sp}>${xmlEscape(w.text)}</t></is></c>`;
   }
@@ -418,7 +425,10 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
           const ref = `${col.col}${base + slots[i].row}`;
           const v: Cell | undefined = row ? row[col.key] : null; // rows past the end are cleared (the list replaces the table)
           if (v === undefined) continue;
-          sh.set(ref, await toWrite(col, v, sh, ref, `${path}.${k}[${i}].${col.key}`), `${path}.${k}[${i}].${col.key}`, col.styleFrom);
+          // a formula unless the app gives a value: a blank keeps the formula
+          const override = slots[i].override.includes(col.col);
+          if (override && (v === null || v === '')) continue;
+          sh.set(ref, await toWrite(col, v, sh, ref, `${path}.${k}[${i}].${col.key}`), `${path}.${k}[${i}].${col.key}`, col.styleFrom, override);
         }
         for (const key of Object.keys(row ?? {})) {
           if (!def.columns.some((cd: ColumnDef) => cd.key === key)) throw new MapError(`${path}.${k}[${i}].${key}: not a column of ${k}`);
@@ -478,7 +488,12 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
       sh.refCells = tc;
       for (const ref of refs) {
         const t = tc.get(ref);
-        if (t?.formula !== undefined) continue;
+        if (t?.formula !== undefined) {
+          // an overridable cell (a formula unless the app gives a value): a value left there goes back to the formula
+          const cur = sh.cell(ref);
+          if (cur?.formula !== t.formula) sh.setDefault(ref, { kind: 'formula', f: t.formula }, null);
+          continue;
+        }
         const tv = cellValue(t, tSst);
         const want = tv === null || tv === '' || typeof tv === 'boolean' ? null : tv;
         const cur = sh.cell(ref);

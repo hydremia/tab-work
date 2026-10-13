@@ -601,9 +601,13 @@ damper · Static pressure profile · Airflow · Photos · Remarks.
   drive the fan turns at motor speed: enter the **fan RPM** (initial and final); the motor RPM row is N/A.
 - **VFD on the unit?**: when the answer is No, the VSD frequency fields are N/A.
 - **Unit has filters?**: when the answer is No, the filter fields and filter static are N/A.
-- **Design OA CFM** of 0 or blank makes the OA damper, the OA row and the OA damper photo N/A.
+- **Design OA CFM** of **0** makes the OA damper, the OA row and the OA damper photo N/A. A blank design OA means "not
+  entered yet": the OA row can still be added (**Add**) with its own design and readings.
 - **Phase** 1-phase makes volts / amps legs 2 and 3 N/A.
 - **Airflow**: up to 48 supply outlets. Return inlets are optional. The OA row is required when there's design OA.
+- **First return line**: its design shows *supply − OA design* (the workbook formula) until you type one. Type a
+  design when it is a real inlet: the workbook then prints that design and its measured CFM (final VEL × Ak) instead
+  of the formulas. Clear it to go back to *supply − OA*.
 
 **Static pressure profile and motor panels** (RTUs, MAUs, ERVs, fans):
 

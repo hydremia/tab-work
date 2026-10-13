@@ -52,6 +52,37 @@ describe('toProjectData', () => {
     expect(rtu.tables?.oa?.[0]).toMatchObject({ no: 'OA-1', finalVel: 'Not Acc.' });
   });
 
+  it('the first return line: the "supply - OA" formulas, or an inlet of its own (design and final CFM written)', async () => {
+    const b = sampleBundle();
+    const rtu = b.equipment.find((e) => e.type === 'rtu')!;
+    const ret = (order: number, data: Record<string, number | string>) => ({
+      ...b.rows[0],
+      id: `ret-${order}`,
+      equipmentId: rtu.id,
+      table: 'return',
+      order,
+      data,
+      na: {},
+    });
+    b.rows.push(
+      ret(1, { no: 'R-1', ak: 2, finalVel: 300 }),
+      ret(2, { no: 'R-2', ak: 1, designCfm: 200, finalVel: 190 }),
+    );
+    let recs = toProjectData(b).data.equipment.rtu[0].tables!.return!;
+    expect(recs[0]).not.toHaveProperty('designCfm'); // the formula line
+    expect(recs[0]).not.toHaveProperty('finalCfm');
+    // given its own design: a measured inlet
+    b.rows.find((r) => r.id === 'ret-1')!.data.designCfm = 650;
+    const { data } = toProjectData(b);
+    recs = data.equipment.rtu[0].tables!.return!;
+    expect(recs[0]).toMatchObject({ designCfm: 650, finalCfm: 600 });
+    expect(recs[1]).not.toHaveProperty('finalCfm');
+    const { bytes } = await exportWorkbookWithReport(template(), data);
+    const back = fromProjectData(await importWorkbook(bytes));
+    const r1 = back.rows.find((r) => r.table === 'return' && r.data.no === 'R-1')!;
+    expect(r1.data).toEqual({ no: 'R-1', ak: 2, designCfm: 650, finalVel: 300 }); // the CFM is not stored
+  });
+
   it('motor / fan bores: their own cells in rev 07; the one "Shv Bore M/F" cell of rev 05 / 06, read back apart', () => {
     const b = sampleBundle();
     expect(toProjectData(b).data.equipment.rtu[0].fields).toMatchObject({ motorBore: '7/8', fanBore: '1' });

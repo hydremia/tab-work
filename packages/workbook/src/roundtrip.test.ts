@@ -40,9 +40,13 @@ describe('workbook library round trip (Node)', () => {
   });
 
   it('refuses to write into a formula cell', async () => {
-    const bad: ProjectData = { ...project, equipment: { rtu: [{ slot: 1, tables: { return: [{ designCfm: 5 }] } }] } };
+    // the second return line's final CFM is a formula (VEL x Ak): an omitted column -> warning, not a write
+    const bad: ProjectData = {
+      ...project,
+      equipment: { rtu: [{ slot: 1, tables: { return: [{ no: 'R-1' }, { finalCfm: 5 }] } }] },
+    };
     const { report } = await exportWorkbookWithReport(templateBytes(), bad);
-    expect(report.warnings.join('\n')).toMatch(/formula/); // omitted column -> warning, not a write
+    expect(report.warnings.join('\n')).toMatch(/finalCfm ignored: .* is a formula/);
     const map = structuredClone(TEMPLATE_MAP) as typeof TEMPLATE_MAP;
     // point a field at a known formula cell (RTUs D+0 = System, from EDE)
     (map.equipment[0].block.fields as { key: string; col: string; row: number; type: string }[]).push({
@@ -58,6 +62,42 @@ describe('workbook library round trip (Node)', () => {
         { map },
       ),
     ).rejects.toBeInstanceOf(FormulaCellError);
+  });
+
+  it('the first return line: the "supply - OA" formulas unless the project gives it a design and final CFM', async () => {
+    const xmlOf = async (bytes: Uint8Array) => {
+      const JSZip = (await import('jszip')).default;
+      return (await JSZip.loadAsync(bytes)).file('xl/worksheets/sheet11.xml')!.async('string');
+    };
+    const cell = (xml: string, ref: string) => new RegExp(`<c r="${ref}"[^>]*>(.*?)</c>`).exec(xml)?.[1] ?? '';
+    const withReturn = (rows: Record<string, number | string>[]): ProjectData => ({
+      ...project,
+      equipment: {
+        rtu: [{ ...project.equipment.rtu![0], tables: { ...project.equipment.rtu![0].tables, return: rows } }],
+      },
+    });
+    // a blank design: both formulas stay
+    const plain = await exportWorkbookWithReport(templateBytes(), withReturn([{ no: 'R-1', ak: 2, finalVel: 300 }]));
+    let xml = await xmlOf(plain.bytes);
+    expect(cell(xml, 'H46')).toMatch(/^<f>IF\(H43=/);
+    expect(cell(xml, 'L46')).toMatch(/^<f>IF\(L51=/);
+    // its own design and final CFM: values replace them, and come back on import
+    const own = await exportWorkbookWithReport(
+      templateBytes(),
+      withReturn([{ no: 'R-1', ak: 2, designCfm: 650, finalVel: 300, finalCfm: 600 }]),
+    );
+    xml = await xmlOf(own.bytes);
+    expect([cell(xml, 'H46'), cell(xml, 'L46')]).toEqual(['<v>650</v>', '<v>600</v>']);
+    const back = await importWorkbook(own.bytes);
+    expect(back.equipment.rtu![0].tables!.return![0]).toMatchObject({ designCfm: 650, finalCfm: 600 });
+    expect((await importWorkbook(plain.bytes)).equipment.rtu![0].tables!.return![0]).not.toHaveProperty('designCfm');
+    // re-issued onto that workbook with the design cleared again: the formulas come back
+    const again = await exportWorkbookWithReport(own.bytes, withReturn([{ no: 'R-1', ak: 2, finalVel: 300 }]), {
+      reset: { template: templateBytes(), sections: [] },
+    });
+    xml = await xmlOf(again.bytes);
+    expect(cell(xml, 'H46')).toMatch(/^<f>IF\(H43=/);
+    expect(cell(xml, 'L46')).toMatch(/^<f>IF\(L51=/);
   });
 
   it('rejects list values that are not in the template list', async () => {

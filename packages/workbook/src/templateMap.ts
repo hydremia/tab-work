@@ -74,6 +74,11 @@ export interface Segment {
   stride?: number;
   /** Columns that are formulas on a given row of this segment (index inside the segment -> columns). */
   omit?: Readonly<Record<number, readonly string[]>>;
+  /**
+   * Columns that are formulas by default on a given row but take a value from the app when it has one (a blank keeps
+   * the formula; the import reads the cell only when it is not a formula). Index inside the segment -> columns.
+   */
+  override?: Readonly<Record<number, readonly string[]>>;
 }
 
 export interface ColumnDef {
@@ -222,6 +227,9 @@ const OUTLET_COLUMNS: readonly ColumnDef[] = [
   c('initialVel', 'I', 'number'),
   c('finalVel', 'K', 'number'),
 ];
+
+/** RTU return inlets: the outlet columns plus the first line's final CFM (a formula unless overridden). */
+const RETURN_COLUMNS: readonly ColumnDef[] = [...OUTLET_COLUMNS, c('finalCfm', 'L', 'number')];
 
 /** EDE columns B-Q of the RTU / MAU / fan sections. */
 const EDE_UNIT_FIELDS: readonly Omit<FieldDef, 'row'>[] = [
@@ -408,7 +416,16 @@ function airMap(rev: AirRevision): TemplateMap {
           tables: [
             { key: 'supply', columns: OUTLET_COLUMNS, segments: [{ row: 29, count: 10 }, { row: Q + 4, count: 38 }] },
             // First return row: Design CFM (H) and Final CFM (L) are formulas (Total - OA).
-            { key: 'return', columns: OUTLET_COLUMNS, segments: [{ row: 42, count: 2, omit: { 0: ['H'] } }, { row: Q + 45, count: 4 }] },
+            // the first return line is "supply - OA" (design and final CFM formulas) unless the app gives it its own
+            // design: then it is a measured inlet and its design and final CFM (VEL x Ak) replace the formulas
+            {
+              key: 'return',
+              columns: RETURN_COLUMNS,
+              segments: [
+                { row: 42, count: 2, override: { 0: ['H', 'L'] }, omit: { 1: ['L'] } },
+                { row: Q + 45, count: 4, omit: { 0: ['L'], 1: ['L'], 2: ['L'], 3: ['L'] } },
+              ],
+            },
             { key: 'oa', columns: OUTLET_COLUMNS, segments: [{ row: 47, count: 1 }] },
           ],
           lines: [{
@@ -666,10 +683,11 @@ export function sequenceCells(s: SequenceDef): { col: string; row: number }[] {
 }
 
 /** Absolute (relative to anchor) row of every row in a table, with the columns that must be skipped. */
-export function tableRows(t: TableDef): { row: number; omit: readonly string[] }[] {
-  const out: { row: number; omit: readonly string[] }[] = [];
+export function tableRows(t: TableDef): { row: number; omit: readonly string[]; override: readonly string[] }[] {
+  const out: { row: number; omit: readonly string[]; override: readonly string[] }[] = [];
   for (const seg of t.segments) {
-    for (let i = 0; i < seg.count; i++) out.push({ row: seg.row + i * (seg.stride ?? 1), omit: seg.omit?.[i] ?? [] });
+    for (let i = 0; i < seg.count; i++)
+      out.push({ row: seg.row + i * (seg.stride ?? 1), omit: seg.omit?.[i] ?? [], override: seg.override?.[i] ?? [] });
   }
   return out;
 }

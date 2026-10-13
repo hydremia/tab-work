@@ -134,6 +134,7 @@ function OutletRow({
   result: TableResult['rows'][string] | undefined;
   tolerance: number;
 }) {
+  /** the first return line: "supply - OA" until it is given its own design (a measured inlet) */
   const computedDesign = spec.firstRowDesignComputed && index === 0;
   const idp = `${spec.key}-${index}`;
   const noun = spec.noun ?? 'row';
@@ -158,14 +159,19 @@ function OutletRow({
           if (computedDesign && col.key === 'designCfm') {
             return (
               <div className="cell" key={col.key}>
-                <label htmlFor={id}>Design (calc)</label>
-                <input
+                <label htmlFor={id}>Design</label>
+                <NumberInput
                   id={id}
-                  className="input"
-                  readOnly
-                  value={formatNumber(result?.design ?? null)}
-                  title="Total design − OA design (workbook formula)"
+                  aria-label={`${label} Design`}
+                  value={typeof row.data.designCfm === 'number' ? row.data.designCfm : null}
+                  placeholder={
+                    result?.design !== null && result?.design !== undefined ? formatNumber(result.design) : ''
+                  }
+                  onCommit={(x) => void setField('airflowRows', row.id, 'data.designCfm', x)}
                 />
+                <span className="small muted" data-testid="return-design-note">
+                  {typeof row.data.designCfm === 'number' ? 'This inlet’s design' : 'Blank = supply − OA design'}
+                </span>
               </div>
             );
           }
@@ -374,8 +380,14 @@ function GridTable({
                 );
               if (computedDesign && col.key === 'designCfm')
                 return (
-                  <td key={col.key} className="grid-calc" title="Total design − OA design (workbook formula)">
-                    {formatNumber(res?.design ?? null)}
+                  <td key={col.key} title="Blank = supply − OA design (the workbook formula)">
+                    <NumberInput
+                      id={id}
+                      aria-label={aria}
+                      value={typeof row.data.designCfm === 'number' ? row.data.designCfm : null}
+                      placeholder={res?.design !== null && res?.design !== undefined ? formatNumber(res.design) : ''}
+                      onCommit={(x) => void setField('airflowRows', row.id, 'data.designCfm', x)}
+                    />
                   </td>
                 );
               const mark = row.na[col.key];

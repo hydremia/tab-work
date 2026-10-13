@@ -1,6 +1,7 @@
 import type { AutoNa, FieldSpec, SectionSpec } from './types';
 
-export const NO_OA: AutoNa = { when: { field: 'designOaCfm', blankOrZero: true }, reason: 'design OA is 0' };
+/** No outside air: a design OA of 0 (a blank design OA is "not entered yet": the OA row stays to be filled). */
+export const NO_OA: AutoNa = { when: { field: 'designOaCfm', in: [0, '0'] }, reason: 'design OA is 0' };
 
 export const identitySection = (extra: readonly FieldSpec[] = []): SectionSpec => ({
   key: 'identity',
