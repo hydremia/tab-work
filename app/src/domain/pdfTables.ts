@@ -38,8 +38,10 @@ export interface PdfTable {
   /** header row first (when one was found), then the body rows */
   rows: Grid;
   hasHeader: boolean;
-  /** unit type suggested by the title / headers */
+  /** unit type suggested by the tags, title or headers */
   type: EquipmentTypeKey | null;
+  /** where the table is on its page (PDF points, y downwards; a photo: pixels) */
+  box?: { x0: number; y0: number; x1: number; y1: number };
 }
 
 interface Phrase {
@@ -186,10 +188,77 @@ const TYPE_WORDS: [RegExp, EquipmentTypeKey][] = [
 const NO_TYPE =
   /\b(fan coils?|fcus?|condensing units?|split systems?|mini[- ]splits?|unit heaters?|cabinet heaters?|vrf)\b/i;
 
-export function suggestType(text: string, known: readonly string[]): EquipmentTypeKey | null {
+/**
+ * Words that name a part of a unit, not the unit: a rooftop schedule's "HEAT PUMP" or "CONDENSATE PUMP" column, a
+ * DOAS schedule's "SUPPLY FAN HP". Headers also drop "supply / return / relief fan" (a column of an air handler).
+ */
+const PART_WORDS =
+  /\b(heat[- ]?pumps?|condensate pumps?|pump[- ]?down|fans? (motor|hp|bhp|kw|rpm|speed|data|section|qty|type|wheel|size|esp|tsp)s?)\b/gi;
+const HEADER_PART_WORDS = /\b(supply|return|relief|condenser|evaporator) fans?\b/gi;
+
+export function suggestType(text: string, known: readonly string[], header = false): EquipmentTypeKey | null {
   if (NO_TYPE.test(text)) return null;
-  for (const [re, key] of TYPE_WORDS) if (re.test(text) && known.includes(key)) return key;
+  let t = text.replace(PART_WORDS, ' ');
+  if (header) t = t.replace(HEADER_PART_WORDS, ' ');
+  for (const [re, key] of TYPE_WORDS) if (re.test(t) && known.includes(key)) return key;
   return null;
+}
+
+/** Tag prefixes ("RTU-1" -> RTU) and the unit type they name. */
+const TAG_TYPES: [RegExp, EquipmentTypeKey][] = [
+  [/^(RTU|AHU|AH|DOAS|DOAU|DOU|DOA|DHU|OAU|ACU|AC|PKG|HP|HPU)$/, 'rtu'],
+  [/^(MAU|MUA|MUAU)$/, 'mau'],
+  [/^(ERV|HRV|ERU)$/, 'erv'],
+  [/^(EF|KEF|TF|GEF|DEF|BEF|SEF|RF|CEF|UEF|BF|F)$/, 'fan'],
+  [/^(P|PP|PMP|HWP|CHWP|CHP|CWP|CDWP|HHWP)$/, 'pump'],
+  [/^(VAV|FPB|FPVAV|VVT|TU|CAV)$/, 'vav'],
+  [/^(H|KH|HOOD)$/, 'hood'],
+  [/^(CH|CHLR|B|BLR|CT|HX)$/, 'plant'],
+];
+/** A tag in a cell: "RTU-1", "EF 12", "(E) DOAS-2", "HWP-1A". */
+const TAG_CELL = /^(?:\([EN]\)\s*)?([A-Z]{1,5})[- ]?\d{1,3}[A-Z]?\b/;
+
+/** The type a tag's prefix names, or null. */
+export function typeOfTag(cell: string, known: readonly string[]): EquipmentTypeKey | null {
+  const m = TAG_CELL.exec(cell.trim().toUpperCase());
+  if (!m) return null;
+  const hit = TAG_TYPES.find(([re]) => re.test(m[1]));
+  return hit && known.includes(hit[1]) ? hit[1] : null;
+}
+
+/**
+ * The type the rows' tags agree on: each data row's first tag in its first three cells, and a type when at least two
+ * rows (or the only one) carry tags and 60 % of them name it. Tags beat a title or header word: a rooftop schedule
+ * says "HEAT PUMP" and a DOAS schedule "SUPPLY FAN", but their tags say RTU and DOAS.
+ */
+export function typeFromTags(rows: Grid, known: readonly string[]): EquipmentTypeKey | null {
+  const votes = new Map<EquipmentTypeKey, number>();
+  let tagged = 0;
+  for (const r of rows) {
+    const cell = r.slice(0, 3).find((c) => typeof c === 'string' && TAG_CELL.test(c.trim().toUpperCase()));
+    if (typeof cell !== 'string') continue;
+    tagged++;
+    const t = typeOfTag(cell, known);
+    if (t) votes.set(t, (votes.get(t) ?? 0) + 1);
+  }
+  const [best] = [...votes].sort((a, b) => b[1] - a[1]);
+  if (!best || tagged < Math.min(2, rows.length) || best[1] < tagged * 0.6) return null;
+  return best[0];
+}
+
+/** The type of a table: its tags, else its title, else its column headers (none when the title names no type). */
+export function tableType(
+  title: string | null,
+  header: readonly string[],
+  body: Grid,
+  known: readonly string[],
+): EquipmentTypeKey | null {
+  if (title && NO_TYPE.test(title)) return null;
+  return (
+    typeFromTags(body, known) ??
+    (title ? suggestType(title, known) : null) ??
+    suggestType(header.join(' '), known, true)
+  );
 }
 
 /** Rebuild one region's table, or null when it is not a table (fewer than 2 columns or no data line). */
@@ -296,7 +365,13 @@ function regionTable(region: Phrase[], page: number, known: readonly string[]): 
     title,
     rows: hasHeader ? [toGrid(header), ...body.map(toGrid)] : body.map(toGrid),
     hasHeader,
-    type: (title ? suggestType(title, known) : null) ?? suggestType(header.join(' '), known),
+    type: tableType(title, header, body, known),
+    box: {
+      x0: Math.min(...region.map((p) => p.x0)),
+      y0: Math.min(...region.map((p) => p.top)),
+      x1: Math.max(...region.map((p) => p.x1)),
+      y1: Math.max(...region.map((p) => p.bottom)),
+    },
   };
 }
 

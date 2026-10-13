@@ -11,8 +11,7 @@
  *   body     one row per grid row; a full-width row after the data (notes) ends the table
  * Coordinates: any unit, y downwards, words and lines in the same space.
  */
-import type { EquipmentTypeKey } from './equipmentTypes';
-import { suggestType, type PdfTable } from './pdfTables';
+import { tableType, type PdfTable } from './pdfTables';
 import type { HLine, VLine } from './rasterLines';
 
 export interface Word {
@@ -230,8 +229,7 @@ export function gridTables(
       title,
       rows: hasHeader ? [pick(header), ...body.map(pick)] : body.map(pick),
       hasHeader,
-      type:
-        (title ? suggestType(title, known) : null) ?? (suggestType(header.join(' '), known) as EquipmentTypeKey | null),
+      type: tableType(title, header, body, known),
       lowConfidence: low.map(([r, c]) => [r + shift, cols.indexOf(c)] as [number, number]).filter(([, c]) => c >= 0),
       box,
       retry,

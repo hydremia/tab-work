@@ -1898,6 +1898,24 @@ textarea {
   width: auto;
   max-width: calc(100% - 110px);
 }
+.table-peek {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.table-peek-img {
+  overflow: auto;
+  max-height: 420px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+}
+.table-peek-img img {
+  display: block;
+  max-width: none;
+  width: 100%;
+  min-width: 600px;
+  height: auto;
+}
 .table-pick-name {
   min-width: 0;
   overflow-wrap: anywhere;

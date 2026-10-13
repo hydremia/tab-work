@@ -37,6 +37,43 @@ const show = (v: FieldValue | undefined) => (v === undefined || v === null ? '' 
 
 type Source = 'paste' | 'file' | 'workbook';
 
+const PEEK_ROWS = 12;
+
+/** What a table is: its picture on the drawing (PDF / photo) and the rows the app read from it. */
+function TablePeek({ view, snapshot }: { view: SheetView; snapshot?: string }) {
+  const rows = view.grid.slice(0, PEEK_ROWS + (view.hasHeader ? 1 : 0));
+  const more = view.grid.length - rows.length;
+  return (
+    <div className="table-peek stack" style={{ gap: 6 }} data-testid="table-peek">
+      {snapshot && (
+        <div className="table-peek-img">
+          <img src={snapshot} alt={`${view.name} as drawn`} data-testid="table-peek-img" />
+        </div>
+      )}
+      <div className="preview-wrap">
+        <table className="preview-table" data-testid="table-peek-rows">
+          <tbody>
+            {rows.map((r, i) => {
+              const Cell = i === 0 && view.hasHeader ? 'th' : 'td';
+              return (
+                <tr key={i}>
+                  {Array.from({ length: view.width }, (_, c) => (
+                    <Cell key={c}>{show(r[c] ?? null)}</Cell>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <span className="small muted">
+        {snapshot ? 'Above: the table on the drawing. Below: what the app read. ' : ''}
+        {more > 0 ? `First ${PEEK_ROWS} of ${view.dataRows.length} rows.` : `${view.dataRows.length} rows.`}
+      </span>
+    </div>
+  );
+}
+
 function PreviewTable({
   preview,
   testId,
@@ -187,6 +224,18 @@ export function ScheduleImportPage() {
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [peek, setPeek] = useState<Record<number, boolean>>({});
+  const peekButton = (v: SheetView) => (
+    <button
+      type="button"
+      className="btn btn-ghost"
+      aria-expanded={Boolean(peek[v.index])}
+      data-testid="table-peek-toggle"
+      onClick={() => setPeek((p) => ({ ...p, [v.index]: !p[v.index] }))}
+    >
+      {peek[v.index] ? 'Hide' : 'Preview'}
+    </button>
+  );
 
   const sourceSheets: {
     name: string;
@@ -194,6 +243,7 @@ export function ScheduleImportPage() {
     type?: EquipmentTypeKey | null;
     ocr?: boolean;
     lowConfidence?: [number, number][];
+    snapshot?: string;
   }[] = useMemo(() => {
     if (source === 'paste') return [{ name: 'Pasted rows', rows: parseDelimited(text) }];
     if (source === 'file') return file?.sheets ?? [];
@@ -666,8 +716,9 @@ export function ScheduleImportPage() {
         <section className="card card-pad stack" aria-labelledby="si-tables">
           <h2 id="si-tables">Tables ({views.length})</h2>
           <p className="small muted" style={{ margin: 0 }}>
-            Every ticked table is imported in one go. Unit schedules are ticked when their title names the unit type;
-            the building air balance is checked against the units; space-by-space ventilation tables are not needed.
+            Every ticked table is imported in one go. Unit schedules are ticked when their tags (RTU-1, EF-2 …) or title
+            name the unit type; check the type of each, and tap <b>Preview</b> to see the table. The building air
+            balance is checked against the units; space-by-space ventilation tables are not needed.
           </p>
           <div className="stack" style={{ gap: 6 }} data-testid="table-list">
             {views
@@ -702,10 +753,15 @@ export function ScheduleImportPage() {
                       >
                         Columns
                       </button>
+                      {peekButton(v)}
                     </>
                   ) : (
-                    <span className="chip">{v.kind === 'airBalance' ? 'Air balance' : 'Space ventilation'}</span>
+                    <>
+                      <span className="chip">{v.kind === 'airBalance' ? 'Air balance' : 'Space ventilation'}</span>
+                      {peekButton(v)}
+                    </>
                   )}
+                  {peek[v.index] && <TablePeek view={v} snapshot={sourceSheets[v.index]?.snapshot} />}
                 </div>
               ))}
           </div>
@@ -718,15 +774,19 @@ export function ScheduleImportPage() {
               {views
                 .filter((v) => v.kind === 'other')
                 .map((v) => (
-                  <label key={v.index} className="row small" style={{ gap: 8 }}>
-                    <input
-                      type="checkbox"
-                      checked={v.include}
-                      aria-label={`Import ${v.name}`}
-                      onChange={(e) => setOpt(v.index, { include: e.target.checked, type: v.type })}
-                    />
-                    {v.name} <span className="muted">({v.dataRows.length} rows)</span>
-                  </label>
+                  <div key={v.index} className="table-pick">
+                    <label className="row small" style={{ gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={v.include}
+                        aria-label={`Import ${v.name}`}
+                        onChange={(e) => setOpt(v.index, { include: e.target.checked, type: v.type })}
+                      />
+                      {v.name} <span className="muted">({v.dataRows.length} rows)</span>
+                    </label>
+                    {peekButton(v)}
+                    {peek[v.index] && <TablePeek view={v} snapshot={sourceSheets[v.index]?.snapshot} />}
+                  </div>
                 ))}
             </details>
           )}

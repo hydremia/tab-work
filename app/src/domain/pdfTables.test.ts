@@ -8,7 +8,7 @@ import { degrees, PDFDocument, StandardFonts, type PDFFont, type PDFPage } from 
 import { describe, expect, it } from 'vitest';
 import { readPdfText } from '../workbook/pdfText';
 import { EQUIPMENT_TYPES } from './equipmentTypes';
-import { pdfTables, suggestType } from './pdfTables';
+import { pdfTables, suggestType, tableType, typeFromTags } from './pdfTables';
 import { autoMap, buildPreview, looksLikeHeader } from './scheduleImport';
 
 const KNOWN = EQUIPMENT_TYPES.map((t) => t.key);
@@ -228,5 +228,49 @@ describe('schedules from a PDF', () => {
     expect(suggestType('OUTDOOR CONDENSING UNIT SCHEDULE', KNOWN)).toBeNull();
     expect(suggestType('EXHAUST FAN SCHEDULE', KNOWN)).toBe('fan');
     expect(suggestType('NEW DEDICATED OUTSIDE AIR UNIT SCHEDULE', KNOWN)).toBe('rtu');
+  });
+
+  it('the tags decide over a title or header word: rooftop heat pumps are RTUs, a DOAS with a supply fan is no fan', () => {
+    // a packaged heat pump rooftop schedule (the RTUs that came in as pumps)
+    expect(suggestType('PACKAGED ROOFTOP HEAT PUMP SCHEDULE', KNOWN)).toBe('rtu');
+    const rtus = [
+      ['RTU-1', 'CARRIER', '50FCQ', '2,000'],
+      ['RTU-2', 'CARRIER', '50FCQ', '2,400'],
+      ['RTU-3', 'CARRIER', '50FCQ', '1,600'],
+    ];
+    expect(typeFromTags(rtus, KNOWN)).toBe('rtu');
+    expect(tableType('HEAT PUMP SCHEDULE', ['TAG', 'MFR', 'MODEL', 'CFM'], rtus, KNOWN)).toBe('rtu');
+    expect(tableType(null, ['TAG', 'CONDENSATE PUMP', 'CFM'], rtus, KNOWN)).toBe('rtu');
+    // a DOAS table read without its title: the header mentions the supply fan (the DOAS that came in as a fan)
+    const doas = [['DOAS-1', 'ADDISON', 'PROA180K2J4EABDAB', '3,000', '1.5']];
+    const header = ['TAG', 'MFR', 'MODEL', 'SUPPLY CFM', 'SUPPLY FAN HP'];
+    expect(tableType(null, header, doas, KNOWN)).toBe('rtu');
+    expect(suggestType(header.join(' '), KNOWN, true)).toBeNull();
+    // without tags, header words still decide; an exhaust fan schedule stays a fan schedule
+    expect(tableType(null, ['FAN', 'CFM', 'RPM'], [['1', '500', '1100']], KNOWN)).toBe('fan');
+    expect(
+      tableType(
+        'EXHAUST FAN SCHEDULE',
+        [],
+        [
+          ['EF-1', 'GREENHECK'],
+          ['EF-2', 'GREENHECK'],
+        ],
+        KNOWN,
+      ),
+    ).toBe('fan');
+    // pumps by tag, mixed tags without a majority give no type, a title the app has no type for vetoes the tags
+    expect(typeFromTags([['HWP-1'], ['CHWP-1'], ['P-3']], KNOWN)).toBe('pump');
+    expect(typeFromTags([['RTU-1'], ['EF-1'], ['P-1']], KNOWN)).toBeNull();
+    expect(tableType('SPLIT SYSTEM SCHEDULE', [], [['HP-1'], ['HP-2']], KNOWN)).toBeNull();
+    expect(
+      typeFromTags(
+        [
+          ['(E) RTU-5', 'x'],
+          ['RTU-6', 'y'],
+        ],
+        KNOWN,
+      ),
+    ).toBe('rtu');
   });
 });

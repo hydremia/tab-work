@@ -7,6 +7,7 @@ import {
   addEquipment,
   applyAirBalance,
   applyScheduleImport,
+  changeEquipmentType,
   createProject,
   duplicateEquipment,
   setField,
@@ -203,5 +204,40 @@ describe('applyAirBalance', () => {
       2925,
       'M3.0 VENTILATION CALCULATION',
     ]);
+  });
+});
+
+describe('changeEquipmentType', () => {
+  it('moves a unit read as the wrong type: same record, next free slot, a unit type the new type has, history', async () => {
+    const p = await createProject({ name: 'Job' });
+    await addEquipment(p.id, 'rtu', 'RTU-9'); // slot 1 of the RTUs is taken
+    const pump = await addEquipment(p.id, 'pump', 'RTU-1');
+    await setField('equipment', pump.id, 'data.manufacturer', 'Carrier');
+    await setField('equipment', pump.id, 'data.designGpm', 40); // a pump field: stays on the record
+    const doasAsFan = await addEquipment(p.id, 'fan', 'DOAS-1');
+    expect(doasAsFan.data.unitType).toBe('EF');
+
+    const rtu = await changeEquipmentType(pump.id, 'rtu');
+    expect(rtu).toMatchObject({ id: pump.id, type: 'rtu', slot: 2, designation: 'RTU-1' });
+    expect(rtu.data).toMatchObject({ manufacturer: 'Carrier', designGpm: 40, unitType: 'RTU' });
+    const doas = await changeEquipmentType(doasAsFan.id, 'rtu');
+    expect(doas).toMatchObject({ type: 'rtu', slot: 3, data: { unitType: 'DOAS' } });
+    // the type and the slot are field changes (they sync), with the move in the history
+    const changes = await db.fieldChanges.filter((c) => c.recordId === pump.id && c.op === 'set').toArray();
+    expect(changes.map((c) => c.field)).toEqual(expect.arrayContaining(['type', 'slot', 'data.unitType']));
+    const hist = await db.history.filter((h) => h.recordId === pump.id && h.field === 'type').toArray();
+    expect(hist[0]).toMatchObject({ previous: 'pump', value: 'rtu', note: 'Moved from Pumps to RTUs' });
+
+    // a new designation; back to the same type only renames
+    const renamed = await changeEquipmentType(rtu.id, 'rtu', 'RTU-2');
+    expect(renamed).toMatchObject({ type: 'rtu', slot: 2, designation: 'RTU-2' });
+  });
+
+  it('refuses a type at its workbook capacity', async () => {
+    const p = await createProject({ name: 'Job' });
+    for (let i = 1; i <= 10; i++) await addEquipment(p.id, 'mau', `MAU-${i}`);
+    const f = await addEquipment(p.id, 'fan', 'MAU-11');
+    await expect(changeEquipmentType(f.id, 'mau')).rejects.toThrow(/room for 10/);
+    expect((await db.equipment.get(f.id))!.type).toBe('fan');
   });
 });

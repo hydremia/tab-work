@@ -394,8 +394,12 @@ or **Import** next to a type heading (that picks the type for you).
 
    - **TAB workbook**: an existing a2b workbook. Only its Equipment Data Entry section is read.
 2. **Tables** (a file with more than one table): **every ticked table is imported in one go.**
-   - A unit schedule is ticked when its title names a type the app has (*ROOFTOP*, *MAKE-UP AIR*, *FAN*, *PUMP*…),
-     with that type picked; change the type, or tick / untick any table. Schedules for units the app has no type for
+   - A unit schedule is ticked with its type picked from its **unit tags** first (*RTU-1*, *DOAS-1*, *EF-2*, *HWP-1*:
+     when most rows agree), else its title (*ROOFTOP*, *MAKE-UP AIR*, *EXHAUST FAN*, *PUMP*…), else its column
+     headers. A column such as *HEAT PUMP* or *SUPPLY FAN HP* doesn't make a rooftop unit a pump or a DOAS a fan.
+     **Check the type of every table**; change it, or tick / untick any table.
+   - **Preview** shows a table: from a PDF or photo, the table as drawn on the sheet, then the rows the app read from
+     it. Use it to tell tables apart and to check the reading. Schedules for units the app has no type for
      (*FAN COIL*, *CONDENSING UNIT*) start unticked.
    - The building **air balance** (*AIR BALANCE*, *VENTILATION CALCULATION*: unit / OA CFM / unit / exhaust CFM, with
      totals) is marked **Air balance** and checked against the units (step 6).
@@ -459,6 +463,15 @@ app. Skipped rows aren't imported at all, so fix them and import again.
 **Airflow only on a unit**: on an existing unit's page, under **New / Existing**, **Airflow only** marks its unit,
 motor, drive, misc., RPM and static sections N/A in one tap (tap again for full data). Single sections can still be
 changed with their own N/A menus.
+
+### Move a unit to another type
+
+A unit under the wrong type (a schedule table imported as the wrong type: RTUs under Pumps, a DOAS under Fans): at the
+bottom of its page, **Equipment type → Change type…** → pick the type → check the designation → **Move to RTUs**. The
+unit keeps its readings, photos, issues and history and takes the next free workbook slot of the new type (and a unit
+type it has: *DOAS-1* becomes a DOAS). Values the new type has no place for stay with the unit but aren't shown or
+exported. To fill the new type's schedule fields, run **Import schedule** again with the table set to the right type:
+the moved units show as **Update** and get the values.
 
 ### Duplicate a unit
 

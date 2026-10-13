@@ -862,6 +862,56 @@ export async function duplicateEquipment(
   });
 }
 
+/** The unit type (RTU / DOAS / DHU, EF / KEF …) a unit takes in its new equipment type, from its designation. */
+function unitTypeFor(type: EquipmentTypeKey, designation: string, current: unknown): string | undefined {
+  const options = getSpec(type)
+    .sections.flatMap((s) => s.fields)
+    .find((f) => f.key === 'unitType')?.options as readonly string[] | undefined;
+  if (!options?.length) return undefined;
+  if (typeof current === 'string' && options.includes(current)) return current;
+  const prefix = designation.toUpperCase().match(/[A-Z]+/)?.[0] ?? '';
+  const byTag = options.find((o) => o.toUpperCase() === prefix);
+  return byTag ?? (presetUnitType(type) as string | undefined) ?? options[0];
+}
+
+/**
+ * Move a unit to another equipment type (a schedule table read as the wrong type: RTUs under Pumps, a DOAS under Fans):
+ * the same record keeps its id, so its values, photos, issues, rows and history stay with it; it takes the next free
+ * workbook slot of the new type and a unit type that type has. Values only the old type has a place for stay on the
+ * record but are not shown or exported; a schedule import of the right type then fills the new type's fields.
+ */
+export async function changeEquipmentType(
+  equipmentId: string,
+  type: EquipmentTypeKey,
+  designation?: string,
+): Promise<Equipment> {
+  return db.transaction('rw', writeTables(), async () => {
+    const unit = await db.equipment.get(equipmentId);
+    if (!unit) throw new Error('unit not found');
+    const name = (designation ?? unit.designation).trim();
+    if (unit.type === type) {
+      if (name !== unit.designation) await setField('equipment', unit.id, 'designation', name);
+      return (await db.equipment.get(unit.id))!;
+    }
+    const info = equipmentType(type);
+    const others = await db.equipment.where('[projectId+type]').equals([unit.projectId, type]).toArray();
+    const slot = nextFreeSlot(
+      others.map((e) => e.slot),
+      info.capacity,
+    );
+    if (slot === null) throw new CapacityError(`The workbook has room for ${info.capacity} ${info.plural}.`);
+    const note = `Moved from ${equipmentType(unit.type).plural} to ${info.plural}`;
+    await setField('equipment', unit.id, 'type', type, { note });
+    await setField('equipment', unit.id, 'slot', slot, { note });
+    if (name !== unit.designation) await setField('equipment', unit.id, 'designation', name, { note });
+    const unitType = unitTypeFor(type, name, unit.data.unitType);
+    if (unitType !== undefined) await setField('equipment', unit.id, 'data.unitType', unitType, { note });
+    // a slot move note from the old type means nothing in the new one
+    if (unit.slotMove) await setField('equipment', unit.id, 'slotMove', null, { keepReview: true });
+    return (await db.equipment.get(unit.id))!;
+  });
+}
+
 // ------------------------------------------------------------------------------------------ issues
 export async function addIssue(
   projectId: string,
