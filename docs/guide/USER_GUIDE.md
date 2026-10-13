@@ -579,7 +579,7 @@ Under the row you see the calculated **CFM** (VEL × Ak) and **% of design**, in
 design CFM and an Ak, it also shows the **Design VEL** (design CFM ÷ Ak, the workbook's Design VEL column): the
 velocity to look for before the first reading. The VEL boxes show it as a hint (*target 625*).
 
-- **Add outlet** (or *Add inlet*) copies area, type, size and Ak from the previous row, and numbers it S-1 → S-2.
+- **Add outlet** (*Add inlet* on return tables, *Add grille* on exhaust fans) copies area, type, size and Ak from the previous row, and numbers it S-1 → S-2.
 - **Row…** menu: mark a column N/A / Not Avail. / Not Acc., **Duplicate row**, **Delete row**.
 - A row counts as done with a reading in **either** Initial or Final, which fits prelim reports.
 
