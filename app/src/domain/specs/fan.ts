@@ -69,6 +69,7 @@ export const FAN_SPEC: EquipmentSpec = {
         {
           key: 'outlets',
           label: 'Registers / grilles',
+          noun: 'grille',
           required: true,
           minRows: 1,
           tolerance: true,

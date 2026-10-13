@@ -355,7 +355,8 @@ export function computeCompletion(input: CompletionInput): Completion {
     const outlet = (t.calc ?? 'outlet') === 'outlet';
     const valve = t.calc === 'valve';
     rows.forEach((r, i) => {
-      const computedDesign = t.firstRowDesignComputed && i === 0;
+      // the first return line: "supply - OA" unless it has its own design (a measured inlet)
+      const computedDesign = t.firstRowDesignComputed && i === 0 && isBlank(r.data.designCfm);
       const rowValues = { ...values, ...r.data };
       const autoCols: Record<string, string> = {};
       for (const col of cols) {

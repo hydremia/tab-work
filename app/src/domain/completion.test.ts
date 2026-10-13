@@ -115,6 +115,40 @@ describe('RTU completion colors', () => {
   });
 });
 
+describe('outside air and the first return line', () => {
+  it('a design OA of 0 means no outside air; a blank one is "not entered yet": the OA row is still to be filled', () => {
+    const noOa = (data: Record<string, unknown>) => {
+      const i = withData(fullRtu(), { ...data, oaDamper: null });
+      return computeCompletion({ ...i, rows: i.rows.filter((r) => r.table !== 'oa') });
+    };
+    const zero = noOa({ designOaCfm: 0 });
+    expect(zero.tables.oa.state).toBe('auto-na');
+    expect(zero.fields.oaDamper.state).toBe('auto-na');
+    const blank = noOa({ designOaCfm: null });
+    expect(blank.tables.oa.state).not.toBe('auto-na'); // rows can be added
+    expect(blank.fields.oaDamper.state).toBe('missing');
+  });
+
+  it('the first return line: design = supply - OA design until it is given its own', () => {
+    const base = fullRtu();
+    const ret = (data: Record<string, number | string>) => ({
+      ...base.rows[0],
+      id: 'r1',
+      table: 'return',
+      order: 1,
+      data,
+    });
+    const calc = computeCompletion({ ...base, rows: [...base.rows, ret({ no: 'R-1', ak: 2, finalVel: 300 })] });
+    expect(calc.tables.return.rows.r1.design).toBe(1000 - 200);
+    const own = computeCompletion({
+      ...base,
+      rows: [...base.rows, ret({ no: 'R-1', ak: 2, designCfm: 650, finalVel: 300 })],
+    });
+    expect(own.tables.return.rows.r1.design).toBe(650);
+    expect(own.tables.return.rows.r1.ratio).toBeCloseTo(600 / 650);
+  });
+});
+
 describe('automatic N/A rules', () => {
   it('direct / ECM drive -> sheave, pulley, belts, C to C, bores; motor RPM (the fan RPM stays required)', () => {
     const c = computeCompletion(

@@ -579,7 +579,7 @@ Under the row you see the calculated **CFM** (VEL × Ak) and **% of design**, in
 design CFM and an Ak, it also shows the **Design VEL** (design CFM ÷ Ak, the workbook's Design VEL column): the
 velocity to look for before the first reading. The VEL boxes show it as a hint (*target 625*).
 
-- **Add outlet** (or *Add inlet*) copies area, type, size and Ak from the previous row, and numbers it S-1 → S-2.
+- **Add outlet** (*Add inlet* on return tables, *Add grille* on exhaust fans) copies area, type, size and Ak from the previous row, and numbers it S-1 → S-2.
 - **Row…** menu: mark a column N/A / Not Avail. / Not Acc., **Duplicate row**, **Delete row**.
 - A row counts as done with a reading in **either** Initial or Final, which fits prelim reports.
 
@@ -601,9 +601,13 @@ damper · Static pressure profile · Airflow · Photos · Remarks.
   drive the fan turns at motor speed: enter the **fan RPM** (initial and final); the motor RPM row is N/A.
 - **VFD on the unit?**: when the answer is No, the VSD frequency fields are N/A.
 - **Unit has filters?**: when the answer is No, the filter fields and filter static are N/A.
-- **Design OA CFM** of 0 or blank makes the OA damper, the OA row and the OA damper photo N/A.
+- **Design OA CFM** of **0** makes the OA damper, the OA row and the OA damper photo N/A. A blank design OA means "not
+  entered yet": the OA row can still be added (**Add**) with its own design and readings.
 - **Phase** 1-phase makes volts / amps legs 2 and 3 N/A.
 - **Airflow**: up to 48 supply outlets. Return inlets are optional. The OA row is required when there's design OA.
+- **First return line**: its design shows *supply − OA design* (the workbook formula) until you type one. Type a
+  design when it is a real inlet: the workbook then prints that design and its measured CFM (final VEL × Ak) instead
+  of the formulas. Clear it to go back to *supply − OA*.
 
 **Static pressure profile and motor panels** (RTUs, MAUs, ERVs, fans):
 

@@ -106,6 +106,8 @@ export async function importWorkbookWithReport(bytes: Uint8Array, opts: ImportOp
         const rec: Record<string, Cell> = {};
         for (const col of td.columns) {
           if (r.omit.includes(col.col)) continue;
+          // a formula by default: only a value typed over it is read
+          if (r.override.includes(col.col) && cells.get(`${col.col}${base + r.row}`)?.formula !== undefined) continue;
           const v = read(cells, `${col.col}${base + r.row}`, col.type, `${where}.${td.key}`);
           if (v !== undefined) rec[col.key] = v;
         }

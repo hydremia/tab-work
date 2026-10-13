@@ -486,11 +486,18 @@ export function toProjectData(
           for (const col of tableColumns(t)) {
             const cdef = colDefs.find((x) => x.key === col.key);
             if (!cdef) continue;
-            if (td && i === 0 && col.key === 'designCfm' && td.segments[0].omit?.[0]?.includes('H')) continue; // formula
             const raw = out(r.data[col.key], r.na[col.key] ?? (col.key in autoCols ? { notation: 'N/A' } : null));
             if (raw === undefined) continue;
             const v = coerce(cdef, raw, `${path}.${t.key}[${i}].${col.key}`, warnings);
             if (v !== undefined) rec[col.key] = v;
+          }
+          // the first return line: a "supply - OA" formula line unless it has its own design; then it is a measured
+          // inlet and its final CFM (VEL x Ak) replaces the workbook's formula too
+          if (td && i === 0 && td.columns.some((x) => x.key === 'finalCfm')) {
+            const vel = r.data.finalVel;
+            const ak = r.data.ak;
+            if (typeof rec.designCfm === 'number' && typeof vel === 'number' && typeof ak === 'number')
+              rec.finalCfm = Math.round(vel * ak * 100) / 100;
           }
           return rec;
         });
@@ -964,7 +971,7 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
         for (const tr of trs) {
           const rd: Record<string, FieldValue> = {};
           const rna: Record<string, NaMark | null> = {};
-          for (const [k, v] of Object.entries(tr)) take(k, v, rd, rna);
+          for (const [k, v] of Object.entries(tr)) if (k !== 'finalCfm') take(k, v, rd, rna); // the CFM is computed
           if (!Object.keys(rd).length && !Object.keys(rna).length) continue;
           // a fan measured at its hood: the export's hood lines (rev 05 / 06) are the hood's readings, not grilles
           if (

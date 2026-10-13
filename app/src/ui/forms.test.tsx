@@ -513,6 +513,34 @@ describe('Change a unit’s equipment type (jsdom)', () => {
   });
 });
 
+describe('RTU outside air and return lines (jsdom)', () => {
+  it('a blank design OA still lets the OA row be added; the first return line takes its own design', async () => {
+    const user = userEvent.setup();
+    const p = await createProject({ name: 'Job' });
+    const rtu = await addEquipment(p.id, 'rtu', 'RTU-1');
+    await setFields('equipment', rtu.id, { 'data.designTotalCfm': 2000 });
+    await addAirflowRow(rtu, 'return', { no: 'R-1', ak: 2 });
+    renderAt(`/p/${p.id}/e/${rtu.id}`);
+    await user.click(await screen.findByTestId('add-oa'));
+    await waitFor(async () =>
+      expect((await db.airflowRows.where('equipmentId').equals(rtu.id).toArray()).some((r) => r.table === 'oa')).toBe(
+        true,
+      ),
+    );
+    const design = await screen.findByLabelText('Return inlets row 1 Design');
+    expect(screen.getByTestId('return-design-note')).toHaveTextContent('Blank = supply − OA design');
+    await user.type(design, '650');
+    await user.tab();
+    await waitFor(async () =>
+      expect(
+        (await db.airflowRows.where('equipmentId').equals(rtu.id).toArray()).find((r) => r.table === 'return')!.data
+          .designCfm,
+      ).toBe(650),
+    );
+    expect(await screen.findByTestId('return-design-note')).toHaveTextContent('This inlet’s design');
+  });
+});
+
 describe('Existing unit: airflow only (jsdom)', () => {
   it('marks the non-airflow sections N/A in one go and back', async () => {
     const user = userEvent.setup();
