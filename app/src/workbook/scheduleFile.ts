@@ -18,6 +18,7 @@ import type { EquipmentTypeKey } from '../domain/equipmentTypes';
 import { EQUIPMENT_TYPES } from '../domain/equipmentTypes';
 import type { FoundTable, Progress } from './pdfSchedules';
 import { parseDelimited, type Grid } from '../domain/scheduleImport';
+import { typeFromTags } from '../domain/pdfTables';
 
 export interface ScheduleFile {
   fileName: string;
@@ -29,6 +30,8 @@ export interface ScheduleFile {
     ocr?: boolean;
     /** cells text recognition was unsure of: [row index in `rows`, column] */
     lowConfidence?: [number, number][];
+    /** a picture of the table as drawn on the drawing / photo (JPEG data URL) */
+    snapshot?: string;
   }[];
   /** The {Equipment Data Entry} rows by equipment type when the file is a TAB workbook. */
   schedule: Record<string, ScheduleRow[]> | null;
@@ -49,7 +52,13 @@ export async function readScheduleFile(file: File, progress?: Progress): Promise
   if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') return pdfSchedules(file.name, bytes, progress);
   const sheets = await readSheetRows(bytes);
   const schedule = (await hasScheduleSection(bytes)) ? await readScheduleSection(bytes) : null;
-  return { fileName: file.name, sheets: sheets.filter((s) => s.rows.length), schedule };
+  const keys = EQUIPMENT_TYPES.map((t) => t.key);
+  return {
+    fileName: file.name,
+    // a sheet's type from its tags (RTU-1, EF-2 …)
+    sheets: sheets.filter((s) => s.rows.length).map((s) => ({ ...s, type: typeFromTags(s.rows, keys) })),
+    schedule,
+  };
 }
 
 /** Only the {Equipment Data Entry} section of a TAB workbook. */
@@ -93,6 +102,7 @@ function sheetsOf(tables: FoundTable[]): ScheduleFile['sheets'] {
     name: `p. ${t.page} · ${t.title ?? `table ${i + 1}`}${t.ocr ? ' (text recognition)' : ''}`,
     rows: t.rows,
     type: t.type,
+    ...(t.snapshot ? { snapshot: t.snapshot } : {}),
     ...(t.ocr ? { ocr: true, lowConfidence: t.lowConfidence } : {}),
   }));
 }

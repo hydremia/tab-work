@@ -15,6 +15,7 @@ import {
   useUserName,
 } from '../../data/hooks';
 import {
+  changeEquipmentType,
   clearReview,
   deleteRecord,
   duplicateEquipment,
@@ -41,7 +42,7 @@ import {
 } from '../../domain/completion';
 import { evalCond } from '../../domain/conditions';
 import { hoodFanTags, hoodLinks, traverseLayout } from '../../domain/equipmentCalcs';
-import { EQUIPMENT_TYPES, equipmentType, nextDesignation } from '../../domain/equipmentTypes';
+import { EQUIPMENT_TYPES, equipmentType, nextDesignation, type EquipmentTypeKey } from '../../domain/equipmentTypes';
 import { getSpec, presetUnitType, type FieldSpec, type SectionSpec, type SequenceSpec } from '../../domain/specs';
 import { airflowOnlySections } from '../../domain/unitScope';
 import { AirflowTable } from '../components/AirflowTable';
@@ -446,6 +447,128 @@ function DuplicateCard({ equipment, all }: { equipment: Equipment; all: Equipmen
               Create {name || '…'}
             </button>
             <button type="button" className="btn" onClick={() => setOpen(false)}>
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Move the unit to another equipment type (a schedule table read as the wrong type): same record, so its values,
+ * photos, issues and history go with it; it takes the new type's next free slot.
+ */
+function ChangeTypeCard({ equipment, all }: { equipment: Equipment; all: Equipment[] }) {
+  const nav = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [type, setType] = useState<EquipmentTypeKey | ''>('');
+  const [designation, setDesignation] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const info = equipmentType(equipment.type);
+  const target = type ? equipmentType(type) : null;
+  const same = target ? all.filter((e) => e.type === target.key && e.id !== equipment.id) : [];
+  const slot = (() => {
+    if (!target) return null;
+    const used = new Set(same.map((e) => e.slot));
+    for (let s = 1; s <= target.capacity; s++) if (!used.has(s)) return s;
+    return null;
+  })();
+  const name = (designation ?? equipment.designation).trim();
+  const taken = same.some((e) => e.designation.trim().toLowerCase() === name.toLowerCase());
+  const close = () => {
+    setOpen(false);
+    setType('');
+    setDesignation(null);
+    setError(null);
+  };
+  return (
+    <section className="card card-pad stack" aria-labelledby="chtype-h" data-testid="change-type">
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <h2 id="chtype-h" style={{ margin: 0 }}>
+          Equipment type
+        </h2>
+        {!open && (
+          <button type="button" className="btn" data-testid="change-type-open" onClick={() => setOpen(true)}>
+            Change type…
+          </button>
+        )}
+      </div>
+      <p className="small muted" style={{ margin: 0 }}>
+        {equipment.designation || 'This unit'} is under <b>{info.plural}</b> (workbook slot {equipment.slot}).
+      </p>
+      {open && (
+        <>
+          <div className="field">
+            <label className="field-label" htmlFor="chtype-type">
+              Move to
+            </label>
+            <select
+              id="chtype-type"
+              className="select"
+              data-testid="change-type-select"
+              value={type}
+              onChange={(e) => setType(e.target.value as EquipmentTypeKey)}
+            >
+              <option value="">Choose a type…</option>
+              {EQUIPMENT_TYPES.filter((t) => t.key !== equipment.type).map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.plural}
+                </option>
+              ))}
+            </select>
+            {target && (
+              <span className="field-hint" data-testid="change-type-slot">
+                {slot === null
+                  ? `The workbook has room for ${target.capacity} ${target.plural}: none free.`
+                  : `${target.plural} slot ${slot} in the workbook`}
+              </span>
+            )}
+          </div>
+          <div className="field">
+            <label className="field-label" htmlFor="chtype-designation">
+              Designation
+            </label>
+            <input
+              id="chtype-designation"
+              className="input"
+              value={designation ?? equipment.designation}
+              onChange={(e) => setDesignation(e.target.value)}
+              autoComplete="off"
+            />
+            {taken && <span className="field-hint">This designation is already used by another {target?.plural}.</span>}
+          </div>
+          <p className="small muted" style={{ margin: 0 }}>
+            The unit keeps its readings, photos, issues and history. Values the new type has no place for stay with the
+            unit but are not shown or exported. To fill the new type&apos;s schedule fields, run <b>Import schedule</b>{' '}
+            again with the table set to the right type: the moved units show as <b>Update</b> and get the values.
+          </p>
+          {error && (
+            <div className="callout" data-tone="red" role="alert">
+              {error}
+            </div>
+          )}
+          <div className="row">
+            <button
+              type="button"
+              className="btn btn-primary"
+              data-testid="change-type-apply"
+              disabled={!target || slot === null || !name || taken}
+              onClick={() =>
+                target &&
+                void changeEquipmentType(equipment.id, target.key, name)
+                  .then(() => {
+                    close();
+                    nav(`/p/${equipment.projectId}/e/${equipment.id}`, { replace: true });
+                    window.scrollTo(0, 0);
+                  })
+                  .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+              }
+            >
+              {target ? `Move to ${target.plural}` : 'Move'}
+            </button>
+            <button type="button" className="btn" onClick={close}>
               Cancel
             </button>
           </div>
@@ -943,6 +1066,8 @@ export function EquipmentPage() {
           ))}
 
           <DuplicateCard equipment={equipment} all={all} />
+
+          <ChangeTypeCard equipment={equipment} all={all} />
 
           <section className="card card-pad stack" aria-label="Unit actions">
             <div className="field">

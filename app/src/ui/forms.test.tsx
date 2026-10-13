@@ -27,6 +27,7 @@ const DRAWING: ScheduleFile = {
     {
       name: 'p.1 FAN SCHEDULE',
       type: 'fan',
+      snapshot: 'data:image/jpeg;base64,AAAA',
       rows: [
         ['UNIT NO.', 'SERVICE', 'CFM', 'REMARKS'],
         ['EF-1', 'HOOD H-1', '1,890', 'EXISTING TO REMAIN'],
@@ -456,6 +457,59 @@ describe('Schedule import: every table of a drawing in one go (jsdom)', () => {
     expect(by('RTU-7').data.designOaCfm).toBe(500);
     const info = (await db.projects.get(p.id))!.info;
     expect([info.abOaDesign, info.abExhaustDesign, info.abNet]).toEqual([3852, 3890, -38]);
+  });
+});
+
+describe('Schedule import: preview a table (jsdom)', () => {
+  it('shows the table as drawn and the rows read from it, per table', async () => {
+    const user = userEvent.setup();
+    const p = await createProject({ name: 'Job' });
+    renderAt(`/p/${p.id}/schedule`);
+    await user.click(await screen.findByRole('button', { name: 'File (CSV, Excel, PDF, photo)' }));
+    await user.upload(screen.getByLabelText('Schedule file'), new File(['x'], 'M3.0.pdf', { type: 'application/pdf' }));
+    const picks = await screen.findAllByTestId('table-pick');
+    expect(screen.queryByTestId('table-peek')).toBeNull();
+    await user.click(within(picks[0]).getByRole('button', { name: 'Preview' }));
+    const peek = within(picks[0]).getByTestId('table-peek');
+    expect(within(peek).getByTestId('table-peek-img')).toHaveAttribute('src', 'data:image/jpeg;base64,AAAA');
+    const rows = within(peek).getByTestId('table-peek-rows').querySelectorAll('tr');
+    expect([...rows].map((r) => r.textContent)).toEqual([
+      'UNIT NO.SERVICECFMREMARKS',
+      'EF-1HOOD H-11,890EXISTING TO REMAIN',
+      'EF-2HOOD H-22,300',
+      'EF-17SIGN ROOMREMOVE AND CAP',
+    ]);
+    // a table without a picture (the air balance): only the rows
+    await user.click(within(picks[2]).getByRole('button', { name: 'Preview' }));
+    expect(within(picks[2]).queryByTestId('table-peek-img')).toBeNull();
+    expect(within(picks[2]).getByTestId('table-peek-rows')).toHaveTextContent('RTU-7');
+    await user.click(within(picks[0]).getByRole('button', { name: 'Hide' }));
+    expect(within(picks[0]).queryByTestId('table-peek')).toBeNull();
+  });
+});
+
+describe('Change a unit’s equipment type (jsdom)', () => {
+  it('moves an RTU imported as a pump to the RTUs, keeping its values', async () => {
+    const user = userEvent.setup();
+    const p = await createProject({ name: 'Job' });
+    const u = await addEquipment(p.id, 'pump', 'RTU-1');
+    await setFields('equipment', u.id, { 'data.manufacturer': 'Carrier', 'data.model': '50FCQ' });
+    renderAt(`/p/${p.id}/e/${u.id}`);
+    const card = await screen.findByTestId('change-type');
+    expect(card).toHaveTextContent('RTU-1 is under Pumps (workbook slot 1).');
+    await user.click(within(card).getByTestId('change-type-open'));
+    await user.selectOptions(within(card).getByTestId('change-type-select'), 'rtu');
+    expect(within(card).getByTestId('change-type-slot')).toHaveTextContent('RTUs slot 1 in the workbook');
+    await user.click(within(card).getByRole('button', { name: 'Move to RTUs' }));
+    await waitFor(async () => expect((await db.equipment.get(u.id))!.type).toBe('rtu'));
+    expect((await db.equipment.get(u.id))!.data).toMatchObject({
+      manufacturer: 'Carrier',
+      model: '50FCQ',
+      unitType: 'RTU',
+    });
+    expect(await screen.findByText(/RTU-1 is under/)).toHaveTextContent('RTU-1 is under RTUs (workbook slot 1).');
+    // the page is now an RTU page: its static pressure profile section is there
+    expect(await screen.findByRole('heading', { level: 2, name: /Static pressure profile/ })).toBeInTheDocument();
   });
 });
 

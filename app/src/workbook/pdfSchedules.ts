@@ -24,6 +24,8 @@ export interface FoundTable extends PdfTable {
   ocr: boolean;
   /** body cells OCR was unsure of: [row index in `rows`, column] */
   lowConfidence: [number, number][];
+  /** a picture of the table as drawn (JPEG data URL), to tell the tables apart in the import */
+  snapshot?: string;
 }
 
 export const MAX_PDF_PAGES = 200;
@@ -72,6 +74,48 @@ async function renderRegion(
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   await page.render({ canvas, canvasContext: ctx, viewport }).promise;
   return canvas;
+}
+
+// ------------------------------------------------------------------------------------------ table pictures
+/** at most this many pictures per file (each ~50-200 kB) */
+const MAX_SNAPSHOTS = 60;
+const SNAPSHOT_PX = 1600;
+
+const pad = (b: Box, m: number, w: number, h: number): Box => ({
+  x0: Math.max(0, b.x0 - m),
+  y0: Math.max(0, b.y0 - m),
+  x1: Math.min(w, b.x1 + m),
+  y1: Math.min(h, b.y1 + m),
+});
+
+/** A table's picture from its PDF page: up to 1600 px wide, 2× at most. */
+async function pageSnapshot(page: PDFPageProxy, box: Box): Promise<string | undefined> {
+  const view = page.getViewport({ scale: 1 });
+  const b = pad(box, 6, view.width, view.height);
+  const w = b.x1 - b.x0;
+  const h = b.y1 - b.y0;
+  if (w <= 0 || h <= 0) return undefined;
+  const scale = Math.min(2, SNAPSHOT_PX / w, Math.sqrt(4_000_000 / (w * h)));
+  try {
+    return (await renderRegion(page, scale, b)).toDataURL('image/jpeg', 0.72);
+  } catch {
+    return undefined;
+  }
+}
+
+/** A table's picture from a photo (box in the photo's working pixels). */
+function canvasSnapshot(source: CanvasImageSource, k: number, box: Box, W: number, H: number): string | undefined {
+  const b = pad(box, 6, W, H);
+  const w = b.x1 - b.x0;
+  const h = b.y1 - b.y0;
+  if (w <= 0 || h <= 0) return undefined;
+  const s = Math.min(1, SNAPSHOT_PX / w);
+  const c = canvasOf(w * s, h * s);
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(source, b.x0 / k, b.y0 / k, w / k, h / k, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.72);
 }
 
 // ------------------------------------------------------------------------------------------ text recognition
@@ -330,6 +374,7 @@ async function sheetTables(
     title: t.title,
     hasHeader: t.hasHeader,
     type: t.type,
+    box: t.box,
     rows: t.rows.map((r) => r.map((c) => cleanOcrCell(typeof c === 'string' ? c : null))),
     ocr: true,
     lowConfidence: t.lowConfidence,
@@ -346,6 +391,7 @@ function textTables(lines: Lines, text: PdfPageText, known: readonly string[]): 
       title: t.title,
       hasHeader: t.hasHeader,
       type: t.type,
+      box: t.box,
       rows: t.rows,
       ocr: false,
       lowConfidence: [],
@@ -374,8 +420,15 @@ export async function readPdfSchedules(
         await renderRegion(page, lineScale, { x0: 0, y0: 0, x1: view.width, y1: view.height }),
         lineScale,
       );
+      const before = tables.length;
+      const snap = async () => {
+        for (const t of tables.slice(before))
+          if (t.box && tables.filter((x) => x.snapshot).length < MAX_SNAPSHOTS)
+            t.snapshot = await pageSnapshot(page, t.box);
+      };
       if (text.items.some((it) => it.str.trim())) {
         tables.push(...textTables(lines, text, known));
+        await snap();
         page.cleanup();
         continue;
       }
@@ -401,6 +454,7 @@ export async function readPdfSchedules(
           ...(await sheetTables(ocr, { canvas, scale, x0: r.x0, y0: r.y0 }, lines, known, text.page, progress, tag)),
         );
       }
+      await snap();
       page.cleanup();
     }
     return { tables, ocrPages, pageCount: doc.numPages };
@@ -466,7 +520,6 @@ export async function readImageSchedules(
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, W, H);
   ctx.drawImage(bitmap, 0, 0, W, H);
-  bitmap.close();
   progress('Finding the tables…');
   // a schedule photo: about 8 in. across the frame
   const dpi = W / 8;
@@ -474,8 +527,12 @@ export async function readImageSchedules(
   eraseLines(canvas, dpi);
   const ocr = new Ocr(progress);
   try {
-    return await sheetTables(ocr, { canvas, scale: 1, x0: 0, y0: 0 }, lines, known, 1, progress, 'Photo');
+    const found = await sheetTables(ocr, { canvas, scale: 1, x0: 0, y0: 0 }, lines, known, 1, progress, 'Photo');
+    // the pictures from the photo itself (the working canvas has its lines erased)
+    for (const t of found.slice(0, MAX_SNAPSHOTS)) if (t.box) t.snapshot = canvasSnapshot(bitmap, k, t.box, W, H);
+    return found;
   } finally {
+    bitmap.close();
     await ocr.stop();
   }
 }
