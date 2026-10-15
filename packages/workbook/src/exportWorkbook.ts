@@ -22,6 +22,9 @@ import { anchorSizeEmu, type CoverPhotoCropper, drawingPictures } from './coverP
 import { placeCertImages, type CertImages, type CertImagesReport } from './certImages.js';
 import type { Cell, LayoutData, ProjectData } from './types.js';
 
+
+/** A short date range, M/D[/YY]-[M/]D/YY (formatDateRange in the app). */
+const DATE_RANGE = /^\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\s*[-–]\s*(?:\d{1,2}\/)?\d{1,2}\/\d{2,4}$/;
 export class FormulaCellError extends Error {
   constructor(public sheet: string, public ref: string, public formula: string, public source: string) {
     super(`Refusing to write ${source} into ${sheet}!${ref}: the template cell is a formula (=${formula.slice(0, 80)})`);
@@ -378,6 +381,8 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
         throw new ValidationError(`${path}: expected a number or ${NOTATIONS.join(' / ')}, got "${value}"`);
       case 'date': {
         if (isNotation) return { kind: 'text', text: value as string };
+        // a range of days ("10/2-5/26": the TAB dates on the field sheets' headers) is written as text
+        if (typeof value === 'string' && DATE_RANGE.test(value.trim())) return { kind: 'text', text: value.trim() };
         if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new ValidationError(`${path}: expected an ISO date YYYY-MM-DD, got "${value}"`);
         const serial = isoToSerial(value);
         const style = sheet.cell(ref)?.s;

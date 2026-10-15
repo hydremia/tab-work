@@ -138,4 +138,21 @@ describe('printed layout at export (no empty pages, ToC page numbers)', () => {
       expect(fill).not.toMatch(/FFFFFF00/i);
     }
   });
+
+  it('centres every printed sheet horizontally (the cover sat left of centre)', async () => {
+    const { bytes } = await exportWorkbookWithReport(templateBytes(), cap(), { hideUnused: true });
+    const { sheet } = await open(bytes);
+    for (const name of ['Cover Page', 'Certification', 'RTUs', 'Hoods']) {
+      const { xml } = await sheet(name);
+      expect(xml).toMatch(/<printOptions horizontalCentered="1"\/><pageMargins/);
+    }
+  });
+
+  it('writes a TAB date range as text in the Date cell', async () => {
+    const p = cap();
+    p.sections.projectInfo = { fields: { tabDate: '10/2-5/26' } };
+    const { bytes } = await exportWorkbookWithReport(templateBytes(), p, { hideUnused: true });
+    const { xml } = await (await open(bytes)).sheet('{Project Information}');
+    expect(xml).toMatch(/<c r="E11"[^>]*t="inlineStr"[^>]*><is><t>10\/2-5\/26<\/t><\/is><\/c>/);
+  });
 });
