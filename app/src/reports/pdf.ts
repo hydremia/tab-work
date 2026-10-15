@@ -47,6 +47,8 @@ export interface RenderOptions {
   onProgress?: (done: number, total: number) => void;
   /** Creation date written into the PDF info (default now). */
   now?: Date;
+  /** false: no "Page x of N" in the footer (the final report numbers the pages it appends). */
+  pageNumbers?: boolean;
 }
 
 const INK = rgb(0.08, 0.12, 0.17);
@@ -370,8 +372,10 @@ export async function renderReportPdf(
       color: RULE,
     });
     text(page, model.firm, MARGIN_X, fy, 8.5, regular, MUTED);
-    const pn = `Page ${i + 1} of ${nPages}`;
-    text(page, pn, PAGE_W - MARGIN_X - width(pn, 8.5), fy, 8.5, regular, MUTED);
+    if (opts.pageNumbers !== false) {
+      const pn = `Page ${i + 1} of ${nPages}`;
+      text(page, pn, PAGE_W - MARGIN_X - width(pn, 8.5), fy, 8.5, regular, MUTED);
+    }
     const mid = model.reportDate;
     text(page, mid, (PAGE_W - width(mid, 8.5)) / 2, fy, 8.5, regular, MUTED);
   });

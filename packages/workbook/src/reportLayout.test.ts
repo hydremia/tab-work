@@ -155,4 +155,13 @@ describe('printed layout at export (no empty pages, ToC page numbers)', () => {
     const { xml } = await (await open(bytes)).sheet('{Project Information}');
     expect(xml).toMatch(/<c r="E11"[^>]*t="inlineStr"[^>]*><is><t>10\/2-5\/26<\/t><\/is><\/c>/);
   });
+
+  it('keeps the Site Photos entry when the final report appends the photo report', async () => {
+    const { report } = await exportWorkbookWithReport(templateBytes(), cap(), {
+      hideUnused: true,
+      appended: ['photos'],
+    });
+    // 48 printed pages: the photo report starts on page 49
+    expect(report.layout!.toc.find((t) => t.label === 'Site Photos')?.page).toBe(49);
+  });
 });

@@ -160,6 +160,34 @@ describe('final report assembly', () => {
     expect(toc).toMatch(/Page 2 of 6\s+page 2 page 3 page 5 page 6$/);
   });
 
+  it('appends the photo report, numbered on, with the Site Photos entry pointing at it', async () => {
+    const specs: Spec[] = [
+      { footer: false, lines: ['CERTIFIED'] },
+      {
+        toc: [
+          ['Rooftop Units', 3],
+          ['Site Photos', 4],
+        ],
+      },
+      { title: 'Rooftop Unit Report', lines: ['System|RTU-1'] },
+    ];
+    const r = await assembleReport(
+      await report(specs),
+      { bytes: new Uint8Array(), groups: [] },
+      (b) => readPdfText(b),
+      { title: 'TAB Report', author: 'a2b' },
+      { bytes: await figures(2), number: { right: 570, y: 40, size: 8.5 }, toc: /photo/i },
+    );
+    expect(r.pages).toBe(5);
+    const text = (await readPdfText(r.bytes)).pages.map((p) => p.items.map((i) => i.str).join(' '));
+    expect(text[3]).toContain('FIGURE 0');
+    expect(text[3]).toContain('Page 4 of 5');
+    expect(text[4]).toContain('Page 5 of 5');
+    expect(text[2]).toContain('Page 3 of 5');
+    // contents: Rooftop Units page 3, Site Photos page 4 (the first appended page)
+    expect(text[1]).toMatch(/Page 2 of 5\s+page 3 page 4$/);
+  });
+
   it('without figures it only numbers the pages', async () => {
     const r = await assembleReport(
       await report(SPECS.slice(0, 4)),

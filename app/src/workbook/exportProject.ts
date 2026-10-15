@@ -101,6 +101,14 @@ export async function exportProject(projectId: string, opts: ExportOptions = {})
     toleranceColors: bundle.project.tolerance,
     // unused units, pages and empty rows hidden, so the workbook prints clean without the Print Report macro
     hideUnused: true,
+    // the final report appends the photo report: the ToC's Site Photos entry points after the workbook's pages
+    appended: (await db.photos
+      .where('projectId')
+      .equals(projectId)
+      .filter((p) => p.category !== 'cover')
+      .count())
+      ? ['photos']
+      : [],
   };
 
   let out: { bytes: Uint8Array; report: ExportReport } | undefined;
