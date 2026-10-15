@@ -159,6 +159,9 @@ async function main() {
   rmSync(OUT, { recursive: true, force: true });
   mkdirSync(SHOTS, { recursive: true });
   mkdirSync(OUT, { recursive: true });
+  // the sample cover photo is generated (git-ignored): the cover, photo report and zip checks need it
+  if (!existsSync(COVER))
+    spawnSync('npm', ['run', 'make-photo', '-w', 'spike/export'], { cwd: join(APP, '..'), stdio: 'inherit' });
   const server = await startPreview();
   const browser = await launch();
   // every page of every context: report CSP violations (securitypolicyviolation events and console reports)
@@ -375,13 +378,16 @@ async function main() {
     const rtuUi: Record<string, string> = {};
     await readLivePanels(page, 'rtu', rtuUi);
     check(
-      'RTU-1 static profile: TSP 1.77, ESP 1.07, unit ΔP -0.70 in. w.g.; filter Δ -0.20, wheel absent, coil Δ -0.40',
+      'RTU-1 static profile (rev 08: filter, coil, reheat, fan, heat): TSP 1.77, ESP 1.07, unit ΔP -0.70 in. w.g.; filter Δ -0.20, coil Δ -0.50, reheat and fan Δ — (no reheat reading), heat Δ 0.00, slot 6 absent',
       rtuUi['rtu.sp-tsp'] === '1.77 in. w.g.' &&
         rtuUi['rtu.sp-esp'] === '1.07 in. w.g.' &&
         rtuUi['rtu.sp-unitdp'] === '-0.70 in. w.g.' &&
         rtuUi['rtu.sp-dp-1'] === 'Δ -0.20' &&
-        rtuUi['rtu.sp-dp-2'] === 'absent' &&
-        rtuUi['rtu.sp-dp-3'] === 'Δ -0.40' &&
+        rtuUi['rtu.sp-dp-2'] === 'Δ -0.50' &&
+        rtuUi['rtu.sp-dp-3'] === 'Δ —' &&
+        rtuUi['rtu.sp-dp-4'] === 'Δ —' &&
+        rtuUi['rtu.sp-dp-5'] === 'Δ 0.00' &&
+        rtuUi['rtu.sp-dp-6'] === 'absent' &&
         rtuUi['rtu.unit-esp-actual'] === '1.07',
       JSON.stringify(rtuUi),
     );

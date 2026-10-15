@@ -83,7 +83,7 @@ async function scrollTo(page: Page, id: string) {
 export async function readLivePanels(page: Page, prefix: string, ui: Record<string, string>) {
   for (const id of ['sp-tsp', 'sp-esp', 'sp-unitdp', 'motor-fla', 'motor-bhp', 'motor-avg-volts', 'motor-avg-amps'])
     ui[`${prefix}.${id}`] = (await page.getByTestId(id).innerText()).trim();
-  for (let k = 1; k <= 5; k++) ui[`${prefix}.sp-dp-${k}`] = (await page.getByTestId(`sp-dp-${k}`).innerText()).trim();
+  for (let k = 1; k <= 6; k++) ui[`${prefix}.sp-dp-${k}`] = (await page.getByTestId(`sp-dp-${k}`).innerText()).trim();
   if ((await page.getByTestId('unit-esp-actual').count()) > 0)
     ui[`${prefix}.unit-esp-actual`] = (await page.getByTestId('unit-esp-actual').innerText()).trim();
 }
@@ -233,11 +233,21 @@ export async function fillNewTypes(
   await photo(page, 'Motor / nameplate', photoFile);
   await page.waitForTimeout(600);
   await readLivePanels(page, 'fan', ui);
-  const fanStatic = await page.locator('#sec-static').innerText();
+  // rev 08: the components the unit type lacks are hidden inputs and "absent" on the strip
+  const fanStaticFields = await page
+    .locator('#sec-static [data-field]')
+    .evaluateAll((els) =>
+      els
+        .map((e) => e.getAttribute('data-field')!)
+        .filter((k) => /^sp(Entering|Filter|Coil|Wheel|Reheat|Desiccant|Burner|Core|Fan|Heat)$/.test(k)),
+    );
+  const fanDps = [1, 2, 3, 4, 5, 6].map((k) => ui[`fan.sp-dp-${k}`]);
   check(
     'EF-1 complete (green); only the fan is on the static profile',
-    (await badge(page)).includes('Complete') && (fanStatic.match(/Auto N\/A/g) ?? []).length >= 4,
-    await badge(page),
+    (await badge(page)).includes('Complete') &&
+      fanStaticFields.join(',') === 'spEntering,spFan' &&
+      fanDps.slice(1).every((t) => t === 'absent'),
+    `${await badge(page)}; inputs ${fanStaticFields.join(', ')}; ΔP ${fanDps.join(' ')}`,
   );
   await scrollTo(page, 'sec-static');
   await docShot('09-fan');
@@ -520,9 +530,10 @@ export async function recalcCrossCheck(file: string, wb: ProjectData, ui: Record
     await cmp(`${name} corrected FLA`, sheet, `D${P0 + 14}`, mc.correctedFla);
     await cmp(`${name} estimated BHP`, sheet, `G${P0 + 14}`, mc.bhp);
     const dps: string[] = [];
-    for (const col of ['D', 'F', 'H', 'J', 'L']) dps.push(String((await val(sheet, `${col}${P0 + 24}`)) ?? ''));
+    // rev 08: the ΔP text of components 1-6 in C:H of the row below the readings
+    for (const col of ['C', 'D', 'E', 'F', 'G', 'H']) dps.push(String((await val(sheet, `${col}${P0 + 21}`)) ?? ''));
     check(
-      `recalc: ${name} component ΔP texts (${sheet}!D:L${P0 + 24}) = app`,
+      `recalc: ${name} component ΔP texts (${sheet}!C:H${P0 + 21}) = app`,
       dps.every((t, k) => t === (sp.dpText[k] ?? '')),
       dps.join(' | '),
     );
@@ -533,7 +544,7 @@ export async function recalcCrossCheck(file: string, wb: ProjectData, ui: Record
     const wbEsp = await val(sheet, `I${P0 + 25}`);
     const wbFla = await val(sheet, `D${P0 + 14}`);
     const wbBhp = await val(sheet, `G${P0 + 14}`);
-    const uiDps = [1, 2, 3, 4, 5].map((k) => shown(`sp-dp-${k}`));
+    const uiDps = [1, 2, 3, 4, 5, 6].map((k) => shown(`sp-dp-${k}`));
     check(
       `UI panels = recalculated workbook: ${name} TSP ${shown('sp-tsp')}, ESP ${shown('sp-esp')}, corrected FLA ${shown('motor-fla')}, BHP ${shown('motor-bhp')}`,
       shown('sp-tsp') === fmt2(wbTsp, ' in. w.g.') &&
