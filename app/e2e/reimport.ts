@@ -264,7 +264,7 @@ export async function reimportFlow(
     await page.getByTestId('equip-RTU-1').click();
     await page.waitForURL(/\/e\//);
     const val = (k: string) => page.locator(`[data-field="${k}"] input`).first().inputValue();
-    const remarkNow = await page.locator('#sec-remarks textarea').inputValue();
+    const remarkNow = await page.locator('#sec-remarks [data-field="remarks"] textarea').inputValue();
     const s1 = await page.locator('#supply-0-finalVel').inputValue();
     const a1 = await val('amps1');
     const rpm = await val('fanRpmFinal');

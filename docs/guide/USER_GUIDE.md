@@ -928,8 +928,18 @@ would: unit sheets with no units of their type (e.g. VAVs, Traverses), unused un
 nothing on them, empty outlet / grille rows, and the Equipment Summary and Building Balance lines of units the
 project doesn't have. Printing or saving as PDF from Excel prints only the used pages. To fill in more by hand in
 Excel, unhide the rows (select the rows around them → right-click → **Unhide**) or the sheet (right-click a sheet tab
-→ **Unhide…**); the next export from the app sets it all again. The ToC page numbers still come from Excel
-(*Print Report*, or the ToC button).
+→ **Unhide…**); the next export from the app sets it all again.
+
+It also settles the page layout:
+- no page prints empty: a unit's continuation page with nothing on it goes, page break included (Excel used to print
+  it with only the page header);
+- the **Summary - New** remarks table keeps its ruled empty lines on its first page only, and grows onto a second page
+  only when the remarks need it; **Summary - (E)** prints only when the project has existing equipment or remarks for
+  it;
+- the **table of contents** gets each section's real page number, and sections the report doesn't have (ERVs,
+  Traverses, Site Photos, Mechanical Floorplan(s)) are left off. Floorplans attached by hand after printing aren't
+  listed;
+- the yellow fill on the hood pages' design and manufacturer cells (a template working mark) is removed.
 
 To send out the report *and* freeze the data, use **Issue report as Prelim** instead (see
 [section 10](#issue-the-report-lock)). The plain **Export** button never locks anything, so use it for working copies
@@ -1184,8 +1194,8 @@ The dictionary comes with the app, so it works offline. Typing in a field also g
 
 The figures can go **into** the report, each one next to what it supports:
 
-1. In Excel, run **Print Report** and save the PDF (it hides unused units, updates the table of contents and prints
-   every page; footers read *Page x of N*).
+1. In Excel, save the report as PDF as you do now (the report sheets, without the *{Project Information}* and
+   *{Equipment Data Entry}* sheets). The export already hid what isn't used and numbered the contents.
 2. In the app, **Export → Final report (pick the Excel PDF)** and pick that PDF.
 
 The app adds its figures and downloads *<project> - TAB Report <label> <date>.pdf*:
@@ -1194,7 +1204,8 @@ The app adds its figures and downloads *<project> - TAB Report <label> <date>.pd
   one), each **traverse**'s figure after the Traverses page that holds it, pump curves after the pump's page;
 - the **summary** page after the Building Balance;
 - every page numbered **Page x of N** over the whole report (the cover stays unnumbered), and the **table of contents**
-  page numbers moved to match;
+  pointing at each section's first page in the final report (found by its page title, so stale numbers in the PDF
+  don't matter; an entry whose section isn't in the PDF loses its number);
 - **Include outlet / valve charts** adds the design-vs-actual bar charts to each unit's figures (off by default: the
   unit page already lists the outlets, coloured by tolerance).
 

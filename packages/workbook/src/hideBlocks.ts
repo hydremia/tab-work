@@ -271,7 +271,7 @@ export async function hideUnusedBlocks(
 }
 
 /** Hide (or show again) a sheet; the workbook's active tab moves off a hidden sheet. */
-function setSheetHidden(wbXml: string, index: number, hidden: boolean): string {
+export function setSheetHidden(wbXml: string, index: number, hidden: boolean): string {
   let i = -1;
   let xml = wbXml.replace(/<sheet\b[^>]*?\/>/g, (tag) => {
     i++;

@@ -12,7 +12,8 @@
  *   - figures whose unit is not found follow the last page of their sheet, or the end of the report.
  *
  * The workbook PDF's own footer ("Page 7" or "Page 7 of 55") is covered and written again; pages without one (the
- * cover) stay unnumbered but are counted. Pure planning (planReport) is separate from the PDF work so it is tested on
+ * cover) stay unnumbered but are counted. The table of contents' numbers are found from each entry's label (the
+ * section's first page in the report), not from the workbook's numbers, which can be stale. Pure planning (planReport) is separate from the PDF work so it is tested on
  * text alone.
  */
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
@@ -57,8 +58,11 @@ export interface ReportPlan {
   placed: { key: string; unit: string | null; after: number; how: 'unit' | 'sheet' | 'summary' | 'end' }[];
   /** the workbook footer's page number on each report page (absent: no footer) */
   footers: Map<number, Box & { size: number }>;
-  /** table of contents entries: "page 12" on report page `page`, pointing at report page `target` (0-based) */
-  toc: { page: number; box: Box; size: number; target: number }[];
+  /**
+   * table of contents entries: "page 12" on report page `page`, pointing at report page `target` (0-based; -1: the
+   * entry's section is not in the report, its number is removed)
+   */
+  toc: { page: number; box: Box; size: number; target: number; label: string }[];
   titles: (string | null)[];
 }
 
@@ -119,6 +123,43 @@ function lines(items: readonly Item[]): { s: string; box: Box; size: number }[] 
 }
 
 const FOOTER = /^Page\s*\d+(\s*of\s*\d+)?$/i;
+
+/**
+ * The section a ToC entry names, by its label: the first page of the section in the report (print-header titles, or
+ * the heading text for the pages without one). The workbook's own "page n" can be stale (the template's numbers, or
+ * counted before pages were hidden), so the target is found, not trusted; an unknown label keeps its number.
+ */
+const TOC_SECTIONS: { label: RegExp; titles?: string[]; text?: RegExp }[] = [
+  { label: /^table of contents/i, titles: ['Table of Contents'] },
+  { label: /^report summary/i, text: /Report Summary (-|and Remarks)/ },
+  { label: /equipment summary|building balance/i, titles: ['Equipment Summary', 'Building Balance Report'] },
+  { label: /hydronic system summary/i, titles: ['Hydronic System Summary'] },
+  { label: /^appendix a\b|certifications?$/i, text: /^Certification Information$/ },
+  { label: /^appendix b\b|abbreviation/i, text: /^Abbreviation Legend$/ },
+  { label: /^appendix c\b|calibration/i, text: /^Instrumentation and Calibration/ },
+  { label: /floor ?plan|schematic/i }, // attached separately: never in the workbook's PDF
+  { label: /site photos/i, text: /^Site Photos$/ },
+  { label: /rooftop/i, titles: ['Rooftop Unit Report'] },
+  { label: /make-?up air/i, titles: ['Make-up Air Unit Report'] },
+  { label: /energy recovery/i, titles: ['Energy Recovery Unit Report'] },
+  { label: /^fans\b|exhaust fans|vav/i, titles: ['Fan Report', 'Small Exhaust Fan Report', 'VAV Terminal Report'] },
+  { label: /hood/i, titles: ['Hood Airflow Report'] },
+  { label: /traverse/i, titles: ['Traverse Measurement Report'] },
+  { label: /^pumps?\b/i, titles: ['Pump Report'] },
+  { label: /balancing valve/i, titles: ['Balancing Valve Report'] },
+  { label: /plant equipment|flow measurement/i, titles: ['Plant Equipment Report', 'Flow Measurement Report'] },
+];
+
+/** Where a ToC entry points: a page index, -1 when its section is not in the report, null for an unknown label. */
+function tocTarget(label: string, pages: readonly PdfPageText[], titles: readonly (string | null)[]): number | null {
+  const sec = TOC_SECTIONS.find((x) => x.label.test(label));
+  if (!sec) return null;
+  for (let i = 0; i < pages.length; i++) {
+    if (sec.titles?.includes(titles[i] ?? '')) return i;
+    if (sec.text && titles[i] !== 'Table of Contents' && itemsOf(pages[i]).some((it) => sec.text!.test(it.s))) return i;
+  }
+  return -1;
+}
 /** TABReport's SyncToCPageCounts writes "page 12" (lower case; the footer is "Page 2") */
 const TOC_ENTRY = /^page\s*(\d+)$/;
 
@@ -192,11 +233,22 @@ export function planReport(pages: readonly PdfPageText[], groups: readonly Figur
     if (foot) footers.set(i, { ...foot.box, size: foot.size });
     if (titles[i] === 'Table of Contents')
       for (const it of items) {
-        if (it.y < Math.min(72, p.height * 0.1)) continue; // the footer band
+        if (foot && Math.abs(it.y - foot.box.y) < 2) continue; // the footer itself ("Page 2" reads as an entry)
         const m = TOC_ENTRY.exec(it.s);
-        const n = m ? Number(m[1]) : NaN;
-        if (Number.isInteger(n) && n >= 1 && n <= pages.length)
-          toc.push({ page: i, box: { x: it.x, y: it.y, w: it.w, h: it.size }, size: it.size, target: n - 1 });
+        if (!m) continue;
+        const n = Number(m[1]);
+        // the entry's label: the text left of the number on its line
+        const label = norm(
+          items
+            .filter((o) => o !== it && Math.abs(o.y - it.y) < Math.max(3, it.size * 0.6) && o.x < it.x)
+            .sort((a, b) => a.x - b.x)
+            .map((o) => o.s)
+            .join(' '),
+        );
+        const found = tocTarget(label, pages, titles);
+        const target = found ?? (n >= 1 && n <= pages.length ? n - 1 : null);
+        if (target === null) continue;
+        toc.push({ page: i, box: { x: it.x, y: it.y, w: it.w, h: it.size }, size: it.size, target, label });
       }
   });
   return { order, placed, footers, toc, titles };
@@ -269,9 +321,9 @@ export async function assembleReport(
       page.drawText(label, { x: cx - font.widthOfTextAtSize(label, size) / 2, y: oy + foot.y, size, font, color: ink });
     }
     for (const t of plan.toc.filter((e) => e.page === o.page)) {
-      const n = position.get(t.target);
-      if (!n) continue;
-      const s = `page ${n}`;
+      const n = t.target >= 0 ? position.get(t.target) : undefined;
+      if (t.target >= 0 && !n) continue;
+      const s = n ? `page ${n}` : '';
       const size = Math.max(6, Math.min(12, t.size));
       page.drawRectangle({
         x: ox + t.box.x - 1,

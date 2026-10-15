@@ -101,6 +101,11 @@ export interface TableDef {
    * for it, the export ends the sheet's print area at this row (the page is not printed).
    */
   printEndWhenEmpty?: number;
+  /**
+   * A ruled table longer than its first printed page (the Summary deficiencies): the export hides its empty rows past
+   * the first page and past the last row in use, so it never prints a page of empty rows.
+   */
+  fillFirstPage?: boolean;
 }
 
 /** Free-text lines (remarks). Data: string[] in order. */
@@ -201,6 +206,25 @@ export interface TemplateMap {
   coverPhoto: { sheet: string; pictureName: string };
   /** Stamp / signature pictures on the Certification sheet (added by the exporter; the template has none). */
   certImages: CertImagesDef;
+  /** Sheets whose solid yellow template fills are cleared at export (highlights.ts). */
+  unhighlight?: readonly string[];
+  /** Table of contents: the export writes "page n" for each entry (or hides an entry whose sheets print nothing). */
+  toc?: TocDef;
+}
+
+export interface TocDef {
+  sheet: string;
+  /** label column (checked against `label` before writing) and the "page n" column */
+  labelCol: string;
+  pageCol: string;
+  /** rows hidden with an entry that prints nothing: its two-row box and the spacer after it */
+  rowsPerEntry: number;
+  entries: readonly { row: number; label: string; sheets: readonly string[] }[];
+  /**
+   * Sheets fitted to the page width whose page breaks the export sets (the template has none): Excel's fit scale
+   * differs a little from any estimate, so the counted page ends are written as manual breaks for the ToC to hold.
+   */
+  exportPaged: readonly string[];
 }
 
 // ------------------------------------------------------------------------------------------ helpers
@@ -303,6 +327,7 @@ function issueTables(rev: AirRevision): TableDef[] {
     {
       key: 'issues',
       segments: [{ row: 13, count: 50 }],
+      fillFirstPage: true,
       columns: [c('no', 'B', 'number'), c('remark', 'C', 'text'), c('status', 'J', 'list', { values: ['Open', 'Closed'] }),
         c('comments', 'K', 'text')],
     },
@@ -315,6 +340,32 @@ function issueTables(rev: AirRevision): TableDef[] {
   ];
 }
 
+/** The airside ToC (TABReport's ReportSections): entry rows 10, 13 … 49, label in C, "page n" in K. */
+const AIR_TOC: TocDef = {
+  sheet: 'ToC',
+  labelCol: 'C',
+  pageCol: 'K',
+  rowsPerEntry: 3,
+  exportPaged: ['Equipment Summary'],
+  entries: [
+    { row: 10, label: 'Table of Contents', sheets: ['ToC'] },
+    { row: 13, label: 'Report Summary', sheets: ['Narrative', 'Summary - New', 'Summary - (E)'] },
+    { row: 16, label: 'Equipment Summary', sheets: ['Equipment Summary', 'Building Balance'] },
+    { row: 19, label: 'Rooftop Units', sheets: ['RTUs'] },
+    { row: 22, label: 'Make-up Air Units', sheets: ['MAUs'] },
+    { row: 25, label: 'Energy Recovery Units', sheets: ['ERVs'] },
+    { row: 28, label: 'Fans', sheets: ['Fans', 'Small Fans', 'VAVs'] },
+    { row: 31, label: 'Hood Airflow', sheets: ['Hoods'] },
+    { row: 34, label: 'Traverse', sheets: ['Traverses'] },
+    { row: 37, label: 'Appendix A', sheets: ['Certification', 'NEBB Cert ', 'NEBB Frm Cert'] },
+    { row: 40, label: 'Appendix B', sheets: ['Abbreviations'] },
+    { row: 43, label: 'Appendix C', sheets: ['Calibration'] },
+    // attached separately: no sheet, so the entry is hidden (the PDF assembly can't know about it either)
+    { row: 46, label: 'Mechanical Floorplan', sheets: [] },
+    { row: 49, label: 'Site Photos', sheets: ['Photos'] },
+  ],
+};
+
 // ------------------------------------------------------------------------------------------ the maps
 function airMap(rev: AirRevision): TemplateMap {
   return {
@@ -323,6 +374,8 @@ function airMap(rev: AirRevision): TemplateMap {
     coverPhoto: { sheet: 'Cover Page', pictureName: 'Project Photo' },
     // stamp box C51:G56 (bordered, empty); signature right of the "Signature:" label (I52), on the line I53:L53
     certImages: { sheet: 'Certification', stamp: 'C51:G56', signature: 'J51:L53', placeholder: 'C50' },
+    toc: AIR_TOC,
+    unhighlight: ['Hoods'],
 
     sections: [
       {
