@@ -221,6 +221,19 @@ describe('toProjectData', () => {
     expect(warnings.join('\n')).toMatch(/Summary - New: 1 observation not in this revision 06 workbook/);
   });
 
+  it('a TAB date range: the Date cell shows the days on site, read back into both dates', () => {
+    const b = sampleBundle();
+    b.project.info.tabDate = '2026-10-02';
+    b.project.info.tabDateEnd = '2026-10-05';
+    const { data } = toProjectData(b);
+    expect(data.sections.projectInfo.fields?.tabDate).toBe('10/2-5/26');
+    const back = fromProjectData(data);
+    expect(back.project.info).toMatchObject({ tabDate: '2026-10-02', tabDateEnd: '2026-10-05' });
+    // one day: the date as before
+    delete b.project.info.tabDateEnd;
+    expect(toProjectData(b).data.sections.projectInfo.fields?.tabDate).toBe('2026-10-02');
+  });
+
   it('coerces numeric text and warns about text in number fields', () => {
     const b = sampleBundle();
     b.equipment[0].data.hp = '5';

@@ -6,7 +6,8 @@
  *   2. Summary - (E) is hidden when the project has no existing equipment and nothing to list on it;
  *   3. a manual page break whose page holds no visible row is removed: Excel prints such a page with only the title
  *      rows (every unit's empty continuation page did, in the CAP report);
- *   4. the table of contents gets each entry's first page ("page n"), counted over the printed sheets in tab order
+ *   4. every printed sheet is centred horizontally on the paper (the cover, fitted to one page, sat left);
+ *   5. the table of contents gets each entry's first page ("page n"), counted over the printed sheets in tab order
  *      (sheets named "{…}" and hidden sheets don't print); an entry whose sheets print nothing is hidden.
  */
 import type JSZip from 'jszip';
@@ -93,6 +94,13 @@ export async function layoutReport(
       continue;
     }
     let xml = await readText(zip, s.part);
+    // every printed page centred across the paper (a sheet fitted to one page tall prints narrower than the margins
+    // and, left-aligned, sat off-centre: the cover)
+    const centred = centreHorizontally(xml);
+    if (centred !== xml) {
+      xml = centred;
+      zip.file(s.part, xml);
+    }
     const area = areaOf(s, xml);
     if (!area) {
       pagesOf.set(s.name, 0);
@@ -170,4 +178,19 @@ function setCellText(xml: string, ref: string, text: string): string {
   const attrs = m[1].replace(/\s+t="[^"]*"/, '');
   const s = attr(`<c${attrs}>`, 's');
   return xml.replace(re, `<c r="${ref}"${s ? ` s="${s}"` : ''} t="inlineStr"><is><t>${xmlEscape(text)}</t></is></c>`);
+}
+
+/** printOptions horizontalCentered="1" (added before pageMargins, its place in the schema, when missing). */
+export function centreHorizontally(xml: string): string {
+  const po = /<printOptions\b[^>]*?(\/?)>/.exec(xml);
+  if (po) {
+    if (/\bhorizontalCentered="(1|true)"/.test(po[0])) return xml;
+    const tag = po[0]
+      .replace(/\s+horizontalCentered="[^"]*"/, '')
+      .replace(/^<printOptions/, '<printOptions horizontalCentered="1"');
+    return xml.replace(po[0], tag);
+  }
+  const at = /<pageMargins\b/.exec(xml) ?? /<pageSetup\b/.exec(xml);
+  if (!at) return xml;
+  return `${xml.slice(0, at.index)}<printOptions horizontalCentered="1"/>${xml.slice(at.index)}`;
 }

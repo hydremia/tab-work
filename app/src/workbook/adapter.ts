@@ -15,6 +15,7 @@
  * oval traverses) goes into a rev 05 / 06 workbook the way it did before revision 07, or is left out with a warning.
  * fromProjectData reads both layouts (pd.templateRevision).
  */
+import { formatDateRange, parseDateRange } from '../domain/dateRange';
 import { AIR_BALANCE_KEYS } from '../domain/airBalance';
 import {
   atLeastRevision,
@@ -209,6 +210,9 @@ export function toProjectData(
   };
   put(info, 'projectName', out(project.name, pn.projectName));
   for (const k of PROJECT_INFO_KEYS) put(info, k, out(project.info[k], pn[k]));
+  // several days on site: the Date header shows the range ("10/2-5/26"), written as text
+  const range = formatDateRange(project.info.tabDate, project.info.tabDateEnd);
+  if (range) info.tabDate = range;
   const blueprints = project.blueprints
     .filter((bp) => !isBlank(bp.sheet) || !isBlank(bp.revisionDate))
     .map((bp) => {
@@ -742,6 +746,11 @@ export function fromProjectData(pd: ProjectData, opts: FromOptions = {}): Projec
     else into[key] = v;
   };
   for (const k of PROJECT_INFO_KEYS) take(k, pi[k], info, naState.fields);
+  const range = parseDateRange(info.tabDate);
+  if (range) {
+    info.tabDate = range.start;
+    info.tabDateEnd = range.end;
+  }
   take('narrative', pd.sections.narrative?.fields?.text, info, naState.fields);
   // Building Balance pressures: the fixed rows by position (their labels are the template's), the spare pair, notes.
   // A plain "N/A" in the kitchen row of a project without hoods is the automatic N/A, not a mark.

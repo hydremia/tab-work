@@ -482,10 +482,16 @@ export function ExportPage() {
         <div className="stack" style={{ gap: 6 }}>
           <h3 style={{ margin: 0 }}>Final report with the figures</h3>
           <p className="small muted" style={{ margin: 0 }}>
-            In Excel, run <b>Print Report</b> (PDF). Pick that PDF here: each static profile and traverse figure goes
-            right after its unit's pages, the summary after the Building Balance, every page is numbered "Page x of N"
-            and the table of contents follows.
+            Save the exported workbook as PDF in Excel (the report sheets). Pick that PDF here: each static profile and
+            traverse figure goes right after its unit's pages, the summary after the Building Balance, every page is
+            numbered "Page x of N" and the table of contents follows.
           </p>
+          {project.reportKind !== 'final' && (
+            <p className="small field-warning" style={{ margin: 0 }} data-testid="final-prelim-note">
+              This project's report type is <b>Prelim</b>: the certification prints N/A for the signature and date. Set{' '}
+              <b>Report</b> to Final on the Info tab, then export the workbook again.
+            </p>
+          )}
           <label className="row small" style={{ gap: 8 }}>
             <input
               type="checkbox"

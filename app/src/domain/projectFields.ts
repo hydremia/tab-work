@@ -10,6 +10,13 @@ export const INFO_FIELDS: readonly FieldSpec[] = [
   { key: 'generalContractor', label: 'General contractor', input: 'text', required: false },
   { key: 'mechanicalContractor', label: 'Mechanical contractor', input: 'text' },
   { key: 'tabDate', label: 'TAB date', input: 'date' },
+  {
+    key: 'tabDateEnd',
+    label: 'TAB date (last day)',
+    input: 'date',
+    required: false,
+    hint: 'Several days on site: the field sheets show the range, e.g. 10/2-5/26',
+  },
   { key: 'technicians', label: 'Technician(s)', input: 'text' },
   { key: 'projectManager', label: 'Project manager', input: 'text' },
   { key: 'reportDate', label: 'Report date', input: 'date' },

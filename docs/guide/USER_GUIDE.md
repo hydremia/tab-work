@@ -160,6 +160,10 @@ On any unit, a section switched off by the scope can be switched back on with **
 contractor, TAB date, technician(s), project manager, report date, and **Narrative: system set-up description**.
 Optional: architect, electrical engineer, general contractor.
 
+**Several days on site?** Fill in **TAB date (last day)** as well. The Date in every field sheet's header then shows
+the range, e.g. *10/2-5/26* (*9/30-10/3/26* across a month end). The first day is still the TAB date the calibration
+checks use. A range typed the same way in Excel's Date cell comes back as both dates on re-import.
+
 The status card at the top of **Info** lists everything still missing at the project level (project info,
 narrative, cover photo, calibration, building pressures, and on a final report the certification signature and date).
 Tap an item to jump to it.
@@ -939,7 +943,8 @@ It also settles the page layout:
 - the **table of contents** gets each section's real page number, and sections the report doesn't have (ERVs,
   Traverses, Site Photos, Mechanical Floorplan(s)) are left off. Floorplans attached by hand after printing aren't
   listed;
-- the yellow fill on the hood pages' design and manufacturer cells (a template working mark) is removed.
+- the yellow fill on the hood pages' design and manufacturer cells (a template working mark) is removed;
+- every page is centred across the paper (the cover sat left of centre).
 
 To send out the report *and* freeze the data, use **Issue report as Prelim** instead (see
 [section 10](#issue-the-report-lock)). The plain **Export** button never locks anything, so use it for working copies
