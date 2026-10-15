@@ -102,6 +102,10 @@
 }
 html {
   -webkit-text-size-adjust: 100%;
+  /* the page never pans sideways: wide content (outlet grid, unit diagram) scrolls inside its own box. Android Chrome
+     zoomed the whole page out (header and form in the left half of the screen) when something was briefly wider than
+     the screen; with this and minimum-scale=1 in the viewport it can't (pinch zoom in still works) */
+  overflow-x: clip;
 }
 body {
   margin: 0;
@@ -112,6 +116,7 @@ body {
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  overflow-x: clip;
 }
 h1,
 h2,
@@ -2701,6 +2706,7 @@ fieldset.viewer-edit {
   font-size: 0.85rem;
 }
 .grid-wrap {
+  max-width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   border: 1px solid var(--border);
