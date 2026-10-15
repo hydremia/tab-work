@@ -1,5 +1,6 @@
 import { blockLayout, TEMPLATE_MAP } from '@a2b/workbook/map';
-import { useEffect, useState } from 'react';
+import { UnitTraverses } from '../components/TraverseLink';
+import { Fragment, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import {
   useAirflowRows,
@@ -1051,18 +1052,21 @@ export function EquipmentPage() {
         <fieldset className="lockable" disabled={locked} data-testid="unit-form">
           <legend className="visually-hidden">{equipment.designation} data</legend>
           {sections.map((s) => (
-            <SectionCard
-              key={s.key}
-              section={s}
-              equipment={equipment}
-              project={project}
-              completion={c}
-              rows={rows}
-              photos={photos}
-              instruments={instruments}
-              all={all}
-              diagram={diagram}
-            />
+            <Fragment key={s.key}>
+              {/* the unit's traverses, just before its first airflow table */}
+              {s.key === sections.find((x) => x.tables?.length)?.key && <UnitTraverses equipment={equipment} />}
+              <SectionCard
+                section={s}
+                equipment={equipment}
+                project={project}
+                completion={c}
+                rows={rows}
+                photos={photos}
+                instruments={instruments}
+                all={all}
+                diagram={diagram}
+              />
+            </Fragment>
           ))}
 
           <DuplicateCard equipment={equipment} all={all} />

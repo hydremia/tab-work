@@ -165,7 +165,9 @@ export type CalcPanel =
   /** Balancing assistant for a valve system: NEBB proportional method, targets and progress (balancing.ts). */
   | 'balancing'
   /** Fan airflow measured at its hood(s): the linked hoods and their totals as the fan's airflow (hood ↔ fan link). */
-  | 'fanHood';
+  | 'fanHood'
+  /** A traverse's unit / line link (traverseLinks.ts): pickers and "fill the line from this traverse". */
+  | 'traverseLink';
 
 export interface SectionSpec {
   key: string;

@@ -1,4 +1,5 @@
 /** Live-calculation panels at the end of a section (they mirror the workbook formulas, domain/equipmentCalcs.ts). */
+import { TraverseLinkPanel } from './TraverseLink';
 import type { AirflowRow, Equipment } from '../../data/types';
 import { formatNumber, formatPercent } from '../../domain/calc';
 import type { Completion } from '../../domain/completion';
@@ -154,6 +155,7 @@ export function CalcPanel({
 }) {
   const d = equipment.data;
   if (panel === 'fanHood') return <FanHoodPanel equipment={equipment} tolerance={tolerance} />;
+  if (panel === 'traverseLink') return <TraverseLinkPanel traverse={equipment} />;
   let body: React.ReactNode = null;
   if ((panel === 'staticProfile' || panel === 'motor' || panel === 'unitEsp') && !completion) return null;
   if (panel === 'staticProfile') {

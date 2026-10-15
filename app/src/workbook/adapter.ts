@@ -15,6 +15,7 @@
  * oval traverses) goes into a rev 05 / 06 workbook the way it did before revision 07, or is left out with a warning.
  * fromProjectData reads both layouts (pd.templateRevision).
  */
+import { traverseLinkLabel } from '../domain/traverseLinks';
 import { formatDateRange, parseDateRange } from '../domain/dateRange';
 import { AIR_BALANCE_KEYS } from '../domain/airBalance';
 import {
@@ -388,6 +389,7 @@ export function toProjectData(
     const k = `${e.type}:${e.slot}`;
     if (!slotOwner.has(k)) slotOwner.set(k, e);
   }
+  let lineNames: ReturnType<typeof rowNames> | undefined;
   for (const e of b.equipment) {
     const owner = slotOwner.get(`${e.type}:${e.slot}`);
     if (owner && owner.id !== e.id) {
@@ -417,6 +419,11 @@ export function toProjectData(
     const cells = unitFieldCells(e, c, warnings, path, map);
     Object.assign(schedule, cells.schedule);
     Object.assign(fields, cells.fields);
+    // a traverse linked to a unit / line with no area served of its own prints what it measures ("RTU-3 · OA")
+    if (e.type === 'traverse' && isBlank(e.data.areaServed) && !e.naState.fields.areaServed) {
+      const what = traverseLinkLabel(e, b.equipment, (lineNames ??= rowNames(b.equipment, b.rows)));
+      if (what) fields.areaServed = what;
+    }
     if (Object.keys(schedule).length) unit.schedule = schedule;
     if (Object.keys(fields).length) unit.fields = fields;
 
