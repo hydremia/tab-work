@@ -45,6 +45,7 @@ export function ExportPage() {
   const [reportBusy, setReportBusy] = useState<string | null>(null);
   const [reportResult, setReportResult] = useState<(ReportResult & { mime: string }) | null>(null);
   const [reportError, setReportError] = useState<string | null>(null);
+  const [withPhotos, setWithPhotos] = useState(true);
   const [outletCharts, setOutletCharts] = useState(false);
   const [finalNote, setFinalNote] = useState<string | null>(null);
   const smallFans = equipment.filter((e) => e.type === 'smallFan').length;
@@ -83,6 +84,8 @@ export function ExportPage() {
         new Uint8Array(await file.arrayBuffer()),
         {
           outletCharts,
+          photos: withPhotos,
+          onProgress: (done, total) => setReportBusy(`Placing photo ${done} of ${total}…`),
         },
       );
       gen.downloadFile(r.bytes, r.fileName, 'application/pdf');
@@ -90,6 +93,7 @@ export function ExportPage() {
       setFinalNote(
         `${r.placed} figure group${r.placed === 1 ? '' : 's'} placed with their pages; ${r.numbered} pages numbered` +
           (r.tocFixed ? `; ${r.tocFixed} table of contents entries updated` : '') +
+          (r.photoPages ? `; photo report added at the end (${r.photos} photos, ${r.photoPages} pages)` : '') +
           (r.atEnd.length ? `. Not found in the report, added at the end: ${r.atEnd.join(', ')}.` : '.'),
       );
     } catch (e) {
@@ -500,6 +504,15 @@ export function ExportPage() {
               data-testid="final-outlet-charts"
             />
             Include outlet / valve charts
+          </label>
+          <label className="row small" style={{ gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={withPhotos}
+              onChange={(e) => setWithPhotos(e.target.checked)}
+              data-testid="final-photos"
+            />
+            Add the photo report at the end
           </label>
           <div className="report-grid">
             <label className="btn btn-primary file-btn" aria-disabled={Boolean(reportBusy)} data-testid="report-final">

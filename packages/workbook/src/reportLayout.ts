@@ -48,6 +48,7 @@ export async function layoutReport(
   map: TemplateMap,
   project: ProjectData,
   sst: readonly string[] = [],
+  appended: readonly string[] = [],
 ): Promise<{ xml: string; report: LayoutReport }> {
   let wb = wbXml;
   const report: LayoutReport = { pages: [], breaksRemoved: 0, toc: [] };
@@ -148,7 +149,8 @@ export async function layoutReport(
       // a ToC laid out differently (or relabelled by hand) is left as it is
       if (label === null || !label.toLowerCase().startsWith(e.label.toLowerCase())) continue;
       const starts = e.sheets.map((sh) => firstPage.get(sh)).filter((p): p is number => p !== undefined);
-      const page = starts.length ? Math.min(...starts) : null;
+      // a section the final report appends (the photo report) starts after the last printed page
+      const page = starts.length ? Math.min(...starts) : e.appended && appended.includes(e.appended) ? n : null;
       report.toc.push({ label: e.label, page });
       if (page === null) for (let k = 0; k < toc.rowsPerEntry; k++) hide.add(e.row + k);
       else xml = setCellText(xml, `${toc.pageCol}${e.row}`, `page ${page}`);

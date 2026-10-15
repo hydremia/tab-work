@@ -9,7 +9,7 @@ import { EQUIPMENT_TYPES } from '../domain/equipmentTypes';
 import { rowNames } from '../domain/rowLabels';
 import { downscaleForReport } from '../photos/process';
 import { zipEntryNames } from '../photos/labels';
-import type { PerPage } from './layout';
+import { FOOTER_NUMBER, type PerPage } from './layout';
 import {
   buildReportModel,
   FIRM_NAME,
@@ -180,6 +180,8 @@ export interface FinalReportResult extends ReportResult {
   atEnd: string[];
   numbered: number;
   tocFixed: number;
+  /** pages of the photo report appended at the end (0: none) */
+  photoPages: number;
 }
 
 /**
@@ -190,7 +192,7 @@ export async function generateFinalReport(
   projectId: string,
   label: string,
   reportPdf: Uint8Array,
-  opts: { outletCharts: boolean },
+  opts: { outletCharts: boolean; photos?: boolean; onProgress?: (done: number, total: number) => void },
 ): Promise<FinalReportResult> {
   const [g, { assembleReport }, { readPdfText }] = await Promise.all([
     graphicsInput(projectId),
@@ -203,18 +205,37 @@ export async function generateFinalReport(
     new Date(),
     { inline: true, outletCharts: opts.outletCharts },
   );
-  const r = await assembleReport(reportPdf, fig, (b) => readPdfText(b, 2000), {
-    title: `TAB Report${label ? ` ${label}` : ''} - ${g.projectName}`,
-    author: FIRM_NAME,
-  });
+  // the photo report (unit, tag, motor, damper, line and deficiency photos), appended and numbered on
+  let photos: { bytes: Uint8Array; pages: number; count: number } | null = null;
+  if (opts.photos) {
+    const input = await loadReportInput(projectId);
+    const model = buildReportModel(input, { kind: 'photos', label });
+    const count = model.photoGroups.reduce((m, x) => m + x.photos.length, 0);
+    if (count) {
+      const p = await renderReportPdf(model, {
+        loadImage: browserImageLoader,
+        onProgress: opts.onProgress,
+        pageNumbers: false,
+      });
+      photos = { ...p, count };
+    }
+  }
+  const r = await assembleReport(
+    reportPdf,
+    fig,
+    (b) => readPdfText(b, 2000),
+    { title: `TAB Report${label ? ` ${label}` : ''} - ${g.projectName}`, author: FIRM_NAME },
+    photos ? { bytes: photos.bytes, number: FOOTER_NUMBER, toc: /photo/i } : undefined,
+  );
   return {
     bytes: r.bytes,
     fileName: `${g.safe} - TAB Report ${label ? `${label} ` : ''}${g.date}.pdf`,
     pages: r.pages,
-    photos: 0,
+    photos: photos?.count ?? 0,
+    photoPages: photos?.pages ?? 0,
     placed: r.plan.placed.filter((p) => p.how !== 'end').length,
     atEnd: r.plan.placed.filter((p) => p.how === 'end').map((p) => p.unit ?? p.key),
-    numbered: r.plan.footers.size + fig.pages,
+    numbered: r.plan.footers.size + fig.pages + (photos?.pages ?? 0),
     tocFixed: r.plan.toc.length,
   };
 }

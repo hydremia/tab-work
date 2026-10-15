@@ -71,6 +71,11 @@ export interface ExportOptions {
    * template's yellow working fills are cleared (highlights.ts).
    */
   hideUnused?: boolean;
+  /**
+   * Sections the app's final report appends after the workbook's pages ('photos': the photo report): their ToC entries
+   * stay, pointing at the page after the last printed one (with hideUnused).
+   */
+  appended?: readonly string[];
 }
 
 export interface ExportReport {
@@ -611,7 +616,7 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
   }
   // ---- the printed layout: no empty pages, the Summary tables to their first page, the ToC's page numbers
   if (opts.hideUnused) {
-    const l = await layoutReport(zip, sheets, wbXml, map, project, sst);
+    const l = await layoutReport(zip, sheets, wbXml, map, project, sst, opts.appended);
     if (l.xml !== wbXml) {
       wbXml = l.xml;
       zip.file(wbPart, wbXml);

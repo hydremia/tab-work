@@ -269,6 +269,11 @@ export async function assembleReport(
   graphics: { bytes: Uint8Array; groups: readonly FigureGroup[] },
   readText: (bytes: Uint8Array) => Promise<{ pages: PdfPageText[]; pageCount: number }>,
   meta: { title: string; author: string; now?: Date },
+  /**
+   * Pages appended after the report (the photo report, rendered without page numbers): numbered on with the report
+   * at `number` (right-aligned), and the ToC entry matching `toc` (its label) points at their first page.
+   */
+  appendix?: { bytes: Uint8Array; number: { right: number; y: number; size: number }; toc: RegExp },
 ): Promise<AssembleResult> {
   const report = await PDFDocument.load(reportBytes, { ignoreEncryption: true });
   const { pages: text, pageCount } = await readText(reportBytes);
@@ -288,7 +293,9 @@ export async function assembleReport(
   const font = await out.embedFont(StandardFonts.Helvetica);
   const reportPages = await out.copyPages(report, report.getPageIndices());
   const figPages = fig ? await out.copyPages(fig, fig.getPageIndices()) : [];
-  const total = plan.order.length;
+  const app = appendix?.bytes.length ? await PDFDocument.load(appendix.bytes) : null;
+  const appPages = app ? await out.copyPages(app, app.getPageIndices()) : [];
+  const total = plan.order.length + appPages.length;
   const position = new Map<number, number>(); // report page -> 1-based page in the final report
   plan.order.forEach((o, i) => o.src === 'report' && position.set(o.page, i + 1));
   const ink = rgb(0, 0, 0);
@@ -321,7 +328,8 @@ export async function assembleReport(
       page.drawText(label, { x: cx - font.widthOfTextAtSize(label, size) / 2, y: oy + foot.y, size, font, color: ink });
     }
     for (const t of plan.toc.filter((e) => e.page === o.page)) {
-      const n = t.target >= 0 ? position.get(t.target) : undefined;
+      const appended = t.target < 0 && appPages.length > 0 && appendix!.toc.test(t.label);
+      const n = t.target >= 0 ? position.get(t.target) : appended ? plan.order.length + 1 : undefined;
       if (t.target >= 0 && !n) continue;
       const s = n ? `page ${n}` : '';
       const size = Math.max(6, Math.min(12, t.size));
@@ -334,6 +342,18 @@ export async function assembleReport(
       });
       page.drawText(s, { x: ox + t.box.x, y: oy + t.box.y, size, font, color: ink });
     }
+  });
+  appPages.forEach((page, k) => {
+    out.addPage(page);
+    const label = `Page ${plan.order.length + k + 1} of ${total}`;
+    const { right, y, size } = appendix!.number;
+    page.drawText(label, {
+      x: right - font.widthOfTextAtSize(label, size),
+      y,
+      size,
+      font,
+      color: rgb(0.36, 0.41, 0.48),
+    });
   });
   return { bytes: await out.save(), pages: total, plan };
 }

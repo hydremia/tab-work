@@ -1212,7 +1212,11 @@ The app adds its figures and downloads *<project> - TAB Report <label> <date>.pd
   pointing at each section's first page in the final report (found by its page title, so stale numbers in the PDF
   don't matter; an entry whose section isn't in the PDF loses its number);
 - **Include outlet / valve charts** adds the design-vs-actual bar charts to each unit's figures (off by default: the
-  unit page already lists the outlets, coloured by tolerance).
+  unit page already lists the outlets, coloured by tolerance);
+- **Add the photo report at the end** (on by default) appends the Photo report (every unit, tag, motor, damper and
+  line photo, grouped by unit) after the last page, numbered on with the report (*Page 60 of 92*, not a separate
+  *Page 1 of 33*). The exported workbook's table of contents lists **Site Photos** at the page after its last one
+  when the project has photos, so the contents point at the photos in the final report.
 
 A unit the app can't find in the PDF (renamed in Excel, for example) gets its figures after the last page of its sheet;
 one with no sheet at all, at the end. The note under the button says how many were placed and lists any at the end.

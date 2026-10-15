@@ -15,6 +15,8 @@ export const MARGIN_TOP = 36;
 export const MARGIN_BOTTOM = 32;
 export const HEADER_H = 30;
 export const FOOTER_H = 22;
+/** Where the reports' footer puts "Page x of N" (right-aligned): the final report numbers appended pages there. */
+export const FOOTER_NUMBER = { right: PAGE_W - MARGIN_X, y: MARGIN_BOTTOM + FOOTER_H - 14, size: 8.5 };
 export const CONTENT_W = PAGE_W - 2 * MARGIN_X;
 /** Top of the content area (distance from the top edge of the page). */
 export const CONTENT_TOP = MARGIN_TOP + HEADER_H;

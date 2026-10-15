@@ -219,7 +219,11 @@ export interface TocDef {
   pageCol: string;
   /** rows hidden with an entry that prints nothing: its two-row box and the spacer after it */
   rowsPerEntry: number;
-  entries: readonly { row: number; label: string; sheets: readonly string[] }[];
+  /**
+   * `appended`: a section the app's final report adds after the workbook's pages (the photo report): with the export
+   * option `appended` naming it, the entry points at the page after the last printed one.
+   */
+  entries: readonly { row: number; label: string; sheets: readonly string[]; appended?: string }[];
   /**
    * Sheets fitted to the page width whose page breaks the export sets (the template has none): Excel's fit scale
    * differs a little from any estimate, so the counted page ends are written as manual breaks for the ToC to hold.
@@ -362,7 +366,7 @@ const AIR_TOC: TocDef = {
     { row: 43, label: 'Appendix C', sheets: ['Calibration'] },
     // attached separately: no sheet, so the entry is hidden (the PDF assembly can't know about it either)
     { row: 46, label: 'Mechanical Floorplan', sheets: [] },
-    { row: 49, label: 'Site Photos', sheets: ['Photos'] },
+    { row: 49, label: 'Site Photos', sheets: ['Photos'], appended: 'photos' },
   ],
 };
 
