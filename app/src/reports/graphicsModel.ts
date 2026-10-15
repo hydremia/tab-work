@@ -372,7 +372,8 @@ function buildSummary(
     },
     traverses: { count: traverses.length, uneven: traverses.filter((t) => t.cov !== null && t.cov > 0.2).length },
     balance: buildingBalance(
-      units.map((e) => ({ id: e.id, type: e.type, slot: e.slot, data: e.data })),
+      // the designations link each hood to its exhaust fan (a fan measured at its hood takes the hood's airflow)
+      units.map((e) => ({ id: e.id, type: e.type, slot: e.slot, data: e.data, designation: e.designation })),
       input.rows,
       spareOaTotals(project),
       excludedIds(info, units),

@@ -122,6 +122,25 @@ describe('graphics appendix', () => {
     expect(p && p.kind === 'pump' && p.curve).toBeNull();
   });
 
+  it('summary: a fan measured at its hood counts the hood airflow in the building balance', () => {
+    const b = bundle();
+    const base = buildGraphicsModel({ ...b, completions: completions(b) }).summary!.balance.exhaustDesign ?? 0;
+    const at = (designation: string, type: Equipment['type'], data: Equipment['data']): Equipment => ({
+      ...b.equipment[0],
+      id: `00000000-0000-4000-9000-0000000009${b.equipment.length}`,
+      type,
+      designation,
+      slot: 9,
+      data,
+    });
+    b.equipment.push(
+      at('EF-9', 'fan', { measuredAt: 'Hood', designCfm: 1500 }),
+      at('H-9', 'hood', { associatedFan: 'EF-9', designCfm: 1500 }),
+    );
+    const m = buildGraphicsModel({ ...b, completions: completions(b) });
+    expect(m.summary!.balance.exhaustDesign).toBe(base + 1500);
+  });
+
   it('a traverse figure carries the duct static pressure and air temperature (or their N/A notation)', () => {
     const b = bundle();
     const t9 = b.equipment.find((e) => e.designation === 'T-9')!;

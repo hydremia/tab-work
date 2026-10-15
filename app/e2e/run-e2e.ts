@@ -296,11 +296,12 @@ async function main() {
     await yesNo(page, 'hasVfd', 'No');
     await fill(page, {
       oaDamper: '35 % open',
+      // revision 08: leaving statics by component (RTU: filter, coil = fan inlet, fan, heat = discharge)
       spEntering: -0.35,
-      spLeaving1: -0.55,
-      spLeaving3: -0.95,
-      spLeaving4: -1.05,
-      spLeaving5: 0.72,
+      spFilter: -0.55,
+      spCoil: -1.05,
+      spFan: 0.72,
+      spHeat: 0.72,
     });
     await select(page, { instrument: 'Flow Hood' });
     // outlet rows: first one typed, the second one pre-filled from the first ("fill down")
@@ -363,8 +364,8 @@ async function main() {
     await page.getByTestId('photo-motor').locator('select.na-select').selectOption('N/A');
     await page.getByTestId('photo-oa_damper').locator('select.na-select').selectOption('Not Acc.');
     await page.waitForTimeout(800);
-    await page.locator('#sec-remarks textarea').fill('Belt replaced during TAB.');
-    await page.locator('#sec-remarks textarea').blur();
+    await page.locator('#sec-remarks [data-field="remarks"] textarea').fill('Belt replaced during TAB.');
+    await page.locator('#sec-remarks [data-field="remarks"] textarea').blur();
     await page.waitForTimeout(500);
     const badge = await page.getByTestId('status-badge').first().innerText();
     const progress = await page.getByTestId('unit-progress').innerText();

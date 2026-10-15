@@ -132,7 +132,7 @@ export async function fillNewTypes(
   // ------------------------------------------------------------------ MAU-1: PSP, then switch methods
   await addUnit(page, projectUrl, 'MAUs', 'MAU-1');
   await fillUnitBasics(page, { unitEsp: 0.6, designTotalCfm: 2100 });
-  await fill(page, { spEntering: -0.2, spLeaving1: -0.35, spLeaving3: -0.6, spLeaving5: 0.55 });
+  await fill(page, { spEntering: -0.2, spFilter: -0.35, spBurner: -0.6, spFan: 0.55 });
   await select(page, { method: 'PSP' });
   await page.locator('#sec-psp').waitFor();
   check(
@@ -196,7 +196,7 @@ export async function fillNewTypes(
     designSupplyDp: 0.35,
     designExhaustDp: 0.4,
   });
-  await fill(page, { spEntering: -0.2, spLeaving1: -0.35, spLeaving2: -0.5, spLeaving5: 0.55 });
+  await fill(page, { spEntering: -0.2, spFilter: -0.35, spCore: -0.5, spFan: 0.55 });
   await fill(page, { supplyDpActual: 0.33, exhaustDpActual: 0.41 });
   await select(page, { instrument: 'Flow Hood', exhaustInstrument: 'Flow Hood' });
   const o = { area: 'Offices', type: 'CD', size: '24x24', ak: 1 };
@@ -222,7 +222,7 @@ export async function fillNewTypes(
   // ------------------------------------------------------------------ EF-1
   await addUnit(page, projectUrl, 'Fans', 'EF-1');
   await fillUnitBasics(page, { unitEsp: 0.5, designTotalCfm: 600 });
-  await fill(page, { spEntering: -0.45, spLeaving5: 0.05 });
+  await fill(page, { spEntering: -0.45, spFan: 0.05 });
   await select(page, { instrument: 'Flow Hood' });
   const e = { area: 'Restrooms', type: 'EG', size: '12x12', ak: 0.6 };
   await row(page, 'outlets', 0, { no: 'E-1', ...e, designCfm: 200, finalVel: 330 });

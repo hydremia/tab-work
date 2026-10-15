@@ -119,6 +119,47 @@ describe('final report assembly', () => {
     expect(text[1]).toMatch(/page 3[\s\S]*page 5[\s\S]*page 9/);
   });
 
+  it("finds each contents entry's section by its label (stale workbook numbers, sections not in the report)", async () => {
+    const specs: Spec[] = [
+      { footer: false, lines: ['CERTIFIED'] }, // 1 cover
+      {
+        // the template's numbers: all wrong for this report
+        toc: [
+          ['Table of Contents', 2],
+          ['Report Summary - Narrative and Remarks', 3],
+          ['Rooftop Units', 8],
+          ['Energy Recovery Units', 8],
+          ['Appendix C - Instrument Calibration', 18],
+        ],
+      }, // 2
+      { lines: ['Report Summary - System Set-up Narrative'] }, // 3
+      { title: 'Equipment Summary' }, // 4
+      { title: 'Rooftop Unit Report', lines: ['System|RTU-1'] }, // 5
+      { lines: ['Instrumentation and Calibration Data'] }, // 6
+    ];
+    const { pages } = await readPdfText(await report(specs));
+    const plan = planReport(pages, []);
+    expect(plan.toc.map((t) => `${t.label}:${t.target}`)).toEqual([
+      'Table of Contents:1',
+      'Report Summary - Narrative and Remarks:2',
+      'Rooftop Units:4',
+      'Energy Recovery Units:-1', // no ERV pages: the number is removed
+      'Appendix C - Instrument Calibration:5',
+    ]);
+    const r = await assembleReport(
+      await report(specs),
+      { bytes: new Uint8Array(), groups: [] },
+      (b) => readPdfText(b),
+      {
+        title: 'TAB Report',
+        author: 'a2b',
+      },
+    );
+    const toc = (await readPdfText(r.bytes)).pages[1].items.map((i) => i.str).join(' ');
+    // drawn over the old numbers (which stay under a white cover in the text layer): ERV gets none
+    expect(toc).toMatch(/Page 2 of 6\s+page 2 page 3 page 5 page 6$/);
+  });
+
   it('without figures it only numbers the pages', async () => {
     const r = await assembleReport(
       await report(SPECS.slice(0, 4)),

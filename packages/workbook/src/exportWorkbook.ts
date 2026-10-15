@@ -14,6 +14,8 @@ import {
 import { inputCells } from './inputCells.js';
 import { fitPrintAreas } from './printAreas.js';
 import { hideUnusedBlocks, type HideReport } from './hideBlocks.js';
+import { layoutReport, type LayoutReport } from './reportLayout.js';
+import { clearHighlights } from './highlights.js';
 import { applyToleranceColors } from './toleranceColors.js';
 import { APP_INFO_PROP, EXISTING_UNITS_PROP, type RevisionMarker, writeCustomProperties, writeRevisionMarker } from './docProps.js';
 import { anchorSizeEmu, type CoverPhotoCropper, drawingPictures } from './coverPhoto.js';
@@ -62,6 +64,8 @@ export interface ExportOptions {
   /**
    * Hide what the report does not use (unused unit sheets and blocks, empty continuation pages and table rows, unused
    * Equipment Summary / Building Balance lines: hideBlocks.ts), as the Print Report macro would. Airside map only.
+   * With it, the printed layout is settled too (reportLayout.ts: no empty pages, the ToC's page numbers) and the
+   * template's yellow working fills are cleared (highlights.ts).
    */
   hideUnused?: boolean;
 }
@@ -82,6 +86,8 @@ export interface ExportReport {
   };
   certImages?: CertImagesReport;
   hidden?: HideReport;
+  /** printed pages per sheet, page breaks removed, ToC entries written (with hideUnused) */
+  layout?: LayoutReport;
 }
 
 type CellWrite =
@@ -563,6 +569,10 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
     report.cellsCreated += p.stats.created; report.rowsCreated += p.stats.rowsCreated;
   }
 
+  // ---- the template's yellow working fills (Hoods' linked cells) cleared, with the other print clean-up
+  if (opts.hideUnused && map.unhighlight?.length && stylesRel) {
+    await clearHighlights(zip, resolveTarget(wbPart, stylesRel.target), sheets, map.unhighlight);
+  }
   // ---- tolerance colours on the "% of design" cells
   if (opts.toleranceColors !== undefined) {
     const n = await applyToleranceColors(zip, sheets, opts.toleranceColors);
@@ -593,6 +603,15 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
   if (fitted.changed.length) {
     wbXml = fitted.xml;
     zip.file(wbPart, wbXml);
+  }
+  // ---- the printed layout: no empty pages, the Summary tables to their first page, the ToC's page numbers
+  if (opts.hideUnused) {
+    const l = await layoutReport(zip, sheets, wbXml, map, project, sst);
+    if (l.xml !== wbXml) {
+      wbXml = l.xml;
+      zip.file(wbPart, wbXml);
+    }
+    report.layout = l.report;
   }
 
   const calcPr = /<calcPr\b[^>]*\/?>/.exec(wbXml);
