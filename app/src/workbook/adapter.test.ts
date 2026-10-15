@@ -309,6 +309,23 @@ describe('toProjectData: MAU, ERV, fans, small fans, hoods, traverses', () => {
     expect(h2.tables?.filters?.[1]).toMatchObject({ final3: 'Not Acc.' });
   });
 
+  it('a traverse linked to a unit line, with no area served, prints what it measures', () => {
+    const b = sampleBundle();
+    const rtu = b.equipment.find((e) => e.type === 'rtu')!;
+    const line = b.rows.find((r) => r.equipmentId === rtu.id)!;
+    const t = b.equipment.find((e) => e.type === 'traverse')!;
+    t.data.areaServed = null;
+    t.data.traverseOf = rtu.id;
+    t.data.traverseLine = line.id;
+    const out = toProjectData(b).data.equipment.traverse.find((u) => u.slot === t.slot)!;
+    expect(out.fields?.areaServed).toMatch(new RegExp(`^${rtu.designation} · `));
+    // its own area served wins
+    t.data.areaServed = 'Main OA duct';
+    expect(toProjectData(b).data.equipment.traverse.find((u) => u.slot === t.slot)!.fields?.areaServed).toBe(
+      'Main OA duct',
+    );
+  });
+
   it('traverses: point label in the block, readings in quick-entry order, height N/A for round', () => {
     const t1 = unitOf('traverse', 1);
     expect(t1.schedule).toBeUndefined();

@@ -9,30 +9,42 @@ import { db } from '../../data/db';
 import { addIssue } from '../../data/repo';
 import type { AirflowRow, Equipment, Issue } from '../../data/types';
 import { rowNames, type RowName } from '../../domain/rowLabels';
+import { traverseLinks, traverseOf } from '../../domain/traverseLinks';
 import { issueLabel } from '../../photos/labels';
 import { SaverStatus, usePhotoSaver } from './PhotoPicker';
 
 export interface LineLinks {
   issues: Issue[];
   photos: number;
+  /** traverses that read this line ("Traverse of" a unit's line) */
+  traverses: Pick<Equipment, 'id' | 'designation'>[];
 }
 
 /** The unit's issues and (non-deficiency) photos by airflow line. */
 export function useRowLinks(equipmentId: string): Map<string, LineLinks> | undefined {
   return useLiveQuery(async () => {
     const out = new Map<string, LineLinks>();
-    const at = (id: string) => out.get(id) ?? (out.set(id, { issues: [], photos: 0 }).get(id) as LineLinks);
+    const at = (id: string) =>
+      out.get(id) ?? (out.set(id, { issues: [], photos: 0, traverses: [] }).get(id) as LineLinks);
     for (const i of await db.issues.where('equipmentId').equals(equipmentId).toArray())
       if (i.airflowRowId) at(i.airflowRowId).issues.push(i);
     for (const p of await db.photos.where('equipmentId').equals(equipmentId).toArray())
       if (p.airflowRowId) at(p.airflowRowId).photos++;
+    const unit = await db.equipment.get(equipmentId);
+    if (unit) {
+      const all = await db.equipment.where('projectId').equals(unit.projectId).toArray();
+      for (const [line, ts] of traverseLinks(all).byLine) {
+        const mine = ts.filter((t) => traverseOf(t) === equipmentId);
+        if (mine.length) at(line).traverses.push(...mine);
+      }
+    }
     for (const l of out.values()) l.issues.sort((a, b) => a.kind.localeCompare(b.kind) || a.number - b.number);
     return out;
   }, [equipmentId]);
 }
 
 export function RowLinkChips({ links, projectId }: { links: LineLinks | undefined; projectId: string }) {
-  if (!links || (!links.issues.length && !links.photos)) return null;
+  if (!links || (!links.issues.length && !links.photos && !links.traverses.length)) return null;
   return (
     <span className="row-links" data-testid="row-links">
       {links.issues.map((i) => (
@@ -44,6 +56,11 @@ export function RowLinkChips({ links, projectId }: { links: LineLinks | undefine
           title={i.remark || `Issue ${issueLabel(i)}`}
         >
           ⚑ {issueLabel(i)}
+        </Link>
+      ))}
+      {links.traverses.map((t) => (
+        <Link key={t.id} className="chip" to={`/p/${projectId}/e/${t.id}`} title={`Read by traverse ${t.designation}`}>
+          ⇄ {t.designation}
         </Link>
       ))}
       {links.photos > 0 && (

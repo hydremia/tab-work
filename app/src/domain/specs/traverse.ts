@@ -25,6 +25,14 @@ export const TRAVERSE_SPEC: EquipmentSpec = {
       ],
     },
     {
+      // what the traverse measures: a unit, and optionally one of its lines (a ducted return, the OA, one outlet)
+      key: 'link',
+      label: 'Traverse of',
+      airflow: false,
+      fields: [],
+      calc: 'traverseLink',
+    },
+    {
       key: 'duct',
       label: 'Duct',
       airflow: true,
