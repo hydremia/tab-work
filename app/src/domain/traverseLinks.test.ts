@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Equipment } from '../data/types';
 import { traverseTotals } from './equipmentCalcs';
 import { seqKey } from './specs';
-import { lineFromTraverse, traverseLinkLabel, traverseLinks } from './traverseLinks';
+import { lineSync, lineFromTraverse, traverseLinkLabel, traverseLinks } from './traverseLinks';
 
 const u = (id: string, type: Equipment['type'], designation: string, data: Equipment['data'] = {}) => ({
   id,
@@ -41,5 +41,19 @@ describe('traverse links', () => {
     const tot = traverseTotals(t.data);
     expect(line).toMatchObject({ size: tot.sizeText, ak: tot.ak, initialVel: 700, finalVel: tot.finalVel });
     expect(Math.round((line.finalVel as number) * (line.ak as number))).toBe(tot.finalCfm);
+  });
+
+  it('keeps a linked line in step: changes only, velocities the traverse lost are cleared, nothing before a reading', () => {
+    const t = u('t', 'traverse', 'T-1', { shape: 'Round', width: 14, initialVel: 900 });
+    const tot = traverseTotals(t.data);
+    const row = { data: { size: 'old', ak: 9, initialVel: 500, finalVel: 480 } };
+    expect(lineSync(t, row)).toEqual({
+      'data.size': tot.sizeText,
+      'data.ak': tot.ak,
+      'data.initialVel': 900,
+      'data.finalVel': null,
+    });
+    expect(lineSync(t, { data: { size: tot.sizeText, ak: tot.ak, initialVel: 900 } })).toEqual({});
+    expect(lineSync(u('t0', 'traverse', 'T-0', { shape: 'Round', width: 14 }), row)).toEqual({});
   });
 });

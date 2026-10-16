@@ -1,10 +1,11 @@
 /**
  * "Traverse of" on a traverse's page: the unit it measures and, optionally, one line of that unit (a ducted return,
- * the OA intake, one outlet); with a line, "Fill the line from this traverse" writes the traverse's size, Ak and
- * velocity into the line so its CFM is the traverse CFM. The unit page lists its traverses (UnitTraverses) and a
- * linked line shows a "⇄ T-1" chip (RowLinks.tsx).
+ * the OA intake, one outlet). A linked line follows the traverse: useTraverseLineSync (mounted for the open project)
+ * keeps its size, Ak and velocities equal to the traverse's, so its CFM is the traverse CFM; the line shows them
+ * read-only. The unit page lists its traverses (UnitTraverses) and a linked line shows a "⇄ T-1" chip (RowLinks.tsx).
  */
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useEffect } from 'react';
 import { Link } from 'react-router';
 import { db } from '../../data/db';
 import { setFields } from '../../data/repo';
@@ -13,7 +14,7 @@ import { formatNumber, rowActualCfm } from '../../domain/calc';
 import { traverseTotals } from '../../domain/equipmentCalcs';
 import { EQUIPMENT_TYPES } from '../../domain/equipmentTypes';
 import { rowNames } from '../../domain/rowLabels';
-import { lineFromTraverse, traverseLine, traverseLinks, traverseOf } from '../../domain/traverseLinks';
+import { lineSync, traverseLine, traverseLinks, traverseOf } from '../../domain/traverseLinks';
 
 const typeOrder = (t: string) => EQUIPMENT_TYPES.findIndex((x) => x.key === t);
 
@@ -40,27 +41,26 @@ export function TraverseLinkPanel({ traverse }: { traverse: Equipment }) {
   const lines = unit && rows ? [...rowNames([unit], rows).values()] : [];
   const line = rows?.find((r) => r.id === lineId);
   const t = traverseTotals(traverse.data);
-  const fill = lineFromTraverse(traverse);
   const lineCfm = line ? rowActualCfm(line) : null;
   const travCfm = t.finalCfm ?? t.initialCfm;
-  const filled =
-    line !== undefined &&
-    Object.entries(fill).every(([k, v]) => line.data[k] === v || (typeof v === 'number' && line.data[k] === v));
 
-  const doFill = async () => {
-    if (!line) return;
-    const changes = Object.entries(fill).filter(([k, v]) => line.data[k] !== v);
-    const overwrite = changes.filter(
-      ([k]) => line.data[k] !== null && line.data[k] !== undefined && line.data[k] !== '',
-    );
+  /** Link a line: its own size / Ak / readings are replaced by the traverse's (asked when it has some). */
+  const pickLine = async (rowId: string) => {
+    const row = rows?.find((r) => r.id === rowId);
+    const changes = row ? lineSync(traverse, row) : {};
+    const replaced = Object.keys(changes).filter((k) => {
+      const v = row?.data[k.slice(5)];
+      return v !== null && v !== undefined && v !== '';
+    });
     if (
-      overwrite.length &&
+      replaced.length &&
       !window.confirm(
-        `Replace the line's ${overwrite.map(([k]) => (k === 'initialVel' ? 'initial VEL' : k === 'finalVel' ? 'final VEL' : k === 'ak' ? 'Ak' : k)).join(', ')} with the traverse's?`,
+        `${lines.find((l) => l.rowId === rowId)?.long ?? 'This line'} has its own size / Ak / readings. Linked, it follows ${traverse.designation}: replace them with the traverse's?`,
       )
     )
       return;
-    await setFields('airflowRows', line.id, Object.fromEntries(changes.map(([k, v]) => [`data.${k}`, v])));
+    await setFields('equipment', traverse.id, { 'data.traverseLine': rowId || null });
+    if (row && Object.keys(changes).length) await setFields('airflowRows', row.id, changes);
   };
 
   return (
@@ -99,7 +99,7 @@ export function TraverseLinkPanel({ traverse }: { traverse: Equipment }) {
             id="tl-line"
             className="select"
             value={lineId ?? ''}
-            onChange={(e) => void setFields('equipment', traverse.id, { 'data.traverseLine': e.target.value || null })}
+            onChange={(e) => void pickLine(e.target.value)}
             data-testid="traverse-line"
           >
             <option value="">Whole unit ({unit.designation})</option>
@@ -126,19 +126,13 @@ export function TraverseLinkPanel({ traverse }: { traverse: Equipment }) {
           )}
         </p>
       )}
-      {line && Object.keys(fill).length > 0 && (
-        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className="btn"
-            disabled={filled}
-            onClick={() => void doFill()}
-            data-testid="traverse-fill-line"
-          >
-            {filled ? 'Line filled from this traverse' : 'Fill the line from this traverse'}
-          </button>
-          <span className="small muted">Size, Ak and velocity, so the line's CFM is the traverse CFM.</span>
-        </div>
+      {line && (
+        <p className="small muted" style={{ margin: 0 }} data-testid="traverse-line-follows">
+          The line's size, Ak and velocities follow this traverse
+          {t.finalVel === null && typeof traverse.data.initialVel !== 'number'
+            ? ' once it has a reading.'
+            : ', so its CFM is the traverse CFM.'}
+        </p>
       )}
     </div>
   );
@@ -172,4 +166,29 @@ export function UnitTraverses({ equipment }: { equipment: Equipment }) {
       })}
     </section>
   );
+}
+
+/**
+ * Keeps every linked line of the project in step with its traverse (lineSync), whichever device changed the traverse:
+ * runs while the project is open. A locked (issued) project is left as it is.
+ */
+export function useTraverseLineSync(projectId: string | undefined, locked: boolean): void {
+  const pending = useLiveQuery(async () => {
+    if (!projectId || locked) return [];
+    const traverses = (await db.equipment.where('projectId').equals(projectId).toArray()).filter(
+      (e) => e.type === 'traverse' && traverseOf(e) && traverseLine(e),
+    );
+    const out: { rowId: string; changes: Record<string, number | string | null> }[] = [];
+    for (const t of traverses) {
+      const row = await db.airflowRows.get(traverseLine(t)!);
+      if (!row || row.equipmentId !== traverseOf(t)) continue;
+      const changes = lineSync(t, row);
+      if (Object.keys(changes).length) out.push({ rowId: row.id, changes });
+    }
+    return out;
+  }, [projectId, locked]);
+  useEffect(() => {
+    for (const p of pending ?? [])
+      void setFields('airflowRows', p.rowId, p.changes).catch((e) => console.warn('traverse line sync:', e));
+  }, [pending]);
 }

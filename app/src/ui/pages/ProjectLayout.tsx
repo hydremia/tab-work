@@ -1,4 +1,5 @@
 import { Suspense, useEffect, useRef } from 'react';
+import { useTraverseLineSync } from '../components/TraverseLink';
 import { useLocation, NavLink, Outlet, useOutletContext, useParams } from 'react-router';
 import {
   useAttention,
@@ -54,6 +55,8 @@ export function ProjectLayout() {
   useEffect(() => {
     if (projectId && unlocked) void migrateProjectStatic(projectId);
   }, [projectId, unlocked]);
+  // lines linked to a traverse follow it (size, Ak, velocities), also after a change synced from another device
+  useTraverseLineSync(projectId, !unlocked);
   // the tab bar scrolls sideways on a phone: keep the active tab in view
   useEffect(() => {
     const active = tabsRef.current?.querySelector('a.active') as HTMLElement | null;

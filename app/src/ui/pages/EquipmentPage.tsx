@@ -1,5 +1,5 @@
 import { blockLayout, TEMPLATE_MAP } from '@a2b/workbook/map';
-import { UnitTraverses } from '../components/TraverseLink';
+import { UnitTraverses, useTraverseLineSync } from '../components/TraverseLink';
 import { Fragment, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import {
@@ -837,6 +837,8 @@ export function EquipmentPage() {
   const nav = useNavigate();
   const { hash } = useLocation();
   const back = `/p/${projectId}/equipment`;
+  // lines linked to a traverse follow it (the unit and traverse pages are outside the project layout)
+  useTraverseLineSync(projectId, !project || Boolean(project.lock));
   const ready = Boolean(project && equipment && rows && photos && issues && instruments && all);
   // a "Sheave bore M/F" entered before the motor / fan bores were separate fields: split it once
   useEffect(() => {

@@ -748,8 +748,10 @@ N/A unless the terminal is fan-powered. Actual heating CFM is N/A unless heating
 - **Identity**: point (T-#), area served, design CFM.
 - **Traverse of**: the **Unit** the traverse measures and, optionally, one **Line** of it (a ducted return, the OA
   intake, a single outlet or grille). The unit's page then lists its traverses (with their CFM) above the airflow
-  tables, and a linked line shows a **⇄ T-1** chip. **Fill the line from this traverse** writes the traverse's size, Ak
-  and velocity into the line, so the line's CFM is the traverse CFM (it asks before replacing values already there).
+  tables. A linked line **follows the traverse**: its size, Ak and initial / final VEL are the traverse's, kept in step
+  as you read (also after a change synced from the other device), so the line's CFM is the traverse CFM. On the unit
+  page those fields show read-only, marked *· T-1*, and the line has a **⇄ T-1** chip. Linking a line that already has
+  its own readings asks first; set Line back to *Whole unit* to type the line yourself again.
   Left blank, the traverse's **Area served** prints what it measures (*RTU-3 · OA*).
 - **Duct**: **Duct shape** (Rectangular / Round / Flat Oval), **Width / diameter**, **Height** (N/A for round),
   **Liner thickness** (optional). The app works out the size, Ak, number of points and insertion depths.
