@@ -2,7 +2,8 @@
  * Quick entry for a run of readings typed in order (PSP velocities, traverse points). Each reading is its own
  * field (`data.<key>_<i>`), so it autosaves and syncs like any other field. Enter jumps to the next reading.
  * A reading can be marked N/A ("Next reading…" marks the first empty one; tap a marked reading to clear it), and
- * the whole run can be marked N/A from the header menu.
+ * the whole run can be marked N/A from the header menu. "More readings" opens another row past the calculated points;
+ * "Remove extra readings" clears everything past them again.
  */
 import { useState } from 'react';
 import { setField, setFields } from '../../data/repo';
@@ -28,6 +29,8 @@ export interface GridShape {
   rowLabel?: (r: number) => string;
   /** Label of position c (0-based) of reading i (1-based), e.g. `3"`. */
   colLabel?: (c: number, i: number) => string;
+  /** `shown` is a calculated point count (a sized traverse): readings past it can be removed in one go. */
+  calculated?: boolean;
 }
 
 export function SequenceGrid({
@@ -100,6 +103,16 @@ export function SequenceGrid({
             More readings
           </button>
         )}
+        {shape.calculated && shown > shape.shown && (
+          <button
+            type="button"
+            className="btn"
+            data-testid={`seq-remove-extra-${spec.key}`}
+            onClick={() => void removeExtra()}
+          >
+            Remove extra readings
+          </button>
+        )}
         <select
           className="row-menu"
           aria-label={`${spec.label}: mark the next reading`}
@@ -126,6 +139,26 @@ export function SequenceGrid({
       </div>
     </div>
   );
+
+  /** Clear every reading (and N/A mark) past the calculated point count and close the extra rows. */
+  async function removeExtra() {
+    const past = Array.from({ length: spec.count - shape.shown }, (_, k) => shape.shown + k + 1);
+    const used = past.filter((i) => !isBlank(data[seqKey(spec.key, i)]) || marks[seqKey(spec.key, i)]);
+    if (
+      used.length &&
+      !window.confirm(
+        `Remove ${used.length} reading${used.length === 1 ? '' : 's'} past #${shape.shown} (#${used[0]}${used.length > 1 ? `–#${used[used.length - 1]}` : ''})?`,
+      )
+    )
+      return;
+    const changes: Record<string, null> = {};
+    for (const i of used) {
+      if (!isBlank(data[seqKey(spec.key, i)])) changes[`data.${seqKey(spec.key, i)}`] = null;
+      if (marks[seqKey(spec.key, i)]) changes[`naState.fields.${seqKey(spec.key, i)}`] = null;
+    }
+    if (Object.keys(changes).length) await setFields('equipment', equipment.id, changes);
+    setExtra(0);
+  }
 
   function renderRow(r: number) {
     const cells = Array.from({ length: shape.across }, (_, c) => r * shape.across + c + 1).filter((i) => i <= shown);

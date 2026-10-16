@@ -96,6 +96,7 @@ function gridShape(q: SequenceSpec, e: Equipment): GridShape {
       return {
         across: l.nW,
         shown: l.points,
+        calculated: true,
         rowLabel: (r) =>
           round
             ? `Axis ${r + 1} (${r === 0 ? '0°' : '90°'})`
