@@ -763,7 +763,9 @@ N/A unless the terminal is fan-powered. Actual heating CFM is N/A unless heating
 - **Readings**: either an **Initial average velocity** (one number, fine for a prelim) or the **Final point
   readings**, laid out in the calculated grid with each depth and position labeled.
   - **Quick entry**: type a reading, press **Enter** or **Next** on the keypad, and it moves to the next point.
-  - **More readings** adds another row of points. **Next reading…** marks the next point N/A / Not Avail. / Not Acc.
+  - **More readings** adds another row of points; **Remove extra readings** clears everything past the calculated
+    points and closes those rows again (it asks first when they hold readings). **Next reading…** marks the next point
+    N/A / Not Avail. / Not Acc.
   - You get a warning if you enter fewer readings than the calculated point count.
 - **Conditions**: instrument, duct static pressure and temperature (all required).
 
