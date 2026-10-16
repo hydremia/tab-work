@@ -1,4 +1,5 @@
 import { Fragment, useState } from 'react';
+import { LINKED_KEYS } from '../../domain/traverseLinks';
 import { addAirflowRow, airflowTableCapacity, CapacityError, deleteRecord, setField, setFields } from '../../data/repo';
 import { NOTATIONS, type AirflowRow, type Equipment, type NaMark, type Notation } from '../../data/types';
 import { designVel, formatNumber, formatPercent, rowCfm, tableTotals, withinTolerance } from '../../domain/calc';
@@ -113,6 +114,10 @@ function RowCalcLine({
   );
 }
 
+const isLinkedKey = (k: string) => (LINKED_KEYS as readonly string[]).includes(k);
+const linkedText = (v: unknown) =>
+  v === null || v === undefined || v === '' ? '—' : typeof v === 'number' ? formatNumber(v, v % 1 ? 3 : 0) : String(v);
+
 function OutletRow({
   row,
   index,
@@ -142,8 +147,10 @@ function OutletRow({
   const cols = tableColumns(spec);
   const auto = result?.auto ?? {};
   const autoReasons = [...new Set(Object.values(auto))];
-  const naCols = cols.filter((c) => c.naMenu && !(c.key in auto));
   const target = hasDesignVel(spec) ? designVel(row, computedDesign ? (result?.design ?? null) : undefined) : null;
+  /** a traverse reads this line: its size, Ak and velocities come from it (read-only here) */
+  const follows = links?.traverses[0]?.designation;
+  const naCols = cols.filter((c) => c.naMenu && !(c.key in auto) && !(follows && isLinkedKey(c.key)));
   return (
     <div
       className="outlet"
@@ -178,6 +185,17 @@ function OutletRow({
           const mark = row.na[col.key];
           const v = row.data[col.key];
           const commit = (x: unknown) => void setField('airflowRows', row.id, `data.${col.key}`, x);
+          if (follows && isLinkedKey(col.key))
+            return (
+              <div className={`cell${col.wide ? ' wide' : ''}`} key={col.key}>
+                <label htmlFor={id}>
+                  {col.label} <span className="target-vel">· {follows}</span>
+                </label>
+                <span className="linked-value" id={id} title={`From traverse ${follows}`}>
+                  {linkedText(v)}
+                </span>
+              </div>
+            );
           return (
             <div className={`cell${col.wide ? ' wide' : ''}`} key={col.key}>
               <label htmlFor={id}>
@@ -368,7 +386,8 @@ function GridTable({
             const auto = res?.auto ?? {};
             const label = `${spec.label} ${noun} ${i + 1}`;
             const computedDesign = spec.firstRowDesignComputed && i === 0;
-            const naCols = cols.filter((c) => c.naMenu && !(c.key in auto));
+            const linkedTo = links?.get(row.id)?.traverses[0]?.designation;
+            const naCols = cols.filter((c) => c.naMenu && !(c.key in auto) && !(linkedTo && isLinkedKey(c.key)));
             const gridCell = (col: RowColumnSpec, ci: number) => {
               const id = `g-${spec.key}-${i}-${ci}`;
               const aria = `${label} ${col.label}`;
@@ -393,6 +412,13 @@ function GridTable({
               const mark = row.na[col.key];
               const v = row.data[col.key];
               const commit = (x: unknown) => void setField('airflowRows', row.id, `data.${col.key}`, x);
+              const follows = links?.get(row.id)?.traverses[0]?.designation;
+              if (follows && isLinkedKey(col.key))
+                return (
+                  <td key={col.key} className="grid-linked" title={`From traverse ${follows}`}>
+                    {linkedText(v)}
+                  </td>
+                );
               if (mark && (v === null || v === undefined || v === ''))
                 return (
                   <td key={col.key} className="grid-na">

@@ -3,8 +3,8 @@
  * (`traverseLine`, the line's id: a ducted return, the OA intake, one outlet). App-only (the workbook's Traverses
  * sheet has the area served only, which the export fills from the link when it is blank).
  *
- * A linked line can be filled from the traverse: its size, Ak and velocity (initial and final), so the line's CFM
- * (VEL x Ak) is the traverse CFM.
+ * A linked line follows the traverse: its size, Ak and velocities (initial and final) are the traverse's, so the line's
+ * CFM (VEL x Ak) is the traverse CFM. The app keeps them in step (lineSync) and shows them read-only on the line.
  */
 import type { Equipment, FieldValue } from '../data/types';
 import { traverseTotals } from './equipmentCalcs';
@@ -56,5 +56,29 @@ export function lineFromTraverse(t: Pick<Equipment, 'data'>): Record<string, num
   if (r.ak) out.ak = r.ak;
   if (typeof t.data.initialVel === 'number') out.initialVel = t.data.initialVel;
   if (r.finalVel !== null) out.finalVel = r.finalVel;
+  return out;
+}
+
+/** The line fields a traverse sets. */
+export const LINKED_KEYS = ['size', 'ak', 'initialVel', 'finalVel'] as const;
+
+/**
+ * The changes (record paths) that bring a linked line in step with its traverse; empty when it already is, or while the
+ * traverse has no velocity yet (the line keeps what it has until the traverse is read). A velocity the traverse no
+ * longer has is cleared on the line.
+ */
+export function lineSync(
+  t: Pick<Equipment, 'data'>,
+  row: { data: Readonly<Record<string, FieldValue>> },
+): Record<string, number | string | null> {
+  const v = lineFromTraverse(t);
+  if (v.initialVel === undefined && v.finalVel === undefined) return {};
+  const out: Record<string, number | string | null> = {};
+  for (const k of LINKED_KEYS) {
+    const want = v[k] ?? (k === 'initialVel' || k === 'finalVel' ? null : undefined);
+    if (want === undefined) continue;
+    const have = row.data[k] ?? null;
+    if (have !== want) out[`data.${k}`] = want;
+  }
   return out;
 }
