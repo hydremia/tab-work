@@ -8,11 +8,14 @@
  *                                          headers incl. the Content-Security-Policy; E2E_SERVER=vite uses
  *                                          `vite preview` instead, without the headers)
  *
- * Browser: playwright-core's Chromium from PLAYWRIGHT_BROWSERS_PATH, or CHROMIUM_PATH / /opt/pw-browsers/chromium.
+ * Browser: playwright-core's Chromium from PLAYWRIGHT_BROWSERS_PATH, or CHROMIUM_PATH / /opt/pw-browsers/chromium
+ * (`npx playwright-core install chromium` fetches the matching build). Runs on Linux, macOS and Windows; the LibreOffice
+ * and poppler checks (soffice, pdftotext, pdftoppm) are skipped or reported where those tools are not installed.
  * Screenshots go to app/e2e-screenshots/ (git-ignored).
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import JSZip from 'jszip';
@@ -38,6 +41,12 @@ const PORT = Number(process.env.E2E_PORT ?? 4173);
 const BASE = process.env.E2E_BASE_URL ?? `http://localhost:${PORT}`;
 const COVER = join(APP, '..', 'spike', 'export', 'sample', 'cover-photo.jpg');
 const DOC_SHOTS = join(APP, '..', 'docs', 'screenshots');
+// Child processes run this Node binary directly (no npx / npm shims: Node on Windows refuses to spawn .cmd files
+// without a shell) and TypeScript through the tsx loader in-process (tsx's CLI forks a child, which a kill on Windows
+// would leave running on the port). A process group of its own is a Unix thing.
+const VITE = join(dirname(createRequire(import.meta.url).resolve('vite/package.json')), 'bin', 'vite.js');
+const TSX = ['--import', 'tsx'];
+const DETACHED = process.platform !== 'win32';
 
 const results: { name: string; ok: boolean; detail?: string }[] = [];
 function check(name: string, ok: boolean, detail?: string) {
@@ -59,15 +68,15 @@ async function startPreview(): Promise<ChildProcess | null> {
   );
   if (busy) throw new Error(`port ${PORT} is already in use (a stale preview server?): stop it or set E2E_PORT`);
   const proc = USE_VITE
-    ? spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
+    ? spawn(process.execPath, [VITE, 'preview', '--port', String(PORT), '--strictPort'], {
         cwd: APP,
         stdio: 'pipe',
-        detached: true,
+        detached: DETACHED,
       })
-    : spawn('npx', ['tsx', 'deploy/serve-dist.ts'], {
+    : spawn(process.execPath, [...TSX, 'deploy/serve-dist.ts'], {
         cwd: APP,
         stdio: 'pipe',
-        detached: true, // own process group: stopServer() ends npx and the server it started
+        detached: DETACHED, // own process group: stopServer() ends the server and anything it started
 
         env: { ...process.env, PORT: String(PORT), SERVE_TEST_HOOKS: '1' },
       });
@@ -91,16 +100,20 @@ async function startFakeCloud(): Promise<{ proc: ChildProcess; base: string } | 
   if (USE_VITE || process.env.E2E_BASE_URL || process.env.E2E_SKIP_SYNC) return null;
   const port = PORT + 1;
   const base = `http://localhost:${port}`;
-  const built = spawnSync('npx', ['vite', 'build', '--outDir', 'dist-fake', '--emptyOutDir', '--logLevel', 'error'], {
-    cwd: APP,
-    env: { ...process.env, VITE_FAKE_SYNC: '1' },
-    stdio: 'inherit',
-  });
+  const built = spawnSync(
+    process.execPath,
+    [VITE, 'build', '--outDir', 'dist-fake', '--emptyOutDir', '--logLevel', 'error'],
+    {
+      cwd: APP,
+      env: { ...process.env, VITE_FAKE_SYNC: '1' },
+      stdio: 'inherit',
+    },
+  );
   if (built.status !== 0) throw new Error('fake-cloud build failed');
-  const proc = spawn('npx', ['tsx', 'deploy/serve-dist.ts'], {
+  const proc = spawn(process.execPath, [...TSX, 'deploy/serve-dist.ts'], {
     cwd: APP,
     stdio: 'pipe',
-    detached: true,
+    detached: DETACHED,
     env: { ...process.env, PORT: String(port), DIST_DIR: 'dist-fake', SERVE_FAKE_SYNC: '1' },
   });
   for (let i = 0; i < 100; i++) {
@@ -115,10 +128,11 @@ async function startFakeCloud(): Promise<{ proc: ChildProcess; base: string } | 
   throw new Error('fake-cloud server did not start');
 }
 
-/** Stop the server's whole process group (npx leaves its child running when only npx is killed). */
+/** Stop the server: its whole process group where it has one (Unix), the process itself on Windows. */
 function stopServer(proc: ChildProcess): void {
   try {
-    if (proc.pid) process.kill(-proc.pid, 'SIGTERM');
+    if (proc.pid && DETACHED) process.kill(-proc.pid, 'SIGTERM');
+    else proc.kill();
   } catch {
     proc.kill();
   }
@@ -161,7 +175,10 @@ async function main() {
   mkdirSync(OUT, { recursive: true });
   // the sample cover photo is generated (git-ignored): the cover, photo report and zip checks need it
   if (!existsSync(COVER))
-    spawnSync('npm', ['run', 'make-photo', '-w', 'spike/export'], { cwd: join(APP, '..'), stdio: 'inherit' });
+    spawnSync(process.execPath, [...TSX, 'src/makeTestPhoto.ts'], {
+      cwd: join(APP, '..', 'spike', 'export'),
+      stdio: 'inherit',
+    });
   const server = await startPreview();
   const browser = await launch();
   // every page of every context: report CSP violations (securitypolicyviolation events and console reports)

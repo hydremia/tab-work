@@ -45,7 +45,12 @@ async function download(page: Page, testId: string, out: string): Promise<string
   return file;
 }
 
-const pdfText = (file: string) => spawnSync('pdftotext', ['-layout', file, '-'], { encoding: 'utf8' }).stdout ?? '';
+// UTF-8 and LF whatever the build (Git for Windows ships xpdf's pdftotext, which writes Latin-1 and CRLF by default)
+const pdfText = (file: string) =>
+  (spawnSync('pdftotext', ['-layout', '-enc', 'UTF-8', file, '-'], { encoding: 'utf8' }).stdout ?? '').replace(
+    /\r\n/g,
+    '\n',
+  );
 const pageCount = async (file: string) => (await PDFDocument.load(readFileSync(file))).getPageCount();
 function renderPage1(file: string, png: string) {
   const base = png.replace(/\.png$/, '');

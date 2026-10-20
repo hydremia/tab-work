@@ -4,7 +4,7 @@
  * head gives the impeller and the final head the flow (domain/pumpCurves.ts). Only published data: every entry
  * names its curve sheet.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../data/db';
 import { useLibraryPumps } from '../../data/hooks';
@@ -19,7 +19,18 @@ type Curves = NonNullable<LibraryPump['curves']>;
 function CurveEditor({ p, idp }: { p: LibraryPump; idp: string }) {
   const curves: Curves = p.curves ?? [];
   const [texts, setTexts] = useState(() => curves.map((c) => formatCurvePoints(c.points)));
-  const save = (next: Curves) => void setField('libraryPumps', p.id, 'curves', next.length ? next : null);
+  // Saves compose: each one works on the curves the previous save wrote, not on the props of the last render (those
+  // follow only when the live query re-renders). A textarea's blur and the click that caused it save in one gesture
+  // (points, then Add / Remove); without this the second save overwrote the first with stale curves.
+  const latest = useRef(curves);
+  useEffect(() => {
+    latest.current = p.curves ?? [];
+  }, [p.curves]);
+  const save = (update: (cur: Curves) => Curves) => {
+    const next = update(latest.current);
+    latest.current = next;
+    void setField('libraryPumps', p.id, 'curves', next.length ? next : null);
+  };
   return (
     <div className="stack" style={{ gap: 8 }}>
       {curves.map((c, i) => (
@@ -32,7 +43,7 @@ function CurveEditor({ p, idp }: { p: LibraryPump; idp: string }) {
               id={`${idp}-imp-${i}`}
               unit="in."
               value={c.impeller}
-              onCommit={(x) => save(curves.map((y, k) => (k === i ? { ...y, impeller: x ?? 0 } : y)))}
+              onCommit={(x) => save((cur) => cur.map((y, k) => (k === i ? { ...y, impeller: x ?? 0 } : y)))}
             />
           </div>
           <div className="field">
@@ -49,7 +60,7 @@ function CurveEditor({ p, idp }: { p: LibraryPump; idp: string }) {
               onBlur={() => {
                 const pts = parseCurvePoints(texts[i] ?? '');
                 setTexts((t) => t.map((x, k) => (k === i ? formatCurvePoints(pts) : x)));
-                save(curves.map((y, k) => (k === i ? { ...y, points: pts } : y)));
+                save((cur) => cur.map((y, k) => (k === i ? { ...y, points: pts } : y)));
               }}
             />
           </div>
@@ -59,7 +70,7 @@ function CurveEditor({ p, idp }: { p: LibraryPump; idp: string }) {
             aria-label={`Remove the ${c.impeller}″ curve`}
             onClick={() => {
               setTexts((t) => t.filter((_, k) => k !== i));
-              save(curves.filter((_, k) => k !== i));
+              save((cur) => cur.filter((_, k) => k !== i));
             }}
           >
             <IconTrash size={16} />
@@ -73,7 +84,7 @@ function CurveEditor({ p, idp }: { p: LibraryPump; idp: string }) {
         data-testid="add-pump-curve"
         onClick={() => {
           setTexts((t) => [...t, '']);
-          save([...curves, { impeller: 0, points: [] }]);
+          save((cur) => [...cur, { impeller: 0, points: [] }]);
         }}
       >
         <IconPlus size={16} /> Add impeller curve

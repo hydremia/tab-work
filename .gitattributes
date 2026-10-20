@@ -1,0 +1,13 @@
+# One line ending everywhere: the hosting test compares generated files byte for byte with the committed ones,
+# and Windows clones with core.autocrlf would otherwise check them out with CRLF.
+* text=auto eol=lf
+
+*.xlsm binary
+*.xlsx binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
