@@ -1,16 +1,13 @@
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { TEMPLATE_FILE_NAME } from '@a2b/workbook';
 import JSZip from 'jszip';
 import { describe, expect, it } from 'vitest';
 import { workbookForPdf } from './pdfWorkbook';
 
+// the committed template at the repository root (public/templates is a build-time copy, absent in CI)
 const template = () =>
-  new Uint8Array(
-    readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'public', 'templates', 'tab-template-rev08.xlsm'),
-    ),
-  );
+  new Uint8Array(readFileSync(fileURLToPath(new URL(`../../../${TEMPLATE_FILE_NAME}`, import.meta.url))));
 
 describe('workbook for the Graph PDF conversion', () => {
   it('drops the VBA project with its relationship and content type, hides the {…} sheets, keeps everything else', async () => {
