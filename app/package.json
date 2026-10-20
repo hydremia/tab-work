@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@a2b/workbook": "*",
+    "@azure/msal-browser": "^5.25.1",
     "@supabase/supabase-js": "^2.100.0",
     "@tesseract.js-data/eng": "^1.0.0",
     "dexie": "^4.2.0",

@@ -9,6 +9,7 @@ import {
   headersFile,
   headersFor,
   IMMUTABLE,
+  MICROSOFT_ORIGINS,
   NO_CACHE,
   supabaseOrigins,
   XLSM_MIME,
@@ -47,7 +48,15 @@ describe('hosting config', () => {
     expect(csp).toContain("img-src 'self' blob: data:");
     expect(csp).toContain('https://*.supabase.co wss://*.supabase.co');
     const one = contentSecurityPolicy(['https://abc.supabase.co', 'wss://abc.supabase.co']);
-    expect(one).toContain("connect-src 'self' blob: data: https://abc.supabase.co wss://abc.supabase.co;");
+    // Supabase, then Microsoft (the one-click final report: MSAL, Graph, the converted file's download host)
+    expect(MICROSOFT_ORIGINS).toEqual([
+      'https://login.microsoftonline.com',
+      'https://graph.microsoft.com',
+      'https://*.sharepoint.com',
+    ]);
+    expect(one).toContain(
+      "connect-src 'self' blob: data: https://abc.supabase.co wss://abc.supabase.co https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com;",
+    );
     const h = headersFor('/');
     expect(h['Permissions-Policy']).toContain('camera=(self)');
     expect(h['X-Content-Type-Options']).toBe('nosniff');
@@ -64,9 +73,9 @@ describe('hosting config', () => {
     expect(() => supabaseOrigins('javascript:alert(1)')).toThrow(/http\(s\) URL/);
     const meta = cspMetaTag(supabaseOrigins('https://abcd1234.supabase.co'));
     expect(meta).toBe(
-      '<meta http-equiv="Content-Security-Policy" content="connect-src \'self\' blob: data: https://abcd1234.supabase.co wss://abcd1234.supabase.co" />',
+      '<meta http-equiv="Content-Security-Policy" content="connect-src \'self\' blob: data: https://abcd1234.supabase.co wss://abcd1234.supabase.co https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com" />',
     );
-    expect(meta).not.toContain('*');
+    expect(meta).not.toContain('*.supabase.co');
     const pinned = headersFile(supabaseOrigins('https://abcd1234.supabase.co'));
     expect(pinned).toContain('https://abcd1234.supabase.co wss://abcd1234.supabase.co');
     expect(pinned).not.toContain('*.supabase.co');

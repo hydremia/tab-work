@@ -1,9 +1,9 @@
 import { TEMPLATE_REVISION } from '@a2b/workbook/map';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { IssueKind } from '../../data/types';
 import type { PerPage } from '../../reports/layout';
 import type { ReportRequest, ReportResult } from '../../reports/generate';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useLocation, useSearchParams } from 'react-router';
 import { useBaseWorkbook, useExportStatus, useRevisions } from '../../data/hooks';
 import type { Revision } from '../../data/types';
 import type { ExportResult } from '../../workbook/exportProject';
@@ -19,6 +19,8 @@ import { ReportCheck, useReportCheck } from '../components/ReportCheck';
 import { ShareFile } from '../components/ShareFile';
 import { SpellingCheck } from '../components/SpellingCheck';
 import { useProjectContext } from './ProjectLayout';
+import { connectGraph, getGraphToken, graphAccount, graphAvailable } from '../../auth/graph';
+import { useSync } from '../../sync/SyncProvider';
 
 const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
 type IssueScope = 'all' | IssueKind;
@@ -48,6 +50,22 @@ export function ExportPage() {
   const [withPhotos, setWithPhotos] = useState(true);
   const [outletCharts, setOutletCharts] = useState(false);
   const [finalNote, setFinalNote] = useState<string | null>(null);
+  // the one-click final report: is Microsoft 365 connected on this device? (null: not known yet)
+  const sync = useSync();
+  const location = useLocation();
+  const [graphConnected, setGraphConnected] = useState<boolean | null>(null);
+  const userEmail = sync.user?.email;
+  useEffect(() => {
+    if (!graphAvailable()) return;
+    let on = true;
+    graphAccount(userEmail).then(
+      (a) => on && setGraphConnected(Boolean(a)),
+      () => on && setGraphConnected(false),
+    );
+    return () => {
+      on = false;
+    };
+  }, [userEmail]);
   const smallFans = equipment.filter((e) => e.type === 'smallFan').length;
   const suggested = revisions ? suggestLabel(revisions) : '';
   const label = typed ?? suggested;
@@ -72,22 +90,68 @@ export function ExportPage() {
   }
 
   async function makeFinal(file: File) {
-    setReportBusy('Reading the report PDF and placing the figures…');
+    await finalFromPdf(new Uint8Array(await file.arrayBuffer()), 'Reading the report PDF and placing the figures…');
+  }
+
+  /**
+   * The one-click route: the latest exported workbook → PDF in Microsoft 365 (a temporary file in the user's OneDrive
+   * app folder, deleted afterwards) → the final report with the figures. Needs "Connect Microsoft 365" once per device.
+   */
+  async function makeFinalOneClick() {
+    setReportBusy('Connecting to Microsoft 365…');
+    setReportError(null);
+    setReportResult(null);
+    setFinalNote(null);
+    try {
+      const token = await getGraphToken(userEmail);
+      if (!token) {
+        setGraphConnected(false);
+        throw new Error('The Microsoft 365 connection has expired on this device: connect again, then retry.');
+      }
+      // the latest exported workbook (its file is kept with the newest exports); none yet: export now (not issuing)
+      let bytes: Uint8Array;
+      let label = reportLabel.trim();
+      if (lastExport?.bytes) bytes = new Uint8Array(await lastExport.bytes.arrayBuffer());
+      else {
+        setReportBusy('Exporting the workbook…');
+        const { exportProject } = await import('../../workbook/exportProject');
+        const r = await exportProject(project.id, { label: label || undefined });
+        bytes = r.bytes;
+        label = r.revision.label;
+      }
+      setReportBusy('Preparing the workbook for Microsoft 365…');
+      const [{ workbookForPdf }, { workbookToPdf }] = await Promise.all([
+        import('../../reports/pdfWorkbook'),
+        import('../../reports/graphPdf'),
+      ]);
+      const prepared = await workbookForPdf(bytes);
+      const steps = {
+        upload: 'Uploading to OneDrive…',
+        convert: 'Microsoft 365 is converting the workbook to PDF…',
+        delete: 'Removing the temporary file…',
+      };
+      const pdf = await workbookToPdf(prepared.bytes, `TAB Report ${label || 'draft'}.xlsx`, token, {
+        onStep: (step) => setReportBusy(steps[step]),
+      });
+      await finalFromPdf(pdf, 'Placing the figures…', label);
+    } catch (e) {
+      setReportError(e instanceof Error ? e.message : String(e));
+      setReportBusy(null);
+    }
+  }
+
+  async function finalFromPdf(reportPdf: Uint8Array, busy: string, label = reportLabel.trim()) {
+    setReportBusy(busy);
     setReportError(null);
     setReportResult(null);
     setFinalNote(null);
     try {
       const gen = await import('../../reports/generate');
-      const r = await gen.generateFinalReport(
-        project.id,
-        reportLabel.trim(),
-        new Uint8Array(await file.arrayBuffer()),
-        {
-          outletCharts,
-          photos: withPhotos,
-          onProgress: (done, total) => setReportBusy(`Placing photo ${done} of ${total}…`),
-        },
-      );
+      const r = await gen.generateFinalReport(project.id, label, reportPdf, {
+        outletCharts,
+        photos: withPhotos,
+        onProgress: (done, total) => setReportBusy(`Placing photo ${done} of ${total}…`),
+      });
       gen.downloadFile(r.bytes, r.fileName, 'application/pdf');
       setReportResult({ ...r, mime: 'application/pdf' });
       setFinalNote(
@@ -486,6 +550,8 @@ export function ExportPage() {
         <div className="stack" style={{ gap: 6 }}>
           <h3 style={{ margin: 0 }}>Final report with the figures</h3>
           <p className="small muted" style={{ margin: 0 }}>
+            {graphAvailable() &&
+              'With Microsoft 365 connected, one click makes the PDF of the latest exported workbook in the cloud (a temporary file in your OneDrive, removed afterwards) and builds the report. Or: '}
             Save the exported workbook as PDF in Excel (the report sheets). Pick that PDF here: each static profile and
             traverse figure goes right after its unit's pages, the summary after the Building Balance, every page is
             numbered "Page x of N" and the table of contents follows.
@@ -515,7 +581,43 @@ export function ExportPage() {
             Add the photo report at the end
           </label>
           <div className="report-grid">
-            <label className="btn btn-primary file-btn" aria-disabled={Boolean(reportBusy)} data-testid="report-final">
+            {graphAvailable() &&
+              (graphConnected ? (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={Boolean(reportBusy)}
+                  data-testid="report-final-graph"
+                  title={
+                    lastExport?.bytes
+                      ? `From the latest exported workbook (${lastExport.label})`
+                      : 'Exports the workbook first, then converts it'
+                  }
+                  onClick={() => void makeFinalOneClick()}
+                >
+                  <IconDownload size={18} /> Final report (one click)
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={Boolean(reportBusy) || graphConnected === null}
+                  data-testid="graph-connect"
+                  title="Once per device: sign in to Microsoft and allow the app a folder of its own in your OneDrive"
+                  onClick={() =>
+                    void connectGraph(`${location.pathname}${location.search}`, userEmail).catch((e: unknown) =>
+                      setReportError(e instanceof Error ? e.message : String(e)),
+                    )
+                  }
+                >
+                  Connect Microsoft 365 for one-click reports
+                </button>
+              ))}
+            <label
+              className={graphAvailable() ? 'btn file-btn' : 'btn btn-primary file-btn'}
+              aria-disabled={Boolean(reportBusy)}
+              data-testid="report-final"
+            >
               <IconDownload size={18} /> Final report (pick the Excel PDF)
               <input
                 type="file"

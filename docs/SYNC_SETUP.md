@@ -121,6 +121,16 @@ function; the policies from 0001 stay).
 4. *(Recommended)* limit who can sign in: **Enterprise applications → TAB App → Properties → Assignment required? Yes**,
    then **Users and groups → Add user/group** → a group such as "TAB App Users". Everyone else gets a Microsoft error
    page (AADSTS50105) instead of the app.
+5. *(For the one-click final report: PDF through Microsoft 365)* the app itself also talks to Microsoft, with the same
+   registration:
+   - **Authentication → Add a platform → Single-page application** → Redirect URIs: `https://<app>/auth/graph`
+     (the app's address; add `https://<preview>/auth/graph` for the Vercel preview and
+     `http://localhost:5173/auth/graph` for development). No secret is involved: the browser uses PKCE.
+   - **API permissions → Add a permission → Microsoft Graph → Delegated → `Files.ReadWrite.AppFolder`** → **Grant
+     admin consent**. The app gets a folder of its own in each user's OneDrive (*Apps → TAB App*) and sees nothing
+     else there; the exported workbook is uploaded, converted to PDF by Excel's engine and deleted again.
+   - The two Vercel variables `VITE_AZURE_CLIENT_ID` and `VITE_AZURE_TENANT_ID` (step 6). Without them the Export
+     tab keeps the two-step route only (save the PDF in Excel, pick it in the app).
 
 Send the client ID, tenant ID and secret value to the person doing step 5 through a password manager or similar,
 never by chat or email, and never into the repository.
@@ -157,6 +167,8 @@ sign up") so Microsoft is the only way in.
 | `VITE_SUPABASE_URL` | `https://<prod-ref>.supabase.co` (Settings → API → Project URL) | Production |
 | `VITE_SUPABASE_ANON_KEY` | the **anon public** key (Settings → API) | Production |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | the **tab-app-dev** values | Preview |
+| `VITE_AZURE_CLIENT_ID` | the Application (client) ID of step 4.1 (one-click final report; optional) | Production, Preview |
+| `VITE_AZURE_TENANT_ID` | the Directory (tenant) ID of step 4.1 | Production, Preview |
 
 Never enter the `service_role` key anywhere in the app or Vercel. The values are read when the app is built:
 **Deployments → ⋯ → Redeploy** after adding or changing them.

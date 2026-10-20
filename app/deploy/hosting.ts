@@ -20,7 +20,11 @@
  *   VITE_SUPABASE_URL set pins it to that one project (cspMetaTag below: a <meta> policy in index.html and a pinned
  *   dist/_headers); the committed files allow any *.supabase.co project only as the fallback when no project is
  *   configured (`VITE_SUPABASE_URL=https://<ref>.supabase.co npm run hosting-config -w app` pins them too).
- *   blob: / data: are for reading photos and generated files back (fetch of an object URL).
+ *   blob: / data: are for reading photos and generated files back (fetch of an object URL). Plus Microsoft, for the
+ *   one-click final report (auth/graph.ts, reports/graphPdf.ts): login.microsoftonline.com (MSAL's token requests),
+ *   graph.microsoft.com (the temporary OneDrive file and its PDF conversion) and *.sharepoint.com (the converted
+ *   file's short-lived download URL, which Graph redirects to). Unused, and harmless, in a build without
+ *   VITE_AZURE_CLIENT_ID.
  * - worker-src 'self' (service worker); manifest-src 'self'; font-src 'self' (no web fonts are used).
  * - object-src 'none', base-uri 'self', form-action 'self', frame-ancestors 'none' (no framing: clickjacking).
  * Downloads use <a download> with blob: URLs, which CSP does not restrict. Sign in with Microsoft is a top-level
@@ -28,6 +32,13 @@
  */
 
 export const XLSM_MIME = 'application/vnd.ms-excel.sheet.macroEnabled.12';
+
+/** connect-src for the one-click final report through Microsoft 365 (see the policy notes above). */
+export const MICROSOFT_ORIGINS = [
+  'https://login.microsoftonline.com',
+  'https://graph.microsoft.com',
+  'https://*.sharepoint.com',
+];
 
 /**
  * connect-src sources for Supabase: the one project of `url` (its REST / auth / storage origin and its Realtime
@@ -52,7 +63,7 @@ export function supabaseOrigins(url = process.env.VITE_SUPABASE_URL): string[] {
  * headers (frame-ancestors is ignored in a <meta>).
  */
 export function cspMetaTag(supabase: string[]): string {
-  const connect = ["'self'", 'blob:', 'data:', ...supabase].join(' ');
+  const connect = ["'self'", 'blob:', 'data:', ...supabase, ...MICROSOFT_ORIGINS].join(' ');
   return `<meta http-equiv="Content-Security-Policy" content="connect-src ${connect}" />`;
 }
 
@@ -63,7 +74,7 @@ export function contentSecurityPolicy(supabase = supabaseOrigins()): string {
     ['style-src', ["'self'"]],
     ['img-src', ["'self'", 'blob:', 'data:']],
     ['font-src', ["'self'"]],
-    ['connect-src', ["'self'", 'blob:', 'data:', ...supabase]],
+    ['connect-src', ["'self'", 'blob:', 'data:', ...supabase, ...MICROSOFT_ORIGINS]],
     ['media-src', ["'self'", 'blob:']],
     ['worker-src', ["'self'"]],
     ['manifest-src', ["'self'"]],

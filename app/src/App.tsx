@@ -31,6 +31,7 @@ const ScheduleImportPage = page(() => import('./ui/pages/ScheduleImportPage'), '
 const AccountPage = page(() => import('./ui/pages/SyncPages'), 'AccountPage');
 const AuthCallbackPage = page(() => import('./ui/pages/SyncPages'), 'AuthCallbackPage');
 const CloudSetupPage = page(() => import('./ui/pages/SyncPages'), 'CloudSetupPage');
+const GraphConnectPage = page(() => import('./ui/pages/GraphConnectPage'), 'GraphConnectPage');
 const LibraryPage = page(() => import('./ui/pages/LibraryPage'), 'LibraryPage');
 const TagsPage = page(() => import('./ui/pages/TagPages'), 'TagsPage');
 const TagPage = page(() => import('./ui/pages/TagPages'), 'TagPage');
@@ -71,6 +72,7 @@ export const routes = [
       { path: 'check', element: CheckWorkbookPage },
       { path: 'account', element: AccountPage },
       { path: 'auth/callback', element: AuthCallbackPage },
+      { path: 'auth/graph', element: GraphConnectPage },
       { path: 'cloud-setup', element: CloudSetupPage },
       { path: 'library', element: LibraryPage },
       { path: 'certification', element: CertificationPage },
