@@ -26,6 +26,9 @@ const GOOD =
   '<dxf><font><color rgb="FF006100"/></font><fill><patternFill><bgColor rgb="FFC6EFCE"/></patternFill></fill></dxf>';
 const BAD =
   '<dxf><font><color rgb="FF9C0006"/></font><fill><patternFill><bgColor rgb="FFFFC7CE"/></patternFill></fill></dxf>';
+/** Excel's "Neutral" style: an accepted deviation (outside the tolerance, signed off on review). */
+const NEUTRAL =
+  '<dxf><font><color rgb="FF9C5700"/></font><fill><patternFill><bgColor rgb="FFFFEB9C"/></patternFill></fill></dxf>';
 
 /** The "% of design" cells of a sheet, by their formulas (shared formulas included: Excel writes them on save). */
 export function percentCells(sheetXml: string): string[] {
@@ -122,41 +125,58 @@ function insertAt(xml: string): number {
 
 /**
  * Adds the tolerance colours to every sheet with "% of design" cells (tolerance as a fraction: 0.1 = ±10 %), or only
- * removes earlier ones when `tolerance` is null. Returns the number of cells coloured.
+ * removes earlier ones when `tolerance` is null. `accepted` (sheet part -> sheet rows) names the rows whose deviation
+ * was accepted on review: their cells turn neutral (Excel's "Neutral" style) instead of red when outside the
+ * tolerance, and green as usual when inside. Returns the number of cells coloured.
  */
 export async function applyToleranceColors(
   zip: JSZip,
   sheets: readonly { part: string }[],
   tolerance: number | null,
   stylesPart = 'xl/styles.xml',
+  accepted?: ReadonlyMap<string, ReadonlySet<number>>,
 ): Promise<number> {
   let styles = zip.file(stylesPart) ? await readText(zip, stylesPart) : null;
   let good = -1;
   let bad = -1;
+  let neutral = -1;
   if (tolerance !== null && styles) {
     const g = ensureDxf(styles, GOOD);
     const b = ensureDxf(g.styles, BAD);
     styles = b.styles;
     good = g.id;
     bad = b.id;
+    if (accepted && [...accepted.values()].some((rows) => rows.size)) {
+      const n = ensureDxf(styles, NEUTRAL);
+      styles = n.styles;
+      neutral = n.id;
+    }
   }
   let total = 0;
   for (const s of sheets) {
     const xml0 = await readText(zip, s.part);
     let xml = xml0.replace(OURS, '');
     if (tolerance !== null && styles) {
-      const cells = percentCells(xml);
-      if (cells.length) {
-        const priority = Math.max(0, ...[...xml.matchAll(/\bpriority="(\d+)"/g)].map((m) => Number(m[1])));
+      const all = percentCells(xml);
+      const acc = accepted?.get(s.part);
+      const isAccepted = (c: string) => Boolean(acc?.has(splitRef(c).row)) && neutral >= 0;
+      const groups: [string[], number][] = [
+        [all.filter((c) => !isAccepted(c)), bad],
+        [all.filter(isAccepted), neutral],
+      ];
+      let priority = Math.max(0, ...[...xml.matchAll(/\bpriority="(\d+)"/g)].map((m) => Number(m[1])));
+      const t = String(Math.round(tolerance * 1e6) / 1e6);
+      for (const [cells, outside] of groups) {
+        if (!cells.length) continue;
         const first = cells[0];
-        const t = String(Math.round(tolerance * 1e6) / 1e6);
         const cf =
           `<conditionalFormatting sqref="${sqrefOf(cells)}">` +
           `<cfRule type="expression" dxfId="${good}" priority="${priority + 1}"><formula>AND(ISNUMBER(${first}),ABS(${first}-1)&lt;=${t})</formula></cfRule>` +
-          `<cfRule type="expression" dxfId="${bad}" priority="${priority + 2}"><formula>AND(ISNUMBER(${first}),ABS(${first}-1)&gt;${t})</formula></cfRule>` +
+          `<cfRule type="expression" dxfId="${outside}" priority="${priority + 2}"><formula>AND(ISNUMBER(${first}),ABS(${first}-1)&gt;${t})</formula></cfRule>` +
           `</conditionalFormatting>`;
         const at = insertAt(xml);
         xml = xml.slice(0, at) + cf + xml.slice(at);
+        priority += 2;
         total += cells.length;
       }
     }

@@ -1068,6 +1068,30 @@ textarea {
   background: var(--red-bg);
   color: var(--red);
 }
+/* out of tolerance but accepted on review (the reason is in the title) */
+.pct[data-ok='accepted'] {
+  background: var(--amber-bg);
+  color: var(--amber);
+}
+.unit-issue-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.unit-issue-list li + li {
+  margin-top: 2px;
+}
+.attention-group li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.attention-group li > .attention-item {
+  flex: 1;
+  min-width: 0;
+}
+.attention-action {
+  white-space: nowrap;
+}
 
 /* hood filters: the size on its own line, then the readings 3 per line (Initial 1-3, Final 1-3) */
 .outlet-grid[data-calc='hoodFilter'] > .cell:first-child {

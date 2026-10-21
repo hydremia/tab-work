@@ -25,6 +25,7 @@ import {
   setFields,
   migrateLegacyStatic,
   splitLegacySheaveBore,
+  withdrawAcceptance,
 } from '../../data/repo';
 import { makeContext } from '../../domain/historyView';
 import { HistoryList } from '../components/HistoryList';
@@ -46,7 +47,7 @@ import { hoodFanTags, hoodLinks, traverseLayout } from '../../domain/equipmentCa
 import { EQUIPMENT_TYPES, equipmentType, nextDesignation, type EquipmentTypeKey } from '../../domain/equipmentTypes';
 import { getSpec, presetUnitType, type FieldSpec, type SectionSpec, type SequenceSpec } from '../../domain/specs';
 import { airflowOnlySections } from '../../domain/unitScope';
-import { AirflowTable } from '../components/AirflowTable';
+import { acceptRowDeviation, AirflowTable } from '../components/AirflowTable';
 import { CalcPanel, espText, ReviewCallout, unitEspCheck } from '../components/CalcPanels';
 import { SequenceGrid, type GridShape } from '../components/SequenceGrid';
 import { IconChevron, IconHistory, IconTrash } from '../components/Icons';
@@ -949,20 +950,99 @@ export function EquipmentPage() {
             </div>
           </div>
           {c.outOfTolerance.length > 0 && (
-            <div className="callout" data-tone="red" role="status">
+            <div className="callout" data-tone="red" role="status" data-testid="tolerance-callout">
               <StatusIcon color="red" size={18} />
-              <span>
+              <span className="grow">
                 Out of ±{Math.round(project.tolerance * 100)} % tolerance:{' '}
-                {c.outOfTolerance.map((t) => `${t.label} (${Math.round(t.ratio * 100)} %)`).join(', ')}
+                {c.outOfTolerance.map((t, i) => (
+                  <Fragment key={t.key}>
+                    {i > 0 && ', '}
+                    {t.label} ({Math.round(t.ratio * 100)} %)
+                    {!locked && (
+                      <>
+                        {' '}
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          data-testid={`accept-${t.key}`}
+                          title="Review: accept this deviation with a reason; it shows amber instead of red and the unit can be reviewed"
+                          onClick={() => void acceptRowDeviation(equipment.id, t.key, t.ratio, t.label)}
+                        >
+                          Accept…
+                        </button>
+                      </>
+                    )}
+                  </Fragment>
+                ))}
+              </span>
+            </div>
+          )}
+          {c.acceptedDeviations.length > 0 && (
+            <div className="callout" data-tone="amber" role="status" data-testid="accepted-callout">
+              <StatusIcon color="amber" size={18} />
+              <span className="grow">
+                Accepted deviation{c.acceptedDeviations.length > 1 ? 's' : ''}:{' '}
+                {c.acceptedDeviations.map((t, i) => (
+                  <Fragment key={t.key}>
+                    {i > 0 && '; '}
+                    {t.label} ({Math.round(t.ratio * 100)} %){t.accepted?.name ? ` by ${t.accepted.name}` : ''}:{' '}
+                    {t.accepted?.reason}
+                    {!locked && (
+                      <>
+                        {' '}
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          data-testid={`withdraw-${t.key}`}
+                          onClick={() => void withdrawAcceptance(equipment.id, t.key)}
+                        >
+                          Withdraw
+                        </button>
+                      </>
+                    )}
+                  </Fragment>
+                ))}
               </span>
             </div>
           )}
           {unitIssues.length > 0 && (
-            <div className="callout" data-tone="red">
+            <div className="callout" data-tone="red" role="status" data-testid="unit-issues">
               <StatusIcon color="red" size={18} />
-              <span>
-                {unitIssues.length} open issue{unitIssues.length > 1 ? 's' : ''}:{' '}
-                <Link to={`/p/${project.id}/issues`}>view issues</Link>
+              <span className="grow">
+                {unitIssues.length} open issue{unitIssues.length > 1 ? 's' : ''} (
+                <Link to={`/p/${project.id}/issues`}>view issues</Link>):
+                <ul className="unit-issue-list">
+                  {unitIssues.map((i) => (
+                    <li key={i.id}>
+                      <b>
+                        {i.kind === 'new' ? 'N' : 'E'}-{i.number}
+                      </b>{' '}
+                      {i.remark.trim() || '(no remark yet)'}
+                      {!locked && (
+                        <>
+                          {' '}
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            data-testid={`issue-close-${i.id}`}
+                            onClick={() => void setField('issues', i.id, 'status', 'Closed')}
+                          >
+                            Close
+                          </button>{' '}
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            data-testid={`issue-observe-${i.id}`}
+                            title="Keep it on record without flagging the unit: listed under Observations (Obs. N-#)"
+                            onClick={() => void setField('issues', i.id, 'issueType', 'observation')}
+                          >
+                            Make observation
+                          </button>
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </span>
             </div>
           )}

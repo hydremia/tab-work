@@ -1,8 +1,22 @@
 import { Link } from 'react-router';
-import { groupAttention } from '../../domain/attention';
+import { setField, withdrawAcceptance } from '../../data/repo';
+import { groupAttention, type AttentionAction } from '../../domain/attention';
+import { acceptRowDeviation } from '../components/AirflowTable';
 import { ConflictList } from '../components/Conflicts';
 import { StatusIcon } from '../components/Status';
 import { useProjectContext } from './ProjectLayout';
+
+/** The review actions an item offers, done right here (the engine's view follows through the live query). */
+function runAction(a: AttentionAction): void {
+  if (a.kind === 'accept') void acceptRowDeviation(a.equipmentId, a.key, a.ratio, a.label);
+  else if (a.kind === 'withdraw') void withdrawAcceptance(a.equipmentId, a.key);
+  else void setField('issues', a.issueId, 'issueType', 'observation');
+}
+const ACTION_LABEL: Record<AttentionAction['kind'], string> = {
+  accept: 'Accept…',
+  withdraw: 'Withdraw',
+  observation: 'Make observation',
+};
 
 /** Project-wide "needs attention" list: grouped, every item linked to its unit / section or page. */
 export function AttentionPage() {
@@ -83,6 +97,16 @@ export function AttentionPage() {
                     <span className="small muted">{i.text}</span>
                   </span>
                 </Link>
+                {i.action && !project.lock && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm attention-action"
+                    data-testid={`attention-action-${i.action.kind}`}
+                    onClick={() => runAction(i.action!)}
+                  >
+                    {ACTION_LABEL[i.action.kind]}
+                  </button>
+                )}
               </li>
             ))}
           </ul>

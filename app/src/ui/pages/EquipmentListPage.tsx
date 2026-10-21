@@ -32,7 +32,7 @@ function EquipmentCard({
   conflict?: boolean;
 }) {
   const area = typeof e.data.areaServed === 'string' ? e.data.areaServed : '';
-  const detail =
+  const base =
     c.color === 'gray'
       ? 'Not started'
       : c.color === 'red'
@@ -45,6 +45,8 @@ function EquipmentCard({
         : c.missing.length
           ? `${c.missing.length} required item${c.missing.length > 1 ? 's' : ''} missing`
           : `${c.satisfied}/${c.required} done`;
+  const acc = c.acceptedDeviations.length;
+  const detail = acc && c.color !== 'gray' ? `${base} · ${acc} accepted deviation${acc > 1 ? 's' : ''}` : base;
   return (
     <Link
       to={`/p/${projectId}/e/${e.id}`}

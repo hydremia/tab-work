@@ -524,6 +524,9 @@ export function toProjectData(
       }
       if (td) (unit.tables ??= {})[t.key] = recs;
       else (unit.columnTables ??= {})[t.key] = recs;
+      // accepted deviations: their "% of design" cells are coloured neutral, not red (toleranceColors.ts)
+      const acceptedIdx = naNotation && (!rows.length || tr.forced) ? [] : rows.flatMap((r, i) => (tr?.rows[r.id]?.accepted ? [i] : []));
+      if (acceptedIdx.length && td) (unit.acceptedRows ??= {})[t.key] = acceptedIdx;
     }
 
     // reading sequences (PSP velocities, traverse quick entry)

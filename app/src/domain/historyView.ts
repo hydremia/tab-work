@@ -13,8 +13,10 @@ import type {
   PhotoCategory,
   ProjectLock,
   Review,
+  AcceptedDeviation,
 } from '../data/types';
 import { CATEGORY_LABEL } from '../photos/labels';
+import { isBlank } from './conditions';
 import { CERT_LABELS } from './certification';
 import { PRESSURE_FIELDS, PRESSURE_KEYS } from './projectCompletion';
 import { SPARE_OA_LABELS } from './spareOa';
@@ -143,6 +145,11 @@ export function fieldLabel(e: HistoryEntry, ctx: HistoryContext): string {
     case 'equipment': {
       const unit = e.recordId ? ctx.equipment.get(e.recordId) : undefined;
       if (RECORD_FIELD[f]) return RECORD_FIELD[f];
+      if (head === 'accepted') {
+        if (tail.startsWith('total')) return 'Accepted deviation (unit total)';
+        const row = ctx.rows.get(tail);
+        return `Accepted deviation${row && !isBlank(row.data.no) ? ` (${String(row.data.no)})` : ''}`;
+      }
       if (!unit) return tail || f;
       const spec = getSpec(unit.type);
       if (head === 'data') return unitFieldLabel(spec, tail);
@@ -300,6 +307,10 @@ export function valueText(e: HistoryEntry, v: unknown, ctx: HistoryContext): str
   if (e.table === 'projects' && e.field === 'lock' && typeof v === 'object')
     return `Issued as ${(v as ProjectLock).label}`;
   if (e.table === 'projects' && e.field === 'tolerance' && typeof v === 'number') return `±${Math.round(v * 100)} %`;
+  if (e.table === 'equipment' && e.field.startsWith('accepted.') && typeof v === 'object') {
+    const a = v as AcceptedDeviation;
+    return `Accepted at ${Math.round(a.ratio * 100)} %${a.name ? ` by ${a.name}` : ''}: ${a.reason}`;
+  }
   if (e.table === 'equipment' && e.field === 'slotMove' && typeof v === 'object')
     return `Moved from slot ${(v as { from: number }).from} to ${(v as { to: number }).to}`;
   if (isNaMark(v)) return `${v.notation}${v.reason ? ` (${v.reason})` : ''}`;

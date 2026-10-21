@@ -16,6 +16,11 @@ export interface LayoutData {
   lines?: Record<string, Array<string | null>>;
   sequences?: Record<string, Cell[]>;
   columnTables?: Record<string, Array<Record<string, Cell>>>;
+  /**
+   * Export only: per table, the indexes of rows whose "% of design" is a deviation accepted on review. Their cells get
+   * the neutral tolerance colour instead of red (toleranceColors.ts). Not read back by the importer.
+   */
+  acceptedRows?: Record<string, number[]>;
 }
 
 export interface UnitData extends LayoutData {

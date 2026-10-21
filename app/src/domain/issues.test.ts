@@ -8,7 +8,7 @@ const unit = (id: string, designation: string, extra: Record<string, unknown> = 
   data: {},
   ...extra,
 });
-const flag = (rowId: string, label: string, ratio: number) => ({ table: 'outlets', rowId, label, ratio });
+const flag = (rowId: string, label: string, ratio: number) => ({ table: 'outlets', rowId, key: rowId, label, ratio });
 
 describe('suggested deficiencies', () => {
   const units = [unit('a', 'EF-12', { data: { remarks: 'No dampers.' } }), unit('b', 'RTU-2', { isExisting: true })];

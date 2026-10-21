@@ -31,11 +31,26 @@ import { unitCells } from '../workbook/adapter';
 import { hoodLinks } from './equipmentCalcs';
 import { openDeficiencies } from './issues';
 
-export type AttentionGroup = 'design' | 'motor' | 'tolerance' | 'photos' | 'issues' | 'capacity' | 'calibration';
+export type AttentionGroup =
+  | 'design'
+  | 'motor'
+  | 'tolerance'
+  | 'accepted'
+  | 'photos'
+  | 'issues'
+  | 'capacity'
+  | 'calibration';
+
+/** What the Attention tab can do about an item, right there (review actions). */
+export type AttentionAction =
+  | { kind: 'accept'; equipmentId: string; key: string; ratio: number; label: string }
+  | { kind: 'withdraw'; equipmentId: string; key: string }
+  | { kind: 'observation'; issueId: string };
 
 export const ATTENTION_GROUPS: { key: AttentionGroup; title: string }[] = [
   { key: 'tolerance', title: 'Out of tolerance' },
   { key: 'issues', title: 'Open issues' },
+  { key: 'accepted', title: 'Accepted deviations' },
   { key: 'design', title: 'Design discrepancies' },
   { key: 'motor', title: 'Motor checks' },
   { key: 'photos', title: 'Missing required photos' },
@@ -52,6 +67,7 @@ export interface AttentionItem {
   /** App path to open (relative to the project: `e/<id>#sec-…`, `issues`, `info#cal-h`). */
   to: string;
   equipmentId?: string;
+  action?: AttentionAction;
 }
 
 export interface AttentionInput {
@@ -101,7 +117,7 @@ export function needsAttention(input: AttentionInput): AttentionItem[] {
         openIssues: openIssues.filter((i) => i.equipmentId === e.id).length,
         hoodLinked: linked.has(e.id),
       });
-    const add = (group: AttentionGroup, key: string, text: string, section?: string) =>
+    const add = (group: AttentionGroup, key: string, text: string, section?: string, action?: AttentionAction) =>
       items.push({
         id: `${group}:${e.id}:${key}`,
         group,
@@ -109,16 +125,28 @@ export function needsAttention(input: AttentionInput): AttentionItem[] {
         text,
         to: unitPath(section),
         equipmentId: e.id,
+        ...(action ? { action } : {}),
       });
 
-    // tolerance
+    // tolerance (red), and the deviations accepted on review (amber, with who and why)
+    const tableSection = (table: string) =>
+      getSpec(e.type).sections.find((s) => s.tables?.some((x) => x.key === table))?.key;
     for (const t of c.outOfTolerance) {
-      const sec = getSpec(e.type).sections.find((s) => s.tables?.some((x) => x.key === t.table))?.key;
       add(
         'tolerance',
         `${t.table}:${t.rowId}`,
         `${t.label}: ${formatPercent(t.ratio)} of design (±${Math.round(tol * 100)} %)`,
-        sec,
+        tableSection(t.table),
+        { kind: 'accept', equipmentId: e.id, key: t.key, ratio: t.ratio, label: t.label },
+      );
+    }
+    for (const t of c.acceptedDeviations) {
+      add(
+        'accepted',
+        `${t.table}:${t.rowId}`,
+        `${t.label}: ${formatPercent(t.ratio)} of design, accepted${t.accepted?.name ? ` by ${t.accepted.name}` : ''}: ${t.accepted?.reason ?? ''}`,
+        tableSection(t.table),
+        { kind: 'withdraw', equipmentId: e.id, key: t.key },
       );
     }
     // design (R8) + ESP
@@ -186,6 +214,7 @@ export function needsAttention(input: AttentionInput): AttentionItem[] {
       text: i.remark.trim() || '(no remark yet)',
       to: 'issues',
       equipmentId: unit?.id,
+      action: { kind: 'observation', issueId: i.id },
     });
   }
 

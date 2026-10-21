@@ -349,6 +349,42 @@ describe('red: tolerance and issues', () => {
     expect(hi.outOfTolerance[0].ratio).toBeCloseTo(1.12);
   });
 
+  it('an accepted deviation (reason, ratio) takes the line out of red; a changed reading makes it stale', () => {
+    const i = fullRtu();
+    const rows = (vel: number) =>
+      i.rows.map((r) => (r.table === 'supply' && r.order === 1 ? { ...r, data: { ...r.data, finalVel: vel } } : r));
+    const rowId = i.rows.find((r) => r.table === 'supply' && r.order === 1)!.id;
+    const red = computeCompletion({ ...i, rows: rows(560) });
+    expect(red.outOfTolerance[0].key).toBe(rowId);
+    const acc = {
+      name: 'Dana',
+      userId: 'u',
+      deviceId: 'd',
+      at: 1,
+      ratio: red.outOfTolerance[0].ratio,
+      reason: 'within ±15 % per the engineer, email 10/18',
+    };
+    const ok = computeCompletion({ ...i, rows: rows(560), unit: { ...i.unit, accepted: { [rowId]: acc } } });
+    expect(ok.color).toBe('green');
+    expect(ok.outOfTolerance).toEqual([]);
+    expect(ok.acceptedDeviations[0]).toMatchObject({
+      key: rowId,
+      label: 'Supply outlets S-1',
+      accepted: { reason: acc.reason },
+    });
+    expect(ok.tables.supply.rows[rowId]).toMatchObject({ outOfTolerance: false, accepted: { name: 'Dana' } });
+    expect(ok.complete).toBe(true);
+    // the reading changed since the acceptance: stale, so red again (and not listed as accepted)
+    const stale = computeCompletion({ ...i, rows: rows(580), unit: { ...i.unit, accepted: { [rowId]: acc } } });
+    expect(stale.color).toBe('red');
+    expect(stale.acceptedDeviations).toEqual([]);
+    expect(stale.outOfTolerance[0].ratio).toBeCloseTo(1.16);
+    // withdrawn (null) = not accepted
+    expect(computeCompletion({ ...i, rows: rows(560), unit: { ...i.unit, accepted: { [rowId]: null } } }).color).toBe(
+      'red',
+    );
+  });
+
   it('uses Final when present, otherwise Initial', () => {
     const i = fullRtu();
     const rows = i.rows.map((r) =>

@@ -411,6 +411,8 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
     }
   };
 
+  // sheet part -> sheet rows whose "% of design" cell is an accepted deviation (neutral colour, toleranceColors.ts)
+  const acceptedBySheet = new Map<string, Set<number>>();
   const writeLayout = async (layout: Layout, sheetName: string, base: number, data: LayoutData, path: string) => {
     const sh = await patcher(sheetName);
     for (const [k, v] of Object.entries(data.fields ?? {})) {
@@ -431,6 +433,11 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
       if (rows.length > slots.length) throw new ValidationError(`${path}.${k}: ${rows.length} rows, the template has room for ${slots.length}`);
       for (let i = 0; i < slots.length; i++) {
         const row = rows[i];
+        if (row && data.acceptedRows?.[k]?.includes(i)) {
+          const set = acceptedBySheet.get(sh.part) ?? new Set<number>();
+          set.add(base + slots[i].row);
+          acceptedBySheet.set(sh.part, set);
+        }
         for (const col of def.columns) {
           if (slots[i].omit.includes(col.col)) {
             if (row && row[col.key] !== undefined && row[col.key] !== null) {
@@ -585,7 +592,7 @@ export async function exportWorkbookWithReport(templateBytes: Uint8Array, projec
   }
   // ---- tolerance colours on the "% of design" cells
   if (opts.toleranceColors !== undefined) {
-    const n = await applyToleranceColors(zip, sheets, opts.toleranceColors);
+    const n = await applyToleranceColors(zip, sheets, opts.toleranceColors, undefined, acceptedBySheet);
     if (n) report.warnings.push(`tolerance colours on ${n} % of design cells`);
   }
 

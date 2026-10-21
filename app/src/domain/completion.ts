@@ -5,7 +5,7 @@
  *   green = every required item filled or N/A      red = linked open issue, or a reading out of tolerance
  * N/A comes from four levels: project scope profile, section, field (explicit marks) and automatic rules.
  */
-import type { FieldValue, NaMark, NaState, Notation, Project } from '../data/types';
+import type { AcceptedDeviation, FieldValue, NaMark, NaState, Notation, Project } from '../data/types';
 import { num, ratio, rowActualCfm, withinTolerance } from './calc';
 import { evalCond, isBlank } from './conditions';
 import { TOTAL_CALCS } from './equipmentCalcs';
@@ -65,7 +65,10 @@ export interface RowResult {
   /** Columns that are automatically N/A on this row, with the reason. */
   auto: Record<string, string>;
   ratio: number | null;
+  /** Outside the tolerance and not accepted (red). */
   outOfTolerance: boolean;
+  /** Outside the tolerance but accepted on review at this ratio (amber). */
+  accepted?: AcceptedDeviation;
   /** Design CFM used for the ratio (computed for the first return row). */
   design: number | null;
 }
@@ -101,8 +104,12 @@ export interface MissingItem {
 export interface ToleranceFlag {
   table: string;
   rowId: string;
+  /** Acceptance key on the unit (`accepted.<key>`): the row id, or 'total' / 'total:<n>' for unit totals. */
+  key: string;
   label: string;
   ratio: number;
+  /** Set on an accepted deviation (acceptedDeviations), never on an open one (outOfTolerance). */
+  accepted?: AcceptedDeviation;
 }
 
 export interface Completion {
@@ -117,7 +124,10 @@ export interface Completion {
   required: number;
   satisfied: number;
   missing: MissingItem[];
+  /** Readings outside the tolerance that nobody accepted: the unit is red. */
   outOfTolerance: ToleranceFlag[];
+  /** Readings outside the tolerance accepted on review at their current ratio: shown amber, the unit may be green. */
+  acceptedDeviations: ToleranceFlag[];
   openIssues: number;
   sections: Record<string, SectionResult>;
   fields: Record<string, ItemResult>;
@@ -134,7 +144,13 @@ export interface Completion {
 
 export interface CompletionInput {
   spec: EquipmentSpec;
-  unit: { designation: string; data: Readonly<Record<string, FieldValue>>; naState: NaState };
+  unit: {
+    designation: string;
+    data: Readonly<Record<string, FieldValue>>;
+    naState: NaState;
+    /** Accepted deviations by key (Equipment.accepted). */
+    accepted?: Readonly<Record<string, AcceptedDeviation | null>> | null;
+  };
   rows: readonly {
     id: string;
     table: string;
@@ -164,7 +180,21 @@ function forcedAuto(auto: readonly AutoNa[] | undefined, values: Readonly<Record
   return auto?.find((a) => a.overridesValue && evalCond(a.when, values));
 }
 
+/** Acceptance key of a unit-level total check (Equipment.accepted). */
+export const TOTAL_ACCEPT_KEY = 'total';
+
+/** An acceptance still valid for this ratio: the reading / design has not changed since (else it is stale). */
+export function acceptanceFor(
+  accepted: Readonly<Record<string, AcceptedDeviation | null>> | null | undefined,
+  key: string,
+  ratio: number,
+): AcceptedDeviation | undefined {
+  const a = accepted?.[key];
+  return a && Math.abs(a.ratio - ratio) < 1e-6 ? a : undefined;
+}
+
 export function computeCompletion(input: CompletionInput): Completion {
+  const acceptanceOf = (key: string, rt: number) => acceptanceFor(input.unit.accepted, key, rt);
   const { spec, project } = input;
   // static profile readings entered before revision 08 (positional keys) read by component
   const unit = withComponentStatic(input.unit);
@@ -183,6 +213,7 @@ export function computeCompletion(input: CompletionInput): Completion {
     satisfied: 0,
     missing: [],
     outOfTolerance: [],
+    acceptedDeviations: [],
     openIssues: input.openIssues,
     sections: {},
     fields: {},
@@ -381,10 +412,20 @@ export function computeCompletion(input: CompletionInput): Completion {
             : num(r.data.designCfm);
       const rt = outlet ? ratio(rowActualCfm(r), design) : valve ? valveRatio(r.data) : null;
       const out_ = t.tolerance && rt !== null && !withinTolerance(rt, project.tolerance);
-      out.rows[r.id] = { missing, auto: autoCols, ratio: rt, outOfTolerance: out_, design };
+      const accepted = out_ ? acceptanceOf(r.id, rt) : undefined;
+      out.rows[r.id] = {
+        missing,
+        auto: autoCols,
+        ratio: rt,
+        outOfTolerance: Boolean(out_) && !accepted,
+        design,
+        ...(accepted ? { accepted } : {}),
+      };
       if (out_) {
         const no = isBlank(r.data.no) ? `row ${i + 1}` : String(r.data.no);
-        res.outOfTolerance.push({ table: t.key, rowId: r.id, label: `${t.label} ${no}`, ratio: rt });
+        const flag: ToleranceFlag = { table: t.key, rowId: r.id, key: r.id, label: `${t.label} ${no}`, ratio: rt };
+        if (accepted) res.acceptedDeviations.push({ ...flag, accepted });
+        else res.outOfTolerance.push(flag);
       }
     });
     return out;
@@ -435,7 +476,11 @@ export function computeCompletion(input: CompletionInput): Completion {
       const label = t.label ?? spec.totalCheck!.label;
       if (i === 0) res.total = { label, design: t.design, actual: t.actual, ratio: rt };
       if (rt !== null && !withinTolerance(rt, project.tolerance)) {
-        res.outOfTolerance.push({ table: 'total', rowId: '', label, ratio: rt });
+        const key = i === 0 ? TOTAL_ACCEPT_KEY : `${TOTAL_ACCEPT_KEY}:${i}`;
+        const accepted = acceptanceOf(key, rt);
+        const flag: ToleranceFlag = { table: 'total', rowId: '', key, label, ratio: rt };
+        if (accepted) res.acceptedDeviations.push({ ...flag, accepted });
+        else res.outOfTolerance.push(flag);
       }
     });
   }

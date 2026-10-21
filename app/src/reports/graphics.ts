@@ -917,8 +917,10 @@ export async function renderGraphicsPdf(
       [
         'LINES WITHIN TOLERANCE',
         `${sm.within} / ${sm.lines}`,
-        sm.lines ? `${num((sm.within / sm.lines) * 100)} %` : 'no readings yet',
-        sm.lines && sm.within < sm.lines ? rgb(0.75, 0.45, 0.02) : GREEN,
+        sm.lines
+          ? `${num((sm.within / sm.lines) * 100)} %${sm.accepted ? ` · ${sm.accepted} accepted deviation${sm.accepted === 1 ? '' : 's'}` : ''}`
+          : 'no readings yet',
+        sm.lines && sm.within + sm.accepted < sm.lines ? rgb(0.75, 0.45, 0.02) : GREEN,
       ],
       [
         'OPEN DEFICIENCIES',
@@ -974,7 +976,7 @@ export async function renderGraphicsPdf(
         const share = t.within / t.lines;
         text(
           page,
-          `${t.within} (${num(share * 100)} %)`,
+          `${t.within} (${num(share * 100)} %)${t.accepted ? ` + ${t.accepted} accepted` : ''}`,
           cols[4],
           Y(yy + 8),
           8,

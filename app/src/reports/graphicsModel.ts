@@ -122,6 +122,8 @@ export interface SummaryTypeRow {
   /** airflow / water lines with a design and a measured value, and those within the tolerance */
   lines: number;
   within: number;
+  /** lines outside the tolerance accepted on review (not counted as within) */
+  accepted: number;
 }
 
 /** The appendix's first page: where the project stands, in numbers. */
@@ -130,6 +132,7 @@ export interface Summary {
   complete: number;
   lines: number;
   within: number;
+  accepted: number;
   tolerance: number;
   types: SummaryTypeRow[];
   openIssues: { new: number; existing: number };
@@ -345,6 +348,7 @@ function buildSummary(
       complete: us.filter((e) => ['green', 'blue'].includes(completions.get(e.id)?.color ?? '')).length,
       lines: bars.filter(measured).length,
       within: bars.filter(inTol).length,
+      accepted: us.reduce((n, e) => n + (completions.get(e.id)?.acceptedDeviations.length ?? 0), 0),
     });
   }
   const profiles = figures.filter((f): f is ProfileFigure => f.kind === 'profile');
@@ -358,6 +362,7 @@ function buildSummary(
     complete: types.reduce((n, t) => n + t.complete, 0),
     lines: types.reduce((n, t) => n + t.lines, 0),
     within: types.reduce((n, t) => n + t.within, 0),
+    accepted: types.reduce((n, t) => n + t.accepted, 0),
     tolerance: tol,
     types,
     openIssues: {

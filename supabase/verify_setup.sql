@@ -1,5 +1,5 @@
--- Read-only check of a Supabase project's setup: one row per migration (0001-0014) with ok / MISSING, plus the
--- sign-ins per provider. Run in Supabase -> SQL Editor. Expected: every row ok, 83 mapped sync fields.
+-- Read-only check of a Supabase project's setup: one row per migration (0001-0015) with ok / MISSING, plus the
+-- sign-ins per provider. Run in Supabase -> SQL Editor. Expected: every row ok, 84 mapped sync fields.
 select check_name, result,
        case when result = expected then 'ok' else 'MISSING / CHECK' end as status,
        expected
@@ -19,7 +19,8 @@ from (values
   ('0012 motor photos',            (select coalesce(bool_or(pg_get_constraintdef(oid) like '%motor%'), false)::text from pg_constraint where conname = 'photos_category_check'), 'true'),
   ('0013 issues.issue_type',       (select count(*)::text from information_schema.columns where table_name = 'issues' and column_name = 'issue_type'), '1'),
   ('0014 unit_library',            (to_regclass('public.unit_library') is not null)::text, 'true'),
-  ('0001-0014 mapped sync fields', (select count(*)::text from public.sync_columns), '83')
+  ('0015 accepted_deviations',     (exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'equipment' and column_name = 'accepted'))::text, 'true'),
+  ('0001-0015 mapped sync fields', (select count(*)::text from public.sync_columns), '84')
 ) as t(check_name, result, expected)
 union all
 select 'users signed in via ' || coalesce(raw_app_meta_data->>'provider', '?'), count(*)::text, 'info', '-'

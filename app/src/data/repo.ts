@@ -42,6 +42,7 @@ import {
   emptyNaState,
   INSTRUMENT_DETAIL_KEYS,
   ORG_TABLES,
+  type AcceptedDeviation,
   type AirflowRow,
   type CertProfile,
   type Equipment,
@@ -501,6 +502,30 @@ export async function markReviewed(equipmentId: string, name?: string): Promise<
 
 export async function clearReview(equipmentId: string): Promise<void> {
   await setField('equipment', equipmentId, 'review', null);
+}
+
+/**
+ * Accept an out-of-tolerance reading on review (decision 2026-10-20): the line shows amber instead of red and the
+ * unit can go green and be reviewed. Stored on the unit (`accepted.<row id | total>`, synced) with who, when, the
+ * ratio it was accepted at (a changed reading or design makes it stale: red again until accepted anew) and the
+ * reason, which is required: it is the audit trail for signing off a red item. `name` is remembered on this device.
+ */
+export async function acceptDeviation(
+  equipmentId: string,
+  key: string,
+  ratio: number,
+  reason: string,
+  name?: string,
+): Promise<void> {
+  if (!reason.trim()) throw new Error('A reason is required to accept a deviation.');
+  if (name !== undefined && name.trim()) await setUserName(name);
+  const value: AcceptedDeviation = { ...(await signature()), ratio, reason: reason.trim() };
+  await setField('equipment', equipmentId, `accepted.${key}`, value);
+}
+
+/** Withdraw an accepted deviation: the line is red again. */
+export async function withdrawAcceptance(equipmentId: string, key: string): Promise<void> {
+  await setField('equipment', equipmentId, `accepted.${key}`, null);
 }
 
 /**

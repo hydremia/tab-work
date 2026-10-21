@@ -27,7 +27,7 @@ Do every step on the test project (**tab-app-test**) first (the pilot already ru
 | Sign in with Microsoft | Microsoft Entra ID + Supabase "Azure" provider | Only accounts of your company's Microsoft 365 can sign in |
 | Two settings | Vercel | Tell the app where the Supabase project is |
 
-## 2. Apply the database migrations (0001 … 0014)
+## 2. Apply the database migrations (0001 … 0015)
 
 Fourteen files, **in this order**. Each can be run again safely only where noted, so run each one once.
 
@@ -47,6 +47,7 @@ Fourteen files, **in this order**. Each can be run again safely only where noted
 | `supabase/migrations/0012_motor_photos.sql` | the unit **motor** photo category. **Apply before the app with motor photos is used**: until then the server refuses a motor photo (re-runnable) |
 | `supabase/migrations/0013_issue_types.sql` | **observations** (issues that don't flag their unit). **Apply before the app with observations is used**: until then an observation reaches the server as a deficiency (re-runnable) |
 | `supabase/migrations/0014_unit_library.sql` | the shared **unit configuration library** (component order and documents per product line). Until it is applied, library edits stay on the device that made them (re-runnable) |
+| `supabase/migrations/0015_accepted_deviations.sql` | **accepted deviations** on review (an out-of-tolerance line signed off with a reason: amber instead of red). Until it is applied the server refuses those acceptances (re-runnable) |
 
 **Option A — in the browser (simplest):**
 
@@ -54,7 +55,7 @@ Fourteen files, **in this order**. Each can be run again safely only where noted
 2. Open `supabase/migrations/0001_init.sql` on GitHub (Raw), copy everything, paste, **Run**. It should end with
    "Success. No rows returned".
 3. New query → the same with `0002_review_lock.sql`, then with `0003_sync_rules.sql`, then `0004_library_links.sql`, then
-   `0005_review_deletes.sql`, then `0006_cert_profile.sql`, then `0007_change_labels.sql`, then `0008_hydronic_types.sql`, then `0009_valve_library.sql`, then `0010_pump_library.sql`, then `0011_row_links.sql`, then `0012_motor_photos.sql`, then `0013_issue_types.sql`, then `0014_unit_library.sql`.
+   `0005_review_deletes.sql`, then `0006_cert_profile.sql`, then `0007_change_labels.sql`, then `0008_hydronic_types.sql`, then `0009_valve_library.sql`, then `0010_pump_library.sql`, then `0011_row_links.sql`, then `0012_motor_photos.sql`, then `0013_issue_types.sql`, then `0014_unit_library.sql`, then `0015_accepted_deviations.sql`.
 
 **Option B — command line** (from a checkout of the repository, Node installed):
 
@@ -62,7 +63,7 @@ Fourteen files, **in this order**. Each can be run again safely only where noted
 npx supabase login
 npx supabase init                          # only if it says this is not a Supabase project; answer "n" to the questions
 npx supabase link --project-ref <project-ref>
-npx supabase db push                       # applies 0001 … 0014 in order; shows them and asks first
+npx supabase db push                       # applies 0001 … 0015 in order; shows them and asks first
 ```
 
 The project ref is the `xxxx` in `https://xxxx.supabase.co` (Settings → General). Never run `supabase test db` against
@@ -71,7 +72,7 @@ the project: the files in `supabase/tests/` are for a throw-away local PostgreSQ
 **Check** (SQL Editor, new query):
 
 ```sql
-select count(*) as mapped_fields from public.sync_columns;                       -- 83 (0001 … 0014)
+select count(*) as mapped_fields from public.sync_columns;                       -- 84 (0001 … 0015)
 -- or run supabase/verify_setup.sql: one row per migration with ok / MISSING
 select public.server_time_ms() > 0 as server_clock;                            -- true
 select id, public, file_size_limit from storage.buckets where id = 'photos';   -- photos | false | 26214400
@@ -242,7 +243,7 @@ sync is off wait on the device (the outbox) until it is on again.
 2. **Undo migration 0003 only** (if its rules cause trouble): SQL Editor → run
    `supabase/rollback/0003_sync_rules_down.sql`. It restores the 0001 / 0002 rules and keeps all data; 0003 can be
    applied again later. (Checked on PostgreSQL 16: after the rollback the 0001 smoke test behaves as before, and 0003
-   re-applies cleanly.) Undo later ones first, newest first: **0014**
+   re-applies cleanly.) Undo later ones first, newest first: **0015** (`supabase/rollback/0015_accepted_deviations_down.sql`: accepted-deviation changes refused again; the column and its data stay), **0014**
    (`supabase/rollback/0014_unit_library_down.sql`: unit library changes refused again; table and data kept), **0013**
    (`supabase/rollback/0013_issue_types_down.sql`), **0012** (`supabase/rollback/0012_motor_photos_down.sql`), **0011**
    (`supabase/rollback/0011_row_links_down.sql`: line links no longer synced; columns and values kept), **0010**

@@ -1,7 +1,23 @@
 import { Fragment, useState } from 'react';
 import { LINKED_KEYS } from '../../domain/traverseLinks';
-import { addAirflowRow, airflowTableCapacity, CapacityError, deleteRecord, setField, setFields } from '../../data/repo';
-import { NOTATIONS, type AirflowRow, type Equipment, type NaMark, type Notation } from '../../data/types';
+import {
+  addAirflowRow,
+  airflowTableCapacity,
+  CapacityError,
+  deleteRecord,
+  setField,
+  setFields,
+  acceptDeviation,
+  withdrawAcceptance,
+} from '../../data/repo';
+import {
+  NOTATIONS,
+  type AcceptedDeviation,
+  type AirflowRow,
+  type Equipment,
+  type NaMark,
+  type Notation,
+} from '../../data/types';
 import { designVel, formatNumber, formatPercent, rowCfm, tableTotals, withinTolerance } from '../../domain/calc';
 import { valveTotals } from '../../domain/hydronicCalcs';
 import { ValvePick } from './ValvePick';
@@ -29,14 +45,45 @@ export function nextNo(prev: unknown): string | null {
   return m ? `${m[1]}${Number(m[2]) + 1}` : null;
 }
 
-export function Pct({ ratio, tolerance }: { ratio: number | null; tolerance: number }) {
+/**
+ * Review: accept an out-of-tolerance line or unit total (reason required). The acceptance is tied to the current % of
+ * design: a changed reading makes it stale and the item is red again.
+ */
+export async function acceptRowDeviation(equipmentId: string, key: string, ratio: number, label: string): Promise<void> {
+  const reason = window.prompt(
+    `Accept ${label} at ${formatPercent(ratio)} of design?\n\nReason (required; kept with the acceptance, e.g. "within ±15 % per the engineer, email 10/18"):`,
+    '',
+  );
+  if (reason === null) return;
+  if (!reason.trim()) {
+    window.alert('A reason is required to accept a deviation.');
+    return;
+  }
+  await acceptDeviation(equipmentId, key, ratio, reason);
+}
+
+export function Pct({
+  ratio,
+  tolerance,
+  accepted,
+}: {
+  ratio: number | null;
+  tolerance: number;
+  accepted?: AcceptedDeviation | null;
+}) {
   if (ratio === null) return <span className="muted">— %</span>;
   const ok = withinTolerance(ratio, tolerance);
+  const state = ok ? 'true' : accepted ? 'accepted' : 'false';
+  const title = ok
+    ? 'Within tolerance'
+    : accepted
+      ? `Out of tolerance, accepted${accepted.name ? ` by ${accepted.name}` : ''}: ${accepted.reason}`
+      : 'Out of tolerance';
   return (
-    <span className="pct" data-ok={ok} title={ok ? 'Within tolerance' : 'Out of tolerance'}>
-      <StatusIcon color={ok ? 'green' : 'red'} size={14} />
+    <span className="pct" data-ok={state} title={title}>
+      <StatusIcon color={ok ? 'green' : accepted ? 'amber' : 'red'} size={14} />
       {formatPercent(ratio)}
-      <span className="visually-hidden">{ok ? 'within tolerance' : 'out of tolerance'}</span>
+      <span className="visually-hidden">{title}</span>
     </span>
   );
 }
@@ -248,7 +295,7 @@ function OutletRow({
       {spec.calc === 'valve' && <ValvePick row={row} unitData={unitData} label={label} />}
       <div className="outlet-foot">
         <RowCalcLine spec={spec} row={row} unitData={unitData} target={target} />
-        {spec.tolerance && <Pct ratio={result?.ratio ?? null} tolerance={tolerance} />}
+        {spec.tolerance && <Pct ratio={result?.ratio ?? null} tolerance={tolerance} accepted={result?.accepted} />}
         {result && result.missing.length > 0 && (
           <span className="small" style={{ color: 'var(--amber)' }}>
             {result.missing.length} missing
@@ -262,6 +309,9 @@ function OutletRow({
           onChange={(e) => {
             const v = e.target.value;
             if (v.startsWith('line-')) void onLine(v, row);
+            else if (v === 'accept' && result?.ratio != null)
+              void acceptRowDeviation(row.equipmentId, row.id, result.ratio, label);
+            else if (v === 'withdraw') void withdrawAcceptance(row.equipmentId, row.id);
             else if (v === 'delete') {
               if (window.confirm(`Delete ${label}?`)) void deleteRecord('airflowRows', row.id);
             } else if (v === 'duplicate') {
@@ -286,6 +336,8 @@ function OutletRow({
             )),
           )}
           {Object.values(row.na).some(Boolean) && <option value="clear">Clear N/A marks</option>}
+          {result?.outOfTolerance && <option value="accept">Accept this deviation…</option>}
+          {result?.accepted && <option value="withdraw">Withdraw the accepted deviation</option>}
           {LINE_OPTIONS}
           {onDuplicate && <option value="duplicate">Duplicate row</option>}
           <option value="delete">Delete row</option>
@@ -479,7 +531,7 @@ function GridTable({
                 )}
                 {spec.tolerance && (
                   <td>
-                    <Pct ratio={res?.ratio ?? null} tolerance={tolerance} />
+                    <Pct ratio={res?.ratio ?? null} tolerance={tolerance} accepted={res?.accepted} />
                   </td>
                 )}
                 <td>
@@ -490,6 +542,9 @@ function GridTable({
                     onChange={(e) => {
                       const v = e.target.value;
                       if (v.startsWith('line-')) void onLine(v, row);
+                      else if (v === 'accept' && res?.ratio != null)
+                        void acceptRowDeviation(row.equipmentId, row.id, res.ratio, label);
+                      else if (v === 'withdraw') void withdrawAcceptance(row.equipmentId, row.id);
                       else if (v === 'delete') {
                         if (window.confirm(`Delete ${label}?`)) void deleteRecord('airflowRows', row.id);
                       } else if (v === 'duplicate') onDuplicate?.(row);
@@ -512,6 +567,8 @@ function GridTable({
                       )),
                     )}
                     {Object.values(row.na).some(Boolean) && <option value="clear">Clear N/A marks</option>}
+                    {res?.outOfTolerance && <option value="accept">Accept this deviation…</option>}
+                    {res?.accepted && <option value="withdraw">Withdraw the accepted deviation</option>}
                     {LINE_OPTIONS}
                     {onDuplicate && <option value="duplicate">Duplicate row</option>}
                     <option value="delete">Delete row</option>

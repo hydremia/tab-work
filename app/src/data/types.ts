@@ -70,6 +70,17 @@ export interface Signature {
 /** A unit's review sign-off. Cleared automatically by the repository when anything of the unit changes. */
 export type Review = Signature;
 
+/**
+ * An out-of-tolerance reading accepted on review (a red flag demoted to amber): who, when, the % of design it was
+ * accepted at (a changed reading or design makes the acceptance stale: the item is red again until accepted anew)
+ * and the reason, which is the audit trail. Keyed on the unit by the airflow row id, or 'total' for the unit-level
+ * actual / design check ('total:<n>' for a second total).
+ */
+export interface AcceptedDeviation extends Signature {
+  ratio: number;
+  reason: string;
+}
+
 export interface ProjectLock extends Signature {
   /** The revision label the report was issued as (Prelim, Rev 1, Final …). */
   label: string;
@@ -90,6 +101,11 @@ export interface Equipment {
   naState: NaState;
   /** Review sign-off ("Reviewed", shown blue while the unit is green). */
   review?: Review | null;
+  /**
+   * (0015) Accepted deviations, by airflow row id or 'total': the line shows amber instead of red and the unit can go
+   * green. Synced; never printed as text (the export colours the % cell neutral instead of red).
+   */
+  accepted?: Record<string, AcceptedDeviation | null> | null;
   /**
    * Set when sync moved the unit to another workbook slot because another device had given the same slot to a unit
    * (sync/slots.ts). Shown on the unit page until dismissed. Deterministic (no time / device), so two devices that

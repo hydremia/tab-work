@@ -29,6 +29,7 @@ Oct 9, 2026:
 | Supabase project | Done: **tab-app-test** |
 | Database migrations 0001–0013 | Done |
 | Migration 0014 (unit configuration library) | **To do** |
+| Migration 0015 (accepted deviations on review) | **To do** |
 | Photos bucket (private) | Done |
 | Microsoft sign-in (Entra app + Supabase Azure provider) | Done: two people have signed in with Microsoft |
 | Vercel settings (the app pointed at tab-app-test) | Confirm: the pilot app's pill shows a cloud icon and your initials, not *Local* |
@@ -37,7 +38,10 @@ Oct 9, 2026:
       refuses library changes, so a device that adds or edits a unit configuration (including *Add the researched
       product lines*) can get stuck with a sync error. Supabase → SQL Editor → New query → paste all of
       `supabase/migrations/0014_unit_library.sql` → **Run** (safe to run again).
-- [ ] **Re-run the check query** below: every row should say *ok*, with 83 mapped sync fields.
+- [ ] **Apply migration 0015** before anyone accepts a deviation on review (Accept… on a red line). Until it is
+      applied the server refuses those acceptances and the device shows a sync error. Same way:
+      `supabase/migrations/0015_accepted_deviations.sql` → **Run** (safe to run again).
+- [ ] **Re-run the check query** below: every row should say *ok*, with 84 mapped sync fields.
 - [ ] **Confirm the pill** on the pilot app shows a cloud icon and your initials.
 - [ ] **Calendar the Entra client secret expiry** (Entra → App registrations → TAB App → Certificates & secrets), if
       it isn't already. When it lapses, nobody can sign in.
@@ -178,7 +182,7 @@ keeps the projects on the device.
 
 - The Entra **client secret expiry** (Part A). When it expires, nobody can sign in.
 - Supabase **storage** (photos) under the Pro plan's 100 GB. See the Photos FAQ in the user guide.
-- New app versions sometimes need a **new database migration**. The pull request and [SYNC_SETUP.md §2](./SYNC_SETUP.md#2-apply-the-database-migrations-0001--0014)
+- New app versions sometimes need a **new database migration**. The pull request and [SYNC_SETUP.md §2](./SYNC_SETUP.md#2-apply-the-database-migrations-0001--0015)
   say which one, and it has to be applied **before** people use the new feature.
 
 ---
