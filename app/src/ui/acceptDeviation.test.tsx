@@ -30,7 +30,7 @@ describe('accepted deviations and issue demotion on the unit page (jsdom)', () =
     // an outlet at 120 % of design (Ak 1, design 500 CFM, final VEL 600)
     const row = await addAirflowRow(e, 'supply', { no: 'S-1', ak: 1, designCfm: 500, finalVel: 600 });
     renderAt(`/p/${p.id}/e/${e.id}`);
-    const callout = await screen.findByTestId('tolerance-callout');
+    const callout = await screen.findByTestId('tolerance-callout', {}, { timeout: 5000 });
     expect(callout).toHaveTextContent('Supply outlets S-1 (120 %)');
     // no reason = no acceptance
     vi.spyOn(window, 'prompt').mockReturnValueOnce('   ');
@@ -72,7 +72,7 @@ describe('accepted deviations and issue demotion on the unit page (jsdom)', () =
     const a = await addIssue(p.id, { kind: 'new', equipmentId: e.id, remark: 'Damper stuck' });
     const b = await addIssue(p.id, { kind: 'new', equipmentId: e.id, remark: 'Filters dirty' });
     renderAt(`/p/${p.id}/e/${e.id}`);
-    const box = await screen.findByTestId('unit-issues');
+    const box = await screen.findByTestId('unit-issues', {}, { timeout: 5000 });
     expect(box).toHaveTextContent('2 open issues');
     await user.click(within(box).getByTestId(`issue-observe-${a.id}`));
     await waitFor(async () => expect((await db.issues.get(a.id))?.issueType).toBe('observation'));

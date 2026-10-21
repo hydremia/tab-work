@@ -21,14 +21,16 @@
  */
 import type { CertImagesDef } from './certImages.js';
 
-export const TEMPLATE_REVISION = '08';
+export const TEMPLATE_REVISION = '09';
 /**
- * Projects of these revisions export with the current map (TEMPLATE_MAP): the app keeps one data model, and a rev 05-07
- * project's values all have a place in rev 08. A workbook's own layout is told apart by its revision name
+ * Projects of these revisions export with the current map (TEMPLATE_MAP): the app keeps one data model, and a rev 05-08
+ * project's values all have a place in rev 09. A workbook's own layout is told apart by its revision name
  * (detectTemplateRevision): rev 05 / 06 workbooks read and re-issue with TEMPLATE_MAP_06, rev 07 workbooks read with
- * TEMPLATE_MAP_07 (and export as revision 08).
+ * TEMPLATE_MAP_07 (and export as revision 09); revision 08 has revision 09's cell layout (09 changed styles, four row
+ * heights, a print scale, a picture and a hidden sheet: tools/build_rev09.py), so rev 08 workbooks read and re-issue
+ * with TEMPLATE_MAP.
  */
-export const COMPATIBLE_REVISIONS: readonly string[] = ['05', '06', '07', '08'];
+export const COMPATIBLE_REVISIONS: readonly string[] = ['05', '06', '07', '08', '09'];
 /** Revisions with the rev 05 / 06 cell layout (rev 06 is rev 05 restyled: tools/build_rev06.py). */
 export const LAYOUT_06_REVISIONS: readonly string[] = ['05', '06'];
 /** Workbook-level defined name holding the template revision (revision 07 on; rev 05 / 06 have none). */
@@ -312,7 +314,7 @@ function unitDataFields(unitTypePreset: string, withOaDamper: boolean, rev: AirR
     f('vsdInitial', 'K', 19, 'number'), f('vsdFinal', 'L', 19, 'number'),
     ...(withOaDamper ? [f('oaDamper', 'L', 20, 'text')] : []),
     // Entering static and the leaving static after components 1-5 / 1-6 of the unit type (positional)
-    ...(rev === '08'
+    ...(rev >= '08'
       ? [f('spEntering', 'B', 20, 'number'), ...cols('C', 'H').map((col, i) => f(`spLeaving${i + 1}`, col, 20, 'number'))]
       : [f('spEntering', 'C', 20, 'number'), ...cols('C', 'G').map((col, i) => f(`spLeaving${i + 1}`, col, 21, 'number'))]),
     f('unitType', 'D', 22, 'list', { list: 'Unit.Type', preset: unitTypePreset }),
@@ -323,7 +325,7 @@ function unitDataFields(unitTypePreset: string, withOaDamper: boolean, rev: AirR
 
 const Q = 52; // continuation page offset (Q = P + 52)
 
-export type AirRevision = '06' | '07' | '08';
+export type AirRevision = '06' | '07' | '08' | '09';
 
 /** Summary - New / (E): the deficiencies, and from revision 07 the observations (rows 66-85). */
 function issueTables(rev: AirRevision): TableDef[] {
@@ -374,7 +376,7 @@ const AIR_TOC: TocDef = {
 function airMap(rev: AirRevision): TemplateMap {
   return {
     revision: rev,
-    compatibleRevisions: rev === '08' ? COMPATIBLE_REVISIONS : rev === '07' ? ['07'] : LAYOUT_06_REVISIONS,
+    compatibleRevisions: rev >= '08' ? COMPATIBLE_REVISIONS : rev === '07' ? ['07'] : LAYOUT_06_REVISIONS,
     coverPhoto: { sheet: 'Cover Page', pictureName: 'Project Photo' },
     // stamp box C51:G56 (bordered, empty); signature right of the "Signature:" label (I52), on the line I53:L53
     certImages: { sheet: 'Certification', stamp: 'C51:G56', signature: 'J51:L53', placeholder: 'C50' },
@@ -710,9 +712,9 @@ function airMap(rev: AirRevision): TemplateMap {
   };
 }
 
-/** The current template (revision 08). */
-export const TEMPLATE_MAP: TemplateMap = airMap('08');
-/** The revision 07 layout: issued rev 07 workbooks are read with it (and export as revision 08). */
+/** The current template (revision 09; revision 08 workbooks have the same cell layout and read with it too). */
+export const TEMPLATE_MAP: TemplateMap = airMap('09');
+/** The revision 07 layout: issued rev 07 workbooks are read with it (and export as revision 09). */
 export const TEMPLATE_MAP_07: TemplateMap = airMap('07');
 /** The revision 05 / 06 layout: issued rev 05 / 06 workbooks are read and re-issued with it. */
 export const TEMPLATE_MAP_06: TemplateMap = airMap('06');

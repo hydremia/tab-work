@@ -72,7 +72,7 @@ describe('printed layout at export (no empty pages, ToC page numbers)', () => {
         new RegExp(`<c\\b[^>]*\\br="${ref}"[^>]*>([\\s\\S]*?)</c>`).exec(xml)?.[1] ?? '',
       )?.[1];
     // cover 1, ToC 2, Narrative 3, Summary - New 4, Equipment Summary 5, Building Balance 6, RTUs 7-10, MAUs 11-20,
-    // Fans 21-38, Hoods 39-42, Certification 43, NEBB Cert 44-45, NEBB Frm Cert 46, Abbreviations 47, Calibration 48
+    // Fans 21-38, Hoods 39-42, Certification 43, NEBB Cert 44-45, (the firm certificate on 45; NEBB Frm Cert hidden), Abbreviations 46, Calibration 47
     expect(['K10', 'K13', 'K16', 'K19', 'K22', 'K28', 'K31', 'K37', 'K40', 'K43'].map(text)).toEqual([
       'page 2',
       'page 3',
@@ -82,8 +82,8 @@ describe('printed layout at export (no empty pages, ToC page numbers)', () => {
       'page 21',
       'page 39',
       'page 43',
+      'page 46',
       'page 47',
-      'page 48',
     ]);
     const hidden = new Set([...xml.matchAll(/<row\b[^>]*?\br="(\d+)"[^>]*?\bhidden="1"/g)].map((m) => Number(m[1])));
     // ERVs (25-27), Traverses (34-36), Floorplans (46-48), Site Photos (49-51)
@@ -161,7 +161,7 @@ describe('printed layout at export (no empty pages, ToC page numbers)', () => {
       hideUnused: true,
       appended: ['photos'],
     });
-    // 48 printed pages: the photo report starts on page 49
-    expect(report.layout!.toc.find((t) => t.label === 'Site Photos')?.page).toBe(49);
+    // 47 printed pages (revision 09: the firm certificate shares NEBB Cert's second page): the photo report starts on 48
+    expect(report.layout!.toc.find((t) => t.label === 'Site Photos')?.page).toBe(48);
   });
 });

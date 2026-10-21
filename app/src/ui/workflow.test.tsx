@@ -32,7 +32,8 @@ describe('review sign-off (jsdom)', () => {
     const user = userEvent.setup();
     const { p, rtu } = await greenUnit();
     renderAt(`/p/${p.id}/e/${rtu.id}`);
-    const btn = await screen.findByTestId('mark-reviewed');
+    // the unit page is the heaviest screen: give it time under a loaded full-suite run
+    const btn = await screen.findByTestId('mark-reviewed', {}, { timeout: 5000 });
     expect(btn).toBeDisabled(); // a reviewer name is needed
     await user.type(screen.getByLabelText('Reviewer name'), 'Dana');
     await user.click(btn);

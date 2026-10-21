@@ -1,0 +1,9 @@
+Source: 08 - a2b_Blank_TAB_Workbook 10-12-26.xlsm
+Output: 09 - a2b_Blank_TAB_Workbook 10-21-26.xlsm
+  Abbreviations: B14, B45, B46 wrap (style 544), H39 wraps (style 545); rows 14 / 45 / 46 = 26.7 pt, row 39 = 40.05 pt; print scale 99 -> 92 % (one page)
+  Equipment Summary: Area Served (column C, 160 unit lines) shrinks to fit (style 517 -> 546)
+  Hoods: the solid yellow working fill removed from 44 cells (style 287 -> 547); the Filter Type label's conditional yellow when blank stays
+  NEBB Cert : the firm certificate (image7.jpg) added as the 4th picture, page 2 second slot (row 78); NEBB Frm Cert hidden (its sheet, drawing and picture are kept; the ToC's Appendix A entry covers both)
+  Calibration: header Manufacturer (E11) in the other headers' style (370 -> 369)
+  a2b.TemplateRevision = "09"
+  parts rewritten: xl/drawings/_rels/drawing3.xml.rels, xl/drawings/drawing3.xml, xl/styles.xml, xl/workbook.xml, xl/worksheets/sheet17.xml, xl/worksheets/sheet23.xml, xl/worksheets/sheet24.xml, xl/worksheets/sheet9.xml; every other part copied unchanged

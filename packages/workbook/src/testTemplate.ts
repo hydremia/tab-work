@@ -1,14 +1,24 @@
-/** Test helper (Node only): the revision 08 template bytes from the repository root. */
+/** Test helper (Node only): the revision 09 template bytes from the repository root. */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 export const TEMPLATE_PATH = fileURLToPath(
-  new URL('../../../08 - a2b_Blank_TAB_Workbook 10-12-26.xlsm', import.meta.url),
+  new URL('../../../09 - a2b_Blank_TAB_Workbook 10-21-26.xlsm', import.meta.url),
 );
 let cached: Uint8Array | undefined;
 export function templateBytes(): Uint8Array {
   cached ??= new Uint8Array(readFileSync(TEMPLATE_PATH));
   return cached;
+}
+
+/** Test helper (Node only): the revision 08 template (the same cell layout as 09: it reads with TEMPLATE_MAP). */
+export const TEMPLATE_08_PATH = fileURLToPath(
+  new URL('../../../08 - a2b_Blank_TAB_Workbook 10-12-26.xlsm', import.meta.url),
+);
+let cached08: Uint8Array | undefined;
+export function template08Bytes(): Uint8Array {
+  cached08 ??= new Uint8Array(readFileSync(TEMPLATE_08_PATH));
+  return cached08;
 }
 
 /** Test helper (Node only): the revision 07 template (TEMPLATE_MAP_07: rev 07 workbooks import with it). */

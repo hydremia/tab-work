@@ -523,6 +523,22 @@ export async function acceptDeviation(
   await setField('equipment', equipmentId, `accepted.${key}`, value);
 }
 
+/**
+ * Swap the workbook slots of two units of the same type (Move up / down on the unit page): the order on the unit
+ * sheets, the Equipment Summary and the Building Balance. One transaction, so no device ever sees a duplicate slot.
+ */
+export async function swapSlots(aId: string, bId: string): Promise<void> {
+  await db.transaction('rw', writeTables(), async () => {
+    const [a, b] = await Promise.all([db.equipment.get(aId), db.equipment.get(bId)]);
+    if (!a || !b) throw new Error('unit not found');
+    if (a.type !== b.type || a.projectId !== b.projectId) throw new Error('units of different types or projects');
+    if (a.slot === b.slot) return;
+    const [sa, sb] = [a.slot, b.slot];
+    await setField('equipment', aId, 'slot', sb);
+    await setField('equipment', bId, 'slot', sa);
+  });
+}
+
 /** Withdraw an accepted deviation: the line is red again. */
 export async function withdrawAcceptance(equipmentId: string, key: string): Promise<void> {
   await setField('equipment', equipmentId, `accepted.${key}`, null);

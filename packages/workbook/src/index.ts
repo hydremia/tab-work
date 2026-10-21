@@ -19,7 +19,9 @@ export * from './schedule.js';
 export * from './zipLimits.js';
 
 /** File name of the template TEMPLATE_MAP describes (at the repository root). */
-export const TEMPLATE_FILE_NAME = '08 - a2b_Blank_TAB_Workbook 10-12-26.xlsm';
+export const TEMPLATE_FILE_NAME = '09 - a2b_Blank_TAB_Workbook 10-21-26.xlsm';
+/** File name of the revision 08 template (the same cell layout as revision 09; rev 08 workbooks read with TEMPLATE_MAP). */
+export const TEMPLATE_08_FILE_NAME = '08 - a2b_Blank_TAB_Workbook 10-12-26.xlsm';
 /** File name of the revision 07 template (TEMPLATE_MAP_07; rev 07 workbooks import with it). */
 export const TEMPLATE_07_FILE_NAME = '07 - a2b_Blank_TAB_Workbook 10-6-26.xlsm';
 /** File name of the revision 06 template (the rev 05 / 06 layout, TEMPLATE_MAP_06). */

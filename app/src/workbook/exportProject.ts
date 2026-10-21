@@ -31,7 +31,7 @@ import { APP_SECTIONS, toProjectData } from './adapter';
 import { loadBundle } from './bundle';
 import { getBaseWorkbook, listRevisions, newRevisionBase, saveRevision, suggestLabel } from './revisions';
 
-export const TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/tab-template-rev08.xlsm`;
+export const TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/tab-template-rev09.xlsm`;
 /** The revision 06 template: the rev 05 / 06 layout, for re-issuing onto an issued rev 05 / 06 workbook. */
 export const TEMPLATE_06_URL = `${import.meta.env.BASE_URL}templates/tab-template-rev06.xlsm`;
 export const HYDRONIC_TEMPLATE_URL = `${import.meta.env.BASE_URL}templates/tab-hydronic-h01.xlsm`;

@@ -105,7 +105,8 @@ describe('unused blocks hidden at export (the Print Report macro, done by the ex
   it('without the option nothing is hidden', async () => {
     const { bytes } = await exportWorkbookWithReport(templateBytes(), project());
     const s = await state(bytes);
-    expect(s.hiddenSheets).toEqual(['{Dropdowns}', 'Photos']);
+    // revision 09: the firm certificate's sheet is hidden in the template itself (its picture prints from NEBB Cert)
+    expect(s.hiddenSheets).toEqual(['{Dropdowns}', 'Photos', 'NEBB Frm Cert']);
     expect((await s.hiddenRows('RTUs')).size).toBe(0);
   }, 60_000);
 

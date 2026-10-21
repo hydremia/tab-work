@@ -48,6 +48,7 @@ import { EQUIPMENT_TYPES, equipmentType, nextDesignation, type EquipmentTypeKey 
 import { getSpec, presetUnitType, type FieldSpec, type SectionSpec, type SequenceSpec } from '../../domain/specs';
 import { airflowOnlySections } from '../../domain/unitScope';
 import { acceptRowDeviation, AirflowTable } from '../components/AirflowTable';
+import { SlotOrder } from '../components/SlotOrder';
 import { CalcPanel, espText, ReviewCallout, unitEspCheck } from '../components/CalcPanels';
 import { SequenceGrid, type GridShape } from '../components/SequenceGrid';
 import { IconChevron, IconHistory, IconTrash } from '../components/Icons';
@@ -1155,6 +1156,8 @@ export function EquipmentPage() {
           <DuplicateCard equipment={equipment} all={all} />
 
           <ChangeTypeCard equipment={equipment} all={all} />
+
+          <SlotOrder equipment={equipment} all={all} locked={locked} />
 
           <section className="card card-pad stack" aria-label="Unit actions">
             <div className="field">

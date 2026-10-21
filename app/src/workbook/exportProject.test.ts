@@ -226,7 +226,7 @@ describe('export revisions', () => {
     expect((await prepareReview(b.project.id, parsed)).diff.items).toEqual([]);
   });
 
-  it('a revision 07 base (an issued rev 07 report): the export moves the project to revision 08, with a warning', async () => {
+  it('a revision 07 base (an issued rev 07 report): the export moves the project to revision 09, with a warning', async () => {
     const b = sampleBundle();
     await store(b);
     const rev07 = new Uint8Array(
@@ -245,10 +245,10 @@ describe('export revisions', () => {
     const r = await exportProject(b.project.id, { template });
     expect(r.baseFileName).toBeUndefined();
     expect(r.warnings.join(' ')).toMatch(
-      /issued-rev07\.xlsm is a revision 07 workbook: this export moves the project to revision 08/,
+      /issued-rev07\.xlsm is a revision 07 workbook: this export moves the project to revision 09/,
     );
     const back = await importWorkbook(r.bytes);
-    expect(back.templateRevision).toBe('08');
+    expect(back.templateRevision).toBe('09');
     // RTU-1 positions in revision 08: Filter, Coil, Reheat, Fan, Heat
     expect(back.equipment.rtu[0].fields).toMatchObject({ spLeaving1: -0.55, spLeaving2: -1.05, spLeaving5: 0.72 });
   });
@@ -270,7 +270,7 @@ describe('export revisions', () => {
     });
     const r = await exportProject(b.project.id, { template });
     expect(r.baseFileName).toBeUndefined();
-    expect(r.warnings.join(' ')).toMatch(/not a revision 08 workbook.*M10/);
+    expect(r.warnings.join(' ')).toMatch(/not a revision 09 workbook.*M10/);
     expect((await importWorkbook(r.bytes)).equipment.rtu.length).toBeGreaterThan(0);
   });
 });

@@ -72,7 +72,7 @@ function rev07Bundle(): ProjectBundle {
   return b;
 }
 
-describe('revision 07 features (in the current template, revision 08)', () => {
+describe('revision 07 features (in the current template, revision 09)', () => {
   const { data, warnings } = toProjectData(rev07Bundle());
 
   it('writes into the revision 07 cells, no rev 07 warnings', () => {

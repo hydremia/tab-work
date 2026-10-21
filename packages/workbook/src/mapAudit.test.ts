@@ -19,7 +19,7 @@ import {
   type TemplateMap,
 } from './templateMap.js';
 import { detectTemplateRevision, importWorkbookWithReport } from './importWorkbook.js';
-import { template06Bytes, template07Bytes, templateBytes } from './testTemplate.js';
+import { template06Bytes, template07Bytes, template08Bytes, templateBytes } from './testTemplate.js';
 import type { Cell, LayoutData, ProjectData, UnitData } from './types.js';
 
 /** List values revisions 07 / 08 added (not in the older templates' lists). */
@@ -38,9 +38,7 @@ function fill(layout: Layout, seed: number, rev = '08'): LayoutData {
         (d.list === 'Service.Factors2'
           ? TEMPLATE_LISTS['Service.Factors2']
           : TEMPLATE_LISTS[d.list as keyof typeof TEMPLATE_LISTS]);
-      const usable = opts.filter(
-        (o) => !(rev < '08' && REV08_VALUES.has(o)) && !(rev < '07' && REV07_VALUES.has(o)),
-      );
+      const usable = opts.filter((o) => !(rev < '08' && REV08_VALUES.has(o)) && !(rev < '07' && REV07_VALUES.has(o)));
       return usable[n % usable.length];
     }
     return `t${n}`;
@@ -64,7 +62,8 @@ function fill(layout: Layout, seed: number, rev = '08'): LayoutData {
 }
 
 describe.each([
-  ['revision 08', TEMPLATE_MAP, templateBytes],
+  ['revision 09', TEMPLATE_MAP, templateBytes],
+  ['revision 08 (the revision 09 layout)', TEMPLATE_MAP, template08Bytes],
   ['revision 07 layout', TEMPLATE_MAP_07, template07Bytes],
   ['revision 05 / 06 layout', TEMPLATE_MAP_06, template06Bytes],
 ] as [string, TemplateMap, () => Uint8Array][])('template map audit (every block): %s', (_name, map, template) => {
@@ -118,12 +117,13 @@ describe.each([
 
 describe('template revision of a workbook', () => {
   it('revisions 07 / 08 carry their revision name; revision 06 has none (read with the rev 05 / 06 layout)', async () => {
-    expect(await detectTemplateRevision(await JSZip.loadAsync(templateBytes()))).toBe('08');
+    expect(await detectTemplateRevision(await JSZip.loadAsync(templateBytes()))).toBe('09');
+    expect(await detectTemplateRevision(await JSZip.loadAsync(template08Bytes()))).toBe('08');
     expect(await detectTemplateRevision(await JSZip.loadAsync(template07Bytes()))).toBe('07');
     expect(await detectTemplateRevision(await JSZip.loadAsync(template06Bytes()))).toBeNull();
     expect((await importWorkbookWithReport(template06Bytes())).project.templateRevision).toBe('06');
     expect((await importWorkbookWithReport(template07Bytes())).project.templateRevision).toBe('07');
-    expect((await importWorkbookWithReport(templateBytes())).project.templateRevision).toBe('08');
+    expect((await importWorkbookWithReport(templateBytes())).project.templateRevision).toBe('09');
   });
 
   it('revision 08 moves only the static profile: entering B P+20, components 1-6 C:H P+20', () => {
@@ -145,6 +145,9 @@ describe('template revision of a workbook', () => {
     expect(mau7.fields?.find((f) => f.key === 'method')?.row).toBe(52 + 30);
     expect(TEMPLATE_MAP_06.equipment[0].block.fields?.some((f) => f.key === 'sheaveBore')).toBe(true);
     expect(TEMPLATE_MAP.equipment[0].block.fields?.some((f) => f.key === 'sheaveBore')).toBe(false);
-    expect(TEMPLATE_MAP.equipment[0].block.fields?.find((f) => f.key === 'motorHp')).toMatchObject({ col: 'E', row: 17 });
+    expect(TEMPLATE_MAP.equipment[0].block.fields?.find((f) => f.key === 'motorHp')).toMatchObject({
+      col: 'E',
+      row: 17,
+    });
   });
 });
