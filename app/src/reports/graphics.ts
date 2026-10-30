@@ -906,7 +906,10 @@ export async function renderGraphicsPdf(
 
   /** The appendix's first figure: where the project stands (tiles, per-type table, building balance). */
   const drawSummary = (sm: Summary, top: number): number => {
-    heading('Summary', `measured values against design · tolerance ±${num(sm.tolerance * 100)} %`);
+    heading(
+      'Summary',
+      `outlets in proportion to their unit's delivery, totals against design · tolerance ±${num(sm.tolerance * 100)} %`,
+    );
     const tiles: [string, string, string, RGB][] = [
       [
         'UNITS COMPLETE',
@@ -1061,10 +1064,14 @@ export async function renderGraphicsPdf(
   };
 
   const drawBars = (f: BarsFigure, top: number) => {
+    const base = f.kind === 'outlets' ? (f.base ?? null) : null;
     heading(
       `${f.unit} — ${f.table}`,
-      `design vs ${f.kind === 'valves' ? 'final' : 'actual'} ${f.unitLabel}, band = design ±${num(f.tolerance * 100)} %`,
+      `design vs ${f.kind === 'valves' ? 'final' : 'actual'} ${f.unitLabel}, band = ${
+        base !== null ? `the unit's ${num(base * 100)} % of design` : 'design'
+      } ±${num(f.tolerance * 100)} %`,
     );
+    const target = (design: number) => design * (base ?? 1);
     const labelW = 70;
     const pctW = 44;
     const x0 = MX + labelW;
@@ -1077,9 +1084,9 @@ export async function renderGraphicsPdf(
       text(page, r.label.slice(0, 14), MX, yb + 2, 7.5);
       if (r.design !== null && r.design > 0) {
         page.drawRectangle({
-          x: sx(r.design * (1 - f.tolerance)),
+          x: sx(target(r.design) * (1 - f.tolerance)),
           y: yb - 1,
-          width: sx(r.design * (1 + f.tolerance)) - sx(r.design * (1 - f.tolerance)),
+          width: sx(target(r.design) * (1 + f.tolerance)) - sx(target(r.design) * (1 - f.tolerance)),
           height: 12,
           color: BAND,
         });
@@ -1091,7 +1098,8 @@ export async function renderGraphicsPdf(
         });
       }
       if (r.actual !== null) {
-        const ok = r.design !== null && r.design > 0 && Math.abs(r.actual / r.design - 1) <= f.tolerance + 1e-9;
+        const ok =
+          r.design !== null && r.design > 0 && Math.abs(r.actual / target(r.design) - 1) <= f.tolerance + 1e-9;
         page.drawRectangle({
           x: x0,
           y: yb + 2,

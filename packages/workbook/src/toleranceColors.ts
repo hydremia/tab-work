@@ -20,7 +20,7 @@ const RATIO =
 const EXCLUDED = /^IF\(\$[A-Z]+\d+<>"","Excl\.",(.*)\)$/;
 /** The formulas of the rules this module writes (to find them again). */
 const OURS =
-  /<conditionalFormatting\b[^>]*>(?:(?!<\/conditionalFormatting>)[\s\S])*?AND\(ISNUMBER\(\$?[A-Z]+\$?\d+\),ABS\([A-Z]+\d+-1\)(?:&lt;=|&gt;)[\d.]+\)(?:(?!<\/conditionalFormatting>)[\s\S])*?<\/conditionalFormatting>/g;
+  /<conditionalFormatting\b[^>]*>(?:(?!<\/conditionalFormatting>)[\s\S])*?AND\(ISNUMBER\(\$?[A-Z]+\$?\d+\),ABS\([A-Z]+\d+(?:\/[\d.]+)?-1\)(?:&lt;=|&gt;)[\d.]+\)(?:(?!<\/conditionalFormatting>)[\s\S])*?<\/conditionalFormatting>/g;
 
 const GOOD =
   '<dxf><font><color rgb="FF006100"/></font><fill><patternFill><bgColor rgb="FFC6EFCE"/></patternFill></fill></dxf>';
@@ -127,7 +127,10 @@ function insertAt(xml: string): number {
  * Adds the tolerance colours to every sheet with "% of design" cells (tolerance as a fraction: 0.1 = ±10 %), or only
  * removes earlier ones when `tolerance` is null. `accepted` (sheet part -> sheet rows) names the rows whose deviation
  * was accepted on review: their cells turn neutral (Excel's "Neutral" style) instead of red when outside the
- * tolerance, and green as usual when inside. Returns the number of cells coloured.
+ * tolerance, and green as usual when inside. `bases` (sheet part -> sheet row -> the unit's % of design) makes a
+ * line's colour proportional: the value is compared with the base, not with 1 (the app's rule for outlets; totals,
+ * which have no base, stay against design). The base is a constant of the export: a workbook edited in Excel keeps
+ * the unit's delivery of the export. Returns the number of cells coloured.
  */
 export async function applyToleranceColors(
   zip: JSZip,
@@ -135,6 +138,7 @@ export async function applyToleranceColors(
   tolerance: number | null,
   stylesPart = 'xl/styles.xml',
   accepted?: ReadonlyMap<string, ReadonlySet<number>>,
+  bases?: ReadonlyMap<string, ReadonlyMap<number, number>>,
 ): Promise<number> {
   let styles = zip.file(stylesPart) ? await readText(zip, stylesPart) : null;
   let good = -1;
@@ -159,20 +163,32 @@ export async function applyToleranceColors(
     if (tolerance !== null && styles) {
       const all = percentCells(xml);
       const acc = accepted?.get(s.part);
+      const bs = bases?.get(s.part);
       const isAccepted = (c: string) => Boolean(acc?.has(splitRef(c).row)) && neutral >= 0;
-      const groups: [string[], number][] = [
-        [all.filter((c) => !isAccepted(c)), bad],
-        [all.filter(isAccepted), neutral],
-      ];
+      const baseOf = (c: string) => {
+        const b = bs?.get(splitRef(c).row);
+        return b !== undefined && b > 0 ? String(Math.round(b * 1e4) / 1e4) : '';
+      };
+      // one rule pair per (accepted?, base): cells share a block when they are judged the same way
+      const groups = new Map<string, { cells: string[]; outside: number; base: string }>();
+      for (const c of all) {
+        const a = isAccepted(c);
+        const b = baseOf(c);
+        const key = `${a ? 'a' : 'n'}|${b}`;
+        const g = groups.get(key) ?? { cells: [], outside: a ? neutral : bad, base: b };
+        g.cells.push(c);
+        groups.set(key, g);
+      }
       let priority = Math.max(0, ...[...xml.matchAll(/\bpriority="(\d+)"/g)].map((m) => Number(m[1])));
       const t = String(Math.round(tolerance * 1e6) / 1e6);
-      for (const [cells, outside] of groups) {
+      for (const { cells, outside, base } of groups.values()) {
         if (!cells.length) continue;
         const first = cells[0];
+        const v = base ? `${first}/${base}` : first;
         const cf =
           `<conditionalFormatting sqref="${sqrefOf(cells)}">` +
-          `<cfRule type="expression" dxfId="${good}" priority="${priority + 1}"><formula>AND(ISNUMBER(${first}),ABS(${first}-1)&lt;=${t})</formula></cfRule>` +
-          `<cfRule type="expression" dxfId="${outside}" priority="${priority + 2}"><formula>AND(ISNUMBER(${first}),ABS(${first}-1)&gt;${t})</formula></cfRule>` +
+          `<cfRule type="expression" dxfId="${good}" priority="${priority + 1}"><formula>AND(ISNUMBER(${first}),ABS(${v}-1)&lt;=${t})</formula></cfRule>` +
+          `<cfRule type="expression" dxfId="${outside}" priority="${priority + 2}"><formula>AND(ISNUMBER(${first}),ABS(${v}-1)&gt;${t})</formula></cfRule>` +
           `</conditionalFormatting>`;
         const at = insertAt(xml);
         xml = xml.slice(0, at) + cf + xml.slice(at);

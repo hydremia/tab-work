@@ -332,30 +332,72 @@ describe('N/A levels and scope profiles', () => {
 });
 
 describe('red: tolerance and issues', () => {
-  it('a reading outside ±10 % of design turns the unit red; 110 % is inside', () => {
+  // the sample RTU's two supply outlets with Ak 1, given designs and final velocities (= CFM)
+  const supplyAt = (i: CompletionInput, vels: [number, number], designs: [number, number] = [500, 500]) =>
+    i.rows.map((r) =>
+      r.table === 'supply'
+        ? {
+            ...r,
+            data: { ...r.data, ak: 1, designCfm: designs[r.order - 1], finalVel: vels[r.order - 1] },
+          }
+        : r,
+    );
+  const s1 = (i: CompletionInput) => i.rows.find((r) => r.table === 'supply' && r.order === 1)!.id;
+
+  it('outlets are judged in proportion to the unit: a line is red only outside ±10 % of its share of the delivery', () => {
     const i = fullRtu();
-    const at = (vel: number) =>
-      computeCompletion({
-        ...i,
-        rows: i.rows.map((r) =>
-          r.table === 'supply' && r.order === 1 ? { ...r, data: { ...r.data, finalVel: vel } } : r,
-        ),
-      });
-    expect(at(550).color).toBe('green'); // 110 %
-    expect(at(450).color).toBe('green'); // 90 %
-    const hi = at(560);
+    // S-1 112 % of design (500), S-2 100 % (1,500): the unit delivers 103 %, S-1 is 108.7 % of that -> within
+    const even = computeCompletion({ ...i, rows: supplyAt(i, [560, 1500], [500, 1500]) });
+    expect(even.color).toBe('green');
+    expect(even.tables.supply.base).toBeCloseTo(1.03);
+    expect(even.tables.supply.rows[s1(i)]).toMatchObject({ outOfTolerance: false });
+    expect(even.tables.supply.rows[s1(i)].relative).toBeCloseTo(1.12 / 1.03);
+    // S-1 128 %: the unit delivers 107 %, S-1 is 119.6 % of that -> red; S-2 (93.5 %) and the total (107 %) are fine
+    const hi = computeCompletion({ ...i, rows: supplyAt(i, [640, 1500], [500, 1500]) });
     expect(hi.color).toBe('red');
-    expect(hi.outOfTolerance[0]).toMatchObject({ table: 'supply', label: 'Supply outlets S-1' });
-    expect(hi.outOfTolerance[0].ratio).toBeCloseTo(1.12);
+    expect(hi.outOfTolerance.map((f) => f.label)).toEqual(['Supply outlets S-1']);
+    expect(hi.outOfTolerance[0]).toMatchObject({ table: 'supply', ratio: 1.28, base: 1.07 });
+    expect(hi.outOfTolerance[0].relative).toBeCloseTo(1.28 / 1.07);
+    // both at 125 %: every line is 100 % of the unit, the total (125 %) is red
+    const total = computeCompletion({ ...i, rows: supplyAt(i, [625, 1875], [500, 1500]) });
+    expect(total.outOfTolerance.map((f) => f.label)).toEqual(['Supply outlets total']);
+    expect(total.outOfTolerance[0]).toMatchObject({ table: 'supply', rowId: '', key: 'table:supply', ratio: 1.25 });
+  });
+
+  it('a unit at 85 % with every outlet in proportion: one red total, no red lines; the total can be accepted', () => {
+    const i = fullRtu();
+    const low = computeCompletion({ ...i, rows: supplyAt(i, [425, 425]) });
+    expect(low.color).toBe('red');
+    expect(low.outOfTolerance).toHaveLength(1);
+    expect(low.outOfTolerance[0]).toMatchObject({ label: 'Supply outlets total', key: 'table:supply', ratio: 0.85 });
+    expect(Object.values(low.tables.supply.rows).every((r) => !r.outOfTolerance)).toBe(true);
+    const acc = {
+      name: 'Dana',
+      userId: 'u',
+      deviceId: 'd',
+      at: 1,
+      ratio: 0.85,
+      reason: 'duct leakage, engineer informed',
+    };
+    const ok = computeCompletion({
+      ...i,
+      rows: supplyAt(i, [425, 425]),
+      unit: { ...i.unit, accepted: { 'table:supply': acc } },
+    });
+    expect(ok.color).toBe('green');
+    expect(ok.acceptedDeviations[0]).toMatchObject({ key: 'table:supply', accepted: { name: 'Dana' } });
+    // one line at 90 % of design while the unit is at 85 %: 106 % of the unit -> within
+    const skew = computeCompletion({ ...i, rows: supplyAt(i, [450, 425]) });
+    expect(skew.outOfTolerance.map((f) => f.label)).toEqual(['Supply outlets total']);
   });
 
   it('an accepted deviation (reason, ratio) takes the line out of red; a changed reading makes it stale', () => {
     const i = fullRtu();
-    const rows = (vel: number) =>
-      i.rows.map((r) => (r.table === 'supply' && r.order === 1 ? { ...r, data: { ...r.data, finalVel: vel } } : r));
-    const rowId = i.rows.find((r) => r.table === 'supply' && r.order === 1)!.id;
-    const red = computeCompletion({ ...i, rows: rows(560) });
-    expect(red.outOfTolerance[0].key).toBe(rowId);
+    // S-1 (500 design) against a 1,500 CFM S-2 at design: 640 = 128 % of design, 119.6 % of the unit's 107 %
+    const rows = (vel: number) => supplyAt(i, [vel, 1500], [500, 1500]);
+    const rowId = s1(i);
+    const red = computeCompletion({ ...i, rows: rows(640) });
+    expect(red.outOfTolerance.map((f) => f.key)).toEqual([rowId]);
     const acc = {
       name: 'Dana',
       userId: 'u',
@@ -364,7 +406,7 @@ describe('red: tolerance and issues', () => {
       ratio: red.outOfTolerance[0].ratio,
       reason: 'within ±15 % per the engineer, email 10/18',
     };
-    const ok = computeCompletion({ ...i, rows: rows(560), unit: { ...i.unit, accepted: { [rowId]: acc } } });
+    const ok = computeCompletion({ ...i, rows: rows(640), unit: { ...i.unit, accepted: { [rowId]: acc } } });
     expect(ok.color).toBe('green');
     expect(ok.outOfTolerance).toEqual([]);
     expect(ok.acceptedDeviations[0]).toMatchObject({
@@ -375,12 +417,12 @@ describe('red: tolerance and issues', () => {
     expect(ok.tables.supply.rows[rowId]).toMatchObject({ outOfTolerance: false, accepted: { name: 'Dana' } });
     expect(ok.complete).toBe(true);
     // the reading changed since the acceptance: stale, so red again (and not listed as accepted)
-    const stale = computeCompletion({ ...i, rows: rows(580), unit: { ...i.unit, accepted: { [rowId]: acc } } });
+    const stale = computeCompletion({ ...i, rows: rows(660), unit: { ...i.unit, accepted: { [rowId]: acc } } });
     expect(stale.color).toBe('red');
     expect(stale.acceptedDeviations).toEqual([]);
-    expect(stale.outOfTolerance[0].ratio).toBeCloseTo(1.16);
+    expect(stale.outOfTolerance[0].ratio).toBeCloseTo(1.32);
     // withdrawn (null) = not accepted
-    expect(computeCompletion({ ...i, rows: rows(560), unit: { ...i.unit, accepted: { [rowId]: null } } }).color).toBe(
+    expect(computeCompletion({ ...i, rows: rows(640), unit: { ...i.unit, accepted: { [rowId]: null } } }).color).toBe(
       'red',
     );
   });
@@ -398,8 +440,10 @@ describe('red: tolerance and issues', () => {
   });
 
   it('the project tolerance is configurable', () => {
-    const c = computeCompletion({ ...fullRtu(), project: { ...project, tolerance: 0.05 } });
-    expect(c.color).toBe('red'); // S-2 is at 94 %
+    // S-1 101 %, S-2 94 %: the unit delivers 97.5 %, S-1 is 103.6 % of it: fine at ±5 %, red at ±3 %
+    expect(computeCompletion({ ...fullRtu(), project: { ...project, tolerance: 0.05 } }).color).toBe('green');
+    const c = computeCompletion({ ...fullRtu(), project: { ...project, tolerance: 0.03 } });
+    expect(c.color).toBe('red');
   });
 
   it('a linked open issue turns a complete unit red', () => {

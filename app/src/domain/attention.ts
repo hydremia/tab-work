@@ -135,7 +135,11 @@ export function needsAttention(input: AttentionInput): AttentionItem[] {
       add(
         'tolerance',
         `${t.table}:${t.rowId}`,
-        `${t.label}: ${formatPercent(t.ratio)} of design (±${Math.round(tol * 100)} %)`,
+        `${t.label}: ${formatPercent(t.ratio)} of design${
+          t.relative !== undefined && t.base !== undefined
+            ? `, ${formatPercent(t.relative)} of the unit's ${formatPercent(t.base)}`
+            : ''
+        } (±${Math.round(tol * 100)} %)`,
         tableSection(t.table),
         { kind: 'accept', equipmentId: e.id, key: t.key, ratio: t.ratio, label: t.label },
       );

@@ -196,6 +196,8 @@ export function normalizeProject(p: ProjectData): ProjectData {
     if (x && typeof x === 'object') {
       const o: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(x)) {
+        // export-only hints (toleranceColors.ts), never read back
+        if (k === 'acceptedRows' || k === 'toleranceBase') continue;
         const c = clean(v);
         if (c !== undefined && c !== null) o[k] = c;
       }

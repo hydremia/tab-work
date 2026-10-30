@@ -21,6 +21,11 @@ export interface LayoutData {
    * the neutral tolerance colour instead of red (toleranceColors.ts). Not read back by the importer.
    */
   acceptedRows?: Record<string, number[]>;
+  /**
+   * Export only: per table, the unit's % of design (actual / design over the measured lines) the lines' "% of design"
+   * cells are coloured against (proportional tolerance, toleranceColors.ts). Not read back by the importer.
+   */
+  toleranceBase?: Record<string, number>;
 }
 
 export interface UnitData extends LayoutData {

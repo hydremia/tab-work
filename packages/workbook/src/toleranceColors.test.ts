@@ -35,6 +35,23 @@ describe('tolerance colours', () => {
     expect(styles).not.toContain('FFEB9C');
   });
 
+  it('a base per row makes the colour proportional (value / base against 1); rows with the same base share a block', async () => {
+    const zip = await zipWith();
+    const bases = new Map([[PART, new Map([[30, 0.9], [31, 0.9], [32, 1.2]])]]);
+    expect(await applyToleranceColors(zip, [{ part: PART }], 0.1, undefined, undefined, bases)).toBe(3);
+    const xml = await zip.file(PART)!.async('string');
+    const b = blocks(xml);
+    expect(b.map((m) => m[1])).toEqual(['M30:M31', 'M32']);
+    expect(b[0][2]).toContain('ABS(M30/0.9-1)&lt;=0.1');
+    expect(b[0][2]).toContain('ABS(M30/0.9-1)&gt;0.1');
+    expect(b[1][2]).toContain('ABS(M32/1.2-1)&gt;0.1');
+    // a re-run without bases replaces them with the plain rule
+    expect(await applyToleranceColors(zip, [{ part: PART }], 0.1)).toBe(3);
+    expect(blocks(await zip.file(PART)!.async('string')).map((m) => [m[1], /\/0\.9|\/1\.2/.test(m[2])])).toEqual([
+      ['M30:M32', false],
+    ]);
+  });
+
   it('accepted rows get the neutral style instead of red (green inside the tolerance as usual); re-runs replace', async () => {
     const zip = await zipWith();
     const accepted = new Map([[PART, new Set([31])]]);

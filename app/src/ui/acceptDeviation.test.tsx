@@ -27,8 +27,10 @@ describe('accepted deviations and issue demotion on the unit page (jsdom)', () =
     const user = userEvent.setup();
     const p = await createProject({ name: 'Job' });
     const e = await addEquipment(p.id, 'rtu', 'RTU-1');
-    // an outlet at 120 % of design (Ak 1, design 500 CFM, final VEL 600)
+    // S-1 at 120 % of design (Ak 1, design 500 CFM, final VEL 600) beside a 1,500 CFM S-2 at design: the unit
+    // delivers 105 %, S-1 is 114 % of that -> out; the total is fine
     const row = await addAirflowRow(e, 'supply', { no: 'S-1', ak: 1, designCfm: 500, finalVel: 600 });
+    await addAirflowRow(e, 'supply', { no: 'S-2', ak: 1, designCfm: 1500, finalVel: 1500 });
     renderAt(`/p/${p.id}/e/${e.id}`);
     const callout = await screen.findByTestId('tolerance-callout', {}, { timeout: 5000 });
     expect(callout).toHaveTextContent('Supply outlets S-1 (120 %)');

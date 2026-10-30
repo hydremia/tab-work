@@ -37,7 +37,7 @@ Chosen when a project is created, and can be changed later.
 ### Color states (recap)
 | Gray | Amber | Green | Red |
 |---|---|---|---|
-| Nothing entered | Required field(s) still blank | All required fields are filled or N/A | Linked open issue, or a reading out of tolerance (default ±10% of design, configurable per project) |
+| Nothing entered | Required field(s) still blank | All required fields are filled or N/A | Linked open issue, or a reading out of tolerance: an outlet / inlet outside ±10 % of its share of the unit's delivery (its % of design against the unit's % of design over the measured lines, proportional balancing, decision 2026-10-30), or a unit total outside ±10 % of design (default ±10 %, configurable per project) |
 
 The project tolerance is also written to the workbook's **Equipment Summary** (cell E5), so the printed
 "OK / Check" column matches the app.
