@@ -62,23 +62,33 @@ export async function acceptRowDeviation(equipmentId: string, key: string, ratio
   await acceptDeviation(equipmentId, key, ratio, reason);
 }
 
+/**
+ * The % of design chip. Outlets / inlets are judged on their share of the unit's delivery (`relative` = ratio / the
+ * unit's % of design, `base`), the tolerance proportional to what the unit delivers; totals are judged on the ratio.
+ */
 export function Pct({
   ratio,
   tolerance,
   accepted,
+  relative,
+  base,
 }: {
   ratio: number | null;
   tolerance: number;
   accepted?: AcceptedDeviation | null;
+  relative?: number | null;
+  base?: number | null;
 }) {
   if (ratio === null) return <span className="muted">— %</span>;
-  const ok = withinTolerance(ratio, tolerance);
+  const ok = withinTolerance(relative ?? ratio, tolerance);
   const state = ok ? 'true' : accepted ? 'accepted' : 'false';
+  const share =
+    relative != null && base != null ? ` (${formatPercent(relative)} of the unit's ${formatPercent(base)})` : '';
   const title = ok
-    ? 'Within tolerance'
+    ? `Within tolerance${share}`
     : accepted
-      ? `Out of tolerance, accepted${accepted.name ? ` by ${accepted.name}` : ''}: ${accepted.reason}`
-      : 'Out of tolerance';
+      ? `Out of tolerance${share}, accepted${accepted.name ? ` by ${accepted.name}` : ''}: ${accepted.reason}`
+      : `Out of tolerance${share}`;
   return (
     <span className="pct" data-ok={state} title={title}>
       <StatusIcon color={ok ? 'green' : accepted ? 'amber' : 'red'} size={14} />
@@ -172,6 +182,7 @@ function OutletRow({
   unitData,
   result,
   tolerance,
+  base,
   onDuplicate,
   links,
   onLine,
@@ -185,6 +196,8 @@ function OutletRow({
   onLine: (action: string, row: AirflowRow) => Promise<boolean>;
   result: TableResult['rows'][string] | undefined;
   tolerance: number;
+  /** the unit's % of design for this table (TableResult.base) */
+  base?: number | null;
 }) {
   /** the first return line: "supply - OA" until it is given its own design (a measured inlet) */
   const computedDesign = spec.firstRowDesignComputed && index === 0;
@@ -295,7 +308,15 @@ function OutletRow({
       {spec.calc === 'valve' && <ValvePick row={row} unitData={unitData} label={label} />}
       <div className="outlet-foot">
         <RowCalcLine spec={spec} row={row} unitData={unitData} target={target} />
-        {spec.tolerance && <Pct ratio={result?.ratio ?? null} tolerance={tolerance} accepted={result?.accepted} />}
+        {spec.tolerance && (
+          <Pct
+            ratio={result?.ratio ?? null}
+            tolerance={tolerance}
+            accepted={result?.accepted}
+            relative={result?.relative}
+            base={base}
+          />
+        )}
         {result && result.missing.length > 0 && (
           <span className="small" style={{ color: 'var(--amber)' }}>
             {result.missing.length} missing
@@ -531,7 +552,13 @@ function GridTable({
                 )}
                 {spec.tolerance && (
                   <td>
-                    <Pct ratio={res?.ratio ?? null} tolerance={tolerance} accepted={res?.accepted} />
+                    <Pct
+                      ratio={res?.ratio ?? null}
+                      tolerance={tolerance}
+                      accepted={res?.accepted}
+                      relative={res?.relative}
+                      base={result?.base}
+                    />
                   </td>
                 )}
                 <td>
@@ -684,6 +711,7 @@ export function AirflowTable({
             unitData={equipment.data}
             result={result?.rows[r.id]}
             tolerance={tolerance}
+            base={result?.base}
             onDuplicate={rows.length < cap ? () => void add(r) : undefined}
             links={links?.get(r.id)}
             onLine={line.run}
@@ -698,7 +726,10 @@ export function AirflowTable({
           <span>
             Actual <b>{formatNumber(totals.actual)}</b>
           </span>
-          <Pct ratio={totals.ratio} tolerance={tolerance} />
+          <span className="small muted" title="The unit's delivery over the measured lines: the outlets' tolerance is proportional to it; the total itself is judged against design">
+            unit
+          </span>
+          <Pct ratio={result?.base ?? totals.ratio} tolerance={tolerance} />
         </div>
       )}
       {valves && rows.length > 1 && (

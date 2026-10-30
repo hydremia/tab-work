@@ -64,7 +64,13 @@ export interface RowResult {
   missing: string[];
   /** Columns that are automatically N/A on this row, with the reason. */
   auto: Record<string, string>;
+  /** Actual / design of the line (what is shown as "% of design"). */
   ratio: number | null;
+  /**
+   * The line's share: its % of design against the unit's % of design (TableResult.base), what the tolerance is judged
+   * on for outlets / inlets (proportional balancing). null: no base (nothing measured yet) — the ratio is judged.
+   */
+  relative?: number | null;
   /** Outside the tolerance and not accepted (red). */
   outOfTolerance: boolean;
   /** Outside the tolerance but accepted on review at this ratio (amber). */
@@ -75,6 +81,11 @@ export interface RowResult {
 
 export interface TableResult extends ItemResult {
   rows: Record<string, RowResult>;
+  /**
+   * The unit's delivery for this table: actual / design summed over the lines with both (outlet tables with a
+   * tolerance). Outlets are judged against it (RowResult.relative); the table total is judged against design.
+   */
+  base?: number | null;
   /** Automatic N/A that overrides entered rows (they are kept but not counted or exported). */
   forced?: boolean;
 }
@@ -107,7 +118,12 @@ export interface ToleranceFlag {
   /** Acceptance key on the unit (`accepted.<key>`): the row id, or 'total' / 'total:<n>' for unit totals. */
   key: string;
   label: string;
+  /** % of design (a line's, or the table total's). */
   ratio: number;
+  /** A line: its share of the unit's delivery (ratio / base), the value the tolerance was judged on. */
+  relative?: number;
+  /** A line: the unit's % of design it was judged against. */
+  base?: number;
   /** Set on an accepted deviation (acceptedDeviations), never on an open one (outOfTolerance). */
   accepted?: AcceptedDeviation;
 }
@@ -385,8 +401,35 @@ export function computeCompletion(input: CompletionInput): Completion {
     const readingCols = new Set(groups.flat());
     const outlet = (t.calc ?? 'outlet') === 'outlet';
     const valve = t.calc === 'valve';
+    // the first return line: "supply - OA" unless it has its own design (a measured inlet)
+    const designOf = (r: (typeof rows)[number], i: number): number | null => {
+      const computedDesign = t.firstRowDesignComputed && i === 0 && isBlank(r.data.designCfm);
+      return valve
+        ? num(r.data.designGpm)
+        : !outlet
+          ? null
+          : computedDesign
+            ? designSum('supply') - designSum('oa')
+            : num(r.data.designCfm);
+    };
+    // proportional balancing (decision 2026-10-30): an outlet / inlet is judged against the unit's delivery, the
+    // table's actual / design over the lines with both, not against its own design; the table total against design
+    let base: number | null = null;
+    if (outlet && t.tolerance) {
+      let d = 0;
+      let a = 0;
+      rows.forEach((r, i) => {
+        const dd = designOf(r, i);
+        const aa = rowActualCfm(r);
+        if (dd !== null && dd > 0 && aa !== null) {
+          d += dd;
+          a += aa;
+        }
+      });
+      base = d > 0 ? a / d : null;
+      out.base = base;
+    }
     rows.forEach((r, i) => {
-      // the first return line: "supply - OA" unless it has its own design (a measured inlet)
       const computedDesign = t.firstRowDesignComputed && i === 0 && isBlank(r.data.designCfm);
       const rowValues = { ...values, ...r.data };
       const autoCols: Record<string, string> = {};
@@ -402,32 +445,44 @@ export function computeCompletion(input: CompletionInput): Completion {
         if (!ok(col.key)) missing.push(col.key);
       }
       if (groups.length && !groups.some((g) => g.every(ok))) missing.push('reading');
-      // first return row: design = supply design total - OA design (workbook formula)
-      const design = valve
-        ? num(r.data.designGpm)
-        : !outlet
-          ? null
-          : computedDesign
-            ? designSum('supply') - designSum('oa')
-            : num(r.data.designCfm);
+      const design = designOf(r, i);
       const rt = outlet ? ratio(rowActualCfm(r), design) : valve ? valveRatio(r.data) : null;
-      const out_ = t.tolerance && rt !== null && !withinTolerance(rt, project.tolerance);
-      const accepted = out_ ? acceptanceOf(r.id, rt) : undefined;
+      const rel = rt !== null && base !== null && base > 0 ? rt / base : null;
+      const judged = rel ?? rt;
+      const out_ = t.tolerance && judged !== null && !withinTolerance(judged, project.tolerance);
+      // the acceptance is tied to the line's own % of design, so another line's reading does not void it
+      const accepted = out_ && rt !== null ? acceptanceOf(r.id, rt) : undefined;
       out.rows[r.id] = {
         missing,
         auto: autoCols,
         ratio: rt,
+        ...(outlet && t.tolerance ? { relative: rel } : {}),
         outOfTolerance: Boolean(out_) && !accepted,
         design,
         ...(accepted ? { accepted } : {}),
       };
-      if (out_) {
+      if (out_ && rt !== null) {
         const no = isBlank(r.data.no) ? `row ${i + 1}` : String(r.data.no);
-        const flag: ToleranceFlag = { table: t.key, rowId: r.id, key: r.id, label: `${t.label} ${no}`, ratio: rt };
+        const flag: ToleranceFlag = {
+          table: t.key,
+          rowId: r.id,
+          key: r.id,
+          label: `${t.label} ${no}`,
+          ratio: rt,
+          ...(rel !== null && base !== null ? { relative: rel, base } : {}),
+        };
         if (accepted) res.acceptedDeviations.push({ ...flag, accepted });
         else res.outOfTolerance.push(flag);
       }
     });
+    // the unit's delivery itself: the table total against design (types with their own total check keep that one)
+    if (outlet && t.tolerance && base !== null && !spec.totalCheck && !withinTolerance(base, project.tolerance)) {
+      const key = `table:${t.key}`;
+      const accepted = acceptanceOf(key, base);
+      const flag: ToleranceFlag = { table: t.key, rowId: '', key, label: `${t.label} total`, ratio: base };
+      if (accepted) res.acceptedDeviations.push({ ...flag, accepted });
+      else res.outOfTolerance.push(flag);
+    }
     return out;
   }
 

@@ -57,7 +57,8 @@ export function suggestedDeficiencies(
       designation: e.designation,
       kind: e.isExisting ? 'existing' : 'new',
       remark: `${list} of design, outside the ±${Math.round(tolerance * 100)} % tolerance.`,
-      airflowRowId: open.length === 1 ? open[0].rowId : null,
+      // a table total flag has no row (rowId ''): the suggestion is for the unit
+      airflowRowId: open.length === 1 ? open[0].rowId || null : null,
       hasRemark: typeof e.data.remarks === 'string' && e.data.remarks.trim() !== '',
     });
   }

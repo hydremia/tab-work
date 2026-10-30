@@ -527,6 +527,8 @@ export function toProjectData(
       // accepted deviations: their "% of design" cells are coloured neutral, not red (toleranceColors.ts)
       const acceptedIdx = naNotation && (!rows.length || tr.forced) ? [] : rows.flatMap((r, i) => (tr?.rows[r.id]?.accepted ? [i] : []));
       if (acceptedIdx.length && td) (unit.acceptedRows ??= {})[t.key] = acceptedIdx;
+      // proportional tolerance: the lines' colours are judged against the unit's % of design (toleranceColors.ts)
+      if (td && typeof tr?.base === 'number' && tr.base > 0) (unit.toleranceBase ??= {})[t.key] = tr.base;
     }
 
     // reading sequences (PSP velocities, traverse quick entry)

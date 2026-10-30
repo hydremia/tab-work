@@ -198,7 +198,7 @@ describe('Duplicate, needs attention, building pressures (jsdom)', () => {
     expect(await screen.findByRole('heading', { name: 'Needs attention' })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId('tab-count-attention')).toHaveTextContent('3'));
     expect(
-      within(screen.getByTestId('attention-tolerance')).getByText(/Outlets S-1: 67 % of design/),
+      within(screen.getByTestId('attention-tolerance')).getByText(/Outlets total: 67 % of design/),
     ).toBeInTheDocument();
     expect(within(screen.getByTestId('attention-issues')).getByText('Damper stuck')).toBeInTheDocument();
     expect(within(screen.getByTestId('attention-photos')).getByText(/Missing: Unit \/ tag/)).toBeInTheDocument();
@@ -371,6 +371,9 @@ describe('Certification, other OA, instrument library (jsdom)', () => {
   });
 
   it('library page: add, edit, usage count; the unit page shows a slot move note until dismissed', async () => {
+    // the template's instruments are dated 2024 / 2025: the expiry count below is as of October 2026
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-01T12:00:00'));
     const user = userEvent.setup();
     const p = await createProject({ name: 'Job' });
     renderAt('/library');
@@ -394,6 +397,7 @@ describe('Certification, other OA, instrument library (jsdom)', () => {
     expect(note).toHaveTextContent('Moved from workbook slot 2 to slot 3 because another device used slot 2 for RTU-1');
     await user.click(within(note).getByRole('button', { name: 'OK' }));
     await waitFor(async () => expect((await db.equipment.get(b.id))?.slotMove).toBeNull());
+    vi.useRealTimers();
   });
 });
 

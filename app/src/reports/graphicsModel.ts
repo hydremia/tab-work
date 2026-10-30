@@ -95,6 +95,8 @@ export interface BarsFigure {
   unitLabel: 'CFM' | 'GPM';
   rows: BarRow[];
   tolerance: number;
+  /** outlets: the unit's % of design over the measured lines; the band and the colour are proportional to it */
+  base?: number | null;
 }
 
 export interface PumpFigure {
@@ -295,6 +297,7 @@ export function buildGraphicsModel(input: {
           unitLabel: valve ? 'GPM' : 'CFM',
           rows: bars,
           tolerance: project.tolerance,
+          base: valve ? null : barsBase(bars),
         });
     }
     // pump operating point
@@ -324,6 +327,18 @@ export function buildGraphicsModel(input: {
   return { projectName: project.name, figures, summary: buildSummary(input, units, figures) };
 }
 
+/** The unit's delivery for a table: actual / design over the lines with both (null: nothing measured). */
+export function barsBase(rows: readonly BarRow[]): number | null {
+  let d = 0;
+  let a = 0;
+  for (const r of rows)
+    if (r.design !== null && r.design > 0 && r.actual !== null) {
+      d += r.design;
+      a += r.actual;
+    }
+  return d > 0 ? a / d : null;
+}
+
 function buildSummary(
   input: Parameters<typeof buildGraphicsModel>[0],
   units: readonly Equipment[],
@@ -331,16 +346,19 @@ function buildSummary(
 ): Summary {
   const { project, completions } = input;
   const tol = project.tolerance;
-  const inTol = (b: BarRow) =>
-    b.design !== null && b.design > 0 && b.actual !== null && Math.abs(b.actual / b.design - 1) <= tol + 1e-9;
   const measured = (b: BarRow) => b.design !== null && b.design > 0 && b.actual !== null;
+  // outlets in proportion to the unit's delivery (the figure's base), valves against design
+  const inTol = (b: BarRow & { base: number | null }) =>
+    measured(b) && Math.abs(b.actual! / (b.design! * (b.base ?? 1)) - 1) <= tol + 1e-9;
   const types: SummaryTypeRow[] = [];
   for (const t of EQUIPMENT_TYPES) {
     const us = units.filter((e) => e.type === t.key);
     if (!us.length) continue;
     const names = new Set(us.map((e) => e.designation));
     const bars = figures.flatMap((f) =>
-      (f.kind === 'outlets' || f.kind === 'valves') && names.has(f.unit) ? f.rows : [],
+      (f.kind === 'outlets' || f.kind === 'valves') && names.has(f.unit)
+        ? f.rows.map((r) => ({ ...r, base: f.kind === 'outlets' ? (f.base ?? null) : null }))
+        : [],
     );
     types.push({
       label: t.plural,
