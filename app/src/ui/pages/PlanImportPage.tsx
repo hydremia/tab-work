@@ -120,7 +120,8 @@ export function PlanImportPage() {
           <p className="small muted" style={{ margin: 0 }}>
             A mechanical plan PDF from the engineer. The app finds the air device tags (type, neck size, design CFM) on
             the sheet, places them on their symbols, and you lasso each system’s outlets to fill the unit’s airflow
-            table. The sheet stays on this device.
+            table. The sheet, its systems and the drawing sync with the project; the marked-up plan goes into the final
+            report.
           </p>
           {!pending && (
             <label className="file-btn btn btn-primary" style={{ alignSelf: 'flex-start' }}>
@@ -184,8 +185,12 @@ export function PlanImportPage() {
         {sheets.length > 0 && (
           <section className="card card-pad stack">
             <h2 className="section-head" style={{ margin: 0 }}>
-              Sheets on this device
+              Sheets of this project
             </h2>
+            <p className="small muted" style={{ margin: 0 }}>
+              Read on any device of the team: the sheet and its systems sync with the project; the drawing itself
+              follows once the device that read it has uploaded it.
+            </p>
             <ul className="plain-list" data-testid="plan-sheets">
               {sheets.map((s) => (
                 <li
@@ -198,6 +203,7 @@ export function PlanImportPage() {
                   </Link>
                   <span className="small muted">
                     {s.devices.length} devices · {s.systems.length} systems{s.ocr ? ' · text recognition' : ''}
+                    {s.pdf ? '' : ' · drawing not downloaded yet'}
                   </span>
                   <button
                     type="button"
@@ -266,9 +272,11 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
     const width = holder.current?.clientWidth ?? 800;
     const f = width / sheet.width;
     setFit(f);
+    const pdf = sheet.pdf;
+    if (!pdf) return;
     void (async () => {
       const { renderPlanPage } = await import('../../workbook/planSheet');
-      const canvas = await renderPlanPage(sheet.pdf, sheet.page, f * zoom * (window.devicePixelRatio || 1));
+      const canvas = await renderPlanPage(pdf, sheet.page, f * zoom * (window.devicePixelRatio || 1));
       if (gone || !canvasHost.current) return;
       canvas.style.width = `${sheet.width * f * zoom}px`;
       canvas.style.height = `${sheet.height * f * zoom}px`;
@@ -373,6 +381,7 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
         import('../../reports/planMarkup'),
         import('../../reports/generate'),
       ]);
+      if (!sheet.pdf) throw new Error('The drawing has not been downloaded on this device yet.');
       const bytes = await planMarkupPdf(sheet, equipment);
       downloadFile(bytes, sheet.fileName.replace(/\.pdf$/i, '') + ' - markup.pdf', 'application/pdf');
     } catch (e) {
@@ -436,6 +445,12 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
           Markup PDF
         </button>
       </div>
+      {!sheet.pdf && (
+        <div className="callout" data-tone="amber" data-testid="plan-no-file">
+          The drawing has not reached this device yet: it is uploaded by the device that read the sheet and downloaded
+          on the next sync. The devices and systems below are complete meanwhile.
+        </div>
+      )}
       {sheet.ocr && (
         <div className="callout" data-tone="note">
           This sheet’s text was read by text recognition (its tags are plotted as lines). Check types and CFMs: tap a

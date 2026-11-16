@@ -193,6 +193,7 @@ export async function discardHeld(conflictId: string): Promise<number> {
       db.issues,
       db.photos,
       db.instruments,
+      db.planSheets,
     ],
     async () => {
       const held = await db.fieldChanges

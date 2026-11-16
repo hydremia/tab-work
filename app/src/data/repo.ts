@@ -59,6 +59,7 @@ import {
   type FieldValue,
   type Photo,
   type PhotoCategory,
+  type PlanSheet,
   type Project,
   type ProjectLock,
   type ScopeProfile,
@@ -82,6 +83,8 @@ export const writeTables = () => [
   db.history,
   db.meta,
   db.photoUploads,
+  db.planSheets,
+  db.planUploads,
   db.conflicts,
   db.libraryInstruments,
   db.certProfiles,
@@ -150,6 +153,8 @@ export function describeRecord(name: TableName, rec: AnyRecord): string {
       return `Library pump: ${[r.make, r.model, r.size].filter(Boolean).join(' ') || 'pump'}`;
     case 'libraryUnits':
       return `Unit configuration: ${[r.make, r.line].filter(Boolean).join(' ') || 'unit'}`;
+    case 'planSheets':
+      return `Plan sheet: ${String(r.fileName ?? '')} p. ${String(r.page ?? '')}`;
   }
 }
 
@@ -157,6 +162,11 @@ export function describeRecord(name: TableName, rec: AnyRecord): string {
 function loggable(name: TableName, rec: AnyRecord): unknown {
   if (name === 'photos') {
     const { blob: _blob, thumb: _thumb, ...rest } = rec as unknown as Photo;
+    return rest;
+  }
+  if (name === 'planSheets') {
+    // the drawing file goes through the plans bucket (sync/planSync.ts), not the change log
+    const { pdf: _pdf, ...rest } = rec as unknown as PlanSheet;
     return rest;
   }
   return rec;
@@ -216,13 +226,19 @@ export async function forgetPhotoFile(photoId: string, remote = false): Promise<
  * one project delete) and when another device's project delete is pulled (the server cascades the same way).
  */
 export async function deleteProjectLocally(projectId: string, remote = false): Promise<void> {
-  for (const name of ['airflowRows', 'photos', 'issues', 'instruments', 'equipment'] as const) {
+  for (const name of ['airflowRows', 'photos', 'issues', 'instruments', 'equipment', 'planSheets'] as const) {
     const t = tableOf(name);
     if (name === 'photos')
       for (const id of (await t.where('projectId').equals(projectId).primaryKeys()) as string[])
         await forgetPhotoFile(id, remote);
     await t.where('projectId').equals(projectId).delete();
   }
+  // the plan files' queue (the deleting device removes uploaded files after the project delete synced, like photos)
+  if (remote) await db.planUploads.where('projectId').equals(projectId).delete();
+  else
+    for (const u of await db.planUploads.where('projectId').equals(projectId).toArray())
+      if (u.status === 'done') await db.planUploads.update(u.sheetId, { status: 'delete', updatedAt: Date.now() });
+      else await db.planUploads.delete(u.sheetId);
   await db.projects.delete(projectId);
   // changes of the project not on the server yet are moot now (the delete is what the server needs)
   await db.fieldChanges

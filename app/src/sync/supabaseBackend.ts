@@ -50,14 +50,26 @@ export class SupabaseBackend implements SyncBackend {
   }
 
   async uploadPhoto(path: string, blob: Blob, contentType: string): Promise<void> {
-    await this.call('upload', (c) => c.storage.from(BUCKET).upload(path, blob, { contentType, upsert: true }));
+    await this.uploadFile(BUCKET, path, blob, contentType);
   }
 
   async downloadPhoto(path: string): Promise<Blob | null> {
+    return this.downloadFile(BUCKET, path);
+  }
+
+  async deletePhoto(path: string): Promise<void> {
+    await this.deleteFile(BUCKET, path);
+  }
+
+  async uploadFile(bucket: string, path: string, blob: Blob, contentType: string): Promise<void> {
+    await this.call('upload', (c) => c.storage.from(bucket).upload(path, blob, { contentType, upsert: true }));
+  }
+
+  async downloadFile(bucket: string, path: string): Promise<Blob | null> {
     const client = await this.getClient();
     let res: { data: Blob | null; error: unknown };
     try {
-      res = await client.storage.from(BUCKET).download(path);
+      res = await client.storage.from(bucket).download(path);
     } catch (e) {
       throw toSyncError(e, 'download');
     }
@@ -70,8 +82,8 @@ export class SupabaseBackend implements SyncBackend {
     return res.data;
   }
 
-  async deletePhoto(path: string): Promise<void> {
-    await this.call('delete', (c) => c.storage.from(BUCKET).remove([path]));
+  async deleteFile(bucket: string, path: string): Promise<void> {
+    await this.call('delete', (c) => c.storage.from(bucket).remove([path]));
   }
 
   subscribe(onChange: () => void): () => void {

@@ -189,7 +189,7 @@ export interface FinalReportResult extends ReportResult {
 /** The project's plan sheets with systems as one flattened PDF (reports/planMarkup.ts), or null when there are none. */
 async function floorplanPages(projectId: string): Promise<{ bytes: Uint8Array; pages: number } | null> {
   const sheets = (await db.planSheets.where('projectId').equals(projectId).toArray())
-    .filter((s) => s.systems.length)
+    .filter((s) => s.systems.length && s.pdf)
     .sort((a, b) => a.createdAt - b.createdAt);
   if (!sheets.length) return null;
   const [{ planMarkupPdf }, { PDFDocument }] = await Promise.all([import('./planMarkup'), import('pdf-lib')]);

@@ -74,10 +74,17 @@ describe('plan sheets → airflow rows', () => {
       { no: 'B', area: 'Sales', type: 'S4', size: '14"R', designCfm: 525 },
       { no: 'C', area: 'Sales', type: 'S1', size: '10"R', designCfm: 400 },
     ]);
-    // the rows sync (one change per row creation), the sheet itself does not
+    // the rows sync (one change per row creation); the sheet syncs too, its create without the drawing file
     const changes = (await pendingChanges()).slice(before);
     expect(changes.filter((c) => c.table === 'airflowRows')).toHaveLength(3);
-    expect(changes.every((c) => c.table !== ('planSheets' as string))).toBe(true);
+    const sheetChanges = (await pendingChanges()).filter((c) => c.table === 'planSheets');
+    expect(sheetChanges.map((c) => [c.op, c.field])).toEqual([
+      ['create', ''],
+      ['set', 'systems'],
+    ]);
+    expect((sheetChanges[0].value as Record<string, unknown>).pdf).toBeUndefined();
+    expect((sheetChanges[0].value as Record<string, unknown>).fileName).toBe('M-100.pdf');
+    expect((await db.planUploads.get(sheet.id))?.status).toBe('pending');
     const saved = (await db.planSheets.get(sheet.id))!;
     expect(Object.keys(saved.systems[0].rowIds)).toEqual(['d0-0', 'd1-0', 'd2-0']);
 

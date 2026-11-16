@@ -221,6 +221,19 @@ export interface PhotoUpload {
   updatedAt: number;
 }
 
+/** The plan file upload / download queue (Dexie v12 `planUploads`), like the photos' (sync/planSync.ts). */
+export interface PlanUpload {
+  sheetId: string;
+  projectId: string;
+  /** 'delete': the sheet was deleted after its file was uploaded; the file is removed from storage, then the entry. */
+  status: 'pending' | 'uploading' | 'done' | 'failed' | 'delete';
+  attempts: number;
+  lastError: string | null;
+  nextAttemptAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface Instrument {
   id: string;
   projectId: string;
@@ -398,7 +411,8 @@ export type TableName =
   | 'certProfiles'
   | 'libraryValves'
   | 'libraryPumps'
-  | 'libraryUnits';
+  | 'libraryUnits'
+  | 'planSheets';
 
 /** Records of the organization that belong to no project: their changes carry the record's own id as projectId. */
 export const ORG_TABLES: readonly TableName[] = [
@@ -592,16 +606,23 @@ export interface BaseWorkbook {
 }
 
 /**
- * A mechanical plan sheet read for a project (Dexie v11 `planSheets`; this device only, not synced: the PDF is kept
- * with it). The air devices found on the page with their places, and the systems the user has lassoed: each
- * system fills one airflow table of a unit (domain/planSystems.ts) and is drawn on the markup (reports/planMarkup.ts).
+ * A mechanical plan sheet read for a project (Dexie v11 `planSheets`, server `plan_sheets`, 0016): a project record
+ * synced like photos (its fields through the change log; the drawing file through the `plans` bucket, uploaded by
+ * the device that read it and downloaded by the others, sync/planSync.ts). The air devices found on the page with
+ * their places, and the systems the user has lassoed: each system fills one airflow table of a unit
+ * (domain/planSystems.ts) and is drawn on the markup (reports/planMarkup.ts).
  */
 export interface PlanSheet {
   id: string;
   projectId: string;
   fileName: string;
-  /** the drawing file (every page), so the sheet can be rendered and the markup written on a copy */
-  pdf: Uint8Array;
+  /**
+   * the drawing file (every page), so the sheet can be rendered and the markup written on a copy; null on a device
+   * that has not downloaded it yet (kept out of the change log)
+   */
+  pdf: Uint8Array | null;
+  /** "<projectId>/<id>.pdf" in the plans bucket once the file is uploaded; absent / null before */
+  storagePath?: string | null;
   /** 1-based page in the file */
   page: number;
   pageCount: number;

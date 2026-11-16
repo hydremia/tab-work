@@ -487,8 +487,10 @@ When the engineer's drawings are a PDF, the outlets can come straight off the pl
 4. **Markup PDF** downloads the drawing with each system highlighted in its colour and every outlet labelled (1A, 1RB,
    D1C…), as annotations you can keep editing in your PDF app.
 
-The sheet and its systems stay **on this device** (they are not synced); the rows are ordinary unit data and sync as
-usual. Returns, outside air and exhaust inlets are systems of their own (pick the table).
+The sheet and its systems sync with the project like everything else; the drawing file follows once the device that
+read it is online (until then another device sees the devices and systems and a note that the drawing is on its way).
+The rows are ordinary unit data. Returns, outside air and exhaust inlets are systems of their own (pick the table).
+**Export** lists the project's drawings with a *Markup PDF* download for each.
 
 The marked-up plan goes into the report: **Export → Final report** has *Add the marked-up plan* (on by default when a
 sheet has systems). Every such sheet is appended as a page before the photo report, at the drawing's own size, and the

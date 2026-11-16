@@ -145,6 +145,7 @@ export async function planMarkupPdf(
   opts: { flatten?: boolean; onlyPage?: boolean } = {},
 ): Promise<Uint8Array> {
   const marks = sheetMarks(sheet, equipment);
+  if (!sheet.pdf) throw new Error(`The drawing ${sheet.fileName} has not been downloaded on this device yet.`);
   const src = await PDFDocument.load(sheet.pdf, { ignoreEncryption: true });
   let doc = src;
   let page = src.getPage(sheet.page - 1);

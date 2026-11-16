@@ -1,13 +1,16 @@
 /**
- * Plan sheets (Dexie v11 `planSheets`): the drawings read for a project and the systems lassoed on them. The sheets
- * stay on this device (the PDF is kept with them; nothing goes through the sync outbox). The airflow rows a system
- * writes are ordinary records (addAirflowRow, source 'plan') and sync like any other.
+ * Plan sheets (Dexie v11 `planSheets`, server `plan_sheets`, 0016): the drawings read for a project and the systems
+ * lassoed on them. Project records like photos: created, edited (devices / systems as whole fields) and deleted
+ * through the repository, so the changes sync; the drawing file goes through the plans bucket (sync/planSync.ts)
+ * and arrives on other devices after the record. The airflow rows a system writes are ordinary records
+ * (addAirflowRow, source 'plan').
  */
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getSpec } from '../domain/specs';
 import { rowsForDevices, type PlanRowData } from '../domain/planSystems';
+import { queuePlanDelete, queuePlanUpload } from '../sync/planSync';
 import { db } from './db';
-import { addAirflowRow, setField } from './repo';
+import { addAirflowRow, createRecord, deleteRecord, setField } from './repo';
 import type { Equipment, PlanSheet, PlanSystem } from './types';
 import { uuid } from './uuid';
 
@@ -24,23 +27,29 @@ export function usePlanSheet(id: string | undefined): PlanSheet | null | undefin
 }
 
 export async function savePlanSheet(
-  sheet: Omit<PlanSheet, 'id' | 'createdAt' | 'updatedAt' | 'systems'>,
+  sheet: Omit<PlanSheet, 'id' | 'createdAt' | 'updatedAt' | 'systems' | 'storagePath'>,
 ): Promise<PlanSheet> {
   const now = Date.now();
-  const rec: PlanSheet = { ...sheet, id: uuid(), systems: [], createdAt: now, updatedAt: now };
-  await db.planSheets.add(rec);
+  const rec: PlanSheet = { ...sheet, id: uuid(), systems: [], storagePath: null, createdAt: now, updatedAt: now };
+  await createRecord('planSheets', rec);
+  await queuePlanUpload(rec.id, rec.projectId, now);
   return rec;
 }
 
 export async function deletePlanSheet(id: string): Promise<void> {
-  await db.planSheets.delete(id);
+  const sheet = await db.planSheets.get(id);
+  if (!sheet) return;
+  await deleteRecord('planSheets', id);
+  await queuePlanDelete(id, sheet.projectId, Boolean(sheet.storagePath));
 }
 
+/** The sheet's devices or systems replaced (one synced field each). */
 export async function updatePlanSheet(
   id: string,
   patch: Partial<Pick<PlanSheet, 'devices' | 'systems'>>,
 ): Promise<void> {
-  await db.planSheets.update(id, { ...patch, updatedAt: Date.now() });
+  if (patch.devices) await setField('planSheets', id, 'devices', patch.devices);
+  if (patch.systems) await setField('planSheets', id, 'systems', patch.systems);
 }
 
 /** Change a device's reading (text recognition slips, a tag the plan reader mis-split). */

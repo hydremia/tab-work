@@ -46,7 +46,7 @@ export class FakeServerError extends Error {
 type Rec = Record<string, unknown> & { id: string };
 type Tables = Map<string, Map<string, Rec>>;
 
-const CHILD_TABLES = ['equipment', 'airflowRows', 'issues', 'photos', 'instruments'];
+const CHILD_TABLES = ['equipment', 'airflowRows', 'issues', 'photos', 'instruments', 'planSheets'];
 
 /** Fields that link a record to another one, and the table of the target (checked by the server, 0004). */
 const LINK_TABLES: Record<string, string> = {
