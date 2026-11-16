@@ -238,6 +238,9 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
   const [unitId, setUnitId] = useState<string>('');
   const [tableChoice, setTable] = useState<string>('');
   const [startKey, setStartKey] = useState<string | null>(null);
+  // devices tapped into / out of the selection after the lasso closed (interleaved systems)
+  const [extra, setExtra] = useState<ReadonlySet<string>>(new Set());
+  const [dropped, setDropped] = useState<ReadonlySet<string>>(new Set());
   const [picked, setPicked] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -283,9 +286,33 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
     return m;
   }, [sheet.systems]);
 
-  const insideLasso = closed && lasso ? devicesInLasso(sheet.devices, lasso) : [];
+  // the selection: the lasso's devices that are not in another system already, less the dropped, plus the tapped
+  const lassoed = closed && lasso ? devicesInLasso(sheet.devices, lasso) : [];
+  const insideLasso = closed
+    ? sheet.devices.filter(
+        (d) => extra.has(d.key) || (lassoed.includes(d) && !inSystem.has(d.key) && !dropped.has(d.key)),
+      )
+    : [];
+  const takenInLasso = lassoed.filter((d) => inSystem.has(d.key) && !extra.has(d.key)).length;
   const start = insideLasso.find((d) => d.key === startKey);
   const ordered = walkOrder(insideLasso, start);
+  function toggleDevice(key: string) {
+    if (insideLasso.some((d) => d.key === key)) {
+      setExtra((x) => new Set([...x].filter((k) => k !== key)));
+      setDropped((x) => new Set([...x, key]));
+      if (startKey === key) setStartKey(null);
+    } else {
+      setDropped((x) => new Set([...x].filter((k) => k !== key)));
+      setExtra((x) => new Set([...x, key]));
+    }
+  }
+  function resetLasso() {
+    setLasso(null);
+    setClosed(false);
+    setStartKey(null);
+    setExtra(new Set());
+    setDropped(new Set());
+  }
   const unitDesign = unit && typeof unit.data.designTotalCfm === 'number' ? unit.data.designTotalCfm : null;
   const check = designCheck(ordered, unitDesign);
   const pickedDevice = sheet.devices.find((d) => d.key === picked) ?? null;
@@ -317,9 +344,7 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
       const r = await applyPlanSystem(sheet.id, sys.id);
       const tableLabel = tables.find((t) => t.key === table)?.label ?? table;
       setMessage(`${r.created} row${r.created === 1 ? '' : 's'} added to ${unit.designation} · ${tableLabel}.`);
-      setLasso(null);
-      setClosed(false);
-      setStartKey(null);
+      resetLasso();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -395,7 +420,7 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
             >
               Done
             </button>
-            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setLasso(null)}>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={resetLasso}>
               Cancel
             </button>
           </>
@@ -468,7 +493,7 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
                 onPointerUp={(e) => {
                   if (lasso && !closed) return;
                   e.stopPropagation();
-                  if (closed && inside) setStartKey(d.key);
+                  if (closed) toggleDevice(d.key);
                   else setPicked(picked === d.key ? null : d.key);
                 }}
                 data-testid={`plan-device-${d.key}`}
@@ -559,7 +584,9 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
             </label>
           </div>
           <p className="small muted" style={{ margin: 0 }}>
-            Lettered in walk order from the top-left device: tap another device in the lasso to start there.
+            Tap a device on the sheet to add it to this system or drop it (systems that share an aisle). Devices already
+            in another system are left out{takenInLasso ? ` (${takenInLasso} in the lasso)` : ''}; tap one to take it
+            over. Lettered in walk order from the top-left device; <em>Start here</em> on a row starts there.
           </p>
           {ordered.length > 0 && (
             <div className="preview-wrap">
@@ -570,6 +597,7 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
                     <th>Type</th>
                     <th>Size</th>
                     <th>Design CFM</th>
+                    <th />
                   </tr>
                 </thead>
                 <tbody>
@@ -579,6 +607,21 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
                       <td>{d.type}</td>
                       <td>{d.size ?? '—'}</td>
                       <td>{fmt(d.cfm)}</td>
+                      <td className="row" style={{ gap: 4 }}>
+                        {i > 0 && (
+                          <button type="button" className="link-btn small" onClick={() => setStartKey(d.key)}>
+                            Start here
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="link-btn small"
+                          onClick={() => toggleDevice(d.key)}
+                          aria-label={`Drop ${d.type}`}
+                        >
+                          Drop
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -586,6 +629,7 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
                   <tr>
                     <td colSpan={3}>Total</td>
                     <td>{fmt(check.total)}</td>
+                    <td />
                   </tr>
                 </tfoot>
               </table>
@@ -609,15 +653,7 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
               Add {ordered.length} row{ordered.length === 1 ? '' : 's'}
               {unit ? ` to ${unit.designation}` : ''}
             </button>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => {
-                setLasso(null);
-                setClosed(false);
-                setStartKey(null);
-              }}
-            >
+            <button type="button" className="btn btn-ghost" onClick={resetLasso}>
               Cancel
             </button>
           </div>

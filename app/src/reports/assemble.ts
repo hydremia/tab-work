@@ -16,7 +16,7 @@
  * section's first page in the report), not from the workbook's numbers, which can be stale. Pure planning (planReport) is separate from the PDF work so it is tested on
  * text alone.
  */
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, type PDFPage } from 'pdf-lib';
 import type { PdfPageText } from '../domain/pdfTables';
 import type { EquipmentTypeKey } from '../domain/equipmentTypes';
 import type { FigureGroup } from './graphics';
@@ -264,16 +264,23 @@ export interface AssembleResult {
  * Builds the final report from the workbook's report PDF, the inline figures and their groups. `readText` reads the
  * report's text (workbook/pdfText.ts; passed in so this module stays free of pdf.js).
  */
+export interface Appendix {
+  bytes: Uint8Array;
+  number: { right: number; y: number; size: number } | 'bottom-right';
+  toc: RegExp;
+}
+
 export async function assembleReport(
   reportBytes: Uint8Array,
   graphics: { bytes: Uint8Array; groups: readonly FigureGroup[] },
   readText: (bytes: Uint8Array) => Promise<{ pages: PdfPageText[]; pageCount: number }>,
   meta: { title: string; author: string; now?: Date },
   /**
-   * Pages appended after the report (the photo report, rendered without page numbers): numbered on with the report
-   * at `number` (right-aligned), and the ToC entry matching `toc` (its label) points at their first page.
+   * Sections appended after the report in this order (the marked-up plan, the photo report; rendered without page
+   * numbers): numbered on with the report at `number` (right-aligned; 'bottom-right' places it by the page's own
+   * size, for drawing-size pages), and the ToC entry matching `toc` (its label) points at each one's first page.
    */
-  appendix?: { bytes: Uint8Array; number: { right: number; y: number; size: number }; toc: RegExp },
+  appendices: readonly Appendix[] = [],
 ): Promise<AssembleResult> {
   const report = await PDFDocument.load(reportBytes, { ignoreEncryption: true });
   const { pages: text, pageCount } = await readText(reportBytes);
@@ -293,8 +300,18 @@ export async function assembleReport(
   const font = await out.embedFont(StandardFonts.Helvetica);
   const reportPages = await out.copyPages(report, report.getPageIndices());
   const figPages = fig ? await out.copyPages(fig, fig.getPageIndices()) : [];
-  const app = appendix?.bytes.length ? await PDFDocument.load(appendix.bytes) : null;
-  const appPages = app ? await out.copyPages(app, app.getPageIndices()) : [];
+  // each appendix's pages, and the final-report page its first page lands on
+  const apps: { spec: Appendix; pages: PDFPage[]; first: number }[] = [];
+  let next = plan.order.length + 1;
+  for (const spec of appendices) {
+    if (!spec.bytes.length) continue;
+    const doc = await PDFDocument.load(spec.bytes);
+    const pages = await out.copyPages(doc, doc.getPageIndices());
+    if (!pages.length) continue;
+    apps.push({ spec, pages, first: next });
+    next += pages.length;
+  }
+  const appPages = apps.flatMap((a) => a.pages.map((page) => ({ page, spec: a.spec })));
   const total = plan.order.length + appPages.length;
   const position = new Map<number, number>(); // report page -> 1-based page in the final report
   plan.order.forEach((o, i) => o.src === 'report' && position.set(o.page, i + 1));
@@ -328,8 +345,8 @@ export async function assembleReport(
       page.drawText(label, { x: cx - font.widthOfTextAtSize(label, size) / 2, y: oy + foot.y, size, font, color: ink });
     }
     for (const t of plan.toc.filter((e) => e.page === o.page)) {
-      const appended = t.target < 0 && appPages.length > 0 && appendix!.toc.test(t.label);
-      const n = t.target >= 0 ? position.get(t.target) : appended ? plan.order.length + 1 : undefined;
+      const appended = t.target < 0 ? apps.find((a) => a.spec.toc.test(t.label)) : undefined;
+      const n = t.target >= 0 ? position.get(t.target) : appended?.first;
       if (t.target >= 0 && !n) continue;
       const s = n ? `page ${n}` : '';
       const size = Math.max(6, Math.min(12, t.size));
@@ -343,10 +360,11 @@ export async function assembleReport(
       page.drawText(s, { x: ox + t.box.x, y: oy + t.box.y, size, font, color: ink });
     }
   });
-  appPages.forEach((page, k) => {
+  appPages.forEach(({ page, spec }, k) => {
     out.addPage(page);
     const label = `Page ${plan.order.length + k + 1} of ${total}`;
-    const { right, y, size } = appendix!.number;
+    const { right, y, size } =
+      spec.number === 'bottom-right' ? { right: page.getWidth() - 36, y: 18, size: 9 } : spec.number;
     page.drawText(label, {
       x: right - font.widthOfTextAtSize(label, size),
       y,

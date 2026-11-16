@@ -478,9 +478,10 @@ When the engineer's drawings are a PDF, the outlets can come straight off the pl
    drawn. A sheet whose text was plotted as lines (older CAD output) is read by text recognition inside the tag hexagons:
    the page says so, and you should check types and CFMs (tap a device to correct it).
 2. **Lasso a system**: tap around one unit's outlets on the sheet (zoom with *2×* / *4×*; the view scrolls), then *Done*.
-   Pick the **unit** and its **table** (Supply outlets, Return inlets, Exhaust inlets…). The devices in the lasso are
-   lettered **A, B, C…** (no I or O) in walk order from the top-left one, always to the nearest next; tap another device
-   in the lasso to start there. The design total is checked against the unit's design CFM.
+   Pick the **unit** and its **table** (Supply outlets, Return inlets, Exhaust inlets…). Devices already in another
+   system are left out of the lasso; where two systems share an aisle, **tap a device** on the sheet to add it or drop
+   it. The devices are lettered **A, B, C…** (no I or O) in walk order from the top-left one, always to the nearest
+   next; *Start here* on a row starts there. The design total is checked against the unit's design CFM.
 3. **Add rows** writes them into the unit's table: No., area served (the unit's), type, size and design CFM, marked
    *plan import* in the history. Change the lasso or a device later and **Update rows** on the system.
 4. **Markup PDF** downloads the drawing with each system highlighted in its colour and every outlet labelled (1A, 1RB,
@@ -488,6 +489,11 @@ When the engineer's drawings are a PDF, the outlets can come straight off the pl
 
 The sheet and its systems stay **on this device** (they are not synced); the rows are ordinary unit data and sync as
 usual. Returns, outside air and exhaust inlets are systems of their own (pick the table).
+
+The marked-up plan goes into the report: **Export → Final report** has *Add the marked-up plan* (on by default when a
+sheet has systems). Every such sheet is appended as a page before the photo report, at the drawing's own size, and the
+table of contents' **Mechanical Floorplan** entry points at it (the export shows that entry only when a marked-up plan
+exists).
 
 ### Move a unit to another type
 

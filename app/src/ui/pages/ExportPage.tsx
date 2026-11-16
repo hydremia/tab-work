@@ -48,6 +48,7 @@ export function ExportPage() {
   const [reportResult, setReportResult] = useState<(ReportResult & { mime: string }) | null>(null);
   const [reportError, setReportError] = useState<string | null>(null);
   const [withPhotos, setWithPhotos] = useState(true);
+  const [withFloorplan, setWithFloorplan] = useState(true);
   const [outletCharts, setOutletCharts] = useState(false);
   const [finalNote, setFinalNote] = useState<string | null>(null);
   // the one-click final report: is Microsoft 365 connected on this device? (null: not known yet)
@@ -150,6 +151,7 @@ export function ExportPage() {
       const r = await gen.generateFinalReport(project.id, label, reportPdf, {
         outletCharts,
         photos: withPhotos,
+        floorplan: withFloorplan,
         onProgress: (done, total) => setReportBusy(`Placing photo ${done} of ${total}…`),
       });
       gen.downloadFile(r.bytes, r.fileName, 'application/pdf');
@@ -157,6 +159,9 @@ export function ExportPage() {
       setFinalNote(
         `${r.placed} figure group${r.placed === 1 ? '' : 's'} placed with their pages; ${r.numbered} pages numbered` +
           (r.tocFixed ? `; ${r.tocFixed} table of contents entries updated` : '') +
+          (r.floorplanPages
+            ? `; marked-up plan added (${r.floorplanPages} page${r.floorplanPages === 1 ? '' : 's'})`
+            : '') +
           (r.photoPages ? `; photo report added at the end (${r.photos} photos, ${r.photoPages} pages)` : '') +
           (r.atEnd.length ? `. Not found in the report, added at the end: ${r.atEnd.join(', ')}.` : '.'),
       );
@@ -579,6 +584,15 @@ export function ExportPage() {
               data-testid="final-photos"
             />
             Add the photo report at the end
+          </label>
+          <label className="row small" style={{ gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={withFloorplan}
+              onChange={(e) => setWithFloorplan(e.target.checked)}
+              data-testid="final-floorplan"
+            />
+            Add the marked-up plan (Mechanical Floorplan) before the photos
           </label>
           <div className="report-grid">
             {graphAvailable() &&
