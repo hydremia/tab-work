@@ -506,6 +506,8 @@ export const isBlankCell = (v: string | number | null | undefined): boolean =>
 
 /** Designation key for duplicate checks: case-insensitive, spaces ignored ("vav 12" == "VAV-12" is NOT assumed). */
 export const designationKey = (d: string) => d.trim().toLowerCase().replace(/\s+/g, '');
+/** "EF 1" (a tag whose hyphen the PDF reader lost, or a schedule written with a space) -> "EF-1". */
+export const normalizeDesignation = (d: string) => d.trim().replace(/^([A-Za-z]{1,5})\s+(\d{1,3}[A-Za-z]?)$/, '$1-$2');
 
 export function buildPreview(input: PreviewInput): Preview {
   const { type } = input;
@@ -586,10 +588,14 @@ export function buildPreview(input: PreviewInput): Preview {
       else if (values.phase !== phaseFromVoltage)
         warnings.push(`Phase ${String(values.phase)} differs from the electrical data (${String(phaseFromVoltage)})`);
     }
-    const designation = typeof values.designation === 'string' ? values.designation.trim() : '';
+    const designation = normalizeDesignation(typeof values.designation === 'string' ? values.designation : '');
     delete values.designation;
     const row: PreviewRow = { index, designation, values, errors, warnings, action: 'skip', slot: null, scope };
     out.push(row);
+    if (/^(sub)?totals?$/i.test(designation)) {
+      errors.unshift('Totals row');
+      return;
+    }
     if (!designation) {
       errors.unshift('No designation');
       return;

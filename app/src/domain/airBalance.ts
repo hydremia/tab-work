@@ -56,7 +56,10 @@ const UNIT_HEADER = /^(unit|units|unit no|unit tag|equipment|equip|tag|mark|syst
 const OA_HEADER = /\b(osa|oa|outside|outdoor|ventilation|make up|makeup|intake)\b/;
 const EX_HEADER = /\b(exhaust|exh|ea|relief)\b/;
 
-type ColRole = { role: 'unit' } | { role: 'value'; side: BalanceSide } | null;
+type ColRole = { role: 'unit' } | { role: 'value'; side: BalanceSide } | { role: 'neutral' } | null;
+/** Columns an air balance summary has besides the sides: supply, percent OA, totals (they don't count against it). */
+const NEUTRAL_HEADER =
+  /^(supply|sa|supply air|supply cfm|total supply|percent.*|%.*|ratio.*|oa ?\/ ?sa|notes?|remarks?)$/;
 
 function roleOf(header: string | number | null): ColRole {
   if (header === null || typeof header === 'number') return null;
@@ -65,8 +68,9 @@ function roleOf(header: string | number | null): ColRole {
   if (UNIT_HEADER.test(h)) return { role: 'unit' };
   const cfm = /\bcfm\b/.test(h) || /\bair\b/.test(h);
   if (EX_HEADER.test(h) && (cfm || /^(exhaust|exh|ea|relief)$/.test(h))) return { role: 'value', side: 'exhaust' };
-  if (OA_HEADER.test(h) && (cfm || /^(osa|oa|outside air|outdoor air|ventilation)$/.test(h)))
+  if (OA_HEADER.test(h) && (cfm || /^(osa|oa|outside|outdoor|outside air|outdoor air|ventilation)$/.test(h)))
     return { role: 'value', side: 'oa' };
+  if (NEUTRAL_HEADER.test(h)) return { role: 'neutral' };
   return null;
 }
 
@@ -75,23 +79,42 @@ interface Layout {
   pairs: { unit: number; value: number; side: BalanceSide }[];
 }
 
+/** A header line whose words continue on the next line ("UNIT" / "NO.", "OUTDOOR" / "(CFM)"): the two joined per column. */
+function joinedHeader(rows: Grid, h: number): (string | number | null)[] | null {
+  const next = rows[h + 1];
+  if (!next) return null;
+  const first = text(next.find((c) => text(c)));
+  if (!first || isTag(first) || parseNumber(first) !== null) return null;
+  const width = Math.max(rows[h].length, next.length);
+  return Array.from({ length: width }, (_, i) => [text(rows[h][i]), text(next[i])].filter(Boolean).join(' ') || null);
+}
+
 function layoutOf(rows: Grid): Layout | null {
   for (let h = 0; h < Math.min(4, rows.length); h++) {
-    const roles = rows[h].map(roleOf);
-    const units = roles.flatMap((r, i) => (r?.role === 'unit' ? [i] : []));
-    if (!units.length) continue;
-    const pairs: Layout['pairs'] = [];
-    roles.forEach((r, i) => {
-      if (r?.role !== 'value') return;
-      const unit = [...units].reverse().find((u) => u < i) ?? units[0];
-      pairs.push({ unit, value: i, side: r.side });
-    });
-    // a unit schedule also has a unit and an OA CFM column, among many others: an air balance is (nearly) only
-    // unit and CFM columns
-    const filled = rows[h].filter((c) => c !== null && String(c).trim()).length;
-    if (pairs.length && units.length + pairs.length >= filled * 0.6) return { header: h, pairs };
+    const joined = joinedHeader(rows, h);
+    const candidates = joined ? [rows[h], joined] : [rows[h]];
+    const found = candidates.map((c, k) => layoutOfHeader(c, k === 1 ? h + 1 : h)).find(Boolean);
+    if (found) return found;
   }
   return null;
+}
+
+/** The layout when `header` (the cells of row `h`, or two rows joined) names a unit column and CFM sides. */
+function layoutOfHeader(header: (string | number | null)[], last: number): Layout | null {
+  const roles = header.map(roleOf);
+  const units = roles.flatMap((r, i) => (r?.role === 'unit' ? [i] : []));
+  if (!units.length) return null;
+  const pairs: Layout['pairs'] = [];
+  roles.forEach((r, i) => {
+    if (r?.role !== 'value') return;
+    const unit = [...units].reverse().find((u) => u < i) ?? units[0];
+    pairs.push({ unit, value: i, side: r.side });
+  });
+  // a unit schedule also has a unit and an OA CFM column, among many others: an air balance is (nearly) only
+  // unit and CFM columns
+  const filled =
+    header.filter((c) => c !== null && String(c).trim()).length - roles.filter((r) => r?.role === 'neutral').length;
+  return pairs.length && units.length + pairs.length >= filled * 0.6 ? { header: last, pairs } : null;
 }
 
 const text = (c: string | number | null | undefined) => (c === null || c === undefined ? '' : String(c).trim());
@@ -166,9 +189,41 @@ export function readAirBalance(rows: Grid): AirBalanceTable | null {
 }
 
 /** What a schedule table is when it is not a unit schedule. */
+/**
+ * A header lost into the title: a drawing's grid lines put the header cells above the first ruled row, and the grid
+ * reader then names the table after them ("BUILDING AIR BALANCE SUMMARY UNIT SUPPLY OUTDOOR EXHAUST PERCENT NO. (CFM)
+ * (CFM) (CFM) OA/SA"). When the title's column words, in order, are as many as the table's columns, they are the
+ * header: unit, supply, outdoor air, exhaust, percent.
+ */
+export function headerFromTitle(title: string, width: number): string[] | null {
+  const words = title.toUpperCase().split(/[\s,]+/);
+  const cols: string[] = [];
+  for (const w of words) {
+    const t = w.replace(/[^A-Z%/]/g, '');
+    if (/^(UNIT|UNITS|TAG|MARK|EQUIPMENT|EQUIP|SYSTEM)$/.test(t)) cols.push('UNIT');
+    else if (/^(SUPPLY|SA)$/.test(t)) cols.push('SUPPLY CFM');
+    else if (/^(OUTDOOR|OUTSIDE|OSA|OA|VENTILATION|INTAKE)$/.test(t)) cols.push('OA CFM');
+    else if (/^(EXHAUST|EXH|EA|RELIEF)$/.test(t)) cols.push('EXHAUST CFM');
+    else if (/^(PERCENT|%|RATIO)$/.test(t)) cols.push('PERCENT');
+    else if (/^(NET|BALANCE|PRESSURIZATION)$/.test(t) && cols.length >= 2) cols.push('NET');
+  }
+  // a grid can carry an empty column or two past the words (a notes column, a ruled margin)
+  if (cols.length < width && width - cols.length <= 2) while (cols.length < width) cols.push('');
+  return cols.length === width && cols.includes('UNIT') && (cols.includes('OA CFM') || cols.includes('EXHAUST CFM'))
+    ? cols
+    : null;
+}
+
 export function tableKind(rows: Grid, title = ''): 'airBalance' | 'spaces' | null {
   if (readAirBalance(rows)) return 'airBalance';
-  const head = normalizeHeader(rows.slice(0, 3).flat().map(text).join(' '));
+  // the header rows only: a unit schedule's data ("MDF ROOM" as an area served) must not make it a space table
+  const headerRows: Grid = [];
+  for (const r of rows.slice(0, 3)) {
+    const first = text(r.find((c) => text(c)));
+    if (headerRows.length && (isTag(first) || parseNumber(first) !== null)) break;
+    headerRows.push(r);
+  }
+  const head = normalizeHeader(headerRows.flat().map(text).join(' '));
   const t = normalizeHeader(title);
   if (
     (/\b(room|space|zone)\b/.test(head) && /\b(occupan|people|area|sf|rp|ra|voz|vbz)\w*\b/.test(head)) ||
