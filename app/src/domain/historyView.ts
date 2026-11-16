@@ -363,6 +363,7 @@ export function subjectText(e: HistoryEntry, ctx: HistoryContext): string {
 const SOURCE_TEXT: Record<NonNullable<HistoryEntry['source']>, string> = {
   import: 're-import',
   schedule: 'schedule import',
+  plan: 'plan import',
   remote: 'synced',
   auto: 'automatic',
 };

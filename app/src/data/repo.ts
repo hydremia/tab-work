@@ -673,6 +673,7 @@ export async function addAirflowRow(
   equipment: Pick<Equipment, 'id' | 'projectId' | 'type'>,
   table: string,
   data: AirflowRow['data'] = {},
+  opts: WriteOptions = {},
 ): Promise<AirflowRow> {
   return db.transaction('rw', writeTables(), async () => {
     const rows = (await db.airflowRows.where('equipmentId').equals(equipment.id).toArray()).filter(
@@ -681,17 +682,21 @@ export async function addAirflowRow(
     const cap = airflowTableCapacity(equipment.type, table);
     if (rows.length >= cap) throw new CapacityError(`This table has room for ${cap} rows in the workbook.`);
     const now = Date.now();
-    return createRecord<AirflowRow>('airflowRows', {
-      id: uuid(),
-      projectId: equipment.projectId,
-      equipmentId: equipment.id,
-      table,
-      order: rows.reduce((m, r) => Math.max(m, r.order), 0) + 1,
-      data,
-      na: {},
-      createdAt: now,
-      updatedAt: now,
-    });
+    return createRecord<AirflowRow>(
+      'airflowRows',
+      {
+        id: uuid(),
+        projectId: equipment.projectId,
+        equipmentId: equipment.id,
+        table,
+        order: rows.reduce((m, r) => Math.max(m, r.order), 0) + 1,
+        data,
+        na: {},
+        createdAt: now,
+        updatedAt: now,
+      },
+      opts,
+    );
   });
 }
 

@@ -96,6 +96,9 @@ export function EquipmentListPage() {
               <Link to={`/p/${project.id}/schedule`} className="btn" data-testid="import-schedule">
                 Import schedule
               </Link>
+              <Link to={`/p/${project.id}/plan`} className="btn" data-testid="import-plan">
+                Import from plan
+              </Link>
               <Link to={`/p/${project.id}/add`} className="btn btn-primary" data-testid="add-equipment">
                 <IconPlus size={18} /> Add equipment
               </Link>

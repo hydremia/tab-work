@@ -286,6 +286,10 @@ page), and is shown for review before it's accepted, like the re-import review s
    - **Output:** each outlet's type, neck size and design CFM, with its position on the sheet, counted per sheet.
    - **The user's part:** tap a VAV or unit and lasso its outlets. The app then fills that system's airflow table
      in order (S-1, S-2…) and checks the design total against the VAV or unit schedule.
+   - **Status 2026-11-16: built, first version** (Equipment → *Import from plan*; TRACKER decision log). Tags in both
+     grammars, symbols from the vector geometry, leader following and TYP n, text recognition inside hexagon frames for
+     stroke-plotted sheets, lasso → lettered rows, the markup PDF. Checked on two engineers' sheets (Case Engineering,
+     HNY). Remaining here: the air device schedule for Ak / neck sizes, the sheet in the final report, sync of sheets.
 3. **Ductwork tracing** (the most advanced step: highlight whole systems, fill the duct, mark every register).
    - **On PDFs it's possible but brittle.** Duct walls are just pairs of lines once a drawing is flattened, and
      every firm draws differently. I'd do it as *assisted*: the user taps the unit, and the app follows the

@@ -468,6 +468,27 @@ app. Skipped rows aren't imported at all, so fix them and import again.
 motor, drive, misc., RPM and static sections N/A in one tap (tap again for full data). Single sections can still be
 changed with their own N/A menus.
 
+
+### Import from plan
+
+When the engineer's drawings are a PDF, the outlets can come straight off the plan: **Equipment → Import from plan**.
+
+1. **Choose the drawing** (the whole set is fine) and, when it has several pages, **the plan sheet**. The app reads the
+   sheet on your device: every air device tag (type, neck size, design CFM, *TYP n* multipliers) and where its symbol is
+   drawn. A sheet whose text was plotted as lines (older CAD output) is read by text recognition inside the tag hexagons:
+   the page says so, and you should check types and CFMs (tap a device to correct it).
+2. **Lasso a system**: tap around one unit's outlets on the sheet (zoom with *2×* / *4×*; the view scrolls), then *Done*.
+   Pick the **unit** and its **table** (Supply outlets, Return inlets, Exhaust inlets…). The devices in the lasso are
+   lettered **A, B, C…** (no I or O) in walk order from the top-left one, always to the nearest next; tap another device
+   in the lasso to start there. The design total is checked against the unit's design CFM.
+3. **Add rows** writes them into the unit's table: No., area served (the unit's), type, size and design CFM, marked
+   *plan import* in the history. Change the lasso or a device later and **Update rows** on the system.
+4. **Markup PDF** downloads the drawing with each system highlighted in its colour and every outlet labelled (1A, 1RB,
+   D1C…), as annotations you can keep editing in your PDF app.
+
+The sheet and its systems stay **on this device** (they are not synced); the rows are ordinary unit data and sync as
+usual. Returns, outside air and exhaust inlets are systems of their own (pick the table).
+
 ### Move a unit to another type
 
 A unit under the wrong type (a schedule table imported as the wrong type: RTUs under Pumps, a DOAS under Fans): at the
