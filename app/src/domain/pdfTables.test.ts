@@ -8,7 +8,7 @@ import { degrees, PDFDocument, StandardFonts, type PDFFont, type PDFPage } from 
 import { describe, expect, it } from 'vitest';
 import { readPdfText } from '../workbook/pdfText';
 import { EQUIPMENT_TYPES } from './equipmentTypes';
-import { pdfTables, suggestType, tableType, typeFromTags } from './pdfTables';
+import { pdfTables, suggestType, tableType, typeFromTags, typeOfTag } from './pdfTables';
 import { autoMap, buildPreview, looksLikeHeader } from './scheduleImport';
 
 const KNOWN = EQUIPMENT_TYPES.map((t) => t.key);
@@ -272,5 +272,38 @@ describe('schedules from a PDF', () => {
         KNOWN,
       ),
     ).toBe('rtu');
+  });
+
+  it('air curtains, duct heaters, grilles and destratification fans are not unit schedules, whatever their tags', () => {
+    const ac = [
+      ['AC-1', 'VESTIBULE', 'BERNER', '1334'],
+      ['AC-2', 'RECEIVING', 'BERNER', '1334'],
+    ];
+    expect(
+      tableType('AIR CURTAIN SCHEDULE (ELECTRIC HEAT)', ['MARK', 'AREA SERVED', 'MANUFACTURER', 'CFM'], ac, KNOWN),
+    ).toBeNull();
+    expect(tableType('ELECTRIC DUCT HEATER SCHEDULE', ['MARK', 'KW'], [['EDH-1', '13.3']], KNOWN)).toBeNull();
+    expect(
+      tableType('GRILLE, REGISTER AND DIFFUSER SCHEDULE', ['MARK', 'SERVICE'], [['SD1', 'SUPPLY']], KNOWN),
+    ).toBeNull();
+    expect(tableType('DESTRATIFICATION FAN SCHEDULE', ['MARK', 'CFM'], [['DF-1', '750']], KNOWN)).toBeNull();
+    expect(
+      tableType(
+        'FAN SCHEDULE',
+        ['MARK', 'CFM'],
+        [
+          ['EF-1', '550'],
+          ['SF-1', '240'],
+        ],
+        KNOWN,
+      ),
+    ).toBe('fan');
+  });
+
+  it('water-source heat pump tags name rooftop-type units (the packaged unit sheet)', () => {
+    expect(typeOfTag('WSHP-7', KNOWN)).toBe('rtu');
+    expect(typeOfTag('(E) WSHP-1', KNOWN)).toBe('rtu');
+    expect(typeOfTag('DOAS-1', KNOWN)).toBe('rtu');
+    expect(typeOfTag('EF-1', KNOWN)).toBe('fan');
   });
 });

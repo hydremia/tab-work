@@ -8,6 +8,7 @@ import {
   parseNumber,
   scheduleTargets,
   splitElectrical,
+  normalizeDesignation,
 } from './scheduleImport';
 import { nextDesignation } from './equipmentTypes';
 import { duplicateData, duplicateRow, duplicableKeys } from './duplicate';
@@ -312,5 +313,23 @@ describe('duplicate', () => {
     ).toEqual({
       size: '16" x 20"',
     });
+  });
+
+  it('a designation written with a space, or whose hyphen the PDF reader lost, is hyphenated: "EF 1" -> EF-1', () => {
+    expect(normalizeDesignation('EF 1')).toBe('EF-1');
+    expect(normalizeDesignation(' wshp 12a ')).toBe('wshp-12a');
+    expect(normalizeDesignation('RTU-1')).toBe('RTU-1');
+    expect(normalizeDesignation('Kitchen Hood 1')).toBe('Kitchen Hood 1');
+    const p = buildPreview({
+      type: 'fan',
+      rows: [
+        ['EF 1', '550'],
+        ['TOTALS', '550'],
+      ],
+      mapping: ['designation', 'designTotalCfm'],
+      existing: [],
+    });
+    expect(p.rows[0].designation).toBe('EF-1');
+    expect(p.rows[1]).toMatchObject({ action: 'skip', errors: ['Totals row'] });
   });
 });

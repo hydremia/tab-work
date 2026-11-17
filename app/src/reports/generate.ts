@@ -182,6 +182,24 @@ export interface FinalReportResult extends ReportResult {
   tocFixed: number;
   /** pages of the photo report appended at the end (0: none) */
   photoPages: number;
+  /** pages of the marked-up plan appended before it (0: none) */
+  floorplanPages: number;
+}
+
+/** The project's plan sheets with systems as one flattened PDF (reports/planMarkup.ts), or null when there are none. */
+async function floorplanPages(projectId: string): Promise<{ bytes: Uint8Array; pages: number } | null> {
+  const sheets = (await db.planSheets.where('projectId').equals(projectId).toArray())
+    .filter((s) => s.systems.length && s.pdf)
+    .sort((a, b) => a.createdAt - b.createdAt);
+  if (!sheets.length) return null;
+  const [{ planMarkupPdf }, { PDFDocument }] = await Promise.all([import('./planMarkup'), import('pdf-lib')]);
+  const equipment = await db.equipment.where('projectId').equals(projectId).toArray();
+  const out = await PDFDocument.create();
+  for (const sheet of sheets) {
+    const one = await PDFDocument.load(await planMarkupPdf(sheet, equipment, { flatten: true, onlyPage: true }));
+    for (const p of await out.copyPages(one, one.getPageIndices())) out.addPage(p);
+  }
+  return { bytes: await out.save(), pages: out.getPageCount() };
 }
 
 /**
@@ -192,7 +210,13 @@ export async function generateFinalReport(
   projectId: string,
   label: string,
   reportPdf: Uint8Array,
-  opts: { outletCharts: boolean; photos?: boolean; onProgress?: (done: number, total: number) => void },
+  opts: {
+    outletCharts: boolean;
+    photos?: boolean;
+    /** the marked-up plan sheets (every sheet with systems), before the photo report */
+    floorplan?: boolean;
+    onProgress?: (done: number, total: number) => void;
+  },
 ): Promise<FinalReportResult> {
   const [g, { assembleReport }, { readPdfText }] = await Promise.all([
     graphicsInput(projectId),
@@ -220,12 +244,18 @@ export async function generateFinalReport(
       photos = { ...p, count };
     }
   }
+  // the marked-up plan: every sheet with systems, flattened, one page each
+  let floorplan: { bytes: Uint8Array; pages: number } | null = null;
+  if (opts.floorplan !== false) floorplan = await floorplanPages(projectId);
   const r = await assembleReport(
     reportPdf,
     fig,
     (b) => readPdfText(b, 2000),
     { title: `TAB Report${label ? ` ${label}` : ''} - ${g.projectName}`, author: FIRM_NAME },
-    photos ? { bytes: photos.bytes, number: FOOTER_NUMBER, toc: /photo/i } : undefined,
+    [
+      ...(floorplan ? [{ bytes: floorplan.bytes, number: 'bottom-right' as const, toc: /floor ?plan|plan/i }] : []),
+      ...(photos ? [{ bytes: photos.bytes, number: FOOTER_NUMBER, toc: /photo/i }] : []),
+    ],
   );
   return {
     bytes: r.bytes,
@@ -233,6 +263,7 @@ export async function generateFinalReport(
     pages: r.pages,
     photos: photos?.count ?? 0,
     photoPages: photos?.pages ?? 0,
+    floorplanPages: floorplan?.pages ?? 0,
     placed: r.plan.placed.filter((p) => p.how !== 'end').length,
     atEnd: r.plan.placed.filter((p) => p.how === 'end').map((p) => p.unit ?? p.key),
     numbered: r.plan.footers.size + fig.pages + (photos?.pages ?? 0),

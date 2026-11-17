@@ -3095,3 +3095,36 @@ fieldset.viewer-edit {
   color: var(--primary);
   white-space: nowrap;
 }
+
+/* ---- import from plan: the sheet view ---- */
+.plan-view {
+  position: relative;
+  overflow: auto;
+  max-height: 72vh;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-2);
+  touch-action: pan-x pan-y;
+}
+.plan-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+.plan-layer canvas {
+  display: block;
+}
+.plan-overlay {
+  position: relative; /* sizes the scroll area; the canvas sits beneath */
+  display: block;
+}
+.plan-device {
+  cursor: pointer;
+}
+.plan-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}

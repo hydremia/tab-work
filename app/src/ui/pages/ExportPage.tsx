@@ -5,6 +5,7 @@ import type { PerPage } from '../../reports/layout';
 import type { ReportRequest, ReportResult } from '../../reports/generate';
 import { Link, useLocation, useSearchParams } from 'react-router';
 import { useBaseWorkbook, useExportStatus, useRevisions } from '../../data/hooks';
+import { usePlanSheets } from '../../data/planRepo';
 import type { Revision } from '../../data/types';
 import type { ExportResult } from '../../workbook/exportProject';
 
@@ -48,6 +49,27 @@ export function ExportPage() {
   const [reportResult, setReportResult] = useState<(ReportResult & { mime: string }) | null>(null);
   const [reportError, setReportError] = useState<string | null>(null);
   const [withPhotos, setWithPhotos] = useState(true);
+  const [withFloorplan, setWithFloorplan] = useState(true);
+  const planSheets = usePlanSheets(project.id);
+  const [drawingError, setDrawingError] = useState<string | null>(null);
+  async function downloadMarkup(sheetId: string) {
+    setDrawingError(null);
+    try {
+      const sheet = planSheets?.find((s) => s.id === sheetId);
+      if (!sheet) return;
+      const [{ planMarkupPdf }, gen] = await Promise.all([
+        import('../../reports/planMarkup'),
+        import('../../reports/generate'),
+      ]);
+      gen.downloadFile(
+        await planMarkupPdf(sheet, equipment),
+        sheet.fileName.replace(/\.pdf$/i, '') + ' - markup.pdf',
+        'application/pdf',
+      );
+    } catch (e) {
+      setDrawingError(e instanceof Error ? e.message : String(e));
+    }
+  }
   const [outletCharts, setOutletCharts] = useState(false);
   const [finalNote, setFinalNote] = useState<string | null>(null);
   // the one-click final report: is Microsoft 365 connected on this device? (null: not known yet)
@@ -150,6 +172,7 @@ export function ExportPage() {
       const r = await gen.generateFinalReport(project.id, label, reportPdf, {
         outletCharts,
         photos: withPhotos,
+        floorplan: withFloorplan,
         onProgress: (done, total) => setReportBusy(`Placing photo ${done} of ${total}…`),
       });
       gen.downloadFile(r.bytes, r.fileName, 'application/pdf');
@@ -157,6 +180,9 @@ export function ExportPage() {
       setFinalNote(
         `${r.placed} figure group${r.placed === 1 ? '' : 's'} placed with their pages; ${r.numbered} pages numbered` +
           (r.tocFixed ? `; ${r.tocFixed} table of contents entries updated` : '') +
+          (r.floorplanPages
+            ? `; marked-up plan added (${r.floorplanPages} page${r.floorplanPages === 1 ? '' : 's'})`
+            : '') +
           (r.photoPages ? `; photo report added at the end (${r.photos} photos, ${r.photoPages} pages)` : '') +
           (r.atEnd.length ? `. Not found in the report, added at the end: ${r.atEnd.join(', ')}.` : '.'),
       );
@@ -580,6 +606,43 @@ export function ExportPage() {
             />
             Add the photo report at the end
           </label>
+          <label className="row small" style={{ gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={withFloorplan}
+              onChange={(e) => setWithFloorplan(e.target.checked)}
+              data-testid="final-floorplan"
+            />
+            Add the marked-up plan (Mechanical Floorplan) before the photos
+          </label>
+          {planSheets && planSheets.length > 0 && (
+            <div className="stack" style={{ gap: 6 }} data-testid="drawings">
+              <span className="field-label">Drawings</span>
+              <ul className="plain-list">
+                {planSheets.map((s) => (
+                  <li key={s.id} className="row small" style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <Link to={`/p/${project.id}/plan?sheet=${s.id}`}>
+                      {s.fileName} · page {s.page}
+                    </Link>
+                    <span className="muted">
+                      {s.systems.length} system{s.systems.length === 1 ? '' : 's'}
+                      {s.pdf ? '' : ' · drawing not downloaded yet'}
+                    </span>
+                    {s.systems.length > 0 && s.pdf && (
+                      <button type="button" className="btn btn-sm" onClick={() => void downloadMarkup(s.id)}>
+                        Markup PDF
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {drawingError && (
+                <div className="callout" data-tone="red">
+                  {drawingError}
+                </div>
+              )}
+            </div>
+          )}
           <div className="report-grid">
             {graphAvailable() &&
               (graphConnected ? (

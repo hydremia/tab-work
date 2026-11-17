@@ -221,6 +221,19 @@ export interface PhotoUpload {
   updatedAt: number;
 }
 
+/** The plan file upload / download queue (Dexie v12 `planUploads`), like the photos' (sync/planSync.ts). */
+export interface PlanUpload {
+  sheetId: string;
+  projectId: string;
+  /** 'delete': the sheet was deleted after its file was uploaded; the file is removed from storage, then the entry. */
+  status: 'pending' | 'uploading' | 'done' | 'failed' | 'delete';
+  attempts: number;
+  lastError: string | null;
+  nextAttemptAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface Instrument {
   id: string;
   projectId: string;
@@ -398,7 +411,8 @@ export type TableName =
   | 'certProfiles'
   | 'libraryValves'
   | 'libraryPumps'
-  | 'libraryUnits';
+  | 'libraryUnits'
+  | 'planSheets';
 
 /** Records of the organization that belong to no project: their changes carry the record's own id as projectId. */
 export const ORG_TABLES: readonly TableName[] = [
@@ -569,7 +583,7 @@ export interface HistoryEntry {
   /** Short text for creates / deletes / events ("RTU-1", "Exported Prelim", "automatic: RTU-1 changed"). */
   note?: string;
   /** Where the write came from, when not a plain edit. */
-  source?: 'import' | 'schedule' | 'remote' | 'auto';
+  source?: 'import' | 'schedule' | 'plan' | 'remote' | 'auto';
   userId: string;
   userName?: string;
   /** The name of the device the change was made on ("Phone", "Laptop"; meta "deviceName" there). */
@@ -589,6 +603,76 @@ export interface BaseWorkbook {
   importedAt: number;
   /** Export revision the workbook came from (its marker), when known. */
   fromRevisionId: string | null;
+}
+
+/**
+ * A mechanical plan sheet read for a project (Dexie v11 `planSheets`, server `plan_sheets`, 0016): a project record
+ * synced like photos (its fields through the change log; the drawing file through the `plans` bucket, uploaded by
+ * the device that read it and downloaded by the others, sync/planSync.ts). The air devices found on the page with
+ * their places, and the systems the user has lassoed: each system fills one airflow table of a unit
+ * (domain/planSystems.ts) and is drawn on the markup (reports/planMarkup.ts).
+ */
+export interface PlanSheet {
+  id: string;
+  projectId: string;
+  fileName: string;
+  /**
+   * the drawing file (every page), so the sheet can be rendered and the markup written on a copy; null on a device
+   * that has not downloaded it yet (kept out of the change log)
+   */
+  pdf: Uint8Array | null;
+  /** "<projectId>/<id>.pdf" in the plans bucket once the file is uploaded; absent / null before */
+  storagePath?: string | null;
+  /** 1-based page in the file */
+  page: number;
+  pageCount: number;
+  /** the upright page's size, points */
+  width: number;
+  height: number;
+  /** the page's text came from text recognition (plotted strokes, a scan): check the values */
+  ocr: boolean;
+  /** every device found (domain/planSymbols.ts PlacedDevice), with a stable key */
+  devices: PlanSheetDevice[];
+  systems: PlanSystem[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PlanSheetDevice {
+  /** stable within the sheet ("d12-0": tag 12, its first device) */
+  key: string;
+  /** the tag's position and text (box in points, y downwards) */
+  tag: { x: number; y: number; box: { x0: number; y0: number; x1: number; y1: number }; lines: string[] };
+  type: string;
+  size: string | null;
+  cfm: number | null;
+  /** where the device is drawn */
+  x: number;
+  y: number;
+  /** how the place was found: by the tag's leader, the nearest symbol, a TYP n sibling, or the tag itself */
+  how: 'leader' | 'nearest' | 'typ' | 'tag';
+  /** devices this tag stands for and this one's index among them */
+  count: number;
+  index: number;
+}
+
+/** One lassoed system of a plan sheet: the devices that fill one airflow table of one unit. */
+export interface PlanSystem {
+  id: string;
+  equipmentId: string;
+  /** airflow table key of the unit: supply | return | oa | outlets | exhaust */
+  table: string;
+  /** the lasso, points on the page (y downwards) */
+  polygon: [number, number][];
+  /** device keys in letter order */
+  deviceKeys: string[];
+  /** markup colour (#rrggbb) */
+  color: string;
+  /** label prefix on the markup: "1" for RTU-1's outlets ("1A"), "1R" for its returns */
+  prefix: string;
+  /** the airflow rows written for the devices (device key → row id), once applied */
+  rowIds: Record<string, string>;
+  createdAt: number;
 }
 
 export interface Meta {

@@ -1,6 +1,15 @@
 /** The engineer's building air balance table: reading it, telling it from unit and space tables, checking units. */
 import { describe, expect, it } from 'vitest';
-import { airBalanceChecks, entryTotals, readAirBalance, tableKind, typeFromTag, unitDesignBalance } from './airBalance';
+import type { Grid } from './scheduleImport';
+import {
+  airBalanceChecks,
+  entryTotals,
+  readAirBalance,
+  tableKind,
+  typeFromTag,
+  unitDesignBalance,
+  headerFromTitle,
+} from './airBalance';
 
 // the WFM "VENTILATION CALCULATION" layout: UNIT | OSA (CFM) | UNIT | EXHAUST (CFM), totals, net
 const VENT = [
@@ -81,6 +90,47 @@ describe('air balance table', () => {
         ['EF-3', 'KITCHEN', '1,200', '0.5'],
       ]),
     ).toBeNull();
+    // a one-row heat pump schedule whose area served is a room, with an OA column: a unit schedule, not spaces
+    expect(
+      tableKind(
+        [
+          ['MARK', 'MANUFACTURER', 'AREA SERVED', 'MODEL', 'CFM', 'ESP (IN)', 'MIN OA (CFM)', 'V/PH'],
+          ['WSHP-7', 'CARRIER', 'MDF ROOM', '50WC024', '600', '0.30', '0', '208/1'],
+        ],
+        'WATER SOURCE HEAT PUMP SCHEDULE',
+      ),
+    ).toBeNull();
+    // a building air balance summary with a supply column and a percent column
+    const summary: Grid = [
+      // the title in the grid, then a header on two lines (as a drawing's grid lines give it)
+      ['BUILDING AIR BALANCE SUMMARY', null, null, null, null],
+      ['UNIT', 'SUPPLY', 'OUTDOOR', 'EXHAUST', 'PERCENT'],
+      ['NO.', '(CFM)', '(CFM)', '(CFM)', 'OA/SA'],
+      ['WSHP-1', '1,000', '0', '--', '0%'],
+      ['WSHP-4', '1,500', '110', '--', '7%'],
+      ['DOAS-1', '1,440', '850', '--', '59%'],
+      ['EF-1', '--', '--', '550', '--'],
+      ['TOTALS', '9,885', '1,060', '550', '--'],
+    ];
+    expect(tableKind(summary, 'BUILDING AIR BALANCE SUMMARY')).toBe('airBalance');
+    // the header lost into the title (the grid reader's reading of the same table): recovered from its words
+    const lost = 'BUILDING AIR BALANCE SUMMARY UNIT SUPPLY OUTDOOR EXHAUST PERCENT NO. (CFM) (CFM) (CFM) OA/SA';
+    expect(headerFromTitle(lost, 5)).toEqual(['UNIT', 'SUPPLY CFM', 'OA CFM', 'EXHAUST CFM', 'PERCENT']);
+    expect(headerFromTitle(lost, 4)).toBeNull();
+    expect(headerFromTitle(lost, 6)).toEqual(['UNIT', 'SUPPLY CFM', 'OA CFM', 'EXHAUST CFM', 'PERCENT', '']);
+    expect(headerFromTitle(lost, 8)).toBeNull();
+    expect(headerFromTitle('FAN SCHEDULE', 5)).toBeNull();
+    expect(tableKind([headerFromTitle(lost, 5)!, ...summary.slice(3)], lost)).toBe('airBalance');
+    // the header's first line alone (bare words), as a grid reader can give it
+    expect(tableKind([['UNIT', 'SUPPLY', 'OUTDOOR', 'EXHAUST', 'PERCENT'], ...summary.slice(3)])).toBe('airBalance');
+    const ab = readAirBalance(summary)!;
+    expect(ab.entries.filter((e) => e.side === 'oa').map((e) => [e.designation, e.cfm])).toEqual([
+      ['WSHP-1', 0],
+      ['WSHP-4', 110],
+      ['DOAS-1', 850],
+    ]);
+    expect(ab.entries.filter((e) => e.side === 'exhaust').map((e) => [e.designation, e.cfm])).toEqual([['EF-1', 550]]);
+    expect([ab.totalOa, ab.totalExhaust]).toEqual([1060, 550]);
   });
 
   it('checks the units: match, differs, blank, missing (type from the tag), not listed', () => {

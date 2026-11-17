@@ -13,6 +13,7 @@ import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/legacy/build/pdf
 import { cleanOcrCell, cleanOcrWord } from '../domain/ocrClean';
 import { pageWords, pdfTables, wordsToPage, type PdfPageText, type PdfTable } from '../domain/pdfTables';
 import { autoMap } from '../domain/scheduleImport';
+import { headerFromTitle, readAirBalance } from '../domain/airBalance';
 import type { EquipmentTypeKey } from '../domain/equipmentTypes';
 import { findLines, toGray, type HLine, type VLine } from '../domain/rasterLines';
 import { dropTextStrokes, gridTables, tableBoxes, type GridTable, type Word } from '../domain/tableGrid';
@@ -224,11 +225,33 @@ function tiles(width: number, height: number) {
 }
 
 /**
+ * A table whose header cells sat above its first ruled row were read as a title ("BUILDING AIR BALANCE SUMMARY UNIT
+ * SUPPLY OUTDOOR EXHAUST PERCENT NO. (CFM) …"): the header is taken back from the title's words when they fit the
+ * columns (domain/airBalance.ts headerFromTitle).
+ */
+function withRecoveredHeader(t: GridTable): GridTable {
+  if (!t.title || !t.rows.length) return t;
+  const first = t.rows[0].find((c) => c !== null && String(c).trim());
+  // a header row that starts with a unit tag is data the reader took for a header
+  if (t.hasHeader && !(typeof first === 'string' && /^[A-Z]{1,5}[- ]?\d{1,3}[A-Z]?$/i.test(first.trim()))) return t;
+  // the columns the rows agree on (a note row can be wider)
+  const counts = new Map<number, number>();
+  for (const r of t.rows) counts.set(r.length, (counts.get(r.length) ?? 0) + 1);
+  const width = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  const header = headerFromTitle(t.title, width);
+  if (!header) return t;
+  const max = t.rows.reduce((m, r) => Math.max(m, r.length), 0);
+  while (header.length < max) header.push('');
+  return { ...t, rows: [header, ...t.rows], hasHeader: true };
+}
+
+/**
  * A schedule: its title says so, or its header names a unit (designation) and at least one other field of some type.
  * Other grids on a drawing (revision blocks, legends, detail tables) are left out.
  */
 function looksLikeSchedule(t: GridTable): boolean {
-  if (t.title && /schedule/i.test(t.title)) return true;
+  if (t.title && /schedule|air balance|balance summary|ventilation/i.test(t.title)) return true;
+  if (readAirBalance(t.rows)) return true;
   if (!t.hasHeader) return false;
   const types = t.type ? [t.type] : (['rtu', 'fan', 'vav', 'pump'] as EquipmentTypeKey[]);
   return types.some((type) => {
@@ -342,9 +365,9 @@ async function sheetTables(
     y1: sheet.y0 + sheet.canvas.height / sheet.scale,
   };
   const build = () =>
-    gridTables(lines, words, known, pageNo, 3).filter(
-      (t) => looksLikeSchedule(t) && inBox({ text: '', ...t.box }, area),
-    );
+    gridTables(lines, words, known, pageNo, 3)
+      .map(withRecoveredHeader)
+      .filter((t) => looksLikeSchedule(t) && inBox({ text: '', ...t.box }, area));
   let grid = build();
   // at most 40 of each per table: each takes a moment on a phone
   const retry = grid.flatMap((t) => t.retry.slice(0, 40));
@@ -384,7 +407,9 @@ async function sheetTables(
 /** Text-layer tables: the grid first, else the whitespace method. */
 function textTables(lines: Lines, text: PdfPageText, known: readonly string[]): FoundTable[] {
   const words = pageWords(text);
-  const grid = gridTables(dropTextStrokes(lines, words), words, known, text.page, 3).filter(looksLikeSchedule);
+  const grid = gridTables(dropTextStrokes(lines, words), words, known, text.page, 3)
+    .map(withRecoveredHeader)
+    .filter(looksLikeSchedule);
   if (grid.length)
     return grid.map((t) => ({
       page: t.page,

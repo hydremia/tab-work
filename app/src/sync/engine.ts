@@ -36,6 +36,7 @@ import {
   type RemoteChange,
 } from './outbox';
 import { processPhotoQueue, type PhotoSyncResult } from './photoSync';
+import { processPlanQueue } from './planSync';
 import { newPullContext } from './deletes';
 import { resolveSlotCollisions } from './slots';
 
@@ -162,6 +163,8 @@ export class CloudSyncEngine implements SyncEngine {
     // a lock this device didn't know about yet, the lock
     if ((pushed.pushed || pushed.held) && !this.stopped) late = await this.pull();
     const photos = this.stopped ? null : await processPhotoQueue(this.backend);
+    // the plan sheets' drawing files, the same way (their records went with the push)
+    if (!this.stopped) await processPlanQueue(this.backend);
     return {
       ...pushed,
       applied: pulled.applied + late.applied,

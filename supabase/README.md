@@ -205,6 +205,7 @@ psql -d <empty db> -v ON_ERROR_STOP=1 -f supabase/tests/supabase_stub.sql \
      -f supabase/migrations/0009_valve_library.sql -f supabase/migrations/0010_pump_library.sql \
      -f supabase/migrations/0011_row_links.sql -f supabase/migrations/0012_motor_photos.sql \
      -f supabase/migrations/0013_issue_types.sql -f supabase/migrations/0014_unit_library.sql \
+     -f supabase/migrations/0015_accepted_deviations.sql -f supabase/migrations/0016_plan_sheets.sql \
      -f supabase/tests/grants_for_stub.sql
 psql -d <empty db> -f supabase/tests/sync_rules_test.sql    # ends with "ALL SYNC RULE TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/library_links_test.sql   # "ALL 0004 TESTS PASSED"
@@ -218,6 +219,7 @@ psql -d <other empty db, same setup> -f supabase/tests/row_links_test.sql       
 psql -d <other empty db, same setup> -f supabase/tests/motor_photos_test.sql    # "ALL 0012 TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/issue_types_test.sql     # "ALL 0013 TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/unit_library_test.sql   # "ALL 0014 TESTS PASSED"
+psql -d <other empty db, same setup> -f supabase/tests/plan_sheets_test.sql    # "ALL 0016 TESTS PASSED"
 psql -d <other empty db, same setup> -f supabase/tests/smoke_test.sql
 ```
 

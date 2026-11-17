@@ -176,7 +176,7 @@ describe('final report assembly', () => {
       { bytes: new Uint8Array(), groups: [] },
       (b) => readPdfText(b),
       { title: 'TAB Report', author: 'a2b' },
-      { bytes: await figures(2), number: { right: 570, y: 40, size: 8.5 }, toc: /photo/i },
+      [{ bytes: await figures(2), number: { right: 570, y: 40, size: 8.5 }, toc: /photo/i }],
     );
     expect(r.pages).toBe(5);
     const text = (await readPdfText(r.bytes)).pages.map((p) => p.items.map((i) => i.str).join(' '));
@@ -186,6 +186,36 @@ describe('final report assembly', () => {
     expect(text[2]).toContain('Page 3 of 5');
     // contents: Rooftop Units page 3, Site Photos page 4 (the first appended page)
     expect(text[1]).toMatch(/Page 2 of 5\s+page 3 page 4$/);
+  });
+
+  it('the marked-up plan goes before the photo report, each with its own contents entry', async () => {
+    const specs: Spec[] = [
+      { footer: false, lines: ['CERTIFIED'] },
+      {
+        toc: [
+          ['Rooftop Units', 3],
+          ['Mechanical Floorplan', 4],
+          ['Site Photos', 5],
+        ],
+      },
+      { title: 'Rooftop Unit Report', lines: ['System|RTU-1'] },
+    ];
+    const r = await assembleReport(
+      await report(specs),
+      { bytes: new Uint8Array(), groups: [] },
+      (b) => readPdfText(b),
+      { title: 'TAB Report', author: 'a2b' },
+      [
+        { bytes: await figures(1), number: 'bottom-right', toc: /floor ?plan/i },
+        { bytes: await figures(2), number: { right: 570, y: 40, size: 8.5 }, toc: /photo/i },
+      ],
+    );
+    expect(r.pages).toBe(6);
+    const text = (await readPdfText(r.bytes)).pages.map((p) => p.items.map((i) => i.str).join(' '));
+    expect(text[3]).toContain('Page 4 of 6');
+    expect(text[5]).toContain('Page 6 of 6');
+    // contents: Rooftop Units page 3, Mechanical Floorplan page 4, Site Photos page 5
+    expect(text[1]).toMatch(/Page 2 of 6\s+page 3 page 4 page 5$/);
   });
 
   it('without figures it only numbers the pages', async () => {

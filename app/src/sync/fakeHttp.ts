@@ -60,6 +60,16 @@ class FakeHttpBackend implements SyncBackend {
   async deletePhoto(path: string): Promise<void> {
     await this.req('delete', `/photo?path=${encodeURIComponent(path)}`, { method: 'DELETE' });
   }
+  // other buckets (the plan sheets' `plans`): the fake has one store; the paths never collide (.jpg / .pdf)
+  async uploadFile(_bucket: string, path: string, blob: Blob, contentType: string): Promise<void> {
+    await this.uploadPhoto(path, blob, contentType);
+  }
+  async downloadFile(_bucket: string, path: string): Promise<Blob | null> {
+    return this.downloadPhoto(path);
+  }
+  async deleteFile(_bucket: string, path: string): Promise<void> {
+    await this.deletePhoto(path);
+  }
 }
 
 export function createFakeHttpCloud(): Cloud {

@@ -24,10 +24,11 @@ Do every step on the test project (**tab-app-test**) first (the pilot already ru
 |---|---|---|
 | Database tables and rules | Supabase (6 SQL files) | Projects, units, readings, issues, photos, the change log; who may read and write; the report lock and review rules |
 | Photo storage | Supabase Storage, bucket `photos` | The photo files (private: only signed-in company users) |
+| Plan storage | Supabase Storage, bucket `plans` (made by migration 0016) | The plan sheet PDFs of Import from plan (private) |
 | Sign in with Microsoft | Microsoft Entra ID + Supabase "Azure" provider | Only accounts of your company's Microsoft 365 can sign in |
 | Two settings | Vercel | Tell the app where the Supabase project is |
 
-## 2. Apply the database migrations (0001 … 0015)
+## 2. Apply the database migrations (0001 … 0016)
 
 Fourteen files, **in this order**. Each can be run again safely only where noted, so run each one once.
 
@@ -48,6 +49,7 @@ Fourteen files, **in this order**. Each can be run again safely only where noted
 | `supabase/migrations/0013_issue_types.sql` | **observations** (issues that don't flag their unit). **Apply before the app with observations is used**: until then an observation reaches the server as a deficiency (re-runnable) |
 | `supabase/migrations/0014_unit_library.sql` | the shared **unit configuration library** (component order and documents per product line). Until it is applied, library edits stay on the device that made them (re-runnable) |
 | `supabase/migrations/0015_accepted_deviations.sql` | **accepted deviations** on review (an out-of-tolerance line signed off with a reason: amber instead of red). Until it is applied the server refuses those acceptances (re-runnable) |
+| `supabase/migrations/0016_plan_sheets.sql` | **plan sheets** (Import from plan): the `plan_sheets` table and the private **`plans` storage bucket** for the drawing PDFs (created by the SQL, no manual bucket step). **Apply before the app with synced plan sheets is used**: until then the server refuses a sheet and that device's sync stops at it (re-runnable) |
 
 **Option A — in the browser (simplest):**
 
@@ -55,7 +57,7 @@ Fourteen files, **in this order**. Each can be run again safely only where noted
 2. Open `supabase/migrations/0001_init.sql` on GitHub (Raw), copy everything, paste, **Run**. It should end with
    "Success. No rows returned".
 3. New query → the same with `0002_review_lock.sql`, then with `0003_sync_rules.sql`, then `0004_library_links.sql`, then
-   `0005_review_deletes.sql`, then `0006_cert_profile.sql`, then `0007_change_labels.sql`, then `0008_hydronic_types.sql`, then `0009_valve_library.sql`, then `0010_pump_library.sql`, then `0011_row_links.sql`, then `0012_motor_photos.sql`, then `0013_issue_types.sql`, then `0014_unit_library.sql`, then `0015_accepted_deviations.sql`.
+   `0005_review_deletes.sql`, then `0006_cert_profile.sql`, then `0007_change_labels.sql`, then `0008_hydronic_types.sql`, then `0009_valve_library.sql`, then `0010_pump_library.sql`, then `0011_row_links.sql`, then `0012_motor_photos.sql`, then `0013_issue_types.sql`, then `0014_unit_library.sql`, then `0015_accepted_deviations.sql`, then `0016_plan_sheets.sql`.
 
 **Option B — command line** (from a checkout of the repository, Node installed):
 

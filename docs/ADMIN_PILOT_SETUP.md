@@ -41,6 +41,8 @@ Oct 9, 2026:
 - [ ] **Apply migration 0015** before anyone accepts a deviation on review (Accept… on a red line). Until it is
       applied the server refuses those acceptances and the device shows a sync error. Same way:
       `supabase/migrations/0015_accepted_deviations.sql` → **Run** (safe to run again).
+   4. The same for `supabase/migrations/0016_plan_sheets.sql` → **Run** (safe to run again): plan sheets (Import from plan)
+      and their `plans` storage bucket. Needed before a plan sheet is read on a device that syncs.
 - [ ] **Re-run the check query** below: every row should say *ok*, with 84 mapped sync fields.
 - [ ] **Confirm the pill** on the pilot app shows a cloud icon and your initials.
 - [ ] **Calendar the Entra client secret expiry** (Entra → App registrations → TAB App → Certificates & secrets), if
@@ -182,7 +184,7 @@ keeps the projects on the device.
 
 - The Entra **client secret expiry** (Part A). When it expires, nobody can sign in.
 - Supabase **storage** (photos) under the Pro plan's 100 GB. See the Photos FAQ in the user guide.
-- New app versions sometimes need a **new database migration**. The pull request and [SYNC_SETUP.md §2](./SYNC_SETUP.md#2-apply-the-database-migrations-0001--0015)
+- New app versions sometimes need a **new database migration**. The pull request and [SYNC_SETUP.md §2](./SYNC_SETUP.md#2-apply-the-database-migrations-0001--0016)
   say which one, and it has to be applied **before** people use the new feature.
 
 ---

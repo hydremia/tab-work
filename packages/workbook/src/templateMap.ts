@@ -236,9 +236,18 @@ export interface TocDef {
 // ------------------------------------------------------------------------------------------ helpers
 const EDE = '{Equipment Data Entry}';
 const f = (key: string, col: string, row: number, type: FieldType, extra: Partial<FieldDef> = {}): FieldDef => ({
-  key, col, row, type, ...extra,
+  key,
+  col,
+  row,
+  type,
+  ...extra,
 });
-const c = (key: string, col: string, type: FieldType, extra: Partial<ColumnDef> = {}): ColumnDef => ({ key, col, type, ...extra });
+const c = (key: string, col: string, type: FieldType, extra: Partial<ColumnDef> = {}): ColumnDef => ({
+  key,
+  col,
+  type,
+  ...extra,
+});
 const cols = (from: string, to: string): string[] => {
   const out: string[] = [];
   for (let x = from.charCodeAt(0); x <= to.charCodeAt(0); x++) out.push(String.fromCharCode(x));
@@ -306,17 +315,30 @@ function unitDataFields(unitTypePreset: string, withOaDamper: boolean, rev: AirR
     f('serviceFactor', 'G', 12, 'list', { list: 'Service.Factors2', preset: 'SF', blankValues: ['SF'] }),
     f('fla', 'E', 13, 'number'),
     f('frame', 'G', 13, 'text'),
-    f('volts1', 'E', 15, 'number'), f('volts2', 'F', 15, 'number'), f('volts3', 'G', 15, 'number'),
+    f('volts1', 'E', 15, 'number'),
+    f('volts2', 'F', 15, 'number'),
+    f('volts3', 'G', 15, 'number'),
     f('finalSettings', 'L', 15, 'text'),
-    f('amps1', 'E', 16, 'number'), f('amps2', 'F', 16, 'number'), f('amps3', 'G', 16, 'number'),
-    f('motorRpmInitial', 'K', 17, 'number'), f('motorRpmFinal', 'L', 17, 'number'),
-    f('fanRpmInitial', 'K', 18, 'number'), f('fanRpmFinal', 'L', 18, 'number'),
-    f('vsdInitial', 'K', 19, 'number'), f('vsdFinal', 'L', 19, 'number'),
+    f('amps1', 'E', 16, 'number'),
+    f('amps2', 'F', 16, 'number'),
+    f('amps3', 'G', 16, 'number'),
+    f('motorRpmInitial', 'K', 17, 'number'),
+    f('motorRpmFinal', 'L', 17, 'number'),
+    f('fanRpmInitial', 'K', 18, 'number'),
+    f('fanRpmFinal', 'L', 18, 'number'),
+    f('vsdInitial', 'K', 19, 'number'),
+    f('vsdFinal', 'L', 19, 'number'),
     ...(withOaDamper ? [f('oaDamper', 'L', 20, 'text')] : []),
     // Entering static and the leaving static after components 1-5 / 1-6 of the unit type (positional)
     ...(rev >= '08'
-      ? [f('spEntering', 'B', 20, 'number'), ...cols('C', 'H').map((col, i) => f(`spLeaving${i + 1}`, col, 20, 'number'))]
-      : [f('spEntering', 'C', 20, 'number'), ...cols('C', 'G').map((col, i) => f(`spLeaving${i + 1}`, col, 21, 'number'))]),
+      ? [
+          f('spEntering', 'B', 20, 'number'),
+          ...cols('C', 'H').map((col, i) => f(`spLeaving${i + 1}`, col, 20, 'number')),
+        ]
+      : [
+          f('spEntering', 'C', 20, 'number'),
+          ...cols('C', 'G').map((col, i) => f(`spLeaving${i + 1}`, col, 21, 'number')),
+        ]),
     f('unitType', 'D', 22, 'list', { list: 'Unit.Type', preset: unitTypePreset }),
     f('instrument', 'D', 26, 'list', { list: 'Airflow.Instrument' }),
     f('akNotes', 'I', 26, 'text'),
@@ -334,14 +356,22 @@ function issueTables(rev: AirRevision): TableDef[] {
       key: 'issues',
       segments: [{ row: 13, count: 50 }],
       fillFirstPage: true,
-      columns: [c('no', 'B', 'number'), c('remark', 'C', 'text'), c('status', 'J', 'list', { values: ['Open', 'Closed'] }),
-        c('comments', 'K', 'text')],
+      columns: [
+        c('no', 'B', 'number'),
+        c('remark', 'C', 'text'),
+        c('status', 'J', 'list', { values: ['Open', 'Closed'] }),
+        c('comments', 'K', 'text'),
+      ],
     },
     ...(rev !== '06'
-      ? [{
-        key: 'observations', segments: [{ row: 66, count: 20 }], printEndWhenEmpty: 62,
-        columns: [c('no', 'B', 'number'), c('remark', 'C', 'text'), c('comments', 'K', 'text')],
-      }]
+      ? [
+          {
+            key: 'observations',
+            segments: [{ row: 66, count: 20 }],
+            printEndWhenEmpty: 62,
+            columns: [c('no', 'B', 'number'), c('remark', 'C', 'text'), c('comments', 'K', 'text')],
+          },
+        ]
       : []),
   ];
 }
@@ -366,8 +396,8 @@ const AIR_TOC: TocDef = {
     { row: 37, label: 'Appendix A', sheets: ['Certification', 'NEBB Cert ', 'NEBB Frm Cert'] },
     { row: 40, label: 'Appendix B', sheets: ['Abbreviations'] },
     { row: 43, label: 'Appendix C', sheets: ['Calibration'] },
-    // attached separately: no sheet, so the entry is hidden (the PDF assembly can't know about it either)
-    { row: 46, label: 'Mechanical Floorplan', sheets: [] },
+    // no sheet: shown only when the final report appends the marked-up plan (export option `appended`)
+    { row: 46, label: 'Mechanical Floorplan', sheets: [], appended: 'floorplan' },
     { row: 49, label: 'Site Photos', sheets: ['Photos'], appended: 'photos' },
   ],
 };
@@ -415,34 +445,64 @@ function airMap(rev: AirRevision): TemplateMap {
       {
         key: 'calibration',
         sheet: 'Calibration',
-        tables: [{
-          key: 'instruments',
-          // 8 slots of 3-row merges; the export REPLACES the list (unused slots, incl. the 7 pre-loaded a2b
-          // instruments, are cleared). The app pre-loads those instruments into new projects instead.
-          segments: [{ row: 13, count: 8, stride: 3 }],
-          columns: [c('type', 'B', 'text'), c('manufacturer', 'E', 'text'), c('model', 'G', 'text'),
-            c('serial', 'J', 'text'), c('calibrationDate', 'L', 'date')],
-        }],
+        tables: [
+          {
+            key: 'instruments',
+            // 8 slots of 3-row merges; the export REPLACES the list (unused slots, incl. the 7 pre-loaded a2b
+            // instruments, are cleared). The app pre-loads those instruments into new projects instead.
+            segments: [{ row: 13, count: 8, stride: 3 }],
+            columns: [
+              c('type', 'B', 'text'),
+              c('manufacturer', 'E', 'text'),
+              c('model', 'G', 'text'),
+              c('serial', 'J', 'text'),
+              c('calibrationDate', 'L', 'date'),
+            ],
+          },
+        ],
       },
       {
         key: 'buildingBalance',
         sheet: 'Building Balance',
-        tables: [{
-          key: 'pressures',
-          segments: [{ row: 97, count: 3 }],
-          columns: [c('testSpace', 'B', 'text'), c('referenceSpace', 'E', 'text'), c('dp', 'H', 'number'), c('remarks', 'K', 'text')],
-        }, {
-          // 20 spare manual outside-air rows under the units (B unit / source, C:D design CFM, E:F actual CFM; G has no
-          // formula on these rows). Included in the OA totals (C87 / E87 = SUM of rows 7-86).
-          key: 'spareOa',
-          segments: [{ row: 67, count: 20 }],
-          columns: [c('unit', 'B', 'text'), c('design', 'C', 'number'), c('actual', 'E', 'number')],
-        },
-        // rev 07: an Excl. flag per unit row (P outside air, Q exhaust; outside the print area), left out of the totals
-        ...(rev !== '06'
-          ? [{ key: 'excluded', segments: [{ row: 7, count: 80 }], columns: [c('oa', 'P', 'text'), c('exhaust', 'Q', 'text')] }]
-          : [])],
-        lines: [{ key: 'notes', cells: [{ col: 'B', row: 102 }, { col: 'B', row: 103 }, { col: 'B', row: 104 }] }],
+        tables: [
+          {
+            key: 'pressures',
+            segments: [{ row: 97, count: 3 }],
+            columns: [
+              c('testSpace', 'B', 'text'),
+              c('referenceSpace', 'E', 'text'),
+              c('dp', 'H', 'number'),
+              c('remarks', 'K', 'text'),
+            ],
+          },
+          {
+            // 20 spare manual outside-air rows under the units (B unit / source, C:D design CFM, E:F actual CFM; G has no
+            // formula on these rows). Included in the OA totals (C87 / E87 = SUM of rows 7-86).
+            key: 'spareOa',
+            segments: [{ row: 67, count: 20 }],
+            columns: [c('unit', 'B', 'text'), c('design', 'C', 'number'), c('actual', 'E', 'number')],
+          },
+          // rev 07: an Excl. flag per unit row (P outside air, Q exhaust; outside the print area), left out of the totals
+          ...(rev !== '06'
+            ? [
+                {
+                  key: 'excluded',
+                  segments: [{ row: 7, count: 80 }],
+                  columns: [c('oa', 'P', 'text'), c('exhaust', 'Q', 'text')],
+                },
+              ]
+            : []),
+        ],
+        lines: [
+          {
+            key: 'notes',
+            cells: [
+              { col: 'B', row: 102 },
+              { col: 'B', row: 103 },
+              { col: 'B', row: 104 },
+            ],
+          },
+        ],
         // rev 07: why the excluded units are left out, a fourth line under the notes
         ...(rev !== '06' ? { fields: [f('excludedNote', 'B', 105, 'text')] } : {}),
       },
@@ -466,14 +526,23 @@ function airMap(rev: AirRevision): TemplateMap {
     equipment: [
       // ------------------------------------------------------------------------------ RTUs
       {
-        key: 'rtu', label: 'RTU / AHU / DOAS', capacity: 40,
+        key: 'rtu',
+        label: 'RTU / AHU / DOAS',
+        capacity: 40,
         ede: { sheet: EDE, firstRow: 7, sampleDesignation: 'RTU-1', fields: EDE_UNIT_FIELDS },
         block: {
           sheet: 'RTUs',
           anchor: { kind: 'linear', first: 4, stride: 104 },
           fields: unitDataFields('RTU', true, rev),
           tables: [
-            { key: 'supply', columns: OUTLET_COLUMNS, segments: [{ row: 29, count: 10 }, { row: Q + 4, count: 38 }] },
+            {
+              key: 'supply',
+              columns: OUTLET_COLUMNS,
+              segments: [
+                { row: 29, count: 10 },
+                { row: Q + 4, count: 38 },
+              ],
+            },
             // First return row: Design CFM (H) and Final CFM (L) are formulas (Total - OA).
             // the first return line is "supply - OA" (design and final CFM formulas) unless the app gives it its own
             // design: then it is a measured inlet and its design and final CFM (VEL x Ak) replace the formulas
@@ -487,15 +556,25 @@ function airMap(rev: AirRevision): TemplateMap {
             },
             { key: 'oa', columns: OUTLET_COLUMNS, segments: [{ row: 47, count: 1 }] },
           ],
-          lines: [{
-            key: 'remarks',
-            cells: [{ col: 'D', row: 48 }, { col: 'B', row: 49 }, { col: 'B', row: 50 }, { col: 'D', row: Q + 50 }, { col: 'B', row: Q + 51 }],
-          }],
+          lines: [
+            {
+              key: 'remarks',
+              cells: [
+                { col: 'D', row: 48 },
+                { col: 'B', row: 49 },
+                { col: 'B', row: 50 },
+                { col: 'D', row: Q + 50 },
+                { col: 'B', row: Q + 51 },
+              ],
+            },
+          ],
         },
       },
       // ------------------------------------------------------------------------------ MAUs
       {
-        key: 'mau', label: 'MAU / supply fan', capacity: 10,
+        key: 'mau',
+        label: 'MAU / supply fan',
+        capacity: 10,
         ede: { sheet: EDE, firstRow: 52, sampleDesignation: 'MUA-1', fields: EDE_UNIT_FIELDS },
         block: {
           sheet: 'MAUs',
@@ -513,40 +592,108 @@ function airMap(rev: AirRevision): TemplateMap {
             f('designCfmOverride', 'K', Q + (rev !== '06' ? 30 : 18), 'number'),
             f('methodRemarks', 'K', Q + (rev !== '06' ? 31 : 19), 'text'),
           ],
-          sequences: rev !== '06'
-            ? [{ key: 'pspVelocitiesInitial', type: 'number', row: Q + 4, rows: 2, cols: cols('D', 'M'), order: 'rowMajor' },
-              { key: 'pspVelocities', type: 'number', row: Q + 6, rows: 2, cols: cols('D', 'M'), order: 'rowMajor' }]
-            : [{ key: 'pspVelocities', type: 'number', row: Q + 4, rows: 2, cols: cols('D', 'M'), order: 'rowMajor' }],
-          columnTables: [{
-            key: 'filterGrid', cols: cols('C', 'M'),
-            fields: rev !== '06'
-              ? [{ key: 'size', row: Q + 11, type: 'list', list: 'Hood.FilterSize' }, { key: 'initialVelocity', row: Q + 12, type: 'number' },
-                { key: 'velocity', row: Q + 13, type: 'number' }]
-              : [{ key: 'size', row: Q + 9, type: 'list', list: 'Hood.FilterSize' }, { key: 'velocity', row: Q + 10, type: 'number' }],
-          }],
+          sequences:
+            rev !== '06'
+              ? [
+                  {
+                    key: 'pspVelocitiesInitial',
+                    type: 'number',
+                    row: Q + 4,
+                    rows: 2,
+                    cols: cols('D', 'M'),
+                    order: 'rowMajor',
+                  },
+                  {
+                    key: 'pspVelocities',
+                    type: 'number',
+                    row: Q + 6,
+                    rows: 2,
+                    cols: cols('D', 'M'),
+                    order: 'rowMajor',
+                  },
+                ]
+              : [
+                  {
+                    key: 'pspVelocities',
+                    type: 'number',
+                    row: Q + 4,
+                    rows: 2,
+                    cols: cols('D', 'M'),
+                    order: 'rowMajor',
+                  },
+                ],
+          columnTables: [
+            {
+              key: 'filterGrid',
+              cols: cols('C', 'M'),
+              fields:
+                rev !== '06'
+                  ? [
+                      { key: 'size', row: Q + 11, type: 'list', list: 'Hood.FilterSize' },
+                      { key: 'initialVelocity', row: Q + 12, type: 'number' },
+                      { key: 'velocity', row: Q + 13, type: 'number' },
+                    ]
+                  : [
+                      { key: 'size', row: Q + 9, type: 'list', list: 'Hood.FilterSize' },
+                      { key: 'velocity', row: Q + 10, type: 'number' },
+                    ],
+            },
+          ],
           tables: [
-            { key: 'supply', columns: OUTLET_COLUMNS, segments: [{ row: 29, count: 16 }, { row: Q + (rev !== '06' ? 35 : 25), count: rev !== '06' ? 12 : 22 }] },
+            {
+              key: 'supply',
+              columns: OUTLET_COLUMNS,
+              segments: [
+                { row: 29, count: 16 },
+                { row: Q + (rev !== '06' ? 35 : 25), count: rev !== '06' ? 12 : 22 },
+              ],
+            },
             ...(rev !== '06'
-              ? [{ key: 'intake', segments: [{ row: Q + 23, count: 4 }],
-                columns: [c('no', 'B', 'text'), c('size', 'C', 'text'), c('ak', 'F', 'number'), c('initialVel', 'I', 'number'), c('finalVel', 'K', 'number')] }]
+              ? [
+                  {
+                    key: 'intake',
+                    segments: [{ row: Q + 23, count: 4 }],
+                    columns: [
+                      c('no', 'B', 'text'),
+                      c('size', 'C', 'text'),
+                      c('ak', 'F', 'number'),
+                      c('initialVel', 'I', 'number'),
+                      c('finalVel', 'K', 'number'),
+                    ],
+                  },
+                ]
               : []),
           ],
-          lines: [{
-            key: 'remarks',
-            cells: [{ col: 'D', row: 47 }, { col: 'B', row: 48 }, { col: 'B', row: 49 }, { col: 'B', row: 50 },
-              { col: 'D', row: Q + 49 }, { col: 'B', row: Q + 50 }],
-          }],
+          lines: [
+            {
+              key: 'remarks',
+              cells: [
+                { col: 'D', row: 47 },
+                { col: 'B', row: 48 },
+                { col: 'B', row: 49 },
+                { col: 'B', row: 50 },
+                { col: 'D', row: Q + 49 },
+                { col: 'B', row: Q + 50 },
+              ],
+            },
+          ],
         },
       },
       // ------------------------------------------------------------------------------ ERVs
       {
-        key: 'erv', label: 'ERV / heat recovery', capacity: 10,
+        key: 'erv',
+        label: 'ERV / heat recovery',
+        capacity: 10,
         ede: {
-          sheet: EDE, firstRow: 65, sampleDesignation: 'ERV-1',
+          sheet: EDE,
+          firstRow: 65,
+          sampleDesignation: 'ERV-1',
           fields: [
             ...EDE_UNIT_FIELDS.filter((x) => x.col < 'P'),
-            { key: 'designSupplyCfm', col: 'P', type: 'number' }, { key: 'designExhaustCfm', col: 'Q', type: 'number' },
-            { key: 'designSupplyDp', col: 'R', type: 'number' }, { key: 'designExhaustDp', col: 'S', type: 'number' },
+            { key: 'designSupplyCfm', col: 'P', type: 'number' },
+            { key: 'designExhaustCfm', col: 'Q', type: 'number' },
+            { key: 'designSupplyDp', col: 'R', type: 'number' },
+            { key: 'designExhaustDp', col: 'S', type: 'number' },
           ],
         },
         block: {
@@ -554,22 +701,48 @@ function airMap(rev: AirRevision): TemplateMap {
           anchor: { kind: 'linear', first: 4, stride: 104 },
           fields: [
             ...unitDataFields('ERV', false, rev),
-            f('supplyDpActual', 'L', 7, 'number'), f('exhaustDpActual', 'L', 8, 'number'),
-            f('exhaustInstrument', 'D', 36, 'list', { list: 'Airflow.Instrument' }), f('exhaustAkNotes', 'I', 36, 'text'),
+            f('supplyDpActual', 'L', 7, 'number'),
+            f('exhaustDpActual', 'L', 8, 'number'),
+            f('exhaustInstrument', 'D', 36, 'list', { list: 'Airflow.Instrument' }),
+            f('exhaustAkNotes', 'I', 36, 'text'),
           ],
           tables: [
-            { key: 'supply', columns: OUTLET_COLUMNS, segments: [{ row: 29, count: 6 }, { row: Q + 4, count: 18 }] },
-            { key: 'exhaust', columns: OUTLET_COLUMNS, segments: [{ row: 39, count: 6 }, { row: Q + 26, count: 18 }] },
+            {
+              key: 'supply',
+              columns: OUTLET_COLUMNS,
+              segments: [
+                { row: 29, count: 6 },
+                { row: Q + 4, count: 18 },
+              ],
+            },
+            {
+              key: 'exhaust',
+              columns: OUTLET_COLUMNS,
+              segments: [
+                { row: 39, count: 6 },
+                { row: Q + 26, count: 18 },
+              ],
+            },
           ],
-          lines: [{
-            key: 'remarks',
-            cells: [{ col: 'D', row: 47 }, { col: 'B', row: 48 }, { col: 'B', row: 49 }, { col: 'D', row: Q + 46 }, { col: 'B', row: Q + 47 }],
-          }],
+          lines: [
+            {
+              key: 'remarks',
+              cells: [
+                { col: 'D', row: 47 },
+                { col: 'B', row: 48 },
+                { col: 'B', row: 49 },
+                { col: 'D', row: Q + 46 },
+                { col: 'B', row: Q + 47 },
+              ],
+            },
+          ],
         },
       },
       // ------------------------------------------------------------------------------ Fans
       {
-        key: 'fan', label: 'Exhaust / transfer / kitchen exhaust fan', capacity: 40,
+        key: 'fan',
+        label: 'Exhaust / transfer / kitchen exhaust fan',
+        capacity: 40,
         ede: { sheet: EDE, firstRow: 81, sampleDesignation: 'EF-1', fields: EDE_UNIT_FIELDS },
         block: {
           sheet: 'Fans',
@@ -578,28 +751,59 @@ function airMap(rev: AirRevision): TemplateMap {
           fields: [
             ...unitDataFields('EF', false, rev),
             ...(rev !== '06'
-              ? [f('hoodLine', 'C', 44, 'text'), f('hoodDesignCfm', 'H', 44, 'number'), f('hoodInitialCfm', 'J', 44, 'number'),
-                f('hoodFinalCfm', 'L', 44, 'number')]
+              ? [
+                  f('hoodLine', 'C', 44, 'text'),
+                  f('hoodDesignCfm', 'H', 44, 'number'),
+                  f('hoodInitialCfm', 'J', 44, 'number'),
+                  f('hoodFinalCfm', 'L', 44, 'number'),
+                ]
               : []),
           ],
-          tables: [{ key: 'outlets', columns: OUTLET_COLUMNS, segments: [{ row: 29, count: rev !== '06' ? 15 : 16 }, { row: Q + 4, count: 40 }] }],
-          lines: [{
-            key: 'remarks',
-            cells: [{ col: 'D', row: 47 }, { col: 'B', row: 48 }, { col: 'B', row: 49 }, { col: 'B', row: 50 },
-              { col: 'D', row: Q + 46 }, { col: 'B', row: Q + 47 }, { col: 'B', row: Q + 48 }, { col: 'B', row: Q + 49 }],
-          }],
+          tables: [
+            {
+              key: 'outlets',
+              columns: OUTLET_COLUMNS,
+              segments: [
+                { row: 29, count: rev !== '06' ? 15 : 16 },
+                { row: Q + 4, count: 40 },
+              ],
+            },
+          ],
+          lines: [
+            {
+              key: 'remarks',
+              cells: [
+                { col: 'D', row: 47 },
+                { col: 'B', row: 48 },
+                { col: 'B', row: 49 },
+                { col: 'B', row: 50 },
+                { col: 'D', row: Q + 46 },
+                { col: 'B', row: Q + 47 },
+                { col: 'B', row: Q + 48 },
+                { col: 'B', row: Q + 49 },
+              ],
+            },
+          ],
         },
       },
       // ------------------------------------------------------------------------------ Small fans
       {
-        key: 'smallFan', label: 'Small exhaust fan (< 1/6 hp)', capacity: 40,
+        key: 'smallFan',
+        label: 'Small exhaust fan (< 1/6 hp)',
+        capacity: 40,
         ede: {
-          sheet: EDE, firstRow: 233, sampleDesignation: 'EF-S1',
+          sheet: EDE,
+          firstRow: 233,
+          sampleDesignation: 'EF-S1',
           fields: [
-            { key: 'designation', col: 'B', type: 'text' }, { key: 'areaServed', col: 'C', type: 'text' },
-            { key: 'location', col: 'D', type: 'text' }, { key: 'manufacturer', col: 'E', type: 'text' },
-            { key: 'model', col: 'F', type: 'text' }, { key: 'hp', col: 'G', type: 'number' },
-            { key: 'voltage', col: 'H', type: 'number' }, { key: 'phase', col: 'I', type: 'list', values: ['1-phase', '3-phase'] },
+            { key: 'designation', col: 'B', type: 'text' },
+            { key: 'areaServed', col: 'C', type: 'text' },
+            { key: 'location', col: 'D', type: 'text' },
+            { key: 'manufacturer', col: 'E', type: 'text' },
+            { key: 'model', col: 'F', type: 'text' },
+            { key: 'hp', col: 'G', type: 'number' },
+            { key: 'voltage', col: 'H', type: 'number' },
+            { key: 'phase', col: 'I', type: 'list', values: ['1-phase', '3-phase'] },
             { key: 'designCfm', col: 'J', type: 'number' },
           ],
         },
@@ -607,28 +811,51 @@ function airMap(rev: AirRevision): TemplateMap {
           sheet: 'Small Fans',
           anchor: { kind: 'linear', first: 4, stride: 24 },
           fields: [
-            f('serial', 'D', 5, 'text'), f('espDesign', 'K', 5, 'number'), f('espActual', 'L', 5, 'number'),
-            f('fanRpmDesign', 'K', 6, 'number'), f('fanRpmActual', 'L', 6, 'number'),
-            f('speedDesign', 'K', 7, 'text'), f('speedActual', 'L', 7, 'text'),
+            f('serial', 'D', 5, 'text'),
+            f('espDesign', 'K', 5, 'number'),
+            f('espActual', 'L', 5, 'number'),
+            f('fanRpmDesign', 'K', 6, 'number'),
+            f('fanRpmActual', 'L', 6, 'number'),
+            f('speedDesign', 'K', 7, 'text'),
+            f('speedActual', 'L', 7, 'text'),
             f('amps', 'K', 8, 'number'),
-            f('instrument', 'D', 9, 'list', { list: 'Airflow.Instrument' }), f('finalSettings', 'K', 9, 'text'),
+            f('instrument', 'D', 9, 'list', { list: 'Airflow.Instrument' }),
+            f('finalSettings', 'K', 9, 'text'),
           ],
           tables: [{ key: 'outlets', columns: OUTLET_COLUMNS, segments: [{ row: 12, count: 6 }] }],
-          lines: [{ key: 'remarks', cells: [{ col: 'D', row: 19 }, { col: 'B', row: 20 }] }],
+          lines: [
+            {
+              key: 'remarks',
+              cells: [
+                { col: 'D', row: 19 },
+                { col: 'B', row: 20 },
+              ],
+            },
+          ],
         },
       },
       // ------------------------------------------------------------------------------ VAVs
       {
-        key: 'vav', label: 'VAV / fan-powered terminal', capacity: 80,
+        key: 'vav',
+        label: 'VAV / fan-powered terminal',
+        capacity: 80,
         ede: {
-          sheet: EDE, firstRow: 150, sampleDesignation: 'VAV-1',
+          sheet: EDE,
+          firstRow: 150,
+          sampleDesignation: 'VAV-1',
           fields: [
-            { key: 'designation', col: 'B', type: 'text' }, { key: 'areaServed', col: 'C', type: 'text' },
-            { key: 'location', col: 'D', type: 'text' }, { key: 'manufacturer', col: 'E', type: 'text' },
-            { key: 'model', col: 'F', type: 'text' }, { key: 'inletSize', col: 'G', type: 'number' },
-            { key: 'terminalType', col: 'H', type: 'text' }, { key: 'designMaxCfm', col: 'I', type: 'number' },
-            { key: 'designMinCfm', col: 'J', type: 'number' }, { key: 'heatingCfm', col: 'K', type: 'number' },
-            { key: 'fanCfm', col: 'L', type: 'number' }, { key: 'ddcAddress', col: 'M', type: 'text' },
+            { key: 'designation', col: 'B', type: 'text' },
+            { key: 'areaServed', col: 'C', type: 'text' },
+            { key: 'location', col: 'D', type: 'text' },
+            { key: 'manufacturer', col: 'E', type: 'text' },
+            { key: 'model', col: 'F', type: 'text' },
+            { key: 'inletSize', col: 'G', type: 'number' },
+            { key: 'terminalType', col: 'H', type: 'text' },
+            { key: 'designMaxCfm', col: 'I', type: 'number' },
+            { key: 'designMinCfm', col: 'J', type: 'number' },
+            { key: 'heatingCfm', col: 'K', type: 'number' },
+            { key: 'fanCfm', col: 'L', type: 'number' },
+            { key: 'ddcAddress', col: 'M', type: 'text' },
           ],
         },
         block: {
@@ -636,67 +863,124 @@ function airMap(rev: AirRevision): TemplateMap {
           anchor: { kind: 'linear', first: 4, stride: 26 },
           fields: [
             f('instrument', 'L', 2, 'list', { list: 'Airflow.Instrument' }),
-            f('serial', 'D', 6, 'text'), f('minCfmActual', 'M', 6, 'number'),
+            f('serial', 'D', 6, 'text'),
+            f('minCfmActual', 'M', 6, 'number'),
             f('fanCfmActual', 'M', 7, 'number'),
             f('calibrationFactor', 'L', 9, 'number'),
-            f('ddcMaxMin', 'D', 10, 'text'), f('heatingCfmActual', 'M', 10, 'number'),
+            f('ddcMaxMin', 'D', 10, 'text'),
+            f('heatingCfmActual', 'M', 10, 'number'),
           ],
           tables: [{ key: 'outlets', columns: OUTLET_COLUMNS, segments: [{ row: 13, count: 6 }] }],
-          lines: [{ key: 'remarks', cells: [{ col: 'D', row: 20 }, { col: 'B', row: 21 }] }],
+          lines: [
+            {
+              key: 'remarks',
+              cells: [
+                { col: 'D', row: 20 },
+                { col: 'B', row: 21 },
+              ],
+            },
+          ],
         },
       },
       // ------------------------------------------------------------------------------ Hoods
       {
-        key: 'hood', label: 'Kitchen hood', capacity: 20,
+        key: 'hood',
+        label: 'Kitchen hood',
+        capacity: 20,
         ede: {
-          sheet: EDE, firstRow: 126, sampleDesignation: 'H-1',
+          sheet: EDE,
+          firstRow: 126,
+          sampleDesignation: 'H-1',
           fields: [
-            { key: 'designation', col: 'B', type: 'text' }, { key: 'areaServed', col: 'C', type: 'text' },
-            { key: 'location', col: 'D', type: 'text' }, { key: 'manufacturer', col: 'E', type: 'text' },
-            { key: 'designCfm', col: 'F', type: 'number' }, { key: 'kefInterlock', col: 'G', type: 'text' },
-            { key: 'model', col: 'H', type: 'text' }, { key: 'lengthFt', col: 'I', type: 'number' },
+            { key: 'designation', col: 'B', type: 'text' },
+            { key: 'areaServed', col: 'C', type: 'text' },
+            { key: 'location', col: 'D', type: 'text' },
+            { key: 'manufacturer', col: 'E', type: 'text' },
+            { key: 'designCfm', col: 'F', type: 'number' },
+            { key: 'kefInterlock', col: 'G', type: 'text' },
+            { key: 'model', col: 'H', type: 'text' },
+            { key: 'lengthFt', col: 'I', type: 'number' },
           ],
         },
         block: {
           sheet: 'Hoods',
           anchor: { kind: 'paged', first: 4, pageRows: 49, offsets: [0, 21] },
           fields: [
-            f('associatedFan', 'E', 6, 'text'), f('serial', 'E', 11, 'text'), f('hoodType', 'E', 12, 'text'),
+            f('associatedFan', 'E', 6, 'text'),
+            f('serial', 'E', 11, 'text'),
+            f('hoodType', 'E', 12, 'text'),
             f('filterManufacturer', 'E', 13, 'text'),
             f('filterType', 'E', 14, 'list', { list: 'Hood.FilterType' }),
             f('instrument', 'E', 15, 'list', { list: 'Hood.Instrument' }),
           ],
-          tables: [{
-            key: 'filters',
-            segments: [{ row: 6, count: 14 }],
-            // Every velocity goes into P-U (J/L are averages). VelGrid types: 1 reading (P / S).
-            columns: [c('size', 'I', 'list', { list: 'Hood.FilterSize' }),
-              c('init1', 'P', 'number'), c('init2', 'Q', 'number'), c('init3', 'R', 'number'),
-              c('final1', 'S', 'number'), c('final2', 'T', 'number'), c('final3', 'U', 'number')],
-          }],
+          tables: [
+            {
+              key: 'filters',
+              segments: [{ row: 6, count: 14 }],
+              // Every velocity goes into P-U (J/L are averages). VelGrid types: 1 reading (P / S).
+              columns: [
+                c('size', 'I', 'list', { list: 'Hood.FilterSize' }),
+                c('init1', 'P', 'number'),
+                c('init2', 'Q', 'number'),
+                c('init3', 'R', 'number'),
+                c('final1', 'S', 'number'),
+                c('final2', 'T', 'number'),
+                c('final3', 'U', 'number'),
+              ],
+            },
+          ],
           lines: [
-            { key: 'technicianNotes', cells: [{ col: 'P', row: 1 }, { col: 'P', row: 2 }, { col: 'P', row: 3 }] },
+            {
+              key: 'technicianNotes',
+              cells: [
+                { col: 'P', row: 1 },
+                { col: 'P', row: 2 },
+                { col: 'P', row: 3 },
+              ],
+            },
             // One 5-line remark box per page (page start S: D S+43, B S+44 ... S+47), shared by the page's two hoods:
             // the first hood on the page gets lines 1-3, the second lines 4-5 (rows relative to each hood's anchor).
-            { key: 'remarks', pagePosition: 0, cells: [{ col: 'D', row: 43 }, { col: 'B', row: 44 }, { col: 'B', row: 45 }] },
-            { key: 'remarks', pagePosition: 1, cells: [{ col: 'B', row: 25 }, { col: 'B', row: 26 }] },
+            {
+              key: 'remarks',
+              pagePosition: 0,
+              cells: [
+                { col: 'D', row: 43 },
+                { col: 'B', row: 44 },
+                { col: 'B', row: 45 },
+              ],
+            },
+            {
+              key: 'remarks',
+              pagePosition: 1,
+              cells: [
+                { col: 'B', row: 25 },
+                { col: 'B', row: 26 },
+              ],
+            },
           ],
         },
       },
       // ------------------------------------------------------------------------------ Traverses
       {
-        key: 'traverse', label: 'Duct traverse', capacity: 48,
+        key: 'traverse',
+        label: 'Duct traverse',
+        capacity: 48,
         block: {
           sheet: 'Traverses',
           anchor: { kind: 'paged', first: 5, pageRows: 49, offsets: [0, 15, 30] },
           fields: [
             // B+2 is a typed label pre-filled "T-1" ... "T-48" in the template (not a formula)
             f('designation', 'B', 2, 'text', { slotPreset: 'T-{n}' }),
-            f('areaServed', 'C', 2, 'text'), f('designCfm', 'I', 2, 'number'), f('initialVel', 'J', 2, 'number'),
+            f('areaServed', 'C', 2, 'text'),
+            f('designCfm', 'I', 2, 'number'),
+            f('initialVel', 'J', 2, 'number'),
             f('instrument', 'D', 3, 'list', { list: 'Traverse.Instrument' }),
-            f('ductStatic', 'K', 3, 'number'), f('temperature', 'M', 3, 'number'),
+            f('ductStatic', 'K', 3, 'number'),
+            f('temperature', 'M', 3, 'number'),
             f('shape', 'D', 4, 'list', { list: 'Duct.Shape' }),
-            f('width', 'G', 4, 'number'), f('height', 'I', 4, 'number'), f('liner', 'K', 4, 'number'),
+            f('width', 'G', 4, 'number'),
+            f('height', 'I', 4, 'number'),
+            f('liner', 'K', 4, 'number'),
           ],
           // Quick entry: reading k goes to column P + floor((k-1)/10), row T + 6 + ((k-1) mod 10). Never the grid.
           sequences: [{ key: 'readings', type: 'number', row: 6, rows: 10, cols: cols('P', 'W'), order: 'colMajor' }],

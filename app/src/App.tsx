@@ -28,6 +28,7 @@ const NewProjectPage = page(() => import('./ui/pages/NewProjectPage'), 'NewProje
 const PhotosPage = page(() => import('./ui/pages/PhotosPage'), 'PhotosPage');
 const ProjectInfoPage = page(() => import('./ui/pages/ProjectInfoPage'), 'ProjectInfoPage');
 const ScheduleImportPage = page(() => import('./ui/pages/ScheduleImportPage'), 'ScheduleImportPage');
+const PlanImportPage = page(() => import('./ui/pages/PlanImportPage'), 'PlanImportPage');
 const AccountPage = page(() => import('./ui/pages/SyncPages'), 'AccountPage');
 const AuthCallbackPage = page(() => import('./ui/pages/SyncPages'), 'AuthCallbackPage');
 const CloudSetupPage = page(() => import('./ui/pages/SyncPages'), 'CloudSetupPage');
@@ -95,6 +96,7 @@ export const routes = [
       },
       { path: 'p/:projectId/add', element: AddEquipmentPage },
       { path: 'p/:projectId/schedule', element: ScheduleImportPage },
+      { path: 'p/:projectId/plan', element: PlanImportPage },
       { path: 'p/:projectId/tags', element: TagsPage },
       { path: 'p/:projectId/e/:equipmentId', element: EquipmentPage },
       { path: '*', element: <NotFound /> },

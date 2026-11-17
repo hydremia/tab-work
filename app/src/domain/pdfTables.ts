@@ -186,7 +186,7 @@ const TYPE_WORDS: [RegExp, EquipmentTypeKey][] = [
 
 /** Units the app has no type for, whose titles would otherwise match one ("FAN COIL" is no fan). */
 const NO_TYPE =
-  /\b(fan coils?|fcus?|condensing units?|split systems?|mini[- ]splits?|unit heaters?|cabinet heaters?|vrf)\b/i;
+  /\b(fan coils?|fcus?|condensing units?|split systems?|mini[- ]splits?|unit heaters?|cabinet heaters?|vrf|air curtains?|duct heaters?|grilles?|registers?|diffusers?|air devices?|louv(?:er|re)s?|dampers?|silencers?|destrat\w*|paddle fans?|thermostats?|sensors?|insulation)\b/i;
 
 /**
  * Words that name a part of a unit, not the unit: a rooftop schedule's "HEAT PUMP" or "CONDENSATE PUMP" column, a
@@ -206,7 +206,7 @@ export function suggestType(text: string, known: readonly string[], header = fal
 
 /** Tag prefixes ("RTU-1" -> RTU) and the unit type they name. */
 const TAG_TYPES: [RegExp, EquipmentTypeKey][] = [
-  [/^(RTU|AHU|AH|DOAS|DOAU|DOU|DOA|DHU|OAU|ACU|AC|PKG|HP|HPU)$/, 'rtu'],
+  [/^(RTU|AHU|AH|DOAS|DOAU|DOU|DOA|DHU|OAU|ACU|AC|PKG|HP|HPU|WSHP|WLHP|GSHP|HPWS|CU)$/, 'rtu'],
   [/^(MAU|MUA|MUAU)$/, 'mau'],
   [/^(ERV|HRV|ERU)$/, 'erv'],
   [/^(EF|KEF|TF|GEF|DEF|BEF|SEF|RF|CEF|UEF|BF|F)$/, 'fan'],

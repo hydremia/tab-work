@@ -52,6 +52,10 @@ export interface SyncBackend {
   /** null: no such file (yet). */
   downloadPhoto(path: string): Promise<Blob | null>;
   deletePhoto(path: string): Promise<void>;
+  /** The same for another bucket (the plan sheets' `plans`, 0016). */
+  uploadFile(bucket: string, path: string, blob: Blob, contentType: string): Promise<void>;
+  downloadFile(bucket: string, path: string): Promise<Blob | null>;
+  deleteFile(bucket: string, path: string): Promise<void>;
   /** Live updates: called when another device pushed (Supabase Realtime). Returns the unsubscribe function. */
   subscribe?(onChange: () => void): () => void;
 }
@@ -118,3 +122,7 @@ export function toRow(c: FieldChange, userId: string, clockOffset: number, devic
 
 export const receivedMs = (r: FieldChangeRow): number =>
   typeof r.received_at === 'number' ? r.received_at : r.received_at ? Date.parse(r.received_at) : 0;
+
+/** The plans bucket and a sheet's object path in it: "<projectId>/<sheetId>.pdf". */
+export const PLANS_BUCKET = 'plans';
+export const planPath = (projectId: string, sheetId: string) => `${projectId}/${sheetId}.pdf`;

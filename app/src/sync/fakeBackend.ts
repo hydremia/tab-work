@@ -91,6 +91,20 @@ export class FakeBackend implements SyncBackend {
     this.server.remove(this.userId, path);
   }
 
+  // other buckets (the plan sheets' `plans`): the fake server has one file store with the photos' folder rule
+  // (<projectId>/…); the paths never collide (.jpg / .pdf)
+  async uploadFile(_bucket: string, path: string, blob: Blob, contentType: string): Promise<void> {
+    await this.uploadPhoto(path, blob, contentType);
+  }
+
+  async downloadFile(_bucket: string, path: string): Promise<Blob | null> {
+    return this.downloadPhoto(path);
+  }
+
+  async deleteFile(_bucket: string, path: string): Promise<void> {
+    await this.deletePhoto(path);
+  }
+
   subscribe(onChange: () => void): () => void {
     this.listeners.add(onChange);
     return () => this.listeners.delete(onChange);

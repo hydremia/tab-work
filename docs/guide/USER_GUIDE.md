@@ -468,6 +468,35 @@ app. Skipped rows aren't imported at all, so fix them and import again.
 motor, drive, misc., RPM and static sections N/A in one tap (tap again for full data). Single sections can still be
 changed with their own N/A menus.
 
+
+### Import from plan
+
+When the engineer's drawings are a PDF, the outlets can come straight off the plan: **Equipment → Import from plan**.
+
+1. **Choose the drawing** (the whole set is fine) and, when it has several pages, **the plan sheet**. The app reads the
+   sheet on your device: every air device tag (type, neck size, design CFM, *TYP n* multipliers) and where its symbol is
+   drawn. A sheet whose text was plotted as lines (older CAD output) is read by text recognition inside the tag hexagons:
+   the page says so, and you should check types and CFMs (tap a device to correct it).
+2. **Lasso a system**: tap around one unit's outlets on the sheet (zoom with *2×* / *4×*; the view scrolls), then *Done*.
+   Pick the **unit** and its **table** (Supply outlets, Return inlets, Exhaust inlets…). Devices already in another
+   system are left out of the lasso; where two systems share an aisle, **tap a device** on the sheet to add it or drop
+   it. The devices are lettered **A, B, C…** (no I or O) in walk order from the top-left one, always to the nearest
+   next; *Start here* on a row starts there. The design total is checked against the unit's design CFM.
+3. **Add rows** writes them into the unit's table: No., area served (the unit's), type, size and design CFM, marked
+   *plan import* in the history. Change the lasso or a device later and **Update rows** on the system.
+4. **Markup PDF** downloads the drawing with each system highlighted in its colour and every outlet labelled (1A, 1RB,
+   D1C…), as annotations you can keep editing in your PDF app.
+
+The sheet and its systems sync with the project like everything else; the drawing file follows once the device that
+read it is online (until then another device sees the devices and systems and a note that the drawing is on its way).
+The rows are ordinary unit data. Returns, outside air and exhaust inlets are systems of their own (pick the table).
+**Export** lists the project's drawings with a *Markup PDF* download for each.
+
+The marked-up plan goes into the report: **Export → Final report** has *Add the marked-up plan* (on by default when a
+sheet has systems). Every such sheet is appended as a page before the photo report, at the drawing's own size, and the
+table of contents' **Mechanical Floorplan** entry points at it (the export shows that entry only when a marked-up plan
+exists).
+
 ### Move a unit to another type
 
 A unit under the wrong type (a schedule table imported as the wrong type: RTUs under Pumps, a DOAS under Fans): at the

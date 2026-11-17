@@ -15,6 +15,8 @@ import type {
   Meta,
   Photo,
   PhotoUpload,
+  PlanSheet,
+  PlanUpload,
   Project,
   Revision,
   SyncConflict,
@@ -39,6 +41,8 @@ export class TabDatabase extends Dexie {
   libraryValves!: EntityTable<LibraryValve, 'id'>;
   libraryPumps!: EntityTable<LibraryPump, 'id'>;
   libraryUnits!: EntityTable<LibraryUnit, 'id'>;
+  planSheets!: EntityTable<PlanSheet, 'id'>;
+  planUploads!: EntityTable<PlanUpload, 'sheetId'>;
 
   constructor(name = 'a2b-tab') {
     super(name);
@@ -141,6 +145,10 @@ export class TabDatabase extends Dexie {
     this.version(9).stores({ libraryPumps: 'id, updatedAt' });
     // v10: the shared unit configuration library (component order, documents). New table only.
     this.version(10).stores({ libraryUnits: 'id, updatedAt' });
+    // v11: plan sheets read for a project (this device only). New table only.
+    this.version(11).stores({ planSheets: 'id, projectId' });
+    // v12: plan sheets sync (0016): the file upload / download queue. New table only.
+    this.version(12).stores({ planUploads: 'sheetId, projectId, status' });
   }
 }
 
