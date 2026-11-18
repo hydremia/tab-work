@@ -137,6 +137,30 @@ describe('markup import', () => {
     ]);
   });
 
+  it('a TYP group stacked at its tag still serves labels spread along the duct (second pass, wider reach)', () => {
+    // "(TYP 5) 12x8 SR1 285" at (773, 1328): the reader placed all five at the tag; the tech's labels run 200 pt
+    const typ = (key: string, index: number): PlanSheetDevice => ({
+      ...dev(key, 773, 1328, 'SR1', 285),
+      count: 5,
+      index,
+    });
+    const devices = [
+      typ('t-0', 0),
+      typ('t-1', 1),
+      typ('t-2', 2),
+      typ('t-3', 3),
+      typ('t-4', 4),
+      dev('x', 1200, 1328, 'S1', 400),
+    ];
+    const labels = ['3A', '3B', '3C', '3D', '3E'].map((t, i) => label(t, 700 + i * 60, i % 2 ? 1350 : 1300));
+    const [s] = markupSystems(labels, [], [unit('RTU-3')], devices);
+    expect(s.items.map((i) => i.device?.cfm)).toEqual([285, 285, 285, 285, 285]);
+    expect(new Set(s.items.map((i) => i.device?.key)).size).toBe(5);
+    // a single device far away is not taken by the second pass
+    const [s2] = markupSystems([label('3A', 700, 1300)], [], [unit('RTU-3')], [dev('x', 1000, 1300, 'S1', 400)]);
+    expect(s2.items[0].device).toBeNull();
+  });
+
   it('a repeated letter is reported; an unknown unit number leaves the unit open', () => {
     const systems = markupSystems(
       [label('3A', 0, 0), label('3A', 50, 0), label('3B', 100, 0)],
