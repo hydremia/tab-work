@@ -7,7 +7,7 @@
  */
 import { PDFDocument, PDFString, rgb, StandardFonts, type PDFFont, type PDFPage, type PDFRef } from 'pdf-lib';
 import type { Equipment, PlanSheet } from '../data/types';
-import { deviceLabel } from '../domain/planSystems';
+import { systemLabel } from '../domain/planSystems';
 
 const hex = (c: string): [number, number, number] => {
   const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c.trim());
@@ -34,7 +34,7 @@ export function sheetMarks(sheet: PlanSheet, equipment: readonly Pick<Equipment,
     name: `${equipment.find((e) => e.id === s.equipmentId)?.designation ?? s.prefix} ${s.table}`,
     labels: s.deviceKeys.flatMap((k, i) => {
       const d = byKey.get(k);
-      return d ? [{ x: d.x, y: d.y, text: deviceLabel(s.prefix, i) }] : [];
+      return d ? [{ x: d.x, y: d.y, text: systemLabel(s, i) }] : [];
     }),
   }));
 }
