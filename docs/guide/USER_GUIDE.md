@@ -480,8 +480,9 @@ When the engineer's drawings are a PDF, the outlets can come straight off the pl
 2. **Lasso a system**: tap around one unit's outlets on the sheet (zoom with *2×* / *4×*; the view scrolls), then *Done*.
    Pick the **unit** and its **table** (Supply outlets, Return inlets, Exhaust inlets…). Devices already in another
    system are left out of the lasso; where two systems share an aisle, **tap a device** on the sheet to add it or drop
-   it. The devices are lettered **A, B, C…** (no I or O) in walk order from the top-left one, always to the nearest
-   next; *Start here* on a row starts there. The design total is checked against the unit's design CFM.
+   it. The devices are lettered **A, B, C…** in walk order from the top-left one, always to the nearest next; *Start
+   here* on a row starts there. The letters skip **I and O**, the a2b convention, because they read as 1 and 0 in the
+   field: a 15-outlet system runs A–H, J–N, P–Q. The design total is checked against the unit's design CFM.
 3. **Add rows** writes them into the unit's table: No., area served (the unit's), type, size and design CFM, marked
    *plan import* in the history. Change the lasso or a device later and **Update rows** on the system.
 4. **Markup PDF** downloads the drawing with each system highlighted in its colour and every outlet labelled (1A, 1RB,
