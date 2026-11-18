@@ -111,6 +111,11 @@ export interface MarkupSystem {
 export interface MarkupImportOptions {
   /** a label's device is within this of it (points) */
   reach?: number;
+  /**
+   * a label with no device within `reach` may take an unclaimed device of a TYP group (several devices from one tag,
+   * which the plan reader may have placed at the tag rather than along the duct) within this (points)
+   */
+  typReach?: number;
 }
 
 /** The table a side letter names, else the unit's first tolerance table. */
@@ -146,6 +151,7 @@ export function markupSystems(
     parsed.map((x) => x.l),
     devices,
     reach,
+    opts.typReach ?? 320,
   );
   const out: MarkupSystem[] = [];
   let k = 0;
@@ -231,23 +237,36 @@ export function assignLabels(
   labels: readonly MarkupLabel[],
   devices: readonly PlanSheetDevice[],
   reach: number,
+  typReach = 0,
 ): Map<MarkupLabel, { d: PlanSheetDevice; dist: number }> {
   const out = new Map<MarkupLabel, { d: PlanSheetDevice; dist: number }>();
   if (!labels.length || !devices.length) return out;
-  const BIG = 1e6;
-  const n = Math.max(labels.length, devices.length);
-  const cost: number[][] = Array.from({ length: n }, (_, i) =>
-    Array.from({ length: n }, (_, j) => {
-      if (i >= labels.length || j >= devices.length) return BIG;
-      const dist = Math.hypot(devices[j].x - labels[i].x, devices[j].y - labels[i].y);
-      return dist <= reach ? dist : BIG;
-    }),
-  );
-  const assignment = hungarian(cost);
-  assignment.forEach((j, i) => {
-    if (i < labels.length && j < devices.length && cost[i][j] < BIG)
-      out.set(labels[i], { d: devices[j], dist: cost[i][j] });
-  });
+  const pass = (ls: readonly MarkupLabel[], ds: readonly PlanSheetDevice[], within: number) => {
+    if (!ls.length || !ds.length) return;
+    const BIG = 1e6;
+    const n = Math.max(ls.length, ds.length);
+    const cost: number[][] = Array.from({ length: n }, (_, i) =>
+      Array.from({ length: n }, (_, j) => {
+        if (i >= ls.length || j >= ds.length) return BIG;
+        const dist = Math.hypot(ds[j].x - ls[i].x, ds[j].y - ls[i].y);
+        return dist <= within ? dist : BIG;
+      }),
+    );
+    hungarian(cost).forEach((j, i) => {
+      if (i < ls.length && j < ds.length && cost[i][j] < BIG) out.set(ls[i], { d: ds[j], dist: cost[i][j] });
+    });
+  };
+  pass(labels, devices, reach);
+  if (typReach > reach) {
+    // second pass: the labels still without a device, against the unclaimed devices of TYP groups (a "(TYP 5)" tag's
+    // five registers along a duct, which the reader may have stacked at the tag)
+    const taken = new Set([...out.values()].map((m) => m.d.key));
+    pass(
+      labels.filter((l) => !out.has(l)),
+      devices.filter((d) => d.count > 1 && !taken.has(d.key)),
+      typReach,
+    );
+  }
   return out;
 }
 
