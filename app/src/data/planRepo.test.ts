@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { db } from './db';
-import { addPlanSystem, applyPlanSystem, removePlanSystem, savePlanSheet, updatePlanDevice } from './planRepo';
+import {
+  addPlanSystem,
+  applyPlanSystem,
+  importMarkupSystems,
+  removePlanSystem,
+  savePlanSheet,
+  updatePlanDevice,
+} from './planRepo';
+import type { ParsedLabel } from '../domain/markupImport';
+import { fromMarkup } from '../domain/planSystems';
 import { addEquipment, createProject, setField } from './repo';
 import type { PlanSheetDevice } from './types';
 import { pendingChanges } from '../sync/outbox';
@@ -106,6 +115,62 @@ describe('plan sheets → airflow rows', () => {
     expect(
       (await db.airflowRows.where('equipmentId').equals(rtu.id).toArray()).filter((x) => x.table === 'supply'),
     ).toHaveLength(3);
+  });
+
+  it('a system from Import markup keeps the tech’s labels, is marked as from the markup, and writes its rows', async () => {
+    const p = await createProject({ name: 'Markup job' });
+    const wshp = await addEquipment(p.id, 'rtu', 'WSHP-3');
+    const sheet = await savePlanSheet({
+      projectId: p.id,
+      fileName: 'M101 marked.pdf',
+      pdf: new Uint8Array([1]),
+      page: 1,
+      pageCount: 1,
+      width: 1000,
+      height: 800,
+      ocr: false,
+      devices: [dev('d0-0', 100, 100, 'SR1', '12x8', 285)],
+    });
+    const parsed = (text: string, letter: string): ParsedLabel => ({
+      text,
+      letters: '',
+      number: '3',
+      side: '',
+      letter,
+      prefix: '3',
+    });
+    const r = await importMarkupSystems(sheet.id, [
+      {
+        prefix: '3',
+        unit: wshp,
+        candidates: [wshp],
+        table: 'supply',
+        polygon: [
+          [0, 0],
+          [200, 0],
+          [200, 200],
+          [0, 200],
+        ],
+        color: '#ff0000',
+        duplicates: [],
+        items: [
+          { label: parsed('3A', 'A'), x: 110, y: 100, device: sheet.devices[0], distance: 10 },
+          { label: parsed('3B', 'B'), x: 300, y: 100, device: null, distance: null },
+        ],
+      },
+    ]);
+    expect(r).toEqual({ systems: 1, rows: 2, placeholders: 1 });
+    const saved = (await db.planSheets.get(sheet.id))!;
+    expect(saved.systems[0]).toMatchObject({ source: 'markup', labels: ['3A', '3B'], prefix: '3' });
+    expect(fromMarkup(saved.systems[0])).toBe(true);
+    expect(saved.devices).toHaveLength(2); // the placeholder for 3B
+    const rows = (await db.airflowRows.where('equipmentId').equals(wshp.id).toArray()).sort(
+      (a, b) => a.order - b.order,
+    );
+    expect(rows.map((x) => [x.data.no, x.data.type, x.data.designCfm ?? null])).toEqual([
+      ['A', 'SR1', 285],
+      ['B', '', null],
+    ]);
   });
 
   it('refuses a table the unit does not have', async () => {

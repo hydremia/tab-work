@@ -24,6 +24,7 @@ import {
   deviceLabel,
   devicesInLasso,
   nextSystemColor,
+  fromMarkup,
   systemLabel,
   systemPrefix,
   walkOrder,
@@ -378,6 +379,18 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
     }
   }
 
+  /** The drawing file as it was read (a tech's own markup included), to open in a PDF app. */
+  async function drawing() {
+    setError(null);
+    try {
+      const { downloadFile } = await import('../../reports/generate');
+      if (!sheet.pdf) throw new Error('The drawing has not been downloaded on this device yet.');
+      downloadFile(sheet.pdf, sheet.fileName, 'application/pdf');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   async function markup() {
     setBusy(true);
     setError(null);
@@ -506,7 +519,18 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
         <button
           type="button"
           className="btn"
-          disabled={busy || !sheet.systems.length}
+          disabled={!sheet.pdf}
+          title="The drawing file as it was read, your own markup included"
+          onClick={() => void drawing()}
+          data-testid="plan-drawing"
+        >
+          Drawing PDF
+        </button>
+        <button
+          type="button"
+          className="btn"
+          disabled={busy || !sheet.systems.some((s) => !fromMarkup(s))}
+          title="The drawing with the systems lassoed in the app drawn on it (systems from your own markup are already on the drawing)"
           onClick={() => void markup()}
           data-testid="plan-markup"
         >
@@ -543,16 +567,18 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
           style={{ cursor: lasso && !closed ? 'crosshair' : 'default' }}
           data-testid="plan-overlay"
         >
-          {sheet.systems.map((s) => (
-            <polygon
-              key={s.id}
-              points={s.polygon.map((p) => p.join(',')).join(' ')}
-              fill={s.color}
-              fillOpacity={0.18}
-              stroke={s.color}
-              strokeWidth={1.5}
-            />
-          ))}
+          {sheet.systems
+            .filter((s) => !fromMarkup(s))
+            .map((s) => (
+              <polygon
+                key={s.id}
+                points={s.polygon.map((p) => p.join(',')).join(' ')}
+                fill={s.color}
+                fillOpacity={0.18}
+                stroke={s.color}
+                strokeWidth={1.5}
+              />
+            ))}
           {lasso && lasso.length > 0 && (
             <polygon
               points={lasso.map((p) => p.join(',')).join(' ')}
@@ -568,7 +594,9 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
             const inside = insideLasso.includes(d);
             const idx = ordered.indexOf(d);
             const color = sys?.system.color ?? (inside ? '#1976d2' : '#555');
-            const label = sys?.label ?? (inside && idx >= 0 ? deviceLabel('', idx) : null);
+            // a device of a system from the tech's markup: the drawing carries its tag, so only a small marker to tap
+            const marked = Boolean(sys && fromMarkup(sys.system));
+            const label = marked ? null : (sys?.label ?? (inside && idx >= 0 ? deviceLabel('', idx) : null));
             return (
               <g
                 key={d.key}
@@ -584,14 +612,14 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
                 <circle
                   cx={d.x}
                   cy={d.y}
-                  r={r}
+                  r={marked ? r * 0.5 : r}
                   fill={color}
-                  fillOpacity={0.25}
+                  fillOpacity={marked ? 0.15 : 0.25}
                   stroke={color}
-                  strokeWidth={2}
-                  strokeDasharray={d.how === 'tag' ? '3 2' : undefined}
+                  strokeWidth={marked ? 1 : 2}
+                  strokeDasharray={d.how === 'tag' && !marked ? '3 2' : undefined}
                 />
-                {d.how !== 'tag' && (
+                {d.how !== 'tag' && !marked && (
                   <line x1={d.tag.x} y1={d.tag.y} x2={d.x} y2={d.y} stroke={color} strokeWidth={0.6} opacity={0.6} />
                 )}
                 {label && (
@@ -849,6 +877,7 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
                     {label} · {s.deviceKeys.length} devices · labels {systemLabel(s, 0)}–
                     {systemLabel(s, Math.max(0, s.deviceKeys.length - 1))}
                     {written ? ` · ${written} rows written` : ' · no rows yet'}
+                    {fromMarkup(s) ? ' · from your markup' : ''}
                   </span>
                   <span className="grow" />
                   {!locked && u && (
