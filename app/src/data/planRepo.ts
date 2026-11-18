@@ -154,8 +154,9 @@ export async function applyPlanSystem(
 
 /**
  * Systems from a tech's markup (domain/markupImport.ts), each with its unit chosen: a label without a plan device gets a
- * placeholder device at the label (type and CFM to fill in), the system keeps the labels as written, and the rows are
- * written at once. Systems without a unit are skipped.
+ * placeholder device at the label (type and CFM to fill in), the system keeps the labels as written (source 'markup':
+ * the app draws nothing for it, the drawing is the markup), and the rows are written at once. Systems without a unit
+ * are skipped.
  */
 export async function importMarkupSystems(
   sheetId: string,
@@ -205,6 +206,7 @@ export async function importMarkupSystems(
         color: m.color,
         prefix: m.prefix,
         labels,
+        source: 'markup',
       },
     });
   }

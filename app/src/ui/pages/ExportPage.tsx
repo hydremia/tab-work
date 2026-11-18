@@ -6,6 +6,7 @@ import type { ReportRequest, ReportResult } from '../../reports/generate';
 import { Link, useLocation, useSearchParams } from 'react-router';
 import { useBaseWorkbook, useExportStatus, useRevisions } from '../../data/hooks';
 import { usePlanSheets } from '../../data/planRepo';
+import { fromMarkup } from '../../domain/planSystems';
 import type { Revision } from '../../data/types';
 import type { ExportResult } from '../../workbook/exportProject';
 
@@ -626,9 +627,10 @@ export function ExportPage() {
                     </Link>
                     <span className="muted">
                       {s.systems.length} system{s.systems.length === 1 ? '' : 's'}
+                      {s.systems.some(fromMarkup) ? ' · from your markup' : ''}
                       {s.pdf ? '' : ' · drawing not downloaded yet'}
                     </span>
-                    {s.systems.length > 0 && s.pdf && (
+                    {s.systems.some((x) => !fromMarkup(x)) && s.pdf && (
                       <button type="button" className="btn btn-sm" onClick={() => void downloadMarkup(s.id)}>
                         Markup PDF
                       </button>

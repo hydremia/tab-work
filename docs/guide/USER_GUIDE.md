@@ -493,7 +493,10 @@ unit number + letter (3A, 3B…; 1RA for returns, 2OB for outside air, D1B for a
 without a coloured shape round each system, tap **Import markup** on the sheet instead of lassoing. The app lists each
 group of labels with the unit it fits (change or skip it) and writes the systems and rows in the order of your letters,
 each row taking the tag nearest its label for type, size and CFM. A label with no tag nearby still makes a row, with the
-type and CFM left for you to fill in.
+type and CFM left for you to fill in. Your drawing is the markup: the app draws no shapes or labels of its own for a
+system it imported (on the sheet, in *Markup PDF* or on the report's floorplan page), only a small dot on each device to
+tap for its reading. **Drawing PDF** hands the file back as it was read, your markup included, on any device the
+project syncs to.
 
 The sheet and its systems sync with the project like everything else; the drawing file follows once the device that
 read it is online (until then another device sees the devices and systems and a note that the drawing is on its way).

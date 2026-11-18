@@ -675,6 +675,11 @@ export interface PlanSystem {
    * No. and the markup label; absent: prefix + letter in order (A, B, C …)
    */
   labels?: string[];
+  /**
+   * 'markup' when the system was read from the tech's own marked-up drawing (Import markup): the drawing already
+   * carries the highlights and tags, so the app draws nothing for it (plan page, Markup PDF, report page)
+   */
+  source?: 'markup';
   /** the airflow rows written for the devices (device key → row id), once applied */
   rowIds: Record<string, string>;
   createdAt: number;

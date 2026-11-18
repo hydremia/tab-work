@@ -151,6 +151,14 @@ export function systemPrefix(designation: string, table: string): string {
 /** The label of a device on the markup: prefix + letter ("1A", "1RB", "D1C"). */
 export const deviceLabel = (prefix: string, i: number) => `${prefix}${rowLetter(i)}`;
 
+/**
+ * Whether the system came from the tech's own markup (Import markup) rather than a lasso in the app: the drawing is
+ * the markup, so the app adds no polygon or labels of its own for it. Systems imported before `source` was recorded
+ * are told by their kept labels.
+ */
+export const fromMarkup = (system: Pick<PlanSystem, 'source' | 'labels'>) =>
+  system.source === 'markup' || Boolean(system.labels);
+
 /** A system's label for its i-th device: as the tech wrote it when the system came from a markup, else prefix + letter. */
 export const systemLabel = (system: Pick<PlanSystem, 'prefix' | 'labels'>, i: number) =>
   system.labels?.[i] ?? deviceLabel(system.prefix, i);

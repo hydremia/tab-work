@@ -4,10 +4,13 @@
  * ("1A", "1RB", "D1C") in that colour. Written as real PDF annotations (Polygon and FreeText, with appearance
  * streams so every viewer shows them), the way the a2b markups are made today, so a tech can keep editing them in
  * their PDF app; `flatten` draws them into the page instead, for a report appendix.
+ *
+ * Systems read from the tech's own markup (Import markup, `source: 'markup'`) are not drawn: their highlights and tags
+ * are already in the drawing file, which goes through as it is (its annotations kept) rather than tagged twice.
  */
 import { PDFDocument, PDFString, rgb, StandardFonts, type PDFFont, type PDFPage, type PDFRef } from 'pdf-lib';
 import type { Equipment, PlanSheet } from '../data/types';
-import { systemLabel } from '../domain/planSystems';
+import { fromMarkup, systemLabel } from '../domain/planSystems';
 
 const hex = (c: string): [number, number, number] => {
   const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c.trim());
@@ -25,18 +28,23 @@ interface Mark {
   name: string;
 }
 
-/** The marks of a sheet: polygons in page points (y downwards) with each device's label at its place. */
+/**
+ * The marks of a sheet: polygons in page points (y downwards) with each device's label at its place, for the systems
+ * lassoed in the app (a system from the tech's markup is already on the drawing).
+ */
 export function sheetMarks(sheet: PlanSheet, equipment: readonly Pick<Equipment, 'id' | 'designation'>[]): Mark[] {
   const byKey = new Map(sheet.devices.map((d) => [d.key, d]));
-  return sheet.systems.map((s) => ({
-    polygon: s.polygon,
-    color: hex(s.color),
-    name: `${equipment.find((e) => e.id === s.equipmentId)?.designation ?? s.prefix} ${s.table}`,
-    labels: s.deviceKeys.flatMap((k, i) => {
-      const d = byKey.get(k);
-      return d ? [{ x: d.x, y: d.y, text: systemLabel(s, i) }] : [];
-    }),
-  }));
+  return sheet.systems
+    .filter((s) => !fromMarkup(s))
+    .map((s) => ({
+      polygon: s.polygon,
+      color: hex(s.color),
+      name: `${equipment.find((e) => e.id === s.equipmentId)?.designation ?? s.prefix} ${s.table}`,
+      labels: s.deviceKeys.flatMap((k, i) => {
+        const d = byKey.get(k);
+        return d ? [{ x: d.x, y: d.y, text: systemLabel(s, i) }] : [];
+      }),
+    }));
 }
 
 /** A label's box (PDF user space, y up) beside its device: right of the marker, vertically centred. */
