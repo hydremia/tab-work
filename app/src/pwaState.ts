@@ -56,16 +56,25 @@ export async function applyUpdate(): Promise<void> {
   else window.location.reload();
 }
 
-let checkFn: (() => Promise<boolean>) | null = null;
+/** What the service worker check found: a version waiting (true), none (false), or one still downloading. */
+export type CheckerResult = boolean | 'installing';
+let checkFn: (() => Promise<CheckerResult>) | null = null;
 
 /** src/pwa.ts: asks the server for a newer version; resolves true when one is downloaded and waiting. */
-export function setUpdateChecker(fn: () => Promise<boolean>): void {
+export function setUpdateChecker(fn: () => Promise<CheckerResult>): void {
   checkFn = fn;
 }
 
-export type UpdateCheck = 'available' | 'current' | 'offline' | 'unsupported';
+export type UpdateCheck = 'available' | 'current' | 'installing' | 'failed' | 'offline' | 'unsupported';
 
-/** "Check for updates": a newer version shows the update toast again (even after "Later"). */
+/** The last failed check's error, for the message ("Check for updates" shows it). */
+export let lastCheckError: string | null = null;
+
+/**
+ * "Check for updates": a newer version shows the update toast again (even after "Later"). A version still
+ * downloading (a phone on a slow connection: the whole app shell comes down before it counts as waiting) is reported
+ * as such rather than as "the latest", and a failed fetch of the new version as failed rather than as offline.
+ */
 export async function checkForUpdate(): Promise<UpdateCheck> {
   if (state.needRefresh) {
     set({ updateDismissed: false });
@@ -73,12 +82,19 @@ export async function checkForUpdate(): Promise<UpdateCheck> {
   }
   if (typeof navigator !== 'undefined' && !navigator.onLine) return 'offline';
   if (!checkFn) return 'unsupported';
-  const waiting = await checkFn();
-  if (waiting || state.needRefresh) {
+  let found: CheckerResult;
+  try {
+    found = await checkFn();
+  } catch (e) {
+    lastCheckError = e instanceof Error ? e.message : String(e);
+    return 'failed';
+  }
+  lastCheckError = null;
+  if (found === true || state.needRefresh) {
     set({ updateDismissed: false });
     return 'available';
   }
-  return 'current';
+  return found === 'installing' ? 'installing' : 'current';
 }
 
 export function dismissUpdate(): void {
