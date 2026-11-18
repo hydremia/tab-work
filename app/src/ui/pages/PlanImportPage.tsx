@@ -10,18 +10,21 @@ import {
   addPlanSystem,
   applyPlanSystem,
   deletePlanSheet,
+  importMarkupSystems,
   removePlanSystem,
   savePlanSheet,
   updatePlanDevice,
   usePlanSheets,
 } from '../../data/planRepo';
 import type { Equipment, PlanSheet, PlanSheetDevice, PlanSystem } from '../../data/types';
+import type { MarkupSystem } from '../../domain/markupImport';
 import { EQUIPMENT_TYPES } from '../../domain/equipmentTypes';
 import {
   designCheck,
   deviceLabel,
   devicesInLasso,
   nextSystemColor,
+  systemLabel,
   systemPrefix,
   walkOrder,
   type Pt,
@@ -246,6 +249,9 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
   const [startKey, setStartKey] = useState<string | null>(null);
   // devices tapped into / out of the selection after the lasso closed (interleaved systems)
   const [extra, setExtra] = useState<ReadonlySet<string>>(new Set());
+  // a tech's markup read from the PDF, awaiting the units' confirmation
+  const [markupFound, setMarkupFound] = useState<MarkupSystem[] | null>(null);
+  const [markupUnits, setMarkupUnits] = useState<Record<string, string>>({});
   const [dropped, setDropped] = useState<ReadonlySet<string>>(new Set());
   const [picked, setPicked] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -289,8 +295,7 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
 
   const inSystem = useMemo(() => {
     const m = new Map<string, { system: PlanSystem; label: string }>();
-    for (const s of sheet.systems)
-      s.deviceKeys.forEach((k, i) => m.set(k, { system: s, label: deviceLabel(s.prefix, i) }));
+    for (const s of sheet.systems) s.deviceKeys.forEach((k, i) => m.set(k, { system: s, label: systemLabel(s, i) }));
     return m;
   }, [sheet.systems]);
 
@@ -391,6 +396,58 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
     }
   }
 
+  async function readMarkup() {
+    if (!sheet.pdf) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const [{ readPlanAnnotations }, { markupSystems }] = await Promise.all([
+        import('../../workbook/pdfAnnotations'),
+        import('../../domain/markupImport'),
+      ]);
+      const { labels, shapes } = await readPlanAnnotations(sheet.pdf, sheet.page);
+      const found = markupSystems(labels, shapes, equipment, sheet.devices);
+      if (!found.length)
+        setError(
+          labels.length
+            ? `${labels.length} text box${labels.length === 1 ? '' : 'es'} on the sheet, none reads as an outlet label (3A, 1RA, D1B…).`
+            : 'No markup on this page: no text boxes or shapes were found in the PDF.',
+        );
+      setMarkupFound(found);
+      setMarkupUnits(Object.fromEntries(found.map((f) => [f.prefix, f.unit?.id ?? ''])));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createFromMarkup() {
+    if (!markupFound) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const chosen = markupFound.map((f) => ({
+        ...f,
+        unit: equipment.find((e) => e.id === markupUnits[f.prefix]) ?? null,
+      }));
+      const r = await importMarkupSystems(sheet.id, chosen);
+      setMessage(
+        `${r.systems} system${r.systems === 1 ? '' : 's'} and ${r.rows} row${r.rows === 1 ? '' : 's'} from the markup` +
+          (r.placeholders
+            ? ` (${r.placeholders} label${r.placeholders === 1 ? '' : 's'} without a tag nearby: type and CFM to fill in)`
+            : '') +
+          '.',
+      );
+      setMarkupFound(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const unitName = (id: string) => equipment.find((e) => e.id === id)?.designation ?? '?';
   const r = 7; // marker radius, page points
 
@@ -435,6 +492,17 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
           </>
         )}
         <span className="grow" />
+        {!locked && (
+          <button
+            type="button"
+            className="btn"
+            disabled={busy || !sheet.pdf}
+            onClick={() => void readMarkup()}
+            data-testid="plan-import-markup"
+          >
+            Import markup
+          </button>
+        )}
         <button
           type="button"
           className="btn"
@@ -675,6 +743,83 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
         </section>
       )}
 
+      {markupFound && markupFound.length > 0 && (
+        <section className="card card-pad stack" data-testid="plan-markup-import">
+          <h2 className="section-head" style={{ margin: 0 }}>
+            Markup found: {markupFound.length} system{markupFound.length === 1 ? '' : 's'}
+          </h2>
+          <p className="small muted" style={{ margin: 0 }}>
+            Each group of labels becomes a system on the unit below, its rows in the order of the letters. A label with
+            no tag nearby still makes a row, with the type and CFM left to fill in.
+          </p>
+          <div className="preview-wrap">
+            <table className="preview-table">
+              <thead>
+                <tr>
+                  <th>Labels</th>
+                  <th>Unit</th>
+                  <th>Table</th>
+                  <th>Matched</th>
+                </tr>
+              </thead>
+              <tbody>
+                {markupFound.map((f) => {
+                  const matched = f.items.filter((i) => i.device).length;
+                  const letters = f.items.map((i) => i.label.letter).join(' ');
+                  return (
+                    <tr key={f.prefix} data-testid={`markup-group-${f.prefix}`}>
+                      <td>
+                        <span
+                          className="plan-swatch"
+                          style={{ background: f.color, marginRight: 6 }}
+                          aria-hidden="true"
+                        />
+                        <strong>{f.prefix}</strong> · {letters}
+                        {f.duplicates.length > 0 && (
+                          <span className="small field-warning"> repeated: {f.duplicates.join(', ')}</span>
+                        )}
+                      </td>
+                      <td>
+                        <select
+                          className="select"
+                          value={markupUnits[f.prefix] ?? ''}
+                          onChange={(e) => setMarkupUnits({ ...markupUnits, [f.prefix]: e.target.value })}
+                          aria-label={`Unit for ${f.prefix}`}
+                        >
+                          <option value="">Skip</option>
+                          {units.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.designation}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>{f.table}</td>
+                      <td>
+                        {matched} of {f.items.length}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="row" style={{ gap: 8 }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy || !Object.values(markupUnits).some(Boolean)}
+              onClick={() => void createFromMarkup()}
+              data-testid="plan-markup-create"
+            >
+              Create systems and rows
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={() => setMarkupFound(null)}>
+              Cancel
+            </button>
+          </div>
+        </section>
+      )}
       {message && (
         <div className="callout" data-tone="note" role="status">
           {message}
@@ -701,8 +846,8 @@ function SheetView({ sheet, equipment, locked }: { sheet: PlanSheet; equipment: 
                   <span className="plan-swatch" style={{ background: s.color }} aria-hidden="true" />
                   <strong>{u?.designation ?? 'removed unit'}</strong>
                   <span className="small muted">
-                    {label} · {s.deviceKeys.length} devices · labels {s.prefix}A–
-                    {deviceLabel(s.prefix, Math.max(0, s.deviceKeys.length - 1))}
+                    {label} · {s.deviceKeys.length} devices · labels {systemLabel(s, 0)}–
+                    {systemLabel(s, Math.max(0, s.deviceKeys.length - 1))}
                     {written ? ` · ${written} rows written` : ' · no rows yet'}
                   </span>
                   <span className="grow" />

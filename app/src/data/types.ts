@@ -670,6 +670,11 @@ export interface PlanSystem {
   color: string;
   /** label prefix on the markup: "1" for RTU-1's outlets ("1A"), "1R" for its returns */
   prefix: string;
+  /**
+   * the labels as written, one per device key, when the system came from a tech's markup (Import markup): the row
+   * No. and the markup label; absent: prefix + letter in order (A, B, C …)
+   */
+  labels?: string[];
   /** the airflow rows written for the devices (device key → row id), once applied */
   rowIds: Record<string, string>;
   createdAt: number;

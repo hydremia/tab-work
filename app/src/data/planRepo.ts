@@ -7,11 +7,12 @@
  */
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getSpec } from '../domain/specs';
-import { rowsForDevices, type PlanRowData } from '../domain/planSystems';
+import { rowsForDevices, systemRowNo, type PlanRowData } from '../domain/planSystems';
+import type { MarkupSystem } from '../domain/markupImport';
 import { queuePlanDelete, queuePlanUpload } from '../sync/planSync';
 import { db } from './db';
 import { addAirflowRow, createRecord, deleteRecord, setField } from './repo';
-import type { Equipment, PlanSheet, PlanSystem } from './types';
+import type { Equipment, PlanSheet, PlanSheetDevice, PlanSystem } from './types';
 import { uuid } from './uuid';
 
 export function usePlanSheets(projectId: string | undefined): PlanSheet[] | undefined {
@@ -117,7 +118,11 @@ export async function applyPlanSystem(
   if (!table) throw new Error(`${unit.designation} has no ${system.table} table`);
   const byKey = new Map(sheet.devices.map((d) => [d.key, d]));
   const devices = system.deviceKeys.map((k) => byKey.get(k)).filter((d): d is NonNullable<typeof d> => Boolean(d));
-  const rows = rowsForDevices(devices, areaOf(unit));
+  const rows = rowsForDevices(
+    devices,
+    areaOf(unit),
+    system.deviceKeys.map((_, i) => systemRowNo(system, i)).filter((_, i) => Boolean(byKey.get(system.deviceKeys[i]))),
+  );
   const rowIds = { ...system.rowIds };
   let created = 0;
   let updated = 0;
@@ -145,4 +150,70 @@ export async function applyPlanSystem(
   }
   await updatePlanSystem(sheetId, systemId, { rowIds });
   return { created, updated, rows };
+}
+
+/**
+ * Systems from a tech's markup (domain/markupImport.ts), each with its unit chosen: a label without a plan device gets a
+ * placeholder device at the label (type and CFM to fill in), the system keeps the labels as written, and the rows are
+ * written at once. Systems without a unit are skipped.
+ */
+export async function importMarkupSystems(
+  sheetId: string,
+  systems: readonly (MarkupSystem & { unit: Equipment | null })[],
+): Promise<{ systems: number; rows: number; placeholders: number }> {
+  const sheet = await db.planSheets.get(sheetId);
+  if (!sheet) throw new Error('sheet not found');
+  let placeholders = 0;
+  const added: PlanSheetDevice[] = [];
+  const made: { system: Omit<PlanSystem, 'id' | 'createdAt' | 'rowIds'> }[] = [];
+  for (const m of systems) {
+    if (!m.unit) continue;
+    const keys: string[] = [];
+    const labels: string[] = [];
+    m.items.forEach((it, i) => {
+      let key = it.device?.key;
+      if (!key) {
+        key = `m-${m.prefix}-${it.label.letter}-${i}`;
+        added.push({
+          key,
+          tag: {
+            x: it.x,
+            y: it.y,
+            box: { x0: it.x - 6, y0: it.y - 6, x1: it.x + 6, y1: it.y + 6 },
+            lines: [it.label.text],
+          },
+          type: '',
+          size: null,
+          cfm: null,
+          x: it.x,
+          y: it.y,
+          how: 'tag',
+          count: 1,
+          index: 0,
+        });
+        placeholders++;
+      }
+      keys.push(key);
+      labels.push(it.label.text.toUpperCase().replace(/\s+/g, ''));
+    });
+    made.push({
+      system: {
+        equipmentId: m.unit.id,
+        table: m.table,
+        polygon: m.polygon,
+        deviceKeys: keys,
+        color: m.color,
+        prefix: m.prefix,
+        labels,
+      },
+    });
+  }
+  if (added.length) await updatePlanSheet(sheetId, { devices: [...sheet.devices, ...added] });
+  let rows = 0;
+  for (const { system } of made) {
+    const rec = await addPlanSystem(sheetId, system);
+    const r = await applyPlanSystem(sheetId, rec.id);
+    rows += r.created + r.updated;
+  }
+  return { systems: made.length, rows, placeholders };
 }

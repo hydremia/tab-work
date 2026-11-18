@@ -85,9 +85,13 @@ export interface PlanRowData {
 }
 
 /** The rows a system's devices make, in order: letter, area served (the unit's), type, size, design CFM. */
-export function rowsForDevices(devices: readonly PlanSheetDevice[], area: string | null): PlanRowData[] {
+export function rowsForDevices(
+  devices: readonly PlanSheetDevice[],
+  area: string | null,
+  nos?: readonly string[],
+): PlanRowData[] {
   return devices.map((d, i) => ({
-    no: rowLetter(i),
+    no: nos?.[i] ?? rowLetter(i),
     area: area ?? null,
     type: d.type,
     size: reportSize(d.size),
@@ -146,3 +150,16 @@ export function systemPrefix(designation: string, table: string): string {
 
 /** The label of a device on the markup: prefix + letter ("1A", "1RB", "D1C"). */
 export const deviceLabel = (prefix: string, i: number) => `${prefix}${rowLetter(i)}`;
+
+/** A system's label for its i-th device: as the tech wrote it when the system came from a markup, else prefix + letter. */
+export const systemLabel = (system: Pick<PlanSystem, 'prefix' | 'labels'>, i: number) =>
+  system.labels?.[i] ?? deviceLabel(system.prefix, i);
+
+/** The row No. of a system's i-th device: the tech's letter (the label without the prefix) or A, B, C … */
+export const systemRowNo = (system: Pick<PlanSystem, 'prefix' | 'labels'>, i: number) => {
+  const l = system.labels?.[i];
+  if (!l) return rowLetter(i);
+  return l.toUpperCase().startsWith(system.prefix.toUpperCase()) && l.length > system.prefix.length
+    ? l.slice(system.prefix.length)
+    : l;
+};

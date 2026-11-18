@@ -487,6 +487,13 @@ When the engineer's drawings are a PDF, the outlets can come straight off the pl
 4. **Markup PDF** downloads the drawing with each system highlighted in its colour and every outlet labelled (1A, 1RB,
    D1C…), as annotations you can keep editing in your PDF app.
 
+**Marked the drawing yourself?** If you labelled the outlets in your PDF app the a2b way, a text box per outlet reading
+unit number + letter (3A, 3B…; 1RA for returns, 2OB for outside air, D1B for a DOAS, E1C for an exhaust fan), with or
+without a coloured shape round each system, tap **Import markup** on the sheet instead of lassoing. The app lists each
+group of labels with the unit it fits (change or skip it) and writes the systems and rows in the order of your letters,
+each row taking the tag nearest its label for type, size and CFM. A label with no tag nearby still makes a row, with the
+type and CFM left for you to fill in.
+
 The sheet and its systems sync with the project like everything else; the drawing file follows once the device that
 read it is online (until then another device sees the devices and systems and a note that the drawing is on its way).
 The rows are ordinary unit data. Returns, outside air and exhaust inlets are systems of their own (pick the table).
