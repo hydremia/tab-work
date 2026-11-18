@@ -23,6 +23,7 @@ export function registerPwa(): void {
       onRegisteredSW: (_url, registration) => {
         if (!registration) return;
         setUpdateChecker(async () => {
+          if (registration.waiting) return true;
           await registration.update();
           const w = registration.installing;
           if (w)
@@ -35,7 +36,9 @@ export function registerPwa(): void {
                 }
               });
             });
-          return Boolean(registration.waiting);
+          if (registration.waiting) return true;
+          // still downloading after the wait (a slow connection): say so, not "the latest"
+          return registration.installing ? 'installing' : false;
         });
         setInterval(() => {
           if (navigator.onLine && !registration.installing) void registration.update().catch(() => undefined);

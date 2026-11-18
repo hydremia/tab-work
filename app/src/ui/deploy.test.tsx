@@ -111,6 +111,26 @@ describe('update toast', () => {
 });
 
 describe('version and Check for updates', () => {
+  it('a version still downloading is reported as such, and a failed fetch as failed, not as the latest', async () => {
+    const user = userEvent.setup();
+    let mode: 'installing' | 'fail' | 'none' = 'installing';
+    setUpdateChecker(async () => {
+      if (mode === 'fail') throw new Error('Failed to fetch sw.js');
+      return mode === 'installing' ? 'installing' : false;
+    });
+    renderAt('/');
+    await screen.findByTestId('app-build');
+    await user.click(screen.getByTestId('check-update'));
+    expect(await screen.findByTestId('check-update-result')).toHaveTextContent('new version is downloading');
+    mode = 'fail';
+    await user.click(screen.getByTestId('check-update'));
+    expect(await screen.findByTestId('check-update-result')).toHaveTextContent('update check failed');
+    expect(screen.getByTestId('check-update-result')).toHaveTextContent('Failed to fetch sw.js');
+    mode = 'none';
+    await user.click(screen.getByTestId('check-update'));
+    expect(await screen.findByTestId('check-update-result')).toHaveTextContent('latest version');
+  });
+
   it('shows the build; "Check for updates" says latest, or brings the update toast back', async () => {
     const user = userEvent.setup();
     let next = false;

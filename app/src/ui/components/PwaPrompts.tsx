@@ -3,6 +3,7 @@ import { APP_BUILD } from '../../buildInfo';
 import {
   applyUpdate,
   checkForUpdate,
+  lastCheckError,
   type UpdateCheck,
   dismissInstallHint,
   dismissUpdate,
@@ -103,6 +104,8 @@ export function UpdateToast() {
 const CHECK_TEXT: Record<UpdateCheck, string> = {
   available: 'A new version is ready: tap Reload in the message at the bottom.',
   current: 'This is the latest version.',
+  installing: 'A new version is downloading. Keep the app open (Wi-Fi helps) and check again in a minute.',
+  failed: 'The update check failed: the new version could not be fetched. Try again on Wi-Fi.',
   offline: 'Offline: connect to check for updates.',
   unsupported: 'Updates are checked when the app is opened from its web address.',
 };
@@ -117,7 +120,7 @@ export function AppVersion() {
     try {
       setResult(await checkForUpdate());
     } catch {
-      setResult('offline');
+      setResult(typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'failed');
     } finally {
       setBusy(false);
     }
@@ -138,7 +141,7 @@ export function AppVersion() {
       </button>
       {result && (
         <span role="status" data-testid="check-update-result">
-          {CHECK_TEXT[result]}
+          {CHECK_TEXT[result] + (result === 'failed' && lastCheckError ? ` (${lastCheckError})` : '')}
         </span>
       )}
     </div>
